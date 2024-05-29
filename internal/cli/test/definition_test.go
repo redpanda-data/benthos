@@ -7,10 +7,10 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/benthosdev/benthos/v4/internal/cli/test"
-	"github.com/benthosdev/benthos/v4/internal/config"
-	dtest "github.com/benthosdev/benthos/v4/internal/config/test"
-	"github.com/benthosdev/benthos/v4/internal/log"
+	"github.com/redpanda-data/benthos/v4/internal/cli/test"
+	"github.com/redpanda-data/benthos/v4/internal/config"
+	dtest "github.com/redpanda-data/benthos/v4/internal/config/test"
+	"github.com/redpanda-data/benthos/v4/internal/log"
 )
 
 func TestDefinitionFail(t *testing.T) {

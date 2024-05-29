@@ -3,7 +3,7 @@ package service
 import (
 	"gopkg.in/yaml.v3"
 
-	"github.com/benthosdev/benthos/v4/internal/docs"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
 )
 
 // StreamConfigMarshaller provides utilities for marshalling stream configs,

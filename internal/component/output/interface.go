@@ -3,7 +3,7 @@ package output
 import (
 	"context"
 
-	"github.com/benthosdev/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/internal/message"
 )
 
 // Sync is a common interface implemented by outputs and provides synchronous

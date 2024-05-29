@@ -3,7 +3,7 @@ package processor
 import (
 	"context"
 
-	"github.com/benthosdev/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/internal/message"
 )
 
 // V1 is a common interface implemented by processors. The implementation of a

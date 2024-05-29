@@ -3,7 +3,7 @@ package template
 import (
 	"github.com/urfave/cli/v2"
 
-	"github.com/benthosdev/benthos/v4/internal/cli/common"
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 )
 
 // CliCommand is a cli.Command definition for interacting with templates.

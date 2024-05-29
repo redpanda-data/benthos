@@ -1,8 +1,8 @@
 package api
 
 import (
-	"github.com/benthosdev/benthos/v4/internal/docs"
-	"github.com/benthosdev/benthos/v4/internal/httpserver"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
+	"github.com/redpanda-data/benthos/v4/internal/httpserver"
 )
 
 const (

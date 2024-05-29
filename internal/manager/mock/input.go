@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/benthosdev/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/internal/message"
 )
 
 // Input provides a mocked input implementation.

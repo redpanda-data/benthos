@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/benthosdev/benthos/v4/public/service"
+	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
 var _ service.Cache = (*noopCacheAdapter)(nil)

@@ -3,7 +3,7 @@ package service
 import (
 	"fmt"
 
-	"github.com/benthosdev/benthos/v4/internal/log"
+	"github.com/redpanda-data/benthos/v4/internal/log"
 )
 
 // Logger allows plugin authors to write custom logs from components that are

@@ -1,8 +1,8 @@
 package common
 
 import (
-	"github.com/benthosdev/benthos/v4/internal/config"
-	"github.com/benthosdev/benthos/v4/internal/filepath/ifs"
+	"github.com/redpanda-data/benthos/v4/internal/config"
+	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 
 	"github.com/urfave/cli/v2"
 )

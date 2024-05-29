@@ -14,8 +14,8 @@ import (
 	"github.com/gorilla/mux"
 	yaml "gopkg.in/yaml.v3"
 
-	"github.com/benthosdev/benthos/v4/internal/component/metrics"
-	"github.com/benthosdev/benthos/v4/internal/log"
+	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
+	"github.com/redpanda-data/benthos/v4/internal/log"
 )
 
 // OptFunc applies an option to an API type during construction.

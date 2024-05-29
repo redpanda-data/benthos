@@ -4,7 +4,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/benthosdev/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/internal/message"
 )
 
 // AckFn is a function provided to a scanner that it should call once the

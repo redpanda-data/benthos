@@ -10,9 +10,9 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/benthosdev/benthos/v4/internal/cli/common"
-	"github.com/benthosdev/benthos/v4/internal/config/schema"
-	"github.com/benthosdev/benthos/v4/internal/cuegen"
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
+	"github.com/redpanda-data/benthos/v4/internal/config/schema"
+	"github.com/redpanda-data/benthos/v4/internal/cuegen"
 )
 
 func listCliCommand(opts *common.CLIOpts) *cli.Command {

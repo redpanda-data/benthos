@@ -3,8 +3,8 @@ package service
 import (
 	"gopkg.in/yaml.v3"
 
-	"github.com/benthosdev/benthos/v4/internal/docs"
-	"github.com/benthosdev/benthos/v4/internal/template"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
+	"github.com/redpanda-data/benthos/v4/internal/template"
 )
 
 // StreamTemplateTester provides utilities for testing templates.

@@ -5,8 +5,8 @@ package servicetest
 import (
 	"context"
 
-	"github.com/benthosdev/benthos/v4/internal/cli"
-	"github.com/benthosdev/benthos/v4/internal/cli/common"
+	"github.com/redpanda-data/benthos/v4/internal/cli"
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 )
 
 // RunCLIWithArgs executes Benthos as a CLI with an explicit set of arguments.

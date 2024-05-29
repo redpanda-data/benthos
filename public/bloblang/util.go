@@ -3,7 +3,7 @@ package bloblang
 import (
 	"time"
 
-	"github.com/benthosdev/benthos/v4/internal/value"
+	"github.com/redpanda-data/benthos/v4/internal/value"
 )
 
 // ValueToString converts any value into a string according to the same rules

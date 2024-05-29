@@ -1,7 +1,7 @@
 package batchconfig
 
 import (
-	"github.com/benthosdev/benthos/v4/internal/component/processor"
+	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 )
 
 // Config contains configuration parameters for a batch policy.

@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"github.com/benthosdev/benthos/v4/internal/bloblang/mapping"
-	"github.com/benthosdev/benthos/v4/internal/bloblang/query"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang/mapping"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang/query"
 )
 
 func rootLevelIfExpressionParser(pCtx Context) Func[mapping.Statement] {

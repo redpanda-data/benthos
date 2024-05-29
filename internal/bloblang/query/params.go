@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/benthosdev/benthos/v4/internal/value"
+	"github.com/redpanda-data/benthos/v4/internal/value"
 )
 
 // ParamDefinition describes a single parameter for a function or method.

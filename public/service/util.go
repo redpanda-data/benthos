@@ -5,8 +5,8 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/benthosdev/benthos/v4/internal/filepath"
-	"github.com/benthosdev/benthos/v4/internal/filepath/ifs"
+	"github.com/redpanda-data/benthos/v4/internal/filepath"
+	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 )
 
 // ReadFile opens a file from an fs.FS and reads all bytes. When the OpenFile

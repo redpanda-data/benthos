@@ -11,7 +11,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/benthosdev/benthos/v4/internal/cli/common"
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 )
 
 func pullCommand(cliOpts *common.CLIOpts) *cli.Command {
