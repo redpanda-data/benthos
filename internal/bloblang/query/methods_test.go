@@ -952,23 +952,6 @@ func TestMethods(t *testing.T) {
 			},
 			output: `68656c6c6f20776f726c64`,
 		},
-		"check strip html": {
-			input: methods(
-				literalFn("<p>the plain <strong>old text</strong></p>"),
-				method("strip_html"),
-			),
-			output: `the plain old text`,
-		},
-		"check strip html bytes": {
-			input: methods(
-				function("content"),
-				method("strip_html"),
-			),
-			messages: []easyMsg{
-				{content: `<p>the plain <strong>old text</strong></p>`},
-			},
-			output: []byte(`the plain old text`),
-		},
 		"check quote": {
 			input: methods(
 				NewFieldFunction(""),

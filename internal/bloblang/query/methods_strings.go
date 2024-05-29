@@ -27,7 +27,6 @@ import (
 	"strings"
 
 	"github.com/OneOfOne/xxhash"
-	"github.com/microcosm-cc/bluemonday"
 	"github.com/tilinna/z85"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -1870,54 +1869,6 @@ var _ = registerSimpleMethod(
 	func(*ParsedParams) (simpleMethod, error) {
 		return func(v any, ctx FunctionContext) (any, error) {
 			return value.IToString(v), nil
-		}, nil
-	},
-)
-
-//------------------------------------------------------------------------------
-
-// TODO: V5 remove this
-var _ = registerSimpleMethod(
-	NewMethodSpec(
-		"strip_html", "",
-	).InCategory(
-		MethodCategoryStrings,
-		"Attempts to remove all HTML tags from a target string.",
-		NewExampleSpec("",
-			`root.stripped = this.value.strip_html()`,
-			`{"value":"<p>the plain <strong>old text</strong></p>"}`,
-			`{"stripped":"the plain old text"}`,
-		),
-		NewExampleSpec("It's also possible to provide an explicit list of element types to preserve in the output.",
-			`root.stripped = this.value.strip_html(["article"])`,
-			`{"value":"<article><p>the plain <strong>old text</strong></p></article>"}`,
-			`{"stripped":"<article>the plain old text</article>"}`,
-		),
-	).Param(ParamArray("preserve", "An optional array of element types to preserve in the output.").Optional()),
-	func(args *ParsedParams) (simpleMethod, error) {
-		p := bluemonday.NewPolicy()
-		tags, err := args.FieldOptionalArray("preserve")
-		if err != nil {
-			return nil, err
-		}
-		if tags != nil {
-			tagStrs := make([]string, len(*tags))
-			for i, ele := range *tags {
-				var ok bool
-				if tagStrs[i], ok = ele.(string); !ok {
-					return nil, fmt.Errorf("invalid arg at index %v: %w", i, value.NewTypeError(ele, value.TString))
-				}
-			}
-			p = p.AllowElements(tagStrs...)
-		}
-		return func(v any, ctx FunctionContext) (any, error) {
-			switch t := v.(type) {
-			case string:
-				return p.Sanitize(t), nil
-			case []byte:
-				return p.SanitizeBytes(t), nil
-			}
-			return nil, value.NewTypeError(v, value.TString)
 		}, nil
 	},
 )
