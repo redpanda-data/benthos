@@ -1,14 +1,10 @@
 input:
-  kafka:
-    addresses: [ TODO ]
-    topics: [ foo, bar ]
-    consumer_group: foogroup
+  generate:
+    mapping: 'root.id = uuid_v4()'
 
 pipeline:
   processors:
     - mapping: 'root = "%vend".format(content().uppercase().string())'
 
 output:
-  aws_s3:
-    bucket: TODO
-    path: '${! meta("kafka_topic") }/${! json("message.id") }.json'
+  drop: {}
