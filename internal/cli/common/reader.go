@@ -14,11 +14,7 @@ func ReadConfig(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) (mainPath st
 	path := c.String("config")
 	if path == "" {
 		// Iterate default config paths
-		for _, dpath := range []string{
-			"/benthos.yaml",
-			"/etc/benthos/config.yaml",
-			"/etc/benthos.yaml",
-		} {
+		for _, dpath := range cliOpts.ConfigSearchPaths {
 			if _, err := ifs.OS().Stat(dpath); err == nil {
 				inferred = true
 				path = dpath
