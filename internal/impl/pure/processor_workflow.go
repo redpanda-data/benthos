@@ -30,20 +30,26 @@ func workflowProcSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Categories("Composition").
 		Stable().
-		Summary(`Executes a topology of `+"xref:components:processors/branch.adoc[`branch` processors]"+`, performing them in parallel where possible.`).
+		Summary(`Executes sets of `+"xref:components:processors/branch.adoc[`branch` processors]"+`. All processors in a set get executed in parallel.`).
 		Description(`
-== Why use a workflow
+== When to use a workflow
 
-=== Performance
+Using workflow processor makes the pipeline more complex. It is recommended only to use it when absolutely necessary.
+Following some use cases where it applies.
 
-Most of the time the best way to compose processors is also the simplest, just configure them in series. This is because processors are often CPU bound, low-latency, and you can gain vertical scaling by increasing the number of processor pipeline threads, allowing Benthos to process xref:configuration:processing_pipelines.adoc[multiple messages in parallel].
+=== Merging additional data
 
-However, some processors such as `+"xref:components:processors/http.adoc[`http`], xref:components:processors/aws_lambda.adoc[`aws_lambda`] or xref:components:processors/cache.adoc[`cache`]"+` interact with external services and therefore spend most of their time waiting for a response. These processors tend to be high-latency and low CPU activity, which causes messages to process slowly.
+Many processors replace the content and metadata of the original message. Sometimes (parts of) the original message should be kept.
+In these cases, a workflow can be used to still have access to the original message content while also being able to add additional data.
 
-When a processing pipeline contains multiple network processors that aren't dependent on each other we can benefit from performing these processors in parallel for each individual message, reducing the overall message processing latency.
+=== Mitigating high-latency (IO-boundness)
 
-=== Simplifying processor topology
+Using high-latency or low CPU-usage processors can slow down the overall message processing latency.
+With parallel execution of sets of branch processors, the overall message processing latency can be reduced.
+Examples for high-latency processors are: `+"xref:components:processors/http.adoc[`http`], xref:components:processors/aws_lambda.adoc[`aws_lambda`] and xref:components:processors/cache.adoc[`cache`]"+`.
+In general most interactions with external services may be considered high-latency.
 
+== Simplifying processor topology
 A workflow is often expressed as a https://en.wikipedia.org/wiki/Directed_acyclic_graph[DAG] of processing stages, where each stage can result in N possible next stages, until finally the flow ends at an exit node.
 
 For example, if we had processing stages A, B, C and D, where stage A could result in either stage B or C being next, always followed by D, it might look something like this:
