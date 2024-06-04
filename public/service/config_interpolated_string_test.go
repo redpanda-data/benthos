@@ -10,7 +10,7 @@ func TestFieldInterpolatedStringList(t *testing.T) {
 	conf := `
 listfield:
   - hello ${! json("name").uppercase() }
-  - see you in ${! meta("ttl_days") } days
+  - see you in ${! metadata("ttl_days") } days
 `
 
 	spec := NewConfigSpec().Field(NewInterpolatedStringListField("listfield"))
@@ -39,7 +39,7 @@ func TestFieldInterpolatedStringList_InvalidInterpolation(t *testing.T) {
 	conf := `
 listfield:
   - hello ${! json("name")$$uppercas }
-  - see you in ${! meta("ttl_days") } days
+  - see you in ${! metadata("ttl_days") } days
 `
 
 	spec := NewConfigSpec().Field(NewInterpolatedStringListField("listfield"))

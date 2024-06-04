@@ -92,8 +92,8 @@ processors:
 
 func TestCachedHappyBatched(t *testing.T) {
 	conf, err := newCachedProcessorConfigSpec().ParseYAML(`
-key: ${! meta("key") }
-ttl: ${! meta("ttl").or("60s")}
+key: ${! metadata("key") }
+ttl: ${! metadata("ttl").or("60s")}
 cache: foo
 processors:
   - bloblang: 'root = this.map_each(ele -> ele + " FOO")'

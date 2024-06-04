@@ -63,7 +63,7 @@ func TestFunctionParserErrors(t *testing.T) {
 			err:   `line 1 char 16: expected query`,
 		},
 		"bad expression 3": {
-			input: `(json("foo") + meta("bar") `,
+			input: `(json("foo") + metadata("bar") `,
 			err:   `line 1 char 28: required: expected closing bracket`,
 		},
 		"bad method": {
@@ -141,19 +141,19 @@ func TestFunctionParserLimits(t *testing.T) {
 		remaining string
 	}{
 		"nothing": {
-			input:     `json("foo") + meta("bar")`,
+			input:     `json("foo") + metadata("bar")`,
 			remaining: ``,
 		},
 		"space before": {
-			input:     `   json("foo") + meta("bar")`,
+			input:     `   json("foo") + metadata("bar")`,
 			remaining: ``,
 		},
 		"space before 2": {
-			input:     `   json("foo")   +    meta("bar")`,
+			input:     `   json("foo")   +    metadata("bar")`,
 			remaining: ``,
 		},
 		"unfinished comment": {
-			input:     `json("foo") + meta("bar") # Here's a comment`,
+			input:     `json("foo") + metadata("bar") # Here's a comment`,
 			remaining: ` # Here's a comment`,
 		},
 		"extra text": {
@@ -161,15 +161,15 @@ func TestFunctionParserLimits(t *testing.T) {
 			remaining: ` and this`,
 		},
 		"extra text 2": {
-			input:     `json("foo") + meta("bar") and this`,
+			input:     `json("foo") + metadata("bar") and this`,
 			remaining: ` and this`,
 		},
 		"extra text 3": {
-			input:     `json("foo")+meta("bar")and this`,
+			input:     `json("foo")+metadata("bar")and this`,
 			remaining: `and this`,
 		},
 		"extra text 4": {
-			input:     `json("foo")+meta("bar")         and this`,
+			input:     `json("foo")+metadata("bar")         and this`,
 			remaining: `         and this`,
 		},
 		"squiggly bracket": {

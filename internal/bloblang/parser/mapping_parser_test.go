@@ -284,7 +284,7 @@ zed = deleted()
 		},
 		"test mapping metadata and json": {
 			mapping: `meta foo = foo
-bar.baz = meta("bar baz")
+bar.baz = metadata("bar baz")
 meta "bar baz" = deleted()`,
 			input: []part{
 				{
@@ -331,7 +331,7 @@ meta "bar baz" = "test1"`,
 		},
 		"test mapping delete and json": {
 			mapping: `meta foo = foo
-bar.baz = meta("bar baz")
+bar.baz = metadata("bar baz")
 meta = deleted()`,
 			input: []part{
 				{

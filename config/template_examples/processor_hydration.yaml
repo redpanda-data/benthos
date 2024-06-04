@@ -50,7 +50,7 @@ mapping: |
         "cache": {
           "operator": "set",
           "resource": this.cache,
-          "key": """${! meta("id") }""",
+          "key": """${! metadata("id") }""",
           "value": "${! content() }",
         }
       }
@@ -89,7 +89,7 @@ tests:
               - cache:
                   operator: set
                   resource: foocache
-                  key: ${! meta("id") }
+                  key: ${! metadata("id") }
                   value: ${! content() }
 
         - branch:

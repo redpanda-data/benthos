@@ -145,7 +145,7 @@ func TestMethodParser(t *testing.T) {
 			},
 		},
 		"meta from all": {
-			input:  `meta("foo").from_all()`,
+			input:  `metadata("foo").from_all()`,
 			output: `["bar",null,"baz"]`,
 			messages: []easyMsg{
 				{meta: map[string]any{"foo": "bar"}},
@@ -185,7 +185,7 @@ func TestMethodParser(t *testing.T) {
 			},
 		},
 		"or boolean from metadata": {
-			input:  `meta("foo").or( meta("bar") == "yep" ).from_all()`,
+			input:  `metadata("foo").or( metadata("bar") == "yep" ).from_all()`,
 			output: `["from foo",true,false,"from foo 2"]`,
 			messages: []easyMsg{
 				{meta: map[string]any{"foo": "from foo"}},
@@ -331,14 +331,14 @@ func TestMethodParser(t *testing.T) {
 			messages: []easyMsg{{}},
 		},
 		"test format method 2": {
-			input:  `"foo %v bar".format(meta("foo"))`,
+			input:  `"foo %v bar".format(metadata("foo"))`,
 			output: `foo test bar`,
 			messages: []easyMsg{{
 				meta: map[string]any{"foo": "test"},
 			}},
 		},
 		"test format method 3": {
-			input:  `json().("foo %v, %v, %v bar".format(value, meta("foo"), 3))`,
+			input:  `json().("foo %v, %v, %v bar".format(value, metadata("foo"), 3))`,
 			output: `foo yup, bar, 3 bar`,
 			messages: []easyMsg{{
 				content: `{"value":"yup"}`,
@@ -516,7 +516,7 @@ func TestMethodMaps(t *testing.T) {
 			}},
 		},
 		"map dynamic": {
-			input:  `json().apply(meta("dyn_map"))`,
+			input:  `json().apply(metadata("dyn_map"))`,
 			output: "this value",
 			maps: map[string]query.Function{
 				"foo": query.NewFieldFunction("foo"),
@@ -530,7 +530,7 @@ func TestMethodMaps(t *testing.T) {
 			}},
 		},
 		"map dynamic 2": {
-			input:  `json().apply(meta("dyn_map"))`,
+			input:  `json().apply(metadata("dyn_map"))`,
 			output: "and this value",
 			maps: map[string]query.Function{
 				"foo": query.NewFieldFunction("foo"),

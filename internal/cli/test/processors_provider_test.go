@@ -88,7 +88,7 @@ pipeline:
       resource: foocache
       operator: set
       key: defaultkey
-      value: ${! meta("foo") }
+      value: ${! metadata("foo") }
   - cache:
       resource: foocache
       operator: get

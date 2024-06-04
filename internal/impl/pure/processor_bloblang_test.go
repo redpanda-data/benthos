@@ -35,8 +35,8 @@ func TestBloblangCrossfire(t *testing.T) {
 	foo = json("foo").from(0)
 	foo.bar_new = "this is swapped now"
 	foo.bar.baz = "and this changed"
-	meta foo = meta("foo").from(0)
-	meta bar = meta("bar").from(0)
+	meta foo = metadata("foo").from(0)
+	meta bar = metadata("bar").from(0)
 	meta baz = "new meta"
 `
 	proc, err := mock.NewManager().NewProcessor(conf)

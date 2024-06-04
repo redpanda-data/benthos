@@ -359,7 +359,7 @@ pipeline:
   processors:
     - branch:
         request_map: |
-          root.foo = meta("foo")
+          root.foo = metadata("foo")
           root.email = this.email
         processors:
           - mapping: root = content().uppercase()
@@ -367,7 +367,7 @@ pipeline:
           root.foo_stuff = content().string()
     - branch:
         request_map: |
-          root.bar = meta("bar")
+          root.bar = metadata("bar")
           root.name = this.name
         processors:
           - mapping: root = content().uppercase()
@@ -400,7 +400,7 @@ pipeline:
         branches:
           foo_stuff:
             request_map: |
-              root.foo = meta("foo")
+              root.foo = metadata("foo")
               root.email = this.email
             processors:
               - mapping: root = content().uppercase()
@@ -408,7 +408,7 @@ pipeline:
               root.foo_stuff = content().string()
           bar_stuff:
             request_map: |
-              root.bar = meta("bar")
+              root.bar = metadata("bar")
               root.name = this.name
             processors:
               - mapping: root = content().uppercase()

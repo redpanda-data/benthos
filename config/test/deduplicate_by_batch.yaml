@@ -6,7 +6,7 @@ pipeline:
         }
     - dedupe:
         cache: local
-        key: ${! meta("batch_tag").from(0) + content() }
+        key: ${! metadata("batch_tag").from(0) + content() }
 
 cache_resources:
   - label: local

@@ -11,5 +11,5 @@ fields:
 mapping: |
   root.log.level = this.level
   root.log.message = "${! content() }"
-  root.log.fields.metadata = "${! meta() }"
+  root.log.fields.metadata = "${! metadata() }"
   root.log.fields.error = "${! error() }"
