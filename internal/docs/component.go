@@ -65,6 +65,9 @@ type ComponentSpec struct {
 	// The status of the component.
 	Status Status `json:"status"`
 
+	// The support level of the component. This is an abstract concept.
+	SupportLevel string `json:"support_level,omitempty"`
+
 	// Plugin is true for all plugin components.
 	Plugin bool `json:"plugin"`
 

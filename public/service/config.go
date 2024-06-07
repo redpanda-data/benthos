@@ -363,6 +363,13 @@ func (c *ConfigSpec) Deprecated() *ConfigSpec {
 	return c
 }
 
+// SupportLevel adds an abstract label indicating the support level of the
+// plugin.
+func (c *ConfigSpec) SupportLevel(l string) *ConfigSpec {
+	c.component.SupportLevel = l
+	return c
+}
+
 // Categories adds one or more string tags to the component, these are used for
 // arbitrarily grouping components in documentation.
 func (c *ConfigSpec) Categories(categories ...string) *ConfigSpec {

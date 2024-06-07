@@ -48,6 +48,9 @@ type TemplateDataPlugin struct {
 	// A general stability status of the plugin.
 	Status string
 
+	// An abstract concept of support level.
+	SupportLevel string
+
 	// The version in which this plugin was added.
 	Version string
 }
@@ -186,6 +189,7 @@ func prepareComponentSpecForTemplate(prov docs.Provider, c *docs.ComponentSpec, 
 	ctx.Description = c.Description
 	ctx.Footnotes = c.Footnotes
 	ctx.Status = string(c.Status)
+	ctx.SupportLevel = c.SupportLevel
 	ctx.Version = c.Version
 	ctx.Fields = flattenFieldSpecForTemplate(c.Config)
 
