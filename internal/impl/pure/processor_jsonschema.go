@@ -57,7 +57,7 @@ With the following JSONSchema document:
 }
 `+"```"+`
 
-And the following Benthos configuration:
+And the following Redpanda Connect configuration:
 
 `+"```yaml"+`
 pipeline:

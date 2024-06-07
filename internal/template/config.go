@@ -260,13 +260,13 @@ func ConfigSpec() docs.FieldSpecs {
 		).Array().HasDefault([]any{}),
 		docs.FieldString("summary", "A short summary of the component.").HasDefault(""),
 		docs.FieldString("description", "A longer form description of the component and how to use it.").HasDefault(""),
-		docs.FieldObject("fields", "The configuration fields of the template, fields specified here will be parsed from a Benthos config and will be accessible from the template mapping.").Array().WithChildren(FieldConfigSpec()...),
+		docs.FieldObject("fields", "The configuration fields of the template, fields specified here will be parsed from a Redpanda Connect config and will be accessible from the template mapping.").Array().WithChildren(FieldConfigSpec()...),
 		docs.FieldBloblang(
-			"mapping", "A xref:guides:bloblang/about.adoc[Bloblang] mapping that translates the fields of the template into a valid Benthos configuration for the target component type.",
+			"mapping", "A xref:guides:bloblang/about.adoc[Bloblang] mapping that translates the fields of the template into a valid Redpanda Connect configuration for the target component type.",
 		),
 		templateMetricsMappingDocs(),
 		docs.FieldObject(
-			"tests", "Optional unit test definitions for the template that verify certain configurations produce valid configs. These tests are executed with the command `benthos template lint`.",
+			"tests", "Optional unit test definitions for the template that verify certain configurations produce valid configs. These tests are executed with the command `rpk connect template lint`.",
 		).Array().WithChildren(
 			docs.FieldString("name", "A name to identify the test."),
 			docs.FieldObject("config", "A configuration to run this test with, the config resulting from applying the template with this config will be linted."),
