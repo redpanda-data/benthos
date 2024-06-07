@@ -1,22 +1,5 @@
 package docs
 
-import (
-	"bytes"
-
-	"gopkg.in/yaml.v3"
-)
-
-// Copied from ./internal/config/format.go.
-func marshalYAML(v any) ([]byte, error) {
-	var cbytes bytes.Buffer
-	enc := yaml.NewEncoder(&cbytes)
-	enc.SetIndent(2)
-	if err := enc.Encode(v); err != nil {
-		return nil, err
-	}
-	return cbytes.Bytes(), nil
-}
-
 // AnnotatedExample is an isolated example for a component.
 type AnnotatedExample struct {
 	// A title for the example.

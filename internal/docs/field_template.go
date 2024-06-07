@@ -1,42 +1,17 @@
 package docs
 
-import (
-	"strings"
-
-	"github.com/Jeffail/gabs/v2"
-)
-
-// FieldSpecCtx provides a field spec and rendered extras for documentation
-// templates to use.
-type FieldSpecCtx struct {
-	Spec FieldSpec
-
-	// FullName describes the full dot path name of the field relative to
-	// the root of the documented component.
-	FullName string
-
-	// ExamplesMarshalled is a list of examples marshalled into YAML format.
-	ExamplesMarshalled []string
-
-	// DefaultMarshalled is a marshalled string of the default value, if there is one.
-	DefaultMarshalled string
-}
-
-// FieldsTemplate returns a Go template for rendering markdown field
-// documentation. The context should have a field `.Fields` of the type
-// `[]FieldSpecCtx`.
-func FieldsTemplate(lintableExamples bool) string {
-	exampleHint := "yml"
-	if lintableExamples {
-		exampleHint = "yaml"
-	}
+// DeprecatedFieldsTemplate is an old (now unused) template for generating
+// documentation. It has been replace with public methods for exporting template
+// data, allowing you to use whichever template suits your needs.
+// TODO: V5 Remove this
+func DeprecatedFieldsTemplate(lintableExamples bool) string {
 	// Use trailing whitespace below to render line breaks in Asciidoc
 	return `{{define "field_docs" -}}
 {{range $i, $field := .Fields -}}
 === ` + "`{{$field.FullName}}`" + `
 
-{{$field.Spec.Description}}
-{{if $field.Spec.IsSecret -}}
+{{$field.Description}}
+{{if $field.IsSecret -}}
 
 [WARNING]
 .Secret
@@ -45,33 +20,33 @@ This field contains sensitive information that usually shouldn't be added to a c
 ====
 
 {{end -}}
-{{if $field.Spec.Interpolated -}}
+{{if $field.IsInterpolated -}}
 This field supports xref:configuration:interpolation.adoc#bloblang-queries[interpolation functions].
 {{end}}
 
-*Type*: {{if eq $field.Spec.Kind "array"}}list of {{end}}{{if eq $field.Spec.Kind "map"}}map of {{end}}` + "`{{$field.Spec.Type}}`" + `
+*Type*: ` + "`{{$field.Type}}`" + `
 
 {{if gt (len $field.DefaultMarshalled) 0}}*Default*: ` + "`{{$field.DefaultMarshalled}}`" + `
 {{end -}}
-{{if gt (len $field.Spec.Version) 0}}Requires version {{$field.Spec.Version}} or newer
+{{if gt (len $field.Version) 0}}Requires version {{$field.Version}} or newer
 {{end -}}
-{{if gt (len $field.Spec.AnnotatedOptions) 0}}
+{{if gt (len $field.AnnotatedOptions) 0}}
 |===
 | Option | Summary
 
-{{range $j, $option := $field.Spec.AnnotatedOptions -}}
+{{range $j, $option := $field.AnnotatedOptions -}}
 | ` + "`{{index $option 0}}`" + `
 | {{index $option 1}}
 {{end}}
 |===
-{{else if gt (len $field.Spec.Options) 0}}
+{{else if gt (len $field.Options) 0}}
 Options:
-{{range $j, $option := $field.Spec.Options -}}
+{{range $j, $option := $field.Options -}}
 {{if ne $j 0}}, {{end}}` + "`{{$option}}`" + `
 {{end}}.
 {{end}}
-{{if gt (len $field.Spec.Examples) 0 -}}
-` + "```" + exampleHint + `
+{{if gt (len $field.Examples) 0 -}}
+` + "```yml" + `
 # Examples
 
 {{range $j, $example := $field.ExamplesMarshalled -}}
@@ -82,67 +57,4 @@ Options:
 {{end -}}
 {{end -}}
 {{end -}}`
-}
-
-// FlattenChildrenForDocs converts the children of a field into a flat list,
-// where the names contain hints as to their position in a structured hierarchy.
-// This makes it easier to list the fields in documentation.
-func (f FieldSpec) FlattenChildrenForDocs() []FieldSpecCtx {
-	flattenedFields := []FieldSpecCtx{}
-	var walkFields func(path string, f FieldSpecs)
-	walkFields = func(path string, f FieldSpecs) {
-		for _, v := range f {
-			if v.IsDeprecated {
-				continue
-			}
-			newV := FieldSpecCtx{
-				Spec: v,
-			}
-			newV.FullName = newV.Spec.Name
-			if path != "" {
-				newV.FullName = path + newV.Spec.Name
-			}
-			if len(v.Examples) > 0 {
-				newV.ExamplesMarshalled = make([]string, len(v.Examples))
-				for i, e := range v.Examples {
-					exampleBytes, err := marshalYAML(map[string]any{
-						v.Name: e,
-					})
-					if err == nil {
-						newV.ExamplesMarshalled[i] = string(exampleBytes)
-					}
-				}
-			}
-			if v.Default != nil {
-				newV.DefaultMarshalled = gabs.Wrap(*v.Default).String()
-			}
-			newV.Spec.Description = strings.TrimSpace(v.Description)
-			if newV.Spec.Description == "" {
-				newV.Spec.Description = "Sorry! This field is missing documentation."
-			}
-
-			flattenedFields = append(flattenedFields, newV)
-			if len(v.Children) > 0 {
-				newPath := path + v.Name
-				switch newV.Spec.Kind {
-				case KindArray:
-					newPath += "[]"
-				case Kind2DArray:
-					newPath += "[][]"
-				case KindMap:
-					newPath += ".<name>"
-				}
-				walkFields(newPath+".", v.Children)
-			}
-		}
-	}
-	rootPath := ""
-	switch f.Kind {
-	case KindArray:
-		rootPath = "[]."
-	case KindMap:
-		rootPath = "<name>."
-	}
-	walkFields(rootPath, f.Children)
-	return flattenedFields
 }
