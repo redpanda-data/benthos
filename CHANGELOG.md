@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## v4.28.2 - TBD
+
+### Added
+
+- Field `omit_empty` added to the `lines` scanner.
+
 ## 4.28.0 - 2024-05-29
 
 ### Added
