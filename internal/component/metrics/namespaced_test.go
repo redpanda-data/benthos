@@ -210,12 +210,12 @@ func TestNamespacedPrefixStaticLabelsWithMappings(t *testing.T) {
 func TestNamespacedPrefixStaticLabelsWithMappingLabels(t *testing.T) {
 	prom, handler := getTestMetrics(t)
 
-	mappingFooToBar, err := metrics.NewMapping(`meta = meta().map_each(kv -> kv.value.replace_all("value","bar"))
+	mappingFooToBar, err := metrics.NewMapping(`meta = metadata().map_each(kv -> kv.value.replace_all("value","bar"))
 meta extra1 = "extravalue1"
 root = this.replace_all("foo","bar")`, log.Noop())
 	require.NoError(t, err)
 
-	mappingBarToBaz, err := metrics.NewMapping(`meta = meta().map_each(kv -> kv.value.replace_all("bar","baz"))
+	mappingBarToBaz, err := metrics.NewMapping(`meta = metadata().map_each(kv -> kv.value.replace_all("bar","baz"))
 meta extra2 = "extravalue2"
 root = this.replace_all("bar","baz")`, log.Noop())
 	require.NoError(t, err)

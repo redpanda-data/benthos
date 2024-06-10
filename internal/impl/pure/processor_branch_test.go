@@ -62,9 +62,9 @@ func TestBranchBasic(t *testing.T) {
 			},
 		},
 		"copy metadata over only": {
-			requestMap:   `meta foo = meta("foo")`,
-			processorMap: `meta foo = meta("foo") + " and this"`,
-			resultMap:    `meta new_foo = meta("foo")`,
+			requestMap:   `meta foo = metadata("foo")`,
+			processorMap: `meta foo = metadata("foo") + " and this"`,
+			resultMap:    `meta new_foo = metadata("foo")`,
 			input: []mockMsg{
 				msg(
 					`{"value":"foobar"}`,

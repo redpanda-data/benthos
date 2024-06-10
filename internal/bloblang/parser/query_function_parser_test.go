@@ -120,7 +120,7 @@ func TestFunctionQueries(t *testing.T) {
 			},
 		},
 		"json function dynamic arg": {
-			input:  `json(meta("path"))`,
+			input:  `json(metadata("path"))`,
 			output: `this`,
 			messages: []easyMsg{
 				{
@@ -162,7 +162,7 @@ func TestFunctionQueries(t *testing.T) {
 			},
 		},
 		"metadata triple quote string arg 1": {
-			input:  `meta("""foo""")`,
+			input:  `metadata("""foo""")`,
 			output: `bar`,
 			index:  1,
 			messages: []easyMsg{
@@ -177,7 +177,7 @@ func TestFunctionQueries(t *testing.T) {
 			},
 		},
 		"metadata triple quote string arg 2": {
-			input: `meta("""foo
+			input: `metadata("""foo
 bar""")`,
 			output: `bar`,
 			index:  1,
@@ -193,7 +193,7 @@ bar""")`,
 			},
 		},
 		"metadata 1": {
-			input:  `meta("foo")`,
+			input:  `metadata("foo")`,
 			output: `bar`,
 			index:  1,
 			messages: []easyMsg{
@@ -208,7 +208,7 @@ bar""")`,
 			},
 		},
 		"metadata 2": {
-			input:  `meta("bar")`,
+			input:  `metadata("bar")`,
 			output: "null",
 			messages: []easyMsg{
 				{
@@ -221,7 +221,7 @@ bar""")`,
 			},
 		},
 		"metadata 3": {
-			input:  `meta()`,
+			input:  `metadata()`,
 			output: `{"baz":"qux","duck,1":"quack","foo":"bar"}`,
 			messages: []easyMsg{
 				{
@@ -234,7 +234,7 @@ bar""")`,
 			},
 		},
 		"metadata 4": {
-			input:  `meta("duck,1")`,
+			input:  `metadata("duck,1")`,
 			output: "quack",
 			messages: []easyMsg{
 				{
@@ -247,7 +247,7 @@ bar""")`,
 			},
 		},
 		"metadata 5": {
-			input:  `meta("foo").from(1)`,
+			input:  `metadata("foo").from(1)`,
 			output: "bar",
 			index:  0,
 			messages: []easyMsg{
@@ -262,7 +262,7 @@ bar""")`,
 			},
 		},
 		"metadata 6": {
-			input:  `meta("foo")`,
+			input:  `metadata("foo")`,
 			output: `null`,
 			index:  1,
 			messages: []easyMsg{
@@ -277,7 +277,7 @@ bar""")`,
 			},
 		},
 		"metadata 7": {
-			input:  `meta().from(1)`,
+			input:  `metadata().from(1)`,
 			output: `{}`,
 			messages: []easyMsg{
 				{
@@ -290,7 +290,7 @@ bar""")`,
 			},
 		},
 		"metadata 8": {
-			input:  `meta().from(1)`,
+			input:  `metadata().from(1)`,
 			output: `{"baz":"qux","duck,1":"quack","foo":"bar"}`,
 			messages: []easyMsg{
 				{},

@@ -122,7 +122,7 @@ func TestArithmeticParser(t *testing.T) {
 			},
 		},
 		"two ints and a string": {
-			input:  `json("foo") + json("bar") + meta("baz").number(0)`,
+			input:  `json("foo") + json("bar") + metadata("baz").number(0)`,
 			output: `17`,
 			messages: []easyMsg{
 				{
@@ -141,7 +141,7 @@ func TestArithmeticParser(t *testing.T) {
 			},
 		},
 		"add three ints": {
-			input:  `json("foo") + json("bar") + meta("baz").number()`,
+			input:  `json("foo") + json("bar") + metadata("baz").number()`,
 			output: `20`,
 			messages: []easyMsg{
 				{
@@ -167,7 +167,7 @@ func TestArithmeticParser(t *testing.T) {
 			},
 		},
 		"sub and add two ints": {
-			input:  `json("foo") + json("bar") - meta("foo").number() - meta("bar").number()`,
+			input:  `json("foo") + json("bar") - metadata("foo").number() - metadata("bar").number()`,
 			output: `6`,
 			messages: []easyMsg{
 				{

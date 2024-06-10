@@ -557,12 +557,12 @@ var _ = registerFunction(
 		"meta",
 		"Returns the value of a metadata key from the input message as a string, or `null` if the key does not exist. Since values are extracted from the read-only input message they do NOT reflect changes made from within the map. In order to query metadata mutations made within a mapping use the <<root_meta, `root_meta` function>>. This function supports extracting metadata from other messages of a batch with the `from` method.",
 		NewExampleSpec("",
-			`root.topic = meta("kafka_topic")`,
-			`root.topic = meta("nope") | meta("also nope") | "default"`,
+			`root.topic = metadata("kafka_topic")`,
+			`root.topic = metadata("nope") | metadata("also nope") | "default"`,
 		),
 		NewExampleSpec(
 			"The key parameter is optional and if omitted the entire metadata contents are returned as an object.",
-			`root.all_metadata = meta()`,
+			`root.all_metadata = metadata()`,
 		),
 	).Param(ParamString("key", "An optional key of a metadata value to obtain.").Default("")),
 	func(args *ParsedParams) (Function, error) {
@@ -609,12 +609,12 @@ var _ = registerFunction(
 		"root_meta",
 		"Returns the value of a metadata key from the new message being created as a string, or `null` if the key does not exist. Changes made to metadata during a mapping will be reflected by this function.",
 		NewExampleSpec("",
-			`root.topic = root_meta("kafka_topic")`,
-			`root.topic = root_meta("nope") | root_meta("also nope") | "default"`,
+			`root.topic = root_metadata("kafka_topic")`,
+			`root.topic = root_metadata("nope") | root_metadata("also nope") | "default"`,
 		),
 		NewExampleSpec(
 			"The key parameter is optional and if omitted the entire metadata contents are returned as an object.",
-			`root.all_metadata = root_meta()`,
+			`root.all_metadata = root_metadata()`,
 		),
 	).Param(ParamString("key", "An optional key of a metadata value to obtain.").Default("")),
 	func(args *ParsedParams) (Function, error) {

@@ -30,7 +30,7 @@ func TestInterpolatedString(t *testing.T) {
 		},
 		{
 			name: "metadata interpolation",
-			expr: `foo ${! meta("var1") } bar`,
+			expr: `foo ${! metadata("var1") } bar`,
 			msg: func() *Message {
 				m := NewMessage([]byte("hello world"))
 				m.MetaSet("var1", "value1")
@@ -78,7 +78,7 @@ func TestInterpolatedString(t *testing.T) {
 func TestInterpolatedStringCtor(t *testing.T) {
 	t.Parallel()
 
-	i, err := NewInterpolatedString(`foo ${! meta("var1")  bar`)
+	i, err := NewInterpolatedString(`foo ${! metadata("var1")  bar`)
 
 	assert.EqualError(t, err, "required: expected end of expression, got: bar")
 	assert.Nil(t, i)
@@ -87,7 +87,7 @@ func TestInterpolatedStringCtor(t *testing.T) {
 func TestInterpolatedStringMethods(t *testing.T) {
 	t.Parallel()
 
-	i, err := NewInterpolatedString(`foo ${! meta("var1") + 1 } bar`)
+	i, err := NewInterpolatedString(`foo ${! metadata("var1") + 1 } bar`)
 	require.NoError(t, err)
 
 	m := NewMessage([]byte("hello world"))

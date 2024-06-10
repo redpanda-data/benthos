@@ -17,7 +17,7 @@ func TestExecutorQuery(t *testing.T) {
 	}{
 		{
 			name:    "no metadata get",
-			mapping: `root = meta("foo")`,
+			mapping: `root = metadata("foo")`,
 			output:  nil,
 		},
 		{
@@ -76,7 +76,7 @@ func TestExecutorOverlay(t *testing.T) {
 	}{
 		{
 			name:    "no metadata get",
-			mapping: `root = meta("foo")`,
+			mapping: `root = metadata("foo")`,
 			output:  nil,
 		},
 		{
