@@ -363,6 +363,13 @@ func (c *ConfigSpec) Deprecated() *ConfigSpec {
 	return c
 }
 
+// SupportLevel adds an abstract label indicating the support level of the
+// plugin.
+func (c *ConfigSpec) SupportLevel(l string) *ConfigSpec {
+	c.component.SupportLevel = l
+	return c
+}
+
 // Categories adds one or more string tags to the component, these are used for
 // arbitrarily grouping components in documentation.
 func (c *ConfigSpec) Categories(categories ...string) *ConfigSpec {
@@ -512,35 +519,6 @@ func (c *ConfigView) IsDeprecated() bool {
 // signature and/or behaviour changed outside of major version bumps.
 func (c *ConfigView) FormatJSON() ([]byte, error) {
 	return json.Marshal(c.component)
-}
-
-// RenderDocs creates a markdown file that documents the configuration of the
-// component config view. This markdown may include Docusaurus react elements as
-// it matches the documentation generated for the official Benthos website.
-//
-// Experimental: This method is not intended for general use and could have its
-// signature and/or behaviour changed outside of major version bumps.
-func (c *ConfigView) RenderDocs() ([]byte, error) {
-	_, rootOnly := map[string]struct{}{
-		"cache":      {},
-		"rate_limit": {},
-		"processor":  {},
-		"scanner":    {},
-	}[string(c.component.Type)]
-
-	conf := map[string]any{
-		"type": c.component.Name,
-	}
-	for k, v := range docs.ReservedFieldsByType(c.component.Type) {
-		if k == "plugin" {
-			continue
-		}
-		if v.Default != nil {
-			conf[k] = *v.Default
-		}
-	}
-
-	return c.component.AsMarkdown(c.prov, !rootOnly, conf)
 }
 
 //------------------------------------------------------------------------------

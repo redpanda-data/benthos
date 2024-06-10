@@ -33,7 +33,7 @@ func metProcSpec() *service.ConfigSpec {
 		Description(`
 This processor works by evaluating an xref:configuration:interpolation.adoc#bloblang-queries[interpolated field `+"`value`"+`] for each message and updating a emitted metric according to the <<types, type>>.
 
-Custom metrics such as these are emitted along with Benthos internal metrics, where you can customize where metrics are sent, which metric names are emitted and rename them as/when appropriate. For more information see the xref:components:metrics/about.adoc[metrics docs].`).
+Custom metrics such as these are emitted along with Redpanda Connect internal metrics, where you can customize where metrics are sent, which metric names are emitted and rename them as/when appropriate. For more information see the xref:components:metrics/about.adoc[metrics docs].`).
 		Footnotes(`
 == Types
 
@@ -78,10 +78,10 @@ pipeline:
 
 === `+"`timing`"+`
 
-Equivalent to `+"`gauge`"+` where instead the metric is a timing. It is recommended that timing values are recorded in nanoseconds in order to be consistent with standard Benthos timing metrics, as in some cases these values are automatically converted into other units such as when exporting timings as histograms with Prometheus metrics.`).
+Equivalent to `+"`gauge`"+` where instead the metric is a timing. It is recommended that timing values are recorded in nanoseconds in order to be consistent with standard Redpanda Connect timing metrics, as in some cases these values are automatically converted into other units such as when exporting timings as histograms with Prometheus metrics.`).
 		Example(
 			"Counter",
-			"In this example we emit a counter metric called `Foos`, which increments for every message processed, and we label the metric with some metadata about where the message came from and a field from the document that states what type it is. We also configure our metrics to emit to CloudWatch, and explicitly only allow our custom metric and some internal Benthos metrics to emit.",
+			"In this example we emit a counter metric called `Foos`, which increments for every message processed, and we label the metric with some metadata about where the message came from and a field from the document that states what type it is. We also configure our metrics to emit to CloudWatch, and explicitly only allow our custom metric and some internal Redpanda Connect metrics to emit.",
 			`
 pipeline:
   processors:
@@ -126,7 +126,7 @@ metrics:
 			service.NewStringEnumField(metProcFieldType, "counter", "counter_by", "gauge", "timing").
 				Description("The metric <<types, type>> to create."),
 			service.NewStringField(metProcFieldName).
-				Description("The name of the metric to create, this must be unique across all Benthos components otherwise it will overwrite those other metrics."),
+				Description("The name of the metric to create, this must be unique across all Redpanda Connect components otherwise it will overwrite those other metrics."),
 			service.NewInterpolatedStringMapField(metProcFieldLabels).
 				Description("A map of label names and values that can be used to enrich metrics. Labels are not supported by some metric destinations, in which case the metrics series are combined.").
 				Example(map[string]any{

@@ -23,7 +23,7 @@ func loggerMetricsSpec() *service.ConfigSpec {
 		Beta().
 		Summary(`Prints aggregated metrics through the logger.`).
 		Description(`
-Prints each metric produced by Benthos as a log event (level `+"`info`"+` by default) during shutdown, and optionally on an interval.
+Prints each metric produced by Redpanda Connect as a log event (level `+"`info`"+` by default) during shutdown, and optionally on an interval.
 
 This metrics type is useful for debugging pipelines when you only have access to the logger output and not the service-wide server. Otherwise it's recommended that you use either the `+"`prometheus` or `json_api`"+`types.`).
 		Fields(
