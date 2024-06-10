@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 - Go API: New APIs added for extracting struct based documentation for plugins, which can be used for executing custom documentation templates for each registered component and/or bloblang plugin.
 - Field `omit_empty` added to the `lines` scanner. (@mihaitodor)
+- New scheme `gcm` added to the `encrypt_aes` and `decrypy_aes` Bloblang methods. (@abergmeier)
 
 ## 4.28.0 - 2024-05-29
 
