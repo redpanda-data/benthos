@@ -32,7 +32,7 @@ func memoryBufferConfig() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
 		Categories("Utility").
-		Summary("Stores consumed messages in memory and acknowledges them at the input level. During shutdown Benthos will make a best attempt at flushing all remaining messages before exiting cleanly.").
+		Summary("Stores consumed messages in memory and acknowledges them at the input level. During shutdown Redpanda Connect will make a best attempt at flushing all remaining messages before exiting cleanly.").
 		Description(`
 This buffer is appropriate when consuming messages from inputs that do not gracefully handle back pressure and where delivery guarantees aren't critical.
 

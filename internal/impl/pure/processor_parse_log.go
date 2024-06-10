@@ -41,7 +41,7 @@ Currently the only supported structured data codec is `+"`json`"+`.
 
 === `+"`syslog_rfc5424`"+`
 
-Attempts to parse a log following the https://tools.ietf.org/html/rfc5424[Syslog rfc5424] spec. The resulting structured document may contain any of the following fields:
+Attempts to parse a log following the https://tools.ietf.org/html/rfc5424[Syslog RFC5424^] spec. The resulting structured document may contain any of the following fields:
 
 - `+"`message`"+` (string)
 - `+"`timestamp`"+` (string, RFC3339)
@@ -85,7 +85,7 @@ Attempts to parse a log following the https://tools.ietf.org/html/rfc3164[Syslog
 				Advanced().
 				Default("current"),
 			service.NewStringField(plpFieldWithTimezone).
-				Description("Sets the strategy to decide the timezone for rfc3164 timestamps. Applicable to format `syslog_rfc3164`. This value should follow the https://golang.org/pkg/time/#LoadLocation[time.LoadLocation] format.").
+				Description("Sets the strategy to decide the timezone for rfc3164 timestamps. Applicable to format `syslog_rfc3164`. This value should follow the https://golang.org/pkg/time/#LoadLocation[time.LoadLocation^] format.").
 				Advanced().
 				Default("UTC"),
 			service.NewStringField(plpFieldCodec).Deprecated(),

@@ -33,10 +33,10 @@ func switchProcSpec() *service.ConfigSpec {
 When a switch processor executes on a xref:configuration:batching.adoc[batch of messages] they are checked individually and can be matched independently against cases. During processing the messages matched against a case are processed as a batch, although the ordering of messages during case processing cannot be guaranteed to match the order as received.
 
 At the end of switch processing the resulting batch will follow the same ordering as the batch was received. If any child processors have split or otherwise grouped messages this grouping will be lost as the result of a switch is always a single batch. In order to perform conditional grouping and/or splitting use the xref:components:processors/group_by.adoc[`+"`group_by`"+` processor].`).
-		Example("I Hate George", `
-We have a system where we're counting a metric for all messages that pass through our system. However, occasionally we get messages from George where he's rambling about dumb stuff we don't care about.
+		Example("Ignore George", `
+We have a system where we're counting a metric for all messages that pass through our system. However, occasionally we get messages from George that we don't care about.
 
-For Georges messages we want to instead emit a metric that gauges how angry he is about being ignored and then we drop it.`,
+For George's messages we want to instead emit a metric that gauges how angry he is about being ignored and then we drop it.`,
 			`
 pipeline:
   processors:

@@ -19,10 +19,10 @@ import (
 func syncSchemaCommand(cliOpts *common.CLIOpts) *cli.Command {
 	return &cli.Command{
 		Name:  "sync-schema",
-		Usage: "Synchronizes the schema of this Benthos instance with a studio session",
+		Usage: "Synchronizes the schema of this Redpanda Connect instance with a studio session",
 		Description: `
 This sync allows custom plugins and templates to be configured and linted
-correctly within Benthos studio.
+correctly within Redpanda Connect studio.
 
 In order to synchronize a single use token must be generated from the session
 page within the studio application.`[1:],

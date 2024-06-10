@@ -14,6 +14,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/internal/stream"
+	"github.com/redpanda-data/benthos/v4/internal/template"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
@@ -50,9 +51,97 @@ func (e *Environment) CoreConfigSchema(version, dateBuilt string) *ConfigSchema 
 	}
 }
 
+// TemplateSchema returns the schema for a Benthos template file.
+func (e *Environment) TemplateSchema(version, dateBuilt string) *ConfigSchema {
+	return &ConfigSchema{
+		fields:    template.ConfigSpec(),
+		env:       e,
+		version:   version,
+		dateBuilt: dateBuilt,
+	}
+}
+
 // Environment provides access to the environment referenced by this schema.
 func (s *ConfigSchema) Environment() *Environment {
 	return s.env
+}
+
+// TemplateDataSchema contains schema information ready to inject within a
+// documentation page.
+type TemplateDataSchema struct {
+	// A list of fields defined by the plugin.
+	Fields []TemplateDataPluginField
+
+	// An example YAML config containing only common fields.
+	CommonConfigYAML string
+
+	// An example YAML config containing all fields.
+	AdvancedConfigYAML string
+}
+
+func genSchemaExample(field docs.FieldSpec, conf docs.SanitiseConfig) ([]byte, error) {
+	node, err := field.ToYAML(true)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := field.SanitiseYAML(node, conf); err != nil {
+		return nil, err
+	}
+
+	var mv any = node
+	if field.Name != "" {
+		mv = map[string]any{field.Name: mv}
+	}
+
+	eBytes, err := marshalYAML(mv)
+	if err != nil {
+		return nil, err
+	}
+	return eBytes, nil
+}
+
+// TemplateFieldsData attempts to prepare a list of structs containing
+// information for the fields within the section specified of the schema. This
+// information can then be fed into a template in order to generate
+// documentation for the section.
+func (s *ConfigSchema) TemplateData(path ...string) (TemplateDataSchema, error) {
+	field := docs.FieldObject("", "").WithChildren(s.fields...)
+
+pathLoop:
+	for _, p := range path {
+		for _, c := range field.Children {
+			if c.Name == p {
+				field = c
+				continue pathLoop
+			}
+		}
+		return TemplateDataSchema{}, errors.New("section not found")
+	}
+
+	sanitConf := docs.NewSanitiseConfig(s.env.internal)
+	sanitConf.RemoveDeprecated = true
+	sanitConf.RemoveTypeField = true
+	sanitConf.ForExample = true
+
+	advancedBytes, err := genSchemaExample(field, sanitConf)
+	if err != nil {
+		return TemplateDataSchema{}, err
+	}
+
+	sanitConf.Filter = func(spec docs.FieldSpec, v any) bool {
+		return !spec.IsAdvanced
+	}
+	commonBytes, err := genSchemaExample(field, sanitConf)
+	if err != nil {
+		return TemplateDataSchema{}, err
+	}
+
+	return TemplateDataSchema{
+		Fields:             flattenFieldSpecForTemplate(field),
+		CommonConfigYAML:   string(commonBytes),
+		AdvancedConfigYAML: string(advancedBytes),
+	}, nil
 }
 
 // ConfigSchemaFromJSONV0 attempts to parse a JSON serialised definition of an
