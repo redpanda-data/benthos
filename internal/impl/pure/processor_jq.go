@@ -31,18 +31,18 @@ func jqProcSpec() *service.ConfigSpec {
 [TIP]
 .Try out Bloblang
 ====
-For better performance and improved capabilities try out native Benthos mapping with the xref:components:processors/mapping.adoc[`+"`mapping`"+` processor].
+For better performance and improved capabilities try out native Redpanda Connect mapping with the xref:components:processors/mapping.adoc[`+"`mapping`"+` processor].
 ====
 
 The provided query is executed on each message, targeting either the contents as a structured JSON value or as a raw string using the field `+"`raw`"+`, and the message is replaced with the query result.
 
 Message metadata is also accessible within the query from the variable `+"`$metadata`"+`.
 
-This processor uses the https://github.com/itchyny/gojq[gojq library], and therefore does not require jq to be installed as a dependency. However, this also means there are some https://github.com/itchyny/gojq#difference-to-jq[differences in how these queries are executed] versus the jq cli.
+This processor uses the https://github.com/itchyny/gojq[gojq library^], and therefore does not require jq to be installed as a dependency. However, this also means there are some https://github.com/itchyny/gojq#difference-to-jq[differences in how these queries are executed^] versus the jq cli.
 
 If the query does not emit any value then the message is filtered, if the query returns multiple values then the resulting message will be an array containing all values.
 
-The full query syntax is described in https://stedolan.github.io/jq/manual/[jq's documentation].
+The full query syntax is described in https://stedolan.github.io/jq/manual/[jq's documentation^].
 
 == Error handling
 

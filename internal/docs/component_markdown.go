@@ -30,8 +30,7 @@ component_type_dropdown::[]
 
 {{end -}}
 {{if eq .Status "deprecated" -}}
-[WARNING]
-.Deprecated
+[CAUTION]
 ====
 This component is deprecated and will be removed in the next major version release. Please consider moving onto <<alternatives,alternative components>>.
 ====

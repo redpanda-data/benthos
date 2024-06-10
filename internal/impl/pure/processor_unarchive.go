@@ -31,7 +31,7 @@ The metadata found on the messages handled by this processor will be copied into
 		Field(service.NewStringAnnotatedEnumField("format", map[string]string{
 			`tar`:            `Extract messages from a unix standard tape archive.`,
 			`zip`:            `Extract messages from a zip file.`,
-			`binary`:         `Extract messages from a https://github.com/benthosdev/benthos/blob/main/internal/message/message.go#L96[binary blob format].`,
+			`binary`:         `Extract messages from a https://github.com/redpanda-data/benthos/blob/main/internal/message/message.go#L96[binary blob format^].`,
 			`lines`:          `Extract the lines of a message each into their own message.`,
 			`json_documents`: `Attempt to parse a message as a stream of concatenated JSON documents. Each parsed document is expanded into a new message.`,
 			`json_array`:     `Attempt to parse a message as a JSON array, and extract each element into its own message.`,

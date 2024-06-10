@@ -13,8 +13,7 @@ func DeprecatedFieldsTemplate(lintableExamples bool) string {
 {{$field.Description}}
 {{if $field.IsSecret -}}
 
-[WARNING]
-.Secret
+[CAUTION]
 ====
 This field contains sensitive information that usually shouldn't be added to a config directly, read our xref:configuration:secrets.adoc[secrets page for more info].
 ====

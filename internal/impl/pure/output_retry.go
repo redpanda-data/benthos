@@ -29,7 +29,7 @@ func retryOutputSpec() *service.ConfigSpec {
 		Stable().
 		Summary("Attempts to write messages to a child output and if the write fails for any reason the message is retried either until success or, if the retries or max elapsed time fields are non-zero, either is reached.").
 		Description(`
-All messages in Benthos are always retried on an output error, but this would usually involve propagating the error back to the source of the message, whereby it would be reprocessed before reaching the output layer once again.
+All messages in Redpanda Connect are always retried on an output error, but this would usually involve propagating the error back to the source of the message, whereby it would be reprocessed before reaching the output layer once again.
 
 This output type is useful whenever we wish to avoid reprocessing a message on the event of a failed send. We might, for example, have a deduplication processor that we want to avoid reapplying to the same message more than once in the pipeline.
 

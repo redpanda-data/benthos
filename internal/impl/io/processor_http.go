@@ -23,7 +23,7 @@ In order to map or encode the payload to a specific request body, and map the re
 
 == Response codes
 
-Benthos considers any response code between 200 and 299 inclusive to indicate a successful response, you can add more success status codes with the field `+"`successful_on`"+`.
+Redpanda Connect considers any response code between 200 and 299 inclusive to indicate a successful response, you can add more success status codes with the field `+"`successful_on`"+`.
 
 When a request returns a response code within the `+"`backoff_on`"+` field it will be retried after increasing intervals.
 
@@ -56,7 +56,7 @@ pipeline:
 `,
 		).
 		Field(httpclient.ConfigField("POST", false,
-			service.NewBoolField("batch_as_multipart").Description("Send message batches as a single request using https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341].").Advanced().Default(false),
+			service.NewBoolField("batch_as_multipart").Description("Send message batches as a single request using https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341^].").Advanced().Default(false),
 			service.NewBoolField("parallel").Description("When processing batched messages, whether to send messages of the batch in parallel, otherwise they are sent serially.").Default(false)),
 		)
 }
