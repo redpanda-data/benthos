@@ -3,11 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.29.0 - 2024-06-07
+## 4.29.0 - TBD
 
 ### Added
 
 - Go API: New APIs added for extracting struct based documentation for plugins, which can be used for executing custom documentation templates for each registered component and/or bloblang plugin.
+- Field `omit_empty` added to the `lines` scanner.
 
 ## 4.28.0 - 2024-05-29
 
