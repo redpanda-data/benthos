@@ -44,7 +44,7 @@ func TestMask(t *testing.T) {
 			err:    "",
 		},
 		{
-			name:   "Mask left leave right hand four chars unmasked",
+			name:   "Mask right leave right hand four chars unmasked",
 			method: "mask",
 			target: "this is a test",
 			args:   []any{int64(6), "right"},
@@ -52,7 +52,7 @@ func TestMask(t *testing.T) {
 			err:    "",
 		},
 		{
-			name:   "Mask left leave right hand four chars unmasked, mask with '%' char",
+			name:   "Mask right leave right hand four chars unmasked, mask with '%' char",
 			method: "mask",
 			target: "this is a test",
 			args:   []any{int64(6), "right", "%"},
