@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 
 ## 4.30.0 - TBD
 
+### Added
+
+- Go API: New APIs for capturing synchronous responses from downstream components. (@Jeffail)
+- Go API: Ability to customise the overall configuration schema of a stream builder. (@Jeffail)
+
 ## 4.29.0 - 2024-06-10
 
 ### Added
