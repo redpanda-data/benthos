@@ -2,6 +2,7 @@ package common
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path"
 	"text/template"
@@ -23,6 +24,9 @@ type CLIOpts struct {
 
 	ShowRunCommand    bool
 	ConfigSearchPaths []string
+
+	Environment    *bundle.Environment
+	SecretAccessFn func(context.Context, string) (string, bool)
 
 	MainConfigSpecCtor   func() docs.FieldSpecs // TODO: This becomes a service.Environment
 	OnManagerInitialised func(mgr bundle.NewManagement, pConf *docs.ParsedConfig) error
@@ -46,6 +50,10 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 			"/benthos.yaml",
 			"/etc/benthos/config.yaml",
 			"/etc/benthos.yaml",
+		},
+		Environment: bundle.GlobalEnvironment,
+		SecretAccessFn: func(ctx context.Context, key string) (string, bool) {
+			return os.LookupEnv(key)
 		},
 		MainConfigSpecCtor: config.Spec,
 		OnManagerInitialised: func(mgr bundle.NewManagement, pConf *docs.ParsedConfig) error {

@@ -168,7 +168,7 @@ If the expression is omitted a default config is created.`)[1:],
 
 			var node yaml.Node
 			if err = node.Encode(conf); err == nil {
-				sanitConf := docs.NewSanitiseConfig(bundle.GlobalEnvironment)
+				sanitConf := docs.NewSanitiseConfig(cliOpts.Environment)
 				sanitConf.RemoveTypeField = true
 				sanitConf.RemoveDeprecated = true
 				sanitConf.ForExample = true

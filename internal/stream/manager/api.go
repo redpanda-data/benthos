@@ -1,12 +1,12 @@
 package manager
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 
@@ -292,7 +292,7 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 
 		ignoreLints := r.URL.Query().Get("chilled") == "true"
 
-		if confBytes, err = config.ReplaceEnvVariables(confBytes, os.LookupEnv); err != nil {
+		if confBytes, err = config.NewReader("", nil).ReplaceEnvVariables(context.TODO(), confBytes); err != nil {
 			var errEnvMissing *config.ErrMissingEnvVars
 			if ignoreLints && errors.As(err, &errEnvMissing) {
 				confBytes = errEnvMissing.BestAttempt
@@ -529,7 +529,7 @@ func (m *Type) HandleResourceCRUD(w http.ResponseWriter, r *http.Request) {
 
 		ignoreLints := r.URL.Query().Get("chilled") == "true"
 
-		if confBytes, requestErr = config.ReplaceEnvVariables(confBytes, os.LookupEnv); requestErr != nil {
+		if confBytes, requestErr = config.NewReader("", nil).ReplaceEnvVariables(r.Context(), confBytes); requestErr != nil {
 			var errEnvMissing *config.ErrMissingEnvVars
 			if ignoreLints && errors.As(requestErr, &errEnvMissing) {
 				confBytes = errEnvMissing.BestAttempt

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -11,7 +12,7 @@ import (
 
 	"github.com/fatih/color"
 
-	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/config/test"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
@@ -99,14 +100,15 @@ func GetTestTargets(targetPaths []string, testSuffix string) (map[string][]test.
 
 // Lints the config target of a test definition and either returns linting
 // errors (false for failed) or returns an error.
-func lintTarget(spec docs.FieldSpecs, path, testSuffix string) ([]docs.Lint, error) {
+func lintTarget(opts *common.CLIOpts, spec docs.FieldSpecs, path, testSuffix string) ([]docs.Lint, error) {
 	confPath, _ := GetPathPair(path, testSuffix)
 
 	// This is necessary as each test case can provide a different set of
 	// environment variables, so in order to test env vars properly we would
 	// need to lint for each case.
 	skipEnvVarCheck := true
-	_, lints, err := config.ReadYAMLFileLinted(ifs.OS(), spec, confPath, skipEnvVarCheck, docs.NewLintConfig(bundle.GlobalEnvironment))
+	_, lints, err := config.NewReader("", nil, config.OptUseEnvLookupFunc(opts.SecretAccessFn)).
+		ReadYAMLFileLinted(context.TODO(), spec, confPath, skipEnvVarCheck, docs.NewLintConfig(opts.Environment))
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +120,7 @@ func lintTarget(spec docs.FieldSpecs, path, testSuffix string) ([]docs.Lint, err
 // RunAll executes the test command for a slice of paths. The path can either be
 // a config file, a config files test definition file, a directory, or the
 // wildcard pattern './...'.
-func RunAll(paths []string, spec docs.FieldSpecs, testSuffix string, lint bool, logger log.Modular, resourcesPaths []string) bool {
+func RunAll(opts *common.CLIOpts, paths []string, testSuffix string, lint bool, logger log.Modular, resourcesPaths []string) bool {
 	targets, err := GetTestTargets(paths, testSuffix)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to obtain test targets: %v\n", err)
@@ -146,12 +148,12 @@ func RunAll(paths []string, spec docs.FieldSpecs, testSuffix string, lint bool, 
 		var lints []docs.Lint
 		var failCases []CaseFailure
 		if lint {
-			if lints, err = lintTarget(spec, target, testSuffix); err != nil {
+			if lints, err = lintTarget(opts, opts.MainConfigSpecCtor(), target, testSuffix); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to execute test target '%v': %v\n", target, err)
 				return false
 			}
 		}
-		if failCases, err = Execute(spec, targets[target], target, resourcesPaths, logger); err != nil {
+		if failCases, err = Execute(opts.Environment, opts.MainConfigSpecCtor(), targets[target], target, resourcesPaths, logger); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to execute test target '%v': %v\n", target, err)
 			return false
 		}
