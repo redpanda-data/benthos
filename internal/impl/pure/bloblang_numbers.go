@@ -232,10 +232,10 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
 			Description(`Calculates the tangent of a given angle specified in radians.`).
-			Example("", `root.new_value = (this.value * (pi() / 180)).tan()`,
-				[2]string{`{"value":0}`, `{"new_value":0}`},
-				[2]string{`{"value":45}`, `{"new_value":0.9999999999999998}`},
-				[2]string{`{"value":180}`, `{"new_value":-1.2246467991473515e-16}`}),
+			Example("", `root.new_value = "%f".format((this.value * (pi() / 180)).tan())`,
+				[2]string{`{"value":0}`, `{"new_value":"0.000000"}`},
+				[2]string{`{"value":45}`, `{"new_value":"1.000000"}`},
+				[2]string{`{"value":180}`, `{"new_value":"-0.000000"}`}),
 		func(args *bloblang.ParsedParams) (bloblang.Method, error) {
 			return bloblang.Float64Method(func(input float64) (any, error) {
 				return math.Tan(input), nil
