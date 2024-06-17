@@ -16,17 +16,18 @@ func init() {
 			Param(bloblang.NewInt64Param("count").Description("the number of characters that will not be masked on the left or right hand side, in the case of a all mask, it is the number of mask characters to return giving a fixed length string, default is 0 which will return all characters masked.").Optional().Default(0)).
 			Param(bloblang.NewStringParam("direction").Description("the direction to mask, left, right or all, default is all").Optional().Default("all")).
 			Param(bloblang.NewStringParam("char").Description("the character used for masking, default is *").Optional().Default("*")).
-			Example("Mask the first 13 characters", `root.body_mask = this.body.mask(13, right)`,
+			Example("Mask the first 13 characters", `root.body_mask = this.body.mask(13, "right")`,
 				[2]string{
 					`{"body":"the cat goes meow"}`,
 					`{"body_mask":"*************meow"}`,
 				},
 			),
 		func(args *bloblang.ParsedParams) (bloblang.Method, error) {
-			count, err := args.GetOptionalInt64("count")
+			countPtr, err := args.GetOptionalInt64("count")
 			if err != nil {
 				return nil, errors.New("failed to get count as int: " + err.Error())
 			}
+			count := int(*countPtr)
 
 			char, err := args.GetString("char")
 			if err != nil {
@@ -44,7 +45,7 @@ func init() {
 			}
 
 			return bloblang.StringMethod(func(s string) (any, error) {
-				return maskString(s, char, direction, int(*count)), nil
+				return maskString(s, char, direction, int(count)), nil
 			}), nil
 		}); err != nil {
 		panic(err)
@@ -52,10 +53,6 @@ func init() {
 }
 
 // maskString masks the string based on the given parameters.
-// `s` is the input string
-// `char` is the character used for masking,
-// `direction` determines whether the start ("left") or the end ("right") of the string is masked or all for the whole string,
-// `count` is the number of characters that will not be masked on the left or right hand side, in the case of a all mask, it is the number of mask characters to return giving a fixed length string.
 func maskString(s string, char string, direction string, count int) string {
 	sLength := len(s)
 	if count == 0 {
