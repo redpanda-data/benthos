@@ -19,6 +19,7 @@ import (
 	ifilepath "github.com/redpanda-data/benthos/v4/internal/filepath"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
+	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
 var (
@@ -103,12 +104,15 @@ func GetTestTargets(targetPaths []string, testSuffix string) (map[string][]test.
 func lintTarget(opts *common.CLIOpts, spec docs.FieldSpecs, path, testSuffix string) ([]docs.Lint, error) {
 	confPath, _ := GetPathPair(path, testSuffix)
 
+	lintConf := docs.NewLintConfig(opts.Environment)
+	lintConf.BloblangEnv = bloblang.XWrapEnvironment(opts.BloblEnvironment)
+
 	// This is necessary as each test case can provide a different set of
 	// environment variables, so in order to test env vars properly we would
 	// need to lint for each case.
 	skipEnvVarCheck := true
 	_, lints, err := config.NewReader("", nil, config.OptUseEnvLookupFunc(opts.SecretAccessFn)).
-		ReadYAMLFileLinted(context.TODO(), spec, confPath, skipEnvVarCheck, docs.NewLintConfig(opts.Environment))
+		ReadYAMLFileLinted(context.TODO(), spec, confPath, skipEnvVarCheck, lintConf)
 	if err != nil {
 		return nil, err
 	}

@@ -101,6 +101,8 @@ func CreateManager(
 		manager.OptSetMetrics(stats),
 		manager.OptSetTracer(trac),
 		manager.OptSetStreamsMode(streamsMode),
+		manager.OptSetBloblangEnvironment(cliOpts.BloblEnvironment),
+		manager.OptSetEnvironment(cliOpts.Environment),
 	}, mgrOpts...)
 
 	// Create resource manager.

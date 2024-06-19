@@ -48,11 +48,12 @@ const defaultCloseDeadline = time.Second * 30
 // reallocations, or config changes and attempt to reflect those changes in the
 // running stream.
 type PullRunner struct {
-	secretLookupFn func(context.Context, string) (string, bool)
-	environment    *bundle.Environment
-	confReaderSpec docs.FieldSpecs
-	confReader     *config.Reader
-	sessionTracker *sessionTracker
+	secretLookupFn   func(context.Context, string) (string, bool)
+	bloblEnvironment *ibloblang.Environment
+	environment      *bundle.Environment
+	confReaderSpec   docs.FieldSpecs
+	confReader       *config.Reader
+	sessionTracker   *sessionTracker
 
 	// Controls disabled deployment rotations
 	isDisabled     bool
@@ -101,6 +102,7 @@ func OptSetNowFn(fn func() time.Time) func(*PullRunner) {
 func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string, opts ...func(p *PullRunner)) (*PullRunner, error) {
 	r := &PullRunner{
 		secretLookupFn:     cliOpts.SecretAccessFn,
+		bloblEnvironment:   cliOpts.BloblEnvironment,
 		environment:        cliOpts.Environment,
 		confReaderSpec:     cliOpts.MainConfigSpecCtor(),
 		metricsFlushPeriod: time.Second * 30,
@@ -252,12 +254,12 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 		backup:  ifs.OS(),
 	}
 
-	bloblEnv := ibloblang.GlobalEnvironment().WithCustomImporter(func(name string) ([]byte, error) {
+	bloblEnv := r.bloblEnvironment.WithCustomImporter(func(name string) ([]byte, error) {
 		return ifs.ReadFile(sessFS, name)
 	})
 
 	lintConf := docs.NewLintConfig(r.environment)
-	lintConf.BloblangEnv = bloblang.XWrapEnvironment(bloblEnv).Deactivated()
+	lintConf.BloblangEnv = bloblang.XWrapEnvironment(bloblEnv.Deactivated())
 
 	confReaderTmp := config.NewReader(initMainFile, initResources,
 		config.OptUseEnvLookupFunc(r.secretLookupFn),

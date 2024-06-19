@@ -19,6 +19,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	ifilepath "github.com/redpanda-data/benthos/v4/internal/filepath"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
+	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
 var (
@@ -190,6 +191,7 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
 	targets = append(targets, c.StringSlice("resources")...)
 
 	lConf := docs.NewLintConfig(opts.Environment)
+	lConf.BloblangEnv = bloblang.XWrapEnvironment(opts.BloblEnvironment)
 	lConf.RejectDeprecated = c.Bool("deprecated")
 	lConf.RequireLabels = c.Bool("labels")
 	skipEnvVarCheck := c.Bool("skip-env-var-check")

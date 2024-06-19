@@ -7,6 +7,7 @@ import (
 	"path"
 	"text/template"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
@@ -25,8 +26,9 @@ type CLIOpts struct {
 	ShowRunCommand    bool
 	ConfigSearchPaths []string
 
-	Environment    *bundle.Environment
-	SecretAccessFn func(context.Context, string) (string, bool)
+	Environment      *bundle.Environment
+	BloblEnvironment *bloblang.Environment
+	SecretAccessFn   func(context.Context, string) (string, bool)
 
 	MainConfigSpecCtor   func() docs.FieldSpecs // TODO: This becomes a service.Environment
 	OnManagerInitialised func(mgr bundle.NewManagement, pConf *docs.ParsedConfig) error
@@ -51,7 +53,8 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 			"/etc/benthos/config.yaml",
 			"/etc/benthos.yaml",
 		},
-		Environment: bundle.GlobalEnvironment,
+		Environment:      bundle.GlobalEnvironment,
+		BloblEnvironment: bloblang.GlobalEnvironment(),
 		SecretAccessFn: func(ctx context.Context, key string) (string, bool) {
 			return os.LookupEnv(key)
 		},
