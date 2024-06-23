@@ -11,16 +11,11 @@ type Function interface {
 	// recreate the function.
 	Annotation() string
 
-	// MarshalString returns a string representation of the function that could
-	// be parsed back into the exact equivalent function. The result will be
-	// normalized, which means the representation may not match the original
-	// input from the user.
-	// MarshalString() string
-
-	// Returns a list of targets that this function attempts (or may attempt) to
-	// access. A context must be provided that describes the current execution
-	// context that this function will be executed upon, which is how it is able
-	// to determine the full path and origin of values that it targets.
+	// QueryTargets returns a list of targets that this function attempts (or
+	// may attempt) to access. A context must be provided that describes the
+	// current execution context that this function will be executed upon, which
+	// is how it is able to determine the full path and origin of values that it
+	// targets.
 	//
 	// A new context is returned which should be provided to methods that act
 	// upon this function when querying their own targets.

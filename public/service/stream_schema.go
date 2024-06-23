@@ -101,10 +101,10 @@ func genSchemaExample(field docs.FieldSpec, conf docs.SanitiseConfig) ([]byte, e
 	return eBytes, nil
 }
 
-// TemplateFieldsData attempts to prepare a list of structs containing
-// information for the fields within the section specified of the schema. This
-// information can then be fed into a template in order to generate
-// documentation for the section.
+// TemplateData attempts to prepare a list of structs containing information for
+// the fields within the section specified of the schema. This information can
+// then be fed into a template in order to generate documentation for the
+// section.
 func (s *ConfigSchema) TemplateData(path ...string) (TemplateDataSchema, error) {
 	field := docs.FieldObject("", "").WithChildren(s.fields...)
 

@@ -45,6 +45,7 @@ func RunCLI(ctx context.Context, optFuncs ...CLIOptFunc) {
 	_ = cli.App(cliOpts.opts).RunContext(ctx, os.Args)
 }
 
+// CLIOptBuilder represents a CLI opts builder.
 type CLIOptBuilder struct {
 	opts        *common.CLIOpts
 	teeLogger   *slog.Logger

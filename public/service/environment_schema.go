@@ -11,6 +11,7 @@ type EnvironmentSchema struct {
 	s schema.Full
 }
 
+// GenerateSchema creates a new EnvironmentSchema.
 func (e *Environment) GenerateSchema(version, dateBuilt string) *EnvironmentSchema {
 	schema := schema.New(version, dateBuilt)
 	return &EnvironmentSchema{s: schema}

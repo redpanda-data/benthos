@@ -18,6 +18,8 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/stream"
 )
 
+// BufferFromYAML attempts to parse a config string and returns a buffer config
+// if successful or an error otherwise.
 func BufferFromYAML(confStr string, args ...any) (buffer.Config, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -26,6 +28,8 @@ func BufferFromYAML(confStr string, args ...any) (buffer.Config, error) {
 	return buffer.FromAny(bundle.GlobalEnvironment, node)
 }
 
+// CacheFromYAML attempts to parse a config string and returns a cache config
+// if successful or an error otherwise.
 func CacheFromYAML(confStr string, args ...any) (cache.Config, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -34,6 +38,8 @@ func CacheFromYAML(confStr string, args ...any) (cache.Config, error) {
 	return cache.FromAny(bundle.GlobalEnvironment, node)
 }
 
+// InputFromYAML attempts to parse a config string and returns an input config
+// if successful or an error otherwise.
 func InputFromYAML(confStr string, args ...any) (input.Config, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -42,6 +48,8 @@ func InputFromYAML(confStr string, args ...any) (input.Config, error) {
 	return input.FromAny(bundle.GlobalEnvironment, node)
 }
 
+// MetricsFromYAML attempts to parse a config string and returns a metrics
+// config if successful or an error otherwise.
 func MetricsFromYAML(confStr string, args ...any) (metrics.Config, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -50,6 +58,8 @@ func MetricsFromYAML(confStr string, args ...any) (metrics.Config, error) {
 	return metrics.FromAny(bundle.GlobalEnvironment, node)
 }
 
+// OutputFromYAML attempts to parse a config string and returns an output config
+// if successful or an error otherwise.
 func OutputFromYAML(confStr string, args ...any) (output.Config, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -58,6 +68,8 @@ func OutputFromYAML(confStr string, args ...any) (output.Config, error) {
 	return output.FromAny(bundle.GlobalEnvironment, node)
 }
 
+// ProcessorFromYAML attempts to parse a config string and returns a processor
+// config if successful or an error otherwise.
 func ProcessorFromYAML(confStr string, args ...any) (processor.Config, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -66,6 +78,8 @@ func ProcessorFromYAML(confStr string, args ...any) (processor.Config, error) {
 	return processor.FromAny(bundle.GlobalEnvironment, node)
 }
 
+// RateLimitFromYAML attempts to parse a config string and returns a ratelimit
+// config if successful or an error otherwise.
 func RateLimitFromYAML(confStr string, args ...any) (ratelimit.Config, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -74,6 +88,8 @@ func RateLimitFromYAML(confStr string, args ...any) (ratelimit.Config, error) {
 	return ratelimit.FromAny(bundle.GlobalEnvironment, node)
 }
 
+// TracerFromYAML attempts to parse a config string and returns a tracer config
+// if successful or an error otherwise.
 func TracerFromYAML(confStr string, args ...any) (tracer.Config, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -82,6 +98,8 @@ func TracerFromYAML(confStr string, args ...any) (tracer.Config, error) {
 	return tracer.FromAny(bundle.GlobalEnvironment, node)
 }
 
+// ManagerFromYAML attempts to parse a config string and returns a manager
+// config if successful or an error otherwise.
 func ManagerFromYAML(confStr string, args ...any) (manager.ResourceConfig, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -90,6 +108,8 @@ func ManagerFromYAML(confStr string, args ...any) (manager.ResourceConfig, error
 	return manager.FromAny(bundle.GlobalEnvironment, node)
 }
 
+// StreamFromYAML attempts to parse a config string and returns a stream config
+// if successful or an error otherwise.
 func StreamFromYAML(confStr string, args ...any) (stream.Config, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {
@@ -106,6 +126,8 @@ func StreamFromYAML(confStr string, args ...any) (stream.Config, error) {
 	return stream.FromParsed(bundle.GlobalEnvironment, pConf, rawSource)
 }
 
+// ConfigFromYAML attempts to parse a config string and returns a Benthos
+// service config if successful or an error otherwise.
 func ConfigFromYAML(confStr string, args ...any) (config.Type, error) {
 	node, err := docs.UnmarshalYAML(fmt.Appendf(nil, confStr, args...))
 	if err != nil {

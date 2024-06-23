@@ -12,8 +12,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/log"
 )
 
-type CLIStreamBootstrapFunc func()
-
+// CLIOpts contains the available CLI configuration options.
 type CLIOpts struct {
 	Version   string
 	DateBuilt string
@@ -30,6 +29,7 @@ type CLIOpts struct {
 	OnLoggerInit         func(l log.Modular) (log.Modular, error)
 }
 
+// NewCLIOpts returns a new CLIOpts instance populated with default values.
 func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 	binaryName := ""
 	if len(os.Args) > 0 {
@@ -57,6 +57,7 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 	}
 }
 
+// ExecTemplate parses a template and applies the CLI branding information to it.
 func (c *CLIOpts) ExecTemplate(str string) string {
 	t, err := template.New("cli").Parse(str)
 	if err != nil {

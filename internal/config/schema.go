@@ -37,6 +37,7 @@ type Type struct {
 	rawSource any
 }
 
+// GetRawSource returns the Type raw source.
 func (t *Type) GetRawSource() any {
 	return t.rawSource
 }
@@ -89,6 +90,7 @@ func SpecWithoutStream(spec docs.FieldSpecs) docs.FieldSpecs {
 	return fields
 }
 
+// FromParsed extracts the Benthos service fields from the parsed config and returns a Benthos service config.
 func FromParsed(prov docs.Provider, pConf *docs.ParsedConfig, rawSource any) (conf Type, err error) {
 	conf.rawSource = rawSource
 	if conf.Config, err = stream.FromParsed(prov, pConf, nil); err != nil {

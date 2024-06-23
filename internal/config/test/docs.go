@@ -15,6 +15,7 @@ func ConfigSpec() docs.FieldSpec {
 	return docs.FieldObject(fieldTests, "A list of one or more unit tests to execute.").Array().WithChildren(caseFields()...).Optional()
 }
 
+// FromAny returns a Case slice from a yaml node or parsed config.
 func FromAny(v any) ([]Case, error) {
 	if t, ok := v.(*yaml.Node); ok {
 		var tmp struct {
@@ -45,6 +46,7 @@ func FromAny(v any) ([]Case, error) {
 	return FromParsed(pConf)
 }
 
+// FromParsed extracts a Case slice from a parsed config.
 func FromParsed(pConf *docs.ParsedConfig) ([]Case, error) {
 	if !pConf.Contains(fieldTests) {
 		return nil, nil
