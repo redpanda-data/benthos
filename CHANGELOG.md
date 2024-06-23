@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.30.1 - TBD
+
+### Added
+
+- Parameter `escape_html` added to the `format_json()` Bloblang method. (@mihaitodor)
+
 ## 4.30.0 - 2024-06-13
 
 ### Added
