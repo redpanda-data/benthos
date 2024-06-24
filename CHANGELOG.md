@@ -3,10 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.30.1 - TBD
+## 4.31.0 - TBD
 
 ### Added
 
+- Field `max_retries` added to the `retry` processor. (@mihaitodor)
+- Metadata fields `retry_count` and `backoff_duration` added to the `retry` processor. (@mihaitodor)
 - Parameter `escape_html` added to the `format_json()` Bloblang method. (@mihaitodor)
 
 ## 4.30.0 - 2024-06-13
