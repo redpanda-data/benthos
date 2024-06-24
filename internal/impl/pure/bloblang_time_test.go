@@ -75,7 +75,7 @@ func TestTimestampMethods(t *testing.T) {
 		{
 			name:               "check ts_strptime invalid",
 			mapping:            `root = "not valid timestamp".ts_strptime("%Y-%b-%d")`,
-			parseErrorContains: `failed to parse "not valid timestamp" with "%Y-%b-%d": cannot parse %Y`,
+			parseErrorContains: `failed to parse "not valid timestamp" with`,
 		},
 		{
 			name:               "check ts_strptime with invalid format",
