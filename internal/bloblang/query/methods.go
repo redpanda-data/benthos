@@ -83,7 +83,7 @@ var _ = registerSimpleMethod(
 		"array", "",
 	).InCategory(
 		MethodCategoryCoercion,
-		"Marshal a value into an array. If the value is already an array it is unchanged.",
+		"Return an array containing the target value. If the value is already an array it is unchanged.",
 		NewExampleSpec("",
 			`root.my_array = this.name.array()`,
 			`{"name":"foobar bazson"}`,
