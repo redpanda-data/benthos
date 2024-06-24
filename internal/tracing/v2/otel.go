@@ -21,8 +21,8 @@ func GetSpan(p *service.Message) *Span {
 	return GetSpanFromContext(p.Context())
 }
 
-// GetSpan returns a span within a context. Returns nil if the context doesn't
-// have a span attached.
+// GetSpanFromContext returns a span within a context. Returns nil if the
+// context doesn't have a span attached.
 func GetSpanFromContext(ctx context.Context) *Span {
 	t := trace.SpanFromContext(ctx)
 	return OtelSpan(ctx, t)

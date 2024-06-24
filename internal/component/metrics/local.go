@@ -26,24 +26,27 @@ func (l *LocalStat) Incr(count int64) {
 	atomic.AddInt64(l.Value, count)
 }
 
-// Decr decrements a metric by an amount.
+// Decr decrements a metric by an int64 amount.
 func (l *LocalStat) Decr(count int64) {
 	atomic.AddInt64(l.Value, -count)
 }
 
-// Set sets a gauge metric.
+// Set sets a gauge metric to an int64 value.
 func (l *LocalStat) Set(value int64) {
 	atomic.StoreInt64(l.Value, value)
 }
 
+// IncrFloat64 increments a metric by a float64 amount.
 func (l *LocalStat) IncrFloat64(count float64) {
 	l.Incr(int64(count))
 }
 
+// DecrFloat64 decrements a metric by a float64 amount.
 func (l *LocalStat) DecrFloat64(count float64) {
 	l.Decr(int64(count))
 }
 
+// SetFloat64 sets a metric to a float64 value.
 func (l *LocalStat) SetFloat64(value float64) {
 	l.Set(int64(value))
 }

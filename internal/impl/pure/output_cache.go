@@ -21,6 +21,7 @@ const (
 	coFieldTTL    = "ttl"
 )
 
+// CacheOutputSpec returns the config spec of the cache output plugin.
 func CacheOutputSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
@@ -95,6 +96,7 @@ func init() {
 	}
 }
 
+// CacheWriter is a writer implementation for the cache output plugin.
 type CacheWriter struct {
 	mgr bundle.NewManagement
 
@@ -105,7 +107,7 @@ type CacheWriter struct {
 	log log.Modular
 }
 
-// NewCacheWriter creates a writer for cache the output plugin.
+// NewCacheWriter creates a writer for the cache output plugin.
 func NewCacheWriter(conf *service.ParsedConfig, mgr bundle.NewManagement) (*CacheWriter, error) {
 	target, err := conf.FieldString(coFieldTarget)
 	if err != nil {

@@ -20,6 +20,7 @@ type inputCtrl struct {
 	closedForSwap *int32
 }
 
+// InputWrapper is a wrapper for a streamed input.
 type InputWrapper struct {
 	ctrl      *inputCtrl
 	inputLock sync.Mutex
@@ -28,6 +29,7 @@ type InputWrapper struct {
 	shutSig  *shutdown.Signaller
 }
 
+// WrapInput wraps a streamed input and starts the transaction processing loop.
 func WrapInput(i input.Streamed) *InputWrapper {
 	var s int32
 	w := &InputWrapper{
@@ -42,6 +44,8 @@ func WrapInput(i input.Streamed) *InputWrapper {
 	return w
 }
 
+// CloseExistingInput instructs the wrapped input to stop consuming messages and
+// waits for it to shut down.
 func (w *InputWrapper) CloseExistingInput(ctx context.Context, forSwap bool) error {
 	w.inputLock.Lock()
 	tmpInput := w.ctrl.input
@@ -60,6 +64,7 @@ func (w *InputWrapper) CloseExistingInput(ctx context.Context, forSwap bool) err
 	return tmpInput.WaitForClose(ctx)
 }
 
+// SwapInput swaps the wrapped input with another one.
 func (w *InputWrapper) SwapInput(i input.Streamed) {
 	var s int32
 	w.inputLock.Lock()
@@ -70,10 +75,14 @@ func (w *InputWrapper) SwapInput(i input.Streamed) {
 	w.inputLock.Unlock()
 }
 
+// TransactionChan returns a transactions channel for consuming messages from
+// the wrapped input\.
 func (w *InputWrapper) TransactionChan() <-chan message.Transaction {
 	return w.tranChan
 }
 
+// Connected returns a boolean indicating whether the wrapped input is currently
+// connected to its target.
 func (w *InputWrapper) Connected() bool {
 	w.inputLock.Lock()
 	con := w.ctrl.input != nil && w.ctrl.input.Connected()
@@ -143,14 +152,21 @@ func (w *InputWrapper) loop() {
 	}
 }
 
+// TriggerStopConsuming instructs the wrapped input to start shutting down
+// resources once all pending messages are delivered and acknowledged. This call
+// does not block.
 func (w *InputWrapper) TriggerStopConsuming() {
 	w.shutSig.TriggerSoftStop()
 }
 
+// TriggerCloseNow triggers the shut down of the wrapped input but should not
+// block the calling goroutine.
 func (w *InputWrapper) TriggerCloseNow() {
 	w.shutSig.TriggerHardStop()
 }
 
+// WaitForClose is a blocking call to wait until the wrapped input has finished
+// shutting down and cleaning up resources.
 func (w *InputWrapper) WaitForClose(ctx context.Context) error {
 	select {
 	case <-w.shutSig.HasStoppedChan():

@@ -58,6 +58,8 @@ func Fail[T any](err *Error, input []rune) Result[T] {
 	}
 }
 
+// ResultInto creates a new result containing the error and the remaining data
+// from the input.
 func ResultInto[T, L any](from Result[L]) Result[T] {
 	return Result[T]{
 		Err:       from.Err,
@@ -299,6 +301,8 @@ var Null = func() Func[any] {
 	}
 }()
 
+// DiscardedWhitespaceNewlineComments skips over any spaces, tabs and comments
+// followed by a mandatory line break.
 var DiscardedWhitespaceNewlineComments = DiscardAll(OneOf(SpacesAndTabs, NewlineAllowComment))
 
 // Array parses an array literal.

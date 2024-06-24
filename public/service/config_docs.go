@@ -107,8 +107,8 @@ type TemplateDataPluginField struct {
 	DefaultMarshalled string
 }
 
-// PluginTemplateData returns a struct containing useful documentation details,
-// which can then be injected into a template in order to populate a
+// TemplateData returns a struct containing useful documentation details, which
+// can then be injected into a template in order to populate a
 // documentation website automatically.
 func (c *ConfigView) TemplateData() (TemplateDataPlugin, error) {
 	_, rootOnly := map[string]struct{}{

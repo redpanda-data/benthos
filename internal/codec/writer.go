@@ -9,8 +9,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 )
 
-var WriterDocs = NewWriterDocs("codec")
-
+// NewWriterDocs returns the field documentation for writer codecs.
 func NewWriterDocs(name string) docs.FieldSpec {
 	return docs.FieldString(
 		name, "The way in which the bytes of messages should be written out into the output data stream. It's possible to write lines using a custom delimiter with the `delim:x` codec, where x is the character sequence custom delimiter.", "lines", "delim:\t", "delim:foobar",
@@ -24,12 +23,16 @@ func NewWriterDocs(name string) docs.FieldSpec {
 
 //------------------------------------------------------------------------------
 
+// SuffixFn is a function which should be called by codec writers to determine
+// when a custom suffix must be emitted by the writer codec.
 type SuffixFn func(data []byte) ([]byte, bool)
 
+// WriterConfig is a general configuration struct that covers all writer codecs.
 type WriterConfig struct {
 	Append bool
 }
 
+// GetWriter returns a codec writer.
 func GetWriter(codec string) (sFn SuffixFn, appendMode bool, err error) {
 	switch codec {
 	case "all-bytes":

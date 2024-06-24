@@ -68,12 +68,15 @@ func outputFields() docs.FieldSpecs {
 	}
 }
 
+// OutputCondition contains a test output condition.
 type OutputCondition interface {
 	Check(fs fs.FS, dir string, part *message.Part) error
 }
 
+// OutputConditionsMap represents a collection of output conditions.
 type OutputConditionsMap map[string]OutputCondition
 
+// CheckAll runs all output condition checks.
 func (c OutputConditionsMap) CheckAll(fs fs.FS, dir string, part *message.Part) (errs []error) {
 	condTypes := []string{}
 	for k := range c {
@@ -88,6 +91,7 @@ func (c OutputConditionsMap) CheckAll(fs fs.FS, dir string, part *message.Part) 
 	return
 }
 
+// OutputConditionsFromParsed extracts an OutputConditionsMap from a parsed config.
 func OutputConditionsFromParsed(pConf *docs.ParsedConfig) (m OutputConditionsMap, err error) {
 	m = OutputConditionsMap{}
 	if pConf.Contains(fieldOutputBloblang) {
@@ -183,6 +187,7 @@ func OutputConditionsFromParsed(pConf *docs.ParsedConfig) (m OutputConditionsMap
 	return
 }
 
+// BloblangCondition represents a test bloblang condition.
 type BloblangCondition struct {
 	m *mapping.Executor
 }
@@ -195,6 +200,7 @@ func parseBloblangCondition(expr string) (*BloblangCondition, error) {
 	return &BloblangCondition{m}, nil
 }
 
+// Check runs the bloblang condition check.
 func (b *BloblangCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	msg := message.Batch{p}
 	res, err := b.m.QueryPart(0, msg)
@@ -207,8 +213,10 @@ func (b *BloblangCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	return nil
 }
 
+// ContentEqualsCondition represents a test ContentEquals condition.
 type ContentEqualsCondition string
 
+// Check runs the ContentEquals condition check.
 func (c ContentEqualsCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	if exp, act := string(c), string(p.AsBytes()); exp != act {
 		return fmt.Errorf("content mismatch\n  expected: %v\n  received: %v", blue(exp), red(act))
@@ -216,8 +224,10 @@ func (c ContentEqualsCondition) Check(fs fs.FS, dir string, p *message.Part) err
 	return nil
 }
 
+// ContentMatchesCondition represents a test ContentMatches condition.
 type ContentMatchesCondition string
 
+// Check runs the ContentMatches condition check.
 func (c ContentMatchesCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	re := regexp.MustCompile(string(c))
 	if !re.Match(p.AsBytes()) {
@@ -226,8 +236,10 @@ func (c ContentMatchesCondition) Check(fs fs.FS, dir string, p *message.Part) er
 	return nil
 }
 
+// ContentJSONEqualsCondition represents a test ContentJSONEquals condition.
 type ContentJSONEqualsCondition string
 
+// Check runs the ContentJSONEquals condition check.
 func (c ContentJSONEqualsCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	jdopts := jsondiff.DefaultConsoleOptions()
 	diff, explanation := jsondiff.Compare(p.AsBytes(), []byte(c), &jdopts)
@@ -237,8 +249,10 @@ func (c ContentJSONEqualsCondition) Check(fs fs.FS, dir string, p *message.Part)
 	return nil
 }
 
+// ContentJSONContainsCondition represents a test ContentJSONContains condition.
 type ContentJSONContainsCondition string
 
+// Check runs the ContentJSONContains condition check.
 func (c ContentJSONContainsCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	jdopts := jsondiff.DefaultConsoleOptions()
 	diff, explanation := jsondiff.Compare(p.AsBytes(), []byte(c), &jdopts)
@@ -248,8 +262,10 @@ func (c ContentJSONContainsCondition) Check(fs fs.FS, dir string, p *message.Par
 	return nil
 }
 
+// FileEqualsCondition represents a test FileEquals condition.
 type FileEqualsCondition string
 
+// Check runs the FileEquals condition check.
 func (c FileEqualsCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	relPath := filepath.Join(dir, string(c))
 
@@ -264,8 +280,10 @@ func (c FileEqualsCondition) Check(fs fs.FS, dir string, p *message.Part) error 
 	return nil
 }
 
+// FileJSONEqualsCondition represents a test FileJSONEquals condition.
 type FileJSONEqualsCondition string
 
+// Check runs the FileJSONEquals condition check.
 func (c FileJSONEqualsCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	relPath := filepath.Join(dir, string(c))
 
@@ -278,8 +296,10 @@ func (c FileJSONEqualsCondition) Check(fs fs.FS, dir string, p *message.Part) er
 	return comparison.Check(fs, dir, p)
 }
 
+// FileJSONContainsCondition represents a test FileJSONContains condition.
 type FileJSONContainsCondition string
 
+// Check runs the FileJSONContains condition check.
 func (c FileJSONContainsCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	relPath := filepath.Join(dir, string(c))
 
@@ -292,8 +312,10 @@ func (c FileJSONContainsCondition) Check(fs fs.FS, dir string, p *message.Part) 
 	return comparison.Check(fs, dir, p)
 }
 
+// MetadataEqualsCondition represents a test MetadataEquals condition.
 type MetadataEqualsCondition map[string]any
 
+// Check runs the MetadataEquals condition check.
 func (m MetadataEqualsCondition) Check(fs fs.FS, dir string, p *message.Part) error {
 	for k, exp := range m {
 		act, exists := p.MetaGetMut(k)

@@ -15,6 +15,7 @@ const (
 	fieldCaseOutputBatches    = "output_batches"
 )
 
+// Case contains a definition of a single Benthos config test case.
 type Case struct {
 	Name             string
 	Environment      map[string]string
@@ -27,6 +28,7 @@ type Case struct {
 	line int
 }
 
+// Line returns the case line.
 func (c *Case) Line() int {
 	return c.line
 }
@@ -70,6 +72,7 @@ It is also possible to target processors in a separate file by prefixing the tar
 	}
 }
 
+// CaseFromAny attempts to return a Case from the untyped input parameter.
 func CaseFromAny(v any) (Case, error) {
 	pConf, err := caseFields().ParsedConfigFromAny(v)
 	if err != nil {
@@ -78,6 +81,7 @@ func CaseFromAny(v any) (Case, error) {
 	return CaseFromParsed(pConf)
 }
 
+// CaseFromParsed extracts a Case from a parsed config.
 func CaseFromParsed(pConf *docs.ParsedConfig) (c Case, err error) {
 	c.line, _ = pConf.Line()
 	if c.Name, err = pConf.FieldString(fieldCaseName); err != nil {
