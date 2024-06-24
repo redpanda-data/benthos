@@ -7,6 +7,7 @@ import (
 
 	"github.com/fatih/color"
 
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli/test"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	dtest "github.com/redpanda-data/benthos/v4/internal/config/test"
@@ -68,7 +69,7 @@ pipeline:
 		},
 	}
 
-	failures, err := test.Execute(config.Spec(), def, filepath.Join(testDir, "config1.yaml"), nil, log.Noop())
+	failures, err := test.Execute(bundle.GlobalEnvironment, config.Spec(), def, filepath.Join(testDir, "config1.yaml"), nil, log.Noop())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,7 +153,7 @@ pipeline:
 		},
 	}
 
-	failures, err := test.Execute(config.Spec(), def, filepath.Join(testDir, "config1.yaml"), nil, log.Noop())
+	failures, err := test.Execute(bundle.GlobalEnvironment, config.Spec(), def, filepath.Join(testDir, "config1.yaml"), nil, log.Noop())
 	if err != nil {
 		t.Fatal(err)
 	}

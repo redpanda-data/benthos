@@ -48,9 +48,12 @@ const defaultCloseDeadline = time.Second * 30
 // reallocations, or config changes and attempt to reflect those changes in the
 // running stream.
 type PullRunner struct {
-	confReaderSpec docs.FieldSpecs
-	confReader     *config.Reader
-	sessionTracker *sessionTracker
+	secretLookupFn   func(context.Context, string) (string, bool)
+	bloblEnvironment *ibloblang.Environment
+	environment      *bundle.Environment
+	confReaderSpec   docs.FieldSpecs
+	confReader       *config.Reader
+	sessionTracker   *sessionTracker
 
 	// Controls disabled deployment rotations
 	isDisabled     bool
@@ -98,6 +101,9 @@ func OptSetNowFn(fn func() time.Time) func(*PullRunner) {
 // that calls into it.
 func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string, opts ...func(p *PullRunner)) (*PullRunner, error) {
 	r := &PullRunner{
+		secretLookupFn:     cliOpts.SecretAccessFn,
+		bloblEnvironment:   cliOpts.BloblEnvironment,
+		environment:        cliOpts.Environment,
 		confReaderSpec:     cliOpts.MainConfigSpecCtor(),
 		metricsFlushPeriod: time.Second * 30,
 		stoppableStream:    common.NewSwappableStopper(&noopStopper{}),
@@ -135,7 +141,11 @@ func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string
 	// that gets replaced each time a new config is loaded.
 	{
 		confPath, confResPaths, setSlice := c.String("config"), c.StringSlice("resources"), c.StringSlice("set")
-		tmpConf, _, localLints, err := config.NewReader(confPath, confResPaths, config.OptAddOverrides(setSlice...)).Read()
+		tmpConf, _, localLints, err := config.NewReader(
+			confPath, confResPaths,
+			config.OptAddOverrides(setSlice...),
+			config.OptUseEnvLookupFunc(cliOpts.SecretAccessFn),
+		).Read()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create initial logger: %w", err)
 		}
@@ -244,14 +254,15 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 		backup:  ifs.OS(),
 	}
 
-	bloblEnv := ibloblang.GlobalEnvironment().WithCustomImporter(func(name string) ([]byte, error) {
+	bloblEnv := r.bloblEnvironment.WithCustomImporter(func(name string) ([]byte, error) {
 		return ifs.ReadFile(sessFS, name)
 	})
 
-	lintConf := docs.NewLintConfig(bundle.GlobalEnvironment)
-	lintConf.BloblangEnv = bloblang.XWrapEnvironment(bloblEnv).Deactivated()
+	lintConf := docs.NewLintConfig(r.environment)
+	lintConf.BloblangEnv = bloblang.XWrapEnvironment(bloblEnv.Deactivated())
 
 	confReaderTmp := config.NewReader(initMainFile, initResources,
+		config.OptUseEnvLookupFunc(r.secretLookupFn),
 		config.OptAddOverrides(r.cliContext.StringSlice("set")...),
 		config.OptTestSuffix("_benthos_test"),
 		config.OptUseFS(sessFS),
@@ -278,7 +289,7 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 		return errors.New("found linting errors in config")
 	}
 
-	tmpEnv, tmpTracingSummary := tracing.TracedBundle(bundle.GlobalEnvironment)
+	tmpEnv, tmpTracingSummary := tracing.TracedBundle(r.environment)
 	tmpTracingSummary.SetEnabled(false)
 
 	stopMgrTmp, err := common.CreateManager(

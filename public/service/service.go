@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
@@ -134,6 +135,17 @@ func CLIOptSetMainSchemaFrom(fn func() *ConfigSchema) CLIOptFunc {
 	}
 }
 
+// CLIOptSetEnvironment overrides the default Benthos plugin environment for
+// another.
+func CLIOptSetEnvironment(e *Environment) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.Environment = e.internal
+		c.opts.BloblEnvironment = e.bloblangEnv.XUnwrapper().(interface {
+			Unwrap() *bloblang.Environment
+		}).Unwrap()
+	}
+}
+
 // CLIOptOnConfigParse sets a closure function to be called when a main
 // configuration file load has occurred.
 //
@@ -147,5 +159,15 @@ func CLIOptOnConfigParse(fn func(fn *ParsedConfig) error) CLIOptFunc {
 				mgr: mgr,
 			})
 		}
+	}
+}
+
+// CLIOptSetEnvVarLookup overrides the default environment variable lookup
+// function for config interpolation functions, this allows custom secret
+// mechanisms to be referenced as an alternative, or in combination with,
+// environment variables.
+func CLIOptSetEnvVarLookup(fn func(context.Context, string) (string, bool)) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.SecretAccessFn = fn
 	}
 }

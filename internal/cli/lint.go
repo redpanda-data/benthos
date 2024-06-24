@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,12 +14,12 @@ import (
 	"github.com/fatih/color"
 	"github.com/urfave/cli/v2"
 
-	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	ifilepath "github.com/redpanda-data/benthos/v4/internal/filepath"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
+	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
 var (
@@ -31,8 +32,9 @@ type pathLint struct {
 	lint   docs.Lint
 }
 
-func lintFile(path string, skipEnvVarCheck bool, spec docs.FieldSpecs, lConf docs.LintConfig) (pathLints []pathLint) {
-	_, lints, err := config.ReadYAMLFileLinted(ifs.OS(), spec, path, skipEnvVarCheck, lConf)
+func lintFile(opts *common.CLIOpts, path string, skipEnvVarCheck bool, spec docs.FieldSpecs, lConf docs.LintConfig) (pathLints []pathLint) {
+	_, lints, err := config.NewReader("", nil, config.OptUseEnvLookupFunc(opts.SecretAccessFn)).
+		ReadYAMLFileLinted(context.TODO(), spec, path, skipEnvVarCheck, lConf)
 	if err != nil {
 		pathLints = append(pathLints, pathLint{
 			source: path,
@@ -188,7 +190,8 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
 	}
 	targets = append(targets, c.StringSlice("resources")...)
 
-	lConf := docs.NewLintConfig(bundle.GlobalEnvironment)
+	lConf := docs.NewLintConfig(opts.Environment)
+	lConf.BloblangEnv = bloblang.XWrapEnvironment(opts.BloblEnvironment)
 	lConf.RejectDeprecated = c.Bool("deprecated")
 	lConf.RequireLabels = c.Bool("labels")
 	skipEnvVarCheck := c.Bool("skip-env-var-check")
@@ -214,7 +217,7 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
 				if path.Ext(target) == ".md" {
 					lints = lintMDSnippets(target, spec, lConf)
 				} else {
-					lints = lintFile(target, skipEnvVarCheck, spec, lConf)
+					lints = lintFile(opts, target, skipEnvVarCheck, spec, lConf)
 				}
 				if len(lints) > 0 {
 					pathLintMut.Lock()

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -53,7 +54,10 @@ func TestEnvSwapping(t *testing.T) {
 	}
 
 	for in, exp := range tests {
-		out, err := ReplaceEnvVariables([]byte(in), envFn)
+		r := NewReader("", nil, OptUseEnvLookupFunc(func(ctx context.Context, s string) (string, bool) {
+			return envFn(s)
+		}))
+		out, err := r.ReplaceEnvVariables(context.Background(), []byte(in))
 		if exp.errContains != "" {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), exp.errContains)

@@ -11,7 +11,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/parser"
-	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli/blobl"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/cli/studio"
@@ -260,7 +259,7 @@ variables have been resolved:
 					}
 					var node yaml.Node
 					if err = node.Encode(pConf.Raw()); err == nil {
-						sanitConf := docs.NewSanitiseConfig(bundle.GlobalEnvironment)
+						sanitConf := docs.NewSanitiseConfig(opts.Environment)
 						sanitConf.RemoveTypeField = true
 						sanitConf.ScrubSecrets = true
 						err = opts.MainConfigSpecCtor().SanitiseYAML(&node, sanitConf)

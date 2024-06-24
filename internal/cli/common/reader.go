@@ -30,5 +30,8 @@ func ReadConfig(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) (mainPath st
 	if streamsMode {
 		opts = append(opts, config.OptSetStreamPaths(c.Args().Slice()...))
 	}
+	if cliOpts.SecretAccessFn != nil {
+		opts = append(opts, config.OptUseEnvLookupFunc(cliOpts.SecretAccessFn))
+	}
 	return path, inferred, config.NewReader(path, c.StringSlice("resources"), opts...)
 }

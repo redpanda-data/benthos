@@ -53,10 +53,10 @@ For more information check out the docs at:
 					fmt.Printf("Failed to init logger: %v\n", err)
 					os.Exit(1)
 				}
-				if RunAll(c.Args().Slice(), cliOpts.MainConfigSpecCtor(), "_benthos_test", true, logger, resourcesPaths) {
+				if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, logger, resourcesPaths) {
 					os.Exit(0)
 				}
-			} else if RunAll(c.Args().Slice(), cliOpts.MainConfigSpecCtor(), "_benthos_test", true, log.Noop(), resourcesPaths) {
+			} else if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, log.Noop(), resourcesPaths) {
 				os.Exit(0)
 			}
 			os.Exit(1)

@@ -15,7 +15,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/api"
-	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
@@ -60,13 +59,13 @@ func CreateManager(
 	tmpMgr.Version = cliOpts.Version
 
 	// Create our metrics type.
-	if stats, err = bundle.AllMetrics.Init(conf.Metrics, tmpMgr); err != nil {
+	if stats, err = cliOpts.Environment.MetricsInit(conf.Metrics, tmpMgr); err != nil {
 		err = fmt.Errorf("failed to connect to metrics aggregator: %w", err)
 		return
 	}
 
 	// Create our tracer type.
-	if trac, err = bundle.AllTracers.Init(conf.Tracer, tmpMgr); err != nil {
+	if trac, err = cliOpts.Environment.TracersInit(conf.Tracer, tmpMgr); err != nil {
 		err = fmt.Errorf("failed to initialise tracer: %w", err)
 		return
 	}
@@ -74,7 +73,7 @@ func CreateManager(
 	// Create HTTP API with a sanitised service config.
 	var sanitNode yaml.Node
 	if err = sanitNode.Encode(conf); err == nil {
-		sanitConf := docs.NewSanitiseConfig(bundle.GlobalEnvironment)
+		sanitConf := docs.NewSanitiseConfig(cliOpts.Environment)
 		sanitConf.RemoveTypeField = true
 		sanitConf.ScrubSecrets = true
 		sanitSpec := cliOpts.MainConfigSpecCtor()
@@ -102,6 +101,8 @@ func CreateManager(
 		manager.OptSetMetrics(stats),
 		manager.OptSetTracer(trac),
 		manager.OptSetStreamsMode(streamsMode),
+		manager.OptSetBloblangEnvironment(cliOpts.BloblEnvironment),
+		manager.OptSetEnvironment(cliOpts.Environment),
 	}, mgrOpts...)
 
 	// Create resource manager.
