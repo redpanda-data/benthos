@@ -167,11 +167,11 @@ type ackMessage struct {
 }
 
 type keyedWindowBatch struct {
-	messages     []*ackMessage
-	key          string
-	expiry       time.Time
-	queued       bool
-	passes_check bool
+	messages    []*ackMessage
+	key         string
+	expiry      time.Time
+	queued      bool
+	passesCheck bool
 }
 
 func (k *keyedWindowBatch) IsExpired(
@@ -251,7 +251,7 @@ func newKeyedWindowBuffer(
 	tsMapping *bloblang.Executor,
 	keyMapping, lengthMapping *service.InterpolatedString,
 	check *bloblang.Executor,
-	max_pending_keys int,
+	maxPendingKeys int,
 	clock utcNowProvider,
 	size time.Duration,
 	res *service.Resources,
@@ -261,7 +261,7 @@ func newKeyedWindowBuffer(
 		tsMapping:      tsMapping,
 		keyMapping:     keyMapping,
 		lengthMapping:  lengthMapping,
-		maxPendingKeys: max_pending_keys,
+		maxPendingKeys: maxPendingKeys,
 		check:          check,
 		clock:          clock,
 		size:           size,
@@ -350,9 +350,9 @@ func (w *keyedWindowBuffer) WriteBatch(ctx context.Context, msgBatch service.Mes
 				return err
 			}
 			batch = &keyedWindowBatch{
-				key:          keyValue,
-				expiry:       ts.Add(w.size),
-				passes_check: false,
+				key:         keyValue,
+				expiry:      ts.Add(w.size),
+				passesCheck: false,
 			}
 			w.pending[keyValue] = batch
 
@@ -391,15 +391,15 @@ func (w *keyedWindowBuffer) WriteBatch(ctx context.Context, msgBatch service.Mes
 			if checkValue != nil {
 				newValue, err := checkValue.AsStructured()
 				if err != nil {
-					batch.passes_check = false
+					batch.passesCheck = false
 				}
 				if b, ok := newValue.(bool); ok {
-					batch.passes_check = b
+					batch.passesCheck = b
 					if b {
 						w.keyCompletedChan <- keyValue
 					}
 				} else {
-					batch.passes_check = false
+					batch.passesCheck = false
 				}
 			}
 		}

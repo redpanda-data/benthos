@@ -108,8 +108,8 @@ timeout: 1s
 
 	t.Log("Reading batches")
 
-	require.Equal(t, 2, len(block.pending), "Expected 2 pending keys")
-	require.Equal(t, totalNack, 4, "Expected 4 nacks")
+	require.Len(t, block.pending, 2, "Expected 2 pending keys")
+	require.Equal(t, 4, totalNack, "Expected 4 nacks")
 }
 
 func TestKeyedWindow(t *testing.T) {
@@ -181,7 +181,7 @@ check: meta("batch_expected_length") == meta("batch_length")
 		// Third partial batch should be ready
 		batch3, _, err := block.ReadBatch(ctx)
 		require.NoError(t, err)
-		require.Equal(t, 4, len(batch3))
+		require.Len(t, batch3, 4)
 	}()
 
 	wg.Wait()
