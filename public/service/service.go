@@ -135,7 +135,7 @@ func CLIOptSetMainSchemaFrom(fn func() *ConfigSchema) CLIOptFunc {
 	}
 }
 
-// CLIOptSetEnvironmentFrom overrides the default Benthos plugin environment for
+// CLIOptSetEnvironment overrides the default Benthos plugin environment for
 // another.
 func CLIOptSetEnvironment(e *Environment) CLIOptFunc {
 	return func(c *CLIOptBuilder) {
