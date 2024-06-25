@@ -475,7 +475,7 @@ var errKeyedWindowClosed = errors.New("message rejected as window did not comple
 func (w *keyedWindowBuffer) ReadBatch(ctx context.Context) (service.MessageBatch, service.AckFunc, error) {
 
 	for {
-		key := ""
+		var key string
 
 		select {
 		case key = <-w.keyCompletedChan:
