@@ -1,7 +1,7 @@
 module github.com/redpanda-data/benthos/v4
 
 require (
-	cuelang.org/go v0.9.1
+	cuelang.org/go v0.9.2
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/Jeffail/grok v1.1.0
 	github.com/Jeffail/shutdown v1.0.0
@@ -40,10 +40,10 @@ require (
 	go.opentelemetry.io/otel v1.27.0
 	go.opentelemetry.io/otel/trace v1.27.0
 	go.uber.org/multierr v1.11.0
-	golang.org/x/crypto v0.23.0
-	golang.org/x/oauth2 v0.20.0
+	golang.org/x/crypto v0.24.0
+	golang.org/x/oauth2 v0.21.0
 	golang.org/x/sync v0.7.0
-	golang.org/x/text v0.15.0
+	golang.org/x/text v0.16.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -66,7 +66,7 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xrash/smetrics v0.0.0-20240312152122-5f08fbb34913 // indirect
 	go.opentelemetry.io/otel/metric v1.27.0 // indirect
-	golang.org/x/sys v0.20.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
