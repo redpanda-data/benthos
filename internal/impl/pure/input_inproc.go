@@ -7,6 +7,7 @@ import (
 	"github.com/Jeffail/shutdown"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
 	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
 	"github.com/redpanda-data/benthos/v4/internal/log"
@@ -108,8 +109,10 @@ func (i *inprocInput) TransactionChan() <-chan message.Transaction {
 	return i.transactions
 }
 
-func (i *inprocInput) Connected() bool {
-	return true
+func (i *inprocInput) ConnectionStatus() component.ConnectionStatuses {
+	return component.ConnectionStatuses{
+		component.ConnectionActive(i.mgr),
+	}
 }
 
 func (i *inprocInput) TriggerStopConsuming() {
