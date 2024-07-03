@@ -81,8 +81,9 @@ func (w *InputWrapper) TransactionChan() <-chan message.Transaction {
 	return w.tranChan
 }
 
-// Connected returns a boolean indicating whether the wrapped input is currently
-// connected to its target.
+// ConnectionStatus returns the current status of the given component
+// connection. The result is a slice in order to accommodate higher order
+// components that wrap several others.
 func (w *InputWrapper) ConnectionStatus() (s component.ConnectionStatuses) {
 	w.inputLock.Lock()
 	if w.ctrl.input != nil {
