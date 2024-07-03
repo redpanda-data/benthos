@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/buffer"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
@@ -96,6 +97,14 @@ func OptOnClose(onClose func()) func(*Type) {
 // of the stream are connected.
 func (t *Type) IsReady() bool {
 	return t.inputLayer.ConnectionStatus().AllActive() && t.outputLayer.ConnectionStatus().AllActive()
+}
+
+// ConnectionStatus returns the aggregate connection status of all inputs and
+// outputs of the stream.
+func (t *Type) ConnectionStatus() (s component.ConnectionStatuses) {
+	s = append(s, t.inputLayer.ConnectionStatus()...)
+	s = append(s, t.outputLayer.ConnectionStatus()...)
+	return
 }
 
 func (t *Type) start() (err error) {

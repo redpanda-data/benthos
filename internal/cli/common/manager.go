@@ -126,7 +126,7 @@ func RunManagerUntilStopped(
 	opts *CLIOpts,
 	conf config.Type,
 	stopMgr *StoppableManager,
-	stopStrm Stoppable,
+	stopStrm RunningStream,
 	dataStreamClosedChan chan struct{},
 ) error {
 	var exitDelay time.Duration

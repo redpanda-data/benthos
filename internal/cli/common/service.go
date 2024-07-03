@@ -83,7 +83,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 		return err
 	}
 
-	var stoppableStream Stoppable
+	var stoppableStream RunningStream
 	var dataStreamClosedChan chan struct{}
 
 	// Create data streams.
@@ -130,7 +130,7 @@ func initStreamsMode(
 	strict, watching, enableAPI bool,
 	confReader *config.Reader,
 	mgr *manager.Type,
-) (Stoppable, error) {
+) (RunningStream, error) {
 	logger := mgr.Logger()
 	streamMgr := strmmgr.New(mgr, strmmgr.OptAPIEnabled(enableAPI))
 
@@ -191,12 +191,12 @@ func initNormalMode(
 	strict, watching bool,
 	confReader *config.Reader,
 	mgr *manager.Type,
-) (newStream Stoppable, stoppedChan chan struct{}, err error) {
+) (newStream RunningStream, stoppedChan chan struct{}, err error) {
 	logger := mgr.Logger()
 
 	stoppedChan = make(chan struct{})
 	var closeOnce sync.Once
-	streamInit := func() (Stoppable, error) {
+	streamInit := func() (RunningStream, error) {
 		return stream.New(conf.Config, mgr, stream.OptOnClose(func() {
 			if !watching {
 				closeOnce.Do(func() {
@@ -219,7 +219,7 @@ func initNormalMode(
 		ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
 		defer done()
 		// NOTE: We're ignoring observability field changes for now.
-		return stoppableStream.Replace(ctx, func() (Stoppable, error) {
+		return stoppableStream.Replace(ctx, func() (RunningStream, error) {
 			conf.Config = newStreamConf.Config
 			return streamInit()
 		})
