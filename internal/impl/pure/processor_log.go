@@ -33,7 +33,7 @@ The `+"`level`"+` field determines the log level of the printed events and can b
 
 == Structured fields
 
-It's also possible add custom fields to logs when the format is set to a structured form such as `+"`json` or `logfmt`"+` with the config field `+"<<fields_mapping, `fields_mapping`>>"+`:
+It's also possible add custom fields to logs when the format is set to a structured form such as `+"`gcp_errorreporting`, `json` or `logfmt`"+` with the config field `+"<<fields_mapping, `fields_mapping`>>"+`:
 
 `+"```yaml"+`
 pipeline:
