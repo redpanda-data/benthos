@@ -23,7 +23,6 @@ type CLIOpts struct {
 	ProductName      string
 	DocumentationURL string
 
-	ShowRunCommand    bool
 	ConfigSearchPaths []string
 
 	Environment      *bundle.Environment
@@ -47,7 +46,6 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 		BinaryName:       binaryName,
 		ProductName:      "Benthos",
 		DocumentationURL: "https://benthos.dev/docs",
-		ShowRunCommand:   false,
 		ConfigSearchPaths: []string{
 			"/benthos.yaml",
 			"/etc/benthos/config.yaml",

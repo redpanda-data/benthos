@@ -15,51 +15,6 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/template"
 )
 
-var (
-	red    = color.New(color.FgRed).SprintFunc()
-	yellow = color.New(color.FgYellow).SprintFunc()
-)
-
-type pathLint struct {
-	source string
-	lint   docs.Lint
-}
-
-func lintFile(path string) (pathLints []pathLint) {
-	conf, lints, err := template.ReadConfigFile(path)
-	if err != nil {
-		pathLints = append(pathLints, pathLint{
-			source: path,
-			lint:   docs.NewLintError(1, docs.LintFailedRead, err),
-		})
-		return
-	}
-
-	for _, l := range lints {
-		pathLints = append(pathLints, pathLint{
-			source: path,
-			lint:   l,
-		})
-	}
-
-	testErrors, err := conf.Test()
-	if err != nil {
-		pathLints = append(pathLints, pathLint{
-			source: path,
-			lint:   docs.NewLintError(1, docs.LintFailedRead, err),
-		})
-		return
-	}
-
-	for _, tErr := range testErrors {
-		pathLints = append(pathLints, pathLint{
-			source: path,
-			lint:   docs.NewLintError(1, docs.LintFailedRead, errors.New(tErr)),
-		})
-	}
-	return
-}
-
 func lintCliCommand(opts *common.CLIOpts) *cli.Command {
 	return &cli.Command{
 		Name:  "lint",
@@ -105,4 +60,49 @@ files with the .yaml or .yml extension.`)[1:],
 			return nil
 		},
 	}
+}
+
+var (
+	red    = color.New(color.FgRed).SprintFunc()
+	yellow = color.New(color.FgYellow).SprintFunc()
+)
+
+type pathLint struct {
+	source string
+	lint   docs.Lint
+}
+
+func lintFile(path string) (pathLints []pathLint) {
+	conf, lints, err := template.ReadConfigFile(path)
+	if err != nil {
+		pathLints = append(pathLints, pathLint{
+			source: path,
+			lint:   docs.NewLintError(1, docs.LintFailedRead, err),
+		})
+		return
+	}
+
+	for _, l := range lints {
+		pathLints = append(pathLints, pathLint{
+			source: path,
+			lint:   l,
+		})
+	}
+
+	testErrors, err := conf.Test()
+	if err != nil {
+		pathLints = append(pathLints, pathLint{
+			source: path,
+			lint:   docs.NewLintError(1, docs.LintFailedRead, err),
+		})
+		return
+	}
+
+	for _, tErr := range testErrors {
+		pathLints = append(pathLints, pathLint{
+			source: path,
+			lint:   docs.NewLintError(1, docs.LintFailedRead, errors.New(tErr)),
+		})
+	}
+	return
 }

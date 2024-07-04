@@ -89,10 +89,10 @@ func CLIOptSetDocumentationURL(n string) CLIOptFunc {
 
 // CLIOptSetShowRunCommand determines whether a `run` subcommand should appear
 // in CLI help and autocomplete.
+//
+// Deprecated: The run command is always shown now.
 func CLIOptSetShowRunCommand(show bool) CLIOptFunc {
-	return func(c *CLIOptBuilder) {
-		c.opts.ShowRunCommand = show
-	}
+	return func(c *CLIOptBuilder) {}
 }
 
 // CLIOptSetDefaultConfigPaths overrides the default paths used for detecting

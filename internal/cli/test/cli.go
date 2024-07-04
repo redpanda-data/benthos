@@ -14,9 +14,18 @@ import (
 
 // CliCommand is a cli.Command definition for unit testing.
 func CliCommand(cliOpts *common.CLIOpts) *cli.Command {
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:  "log",
+			Value: "",
+			Usage: "allow components to write logs at a provided level to stdout.",
+		},
+	}
+
 	return &cli.Command{
 		Name:  "test",
 		Usage: cliOpts.ExecTemplate("Execute {{.ProductName}} unit tests"),
+		Flags: flags,
 		Description: cliOpts.ExecTemplate(`
 Execute any number of {{.ProductName}} unit test definitions. If one or more tests
 fail the process will report the errors and exit with a status code 1.
@@ -27,13 +36,6 @@ fail the process will report the errors and exit with a status code 1.
 
 For more information check out the docs at:
 {{.DocumentationURL}}/configuration/unit_testing`)[1:],
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "log",
-				Value: "",
-				Usage: "allow components to write logs at a provided level to stdout.",
-			},
-		},
 		Action: func(c *cli.Context) error {
 			if len(c.StringSlice("set")) > 0 {
 				fmt.Fprintln(os.Stderr, "Cannot override fields with --set (-s) during unit tests")
