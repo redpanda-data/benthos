@@ -22,6 +22,58 @@ import (
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
+func lintCliCommand(cliOpts *common.CLIOpts) *cli.Command {
+	flags := []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "deprecated",
+			Value: false,
+			Usage: "Print linting errors for the presence of deprecated fields.",
+		},
+		&cli.BoolFlag{
+			Name:  "labels",
+			Value: false,
+			Usage: "Print linting errors when components do not have labels.",
+		},
+		&cli.BoolFlag{
+			Name:  "skip-env-var-check",
+			Value: false,
+			Usage: "Do not produce lint errors when environment interpolations exist without defaults within configs but aren't defined.",
+		},
+
+		// General config flags
+		&cli.StringSliceFlag{
+			Name:    common.RootFlagResources,
+			Aliases: []string{"r"},
+			Usage:   "pull in extra resources from a file, which can be referenced the same as resources defined in the main config, supports glob patterns (requires quotes)",
+		},
+	}
+	flags = append(flags, common.EnvFileAndTemplateFlags(cliOpts, false)...)
+
+	return &cli.Command{
+		Name:  "lint",
+		Usage: cliOpts.ExecTemplate("Parse {{.ProductName}} configs and report any linting errors"),
+		Flags: flags,
+		Description: cliOpts.ExecTemplate(`
+Exits with a status code 1 if any linting errors are detected:
+
+  {{.BinaryName}} lint ./configs/*.yaml
+  {{.BinaryName}} lint ./foo.yaml ./bar.yaml
+  {{.BinaryName}} lint ./configs/...
+
+If a path ends with '...' then {{.ProductName}} will walk the target and lint any
+files with the .yaml or .yml extension.`)[1:],
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
+		},
+		Action: func(c *cli.Context) error {
+			if code := LintAction(c, cliOpts, os.Stderr); code != 0 {
+				os.Exit(code)
+			}
+			return nil
+		},
+	}
+}
+
 var (
 	red    = color.New(color.FgRed).SprintFunc()
 	yellow = color.New(color.FgYellow).SprintFunc()
@@ -137,46 +189,6 @@ func lintMDSnippets(path string, spec docs.FieldSpecs, lConf docs.LintConfig) (p
 	return
 }
 
-func lintCliCommand(cliOpts *common.CLIOpts) *cli.Command {
-	return &cli.Command{
-		Name:  "lint",
-		Usage: cliOpts.ExecTemplate("Parse {{.ProductName}} configs and report any linting errors"),
-		Description: cliOpts.ExecTemplate(`
-Exits with a status code 1 if any linting errors are detected:
-
-  {{.BinaryName}} -c target.yaml lint
-  {{.BinaryName}} lint ./configs/*.yaml
-  {{.BinaryName}} lint ./foo.yaml ./bar.yaml
-  {{.BinaryName}} lint ./configs/...
-
-If a path ends with '...' then {{.ProductName}} will walk the target and lint any
-files with the .yaml or .yml extension.`)[1:],
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:  "deprecated",
-				Value: false,
-				Usage: "Print linting errors for the presence of deprecated fields.",
-			},
-			&cli.BoolFlag{
-				Name:  "labels",
-				Value: false,
-				Usage: "Print linting errors when components do not have labels.",
-			},
-			&cli.BoolFlag{
-				Name:  "skip-env-var-check",
-				Value: false,
-				Usage: "Do not produce lint errors when environment interpolations exist without defaults within configs but aren't defined.",
-			},
-		},
-		Action: func(c *cli.Context) error {
-			if code := LintAction(c, cliOpts, os.Stderr); code != 0 {
-				os.Exit(code)
-			}
-			return nil
-		},
-	}
-}
-
 // LintAction performs the benthos lint subcommand and returns the appropriate
 // exit code. This function is exported for testing purposes only.
 func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
@@ -185,10 +197,10 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
 		fmt.Fprintf(stderr, "Lint paths error: %v\n", err)
 		return 1
 	}
-	if conf := c.String("config"); conf != "" {
+	if conf := opts.RootFlags.GetConfig(c); conf != "" {
 		targets = append(targets, conf)
 	}
-	targets = append(targets, c.StringSlice("resources")...)
+	targets = append(targets, opts.RootFlags.GetResources(c)...)
 
 	lConf := docs.NewLintConfig(opts.Environment)
 	lConf.BloblangEnv = bloblang.XWrapEnvironment(opts.BloblEnvironment)

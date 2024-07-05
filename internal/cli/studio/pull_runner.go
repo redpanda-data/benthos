@@ -110,7 +110,7 @@ func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string
 		logger:             &hotSwapLogger{},
 		cliContext:         c,
 		cliOpts:            cliOpts,
-		strictMode:         !c.Bool("chilled"),
+		strictMode:         !cliOpts.RootFlags.GetChilled(c),
 		version:            cliOpts.Version,
 		dateBuilt:          cliOpts.DateBuilt,
 		nowFn:              time.Now,
@@ -140,7 +140,7 @@ func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string
 	// bootstrap. In order to accommodate this we create a hot swappable logger
 	// that gets replaced each time a new config is loaded.
 	{
-		confPath, confResPaths, setSlice := c.String("config"), c.StringSlice("resources"), c.StringSlice("set")
+		confPath, confResPaths, setSlice := cliOpts.RootFlags.GetConfig(c), cliOpts.RootFlags.GetResources(c), cliOpts.RootFlags.GetSet(c)
 		tmpConf, _, localLints, err := config.NewReader(
 			confPath, confResPaths,
 			config.OptAddOverrides(setSlice...),
@@ -239,8 +239,8 @@ func (r *PullRunner) triggerStreamReset(ctx context.Context, conf *config.Type, 
 }
 
 func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr error) {
-	initMainFile := r.cliContext.String("config")
-	initResources := r.cliContext.StringSlice("resources")
+	initMainFile := r.cliOpts.RootFlags.GetConfig(r.cliContext)
+	initResources := r.cliOpts.RootFlags.GetResources(r.cliContext)
 	initFiles := r.sessionTracker.Files()
 	if initFiles.MainConfig != nil {
 		initMainFile = initFiles.MainConfig.Name
@@ -263,7 +263,7 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 
 	confReaderTmp := config.NewReader(initMainFile, initResources,
 		config.OptUseEnvLookupFunc(r.secretLookupFn),
-		config.OptAddOverrides(r.cliContext.StringSlice("set")...),
+		config.OptAddOverrides(r.cliOpts.RootFlags.GetSet(r.cliContext)...),
 		config.OptTestSuffix("_benthos_test"),
 		config.OptUseFS(sessFS),
 		config.OptSetLintConfig(lintConf),

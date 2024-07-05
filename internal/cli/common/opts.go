@@ -16,6 +16,8 @@ import (
 
 // CLIOpts contains the available CLI configuration options.
 type CLIOpts struct {
+	RootFlags *RootCommonFlags
+
 	Version   string
 	DateBuilt string
 
@@ -23,7 +25,6 @@ type CLIOpts struct {
 	ProductName      string
 	DocumentationURL string
 
-	ShowRunCommand    bool
 	ConfigSearchPaths []string
 
 	Environment      *bundle.Environment
@@ -42,12 +43,12 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 		binaryName = path.Base(os.Args[0])
 	}
 	return &CLIOpts{
+		RootFlags:        &RootCommonFlags{},
 		Version:          version,
 		DateBuilt:        dateBuilt,
 		BinaryName:       binaryName,
 		ProductName:      "Benthos",
 		DocumentationURL: "https://benthos.dev/docs",
-		ShowRunCommand:   false,
 		ConfigSearchPaths: []string{
 			"/benthos.yaml",
 			"/etc/benthos/config.yaml",
