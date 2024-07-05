@@ -12,6 +12,10 @@ All notable changes to this project will be documented in this file.
 - Parameter `escape_html` added to the `format_json()` Bloblang method. (@mihaitodor)
 - Go API: New generic key/value store methods added to the `*Resources` type. (@Jeffail)
 
+### Changed
+
+- All cli subcommands that previously relied on root-level flags (`streams`, `lint`, `test`, `echo`) now explicitly define those flags such that they appear in help-text and can be specified _after_ the subcommand itself. This means previous commands such as `connect -r ./foo.yaml streams ./bar.yaml` can now be more intuitively written as `connect streams -r ./foo.yaml ./bar.yaml` and so on. The old style will still work in order to preserve backwards compatibility, but the help-text for these root-level flags has been hidden.
+
 ## 4.30.0 - 2024-06-13
 
 ### Added

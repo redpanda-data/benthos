@@ -220,6 +220,7 @@ func runServer(c *cli.Context) error {
 	}
 
 	log.Printf("Serving at: http://%v\n", bindAddress)
+	log.Printf("WARNING: This server is intended for local debugging and experimentation purposes, bloblang has the ability to expose environment variables and file contents, do not expose this server to the internet")
 
 	server := http.Server{
 		Addr:    bindAddress,

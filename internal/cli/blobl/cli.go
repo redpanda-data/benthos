@@ -67,10 +67,15 @@ Find out more about Bloblang at: {{.DocumentationURL}}/guides/bloblang/about`)[1
 		Action: run,
 		Subcommands: []*cli.Command{
 			{
-				Name:        "server",
-				Usage:       "EXPERIMENTAL: Run a web server that hosts a Bloblang app",
-				Description: "Run a web server that provides an interactive application for writing and testing Bloblang mappings.",
-				Action:      runServer,
+				Name:  "server",
+				Usage: "EXPERIMENTAL: Run a web server that hosts a Bloblang app",
+				Description: `
+Run a web server that provides an interactive application for writing and
+testing Bloblang mappings.
+
+**WARNING** This server is intended for local debugging and experimentation
+purposes only. Do NOT expose it to the internet.`[1:],
+				Action: runServer,
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:  "host",
