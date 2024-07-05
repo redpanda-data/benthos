@@ -98,6 +98,9 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 		return err
 	}
 
+	if err := cliOpts.OnStreamInit(stoppableStream); err != nil {
+		return err
+	}
 	return RunManagerUntilStopped(c, cliOpts, conf, stoppableManager, stoppableStream, dataStreamClosedChan)
 }
 

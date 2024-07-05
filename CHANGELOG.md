@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Metadata fields `retry_count` and `backoff_duration` added to the `retry` processor. (@mihaitodor)
 - Parameter `escape_html` added to the `format_json()` Bloblang method. (@mihaitodor)
 - Go API: New generic key/value store methods added to the `*Resources` type. (@Jeffail)
+- Go API: Variadic options added to the public `service.RunCLI` function for customising cli args and accessing running stream data. (@Jeffail)
 
 ### Changed
 

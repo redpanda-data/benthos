@@ -15,6 +15,10 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/log"
 )
 
+// StreamInitFunc is an optional func to be called when a stream (or streams
+// mode) is initialised.
+type StreamInitFunc func(s RunningStream) error
+
 // CLIOpts contains the available CLI configuration options.
 type CLIOpts struct {
 	RootFlags *RootCommonFlags
@@ -38,6 +42,8 @@ type CLIOpts struct {
 	MainConfigSpecCtor   func() docs.FieldSpecs // TODO: This becomes a service.Environment
 	OnManagerInitialised func(mgr bundle.NewManagement, pConf *docs.ParsedConfig) error
 	OnLoggerInit         func(l log.Modular) (log.Modular, error)
+
+	OnStreamInit StreamInitFunc
 }
 
 // NewCLIOpts returns a new CLIOpts instance populated with default values.
@@ -72,6 +78,7 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 		OnLoggerInit: func(l log.Modular) (log.Modular, error) {
 			return l, nil
 		},
+		OnStreamInit: func(s RunningStream) error { return nil },
 	}
 }
 

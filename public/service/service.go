@@ -31,6 +31,7 @@ import (
 // Benthos stream lifecycles in a program use the StreamBuilder API instead.
 func RunCLI(ctx context.Context, optFuncs ...CLIOptFunc) {
 	cliOpts := &CLIOptBuilder{
+		args: os.Args,
 		opts: common.NewCLIOpts(cli.Version, cli.DateBuilt),
 	}
 	for _, o := range optFuncs {
@@ -46,7 +47,7 @@ func RunCLI(ctx context.Context, optFuncs ...CLIOptFunc) {
 		return l, nil
 	}
 
-	if err := cli.App(cliOpts.opts).RunContext(ctx, os.Args); err != nil {
+	if err := cli.App(cliOpts.opts).RunContext(ctx, cliOpts.args); err != nil {
 		var cerr *common.ErrExitCode
 		if errors.As(err, &cerr) {
 			os.Exit(cerr.Code)
@@ -58,6 +59,7 @@ func RunCLI(ctx context.Context, optFuncs ...CLIOptFunc) {
 
 // CLIOptBuilder represents a CLI opts builder.
 type CLIOptBuilder struct {
+	args        []string
 	opts        *common.CLIOpts
 	teeLogger   *slog.Logger
 	outLoggerFn func(*Logger)
@@ -66,6 +68,14 @@ type CLIOptBuilder struct {
 // CLIOptFunc defines an option to pass through the standard Benthos CLI in order
 // to customise it's behaviour.
 type CLIOptFunc func(*CLIOptBuilder)
+
+// CLIOptSetArgs overrides the default args provided to the CLI (os.Args) for
+// the provided slice.
+func CLIOptSetArgs(args ...string) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.args = args
+	}
+}
 
 // CLIOptSetVersion overrides the default version and date built stamps.
 func CLIOptSetVersion(version, dateBuilt string) CLIOptFunc {
@@ -161,7 +171,7 @@ func CLIOptSetEnvironment(e *Environment) CLIOptFunc {
 //
 // If an error is returned this will be treated by the CLI the same as any other
 // failure to parse the bootstrap config.
-func CLIOptOnConfigParse(fn func(fn *ParsedConfig) error) CLIOptFunc {
+func CLIOptOnConfigParse(fn func(pConf *ParsedConfig) error) CLIOptFunc {
 	return func(c *CLIOptBuilder) {
 		c.opts.OnManagerInitialised = func(mgr bundle.NewManagement, pConf *docs.ParsedConfig) error {
 			return fn(&ParsedConfig{
@@ -179,5 +189,19 @@ func CLIOptOnConfigParse(fn func(fn *ParsedConfig) error) CLIOptFunc {
 func CLIOptSetEnvVarLookup(fn func(context.Context, string) (string, bool)) CLIOptFunc {
 	return func(c *CLIOptBuilder) {
 		c.opts.SecretAccessFn = fn
+	}
+}
+
+// CLIOptOnStreamStart sets a function to be called when the CLI initialises
+// either a single stream config execution (the `run` subcommand) or streams
+// mode (the `streams` subcommand).
+//
+// The provided RunningStreamSummary grants access to information such as
+// connectivity statuses of the stream(s) process.
+func CLIOptOnStreamStart(fn func(s *RunningStreamSummary) error) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.OnStreamInit = func(s common.RunningStream) error {
+			return fn(&RunningStreamSummary{c: s})
+		}
 	}
 }
