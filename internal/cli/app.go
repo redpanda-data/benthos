@@ -105,7 +105,7 @@ func App(opts *common.CLIOpts) *cli.App {
 			Hidden: true,
 		},
 		&cli.StringFlag{
-			Name:    "config",
+			Name:    common.RootFlagConfig,
 			Aliases: []string{"c"},
 			Hidden:  true,
 			Value:   "",
@@ -123,10 +123,11 @@ Either run {{.ProductName}} as a stream processor or choose a command:
 
   {{.BinaryName}} list inputs
   {{.BinaryName}} create kafka//file > ./config.yaml
-  {{.BinaryName}} -c ./config.yaml
-  {{.BinaryName}} -r "./production/*.yaml" -c ./config.yaml`)[1:],
+  {{.BinaryName}} run ./config.yaml
+  {{.BinaryName}} run -r "./production/*.yaml" -c ./config.yaml`)[1:],
 		Flags: flags,
 		Before: func(c *cli.Context) error {
+			opts.RootCommonFlagsExtract(c)
 			return common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
 		Action: func(c *cli.Context) error {

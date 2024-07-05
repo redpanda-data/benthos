@@ -58,7 +58,7 @@ files and execute them, replacing the previous stream running.`[1:],
 		},
 		Action: func(c *cli.Context) error {
 			// Start off by warning about all unsupported flags
-			if c.Bool("watcher") {
+			if cliOpts.RootFlags.GetWatcher(c) {
 				fmt.Fprintln(os.Stderr, "The --watcher/-w flag is not supported in this mode of operation")
 				os.Exit(1)
 			}

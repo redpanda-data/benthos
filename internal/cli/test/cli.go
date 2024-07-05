@@ -20,7 +20,14 @@ func CliCommand(cliOpts *common.CLIOpts) *cli.Command {
 			Value: "",
 			Usage: "allow components to write logs at a provided level to stdout.",
 		},
+
+		&cli.StringSliceFlag{
+			Name:    common.RootFlagResources,
+			Aliases: []string{"r"},
+			Usage:   "pull in extra resources from a file, which can be referenced the same as resources defined in the main config, supports glob patterns (requires quotes)",
+		},
 	}
+	flags = append(flags, common.EnvFileAndTemplateFlags(cliOpts, false)...)
 
 	return &cli.Command{
 		Name:  "test",
@@ -36,12 +43,15 @@ fail the process will report the errors and exit with a status code 1.
 
 For more information check out the docs at:
 {{.DocumentationURL}}/configuration/unit_testing`)[1:],
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
+		},
 		Action: func(c *cli.Context) error {
-			if len(c.StringSlice("set")) > 0 {
+			if len(cliOpts.RootFlags.GetSet(c)) > 0 {
 				fmt.Fprintln(os.Stderr, "Cannot override fields with --set (-s) during unit tests")
 				os.Exit(1)
 			}
-			resourcesPaths := c.StringSlice("resources")
+			resourcesPaths := cliOpts.RootFlags.GetResources(c)
 			var err error
 			if resourcesPaths, err = filepath.Globs(ifs.OS(), resourcesPaths); err != nil {
 				fmt.Printf("Failed to resolve resource glob pattern: %v\n", err)

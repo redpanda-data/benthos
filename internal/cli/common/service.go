@@ -47,7 +47,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) int {
 		verLogger.With("path", mainPath).Info("Running main config from specified file")
 	}
 
-	strict := !c.Bool("chilled")
+	strict := !cliOpts.RootFlags.GetChilled(c)
 	for _, lint := range lints {
 		if strict {
 			logger.With("lint", lint).Error("Config lint error")
@@ -75,7 +75,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) int {
 	var dataStreamClosedChan chan struct{}
 
 	// Create data streams.
-	watching := c.Bool("watcher")
+	watching := cliOpts.RootFlags.GetWatcher(c)
 	if streamsMode {
 		enableStreamsAPI := !c.Bool("no-api")
 		stoppableStream = initStreamsMode(cliOpts, strict, watching, enableStreamsAPI, confReader, stoppableManager.Manager())

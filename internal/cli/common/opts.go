@@ -16,6 +16,8 @@ import (
 
 // CLIOpts contains the available CLI configuration options.
 type CLIOpts struct {
+	RootFlags *RootCommonFlags
+
 	Version   string
 	DateBuilt string
 
@@ -41,6 +43,7 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 		binaryName = path.Base(os.Args[0])
 	}
 	return &CLIOpts{
+		RootFlags:        &RootCommonFlags{},
 		Version:          version,
 		DateBuilt:        dateBuilt,
 		BinaryName:       binaryName,

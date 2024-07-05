@@ -18,6 +18,7 @@ import (
 func lintCliCommand(opts *common.CLIOpts) *cli.Command {
 	return &cli.Command{
 		Name:  "lint",
+		Flags: common.EnvFileAndTemplateFlags(opts, false),
 		Usage: opts.ExecTemplate("Parse {{.ProductName}} templates and report any linting errors"),
 		Description: opts.ExecTemplate(`
 Exits with a status code 1 if any linting errors are detected:
@@ -29,6 +30,9 @@ Exits with a status code 1 if any linting errors are detected:
 
 If a path ends with '...' then {{.ProductName}} will walk the target and lint any
 files with the .yaml or .yml extension.`)[1:],
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, opts)
+		},
 		Action: func(c *cli.Context) error {
 			targets, err := ifilepath.GlobsAndSuperPaths(ifs.OS(), c.Args().Slice(), "yaml", "yml")
 			if err != nil {

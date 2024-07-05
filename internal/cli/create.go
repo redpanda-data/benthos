@@ -110,7 +110,15 @@ func addExpression(conf map[string]any, expression string) error {
 
 func createCliCommand(cliOpts *common.CLIOpts) *cli.Command {
 	return &cli.Command{
-		Name:  "create",
+		Name: "create",
+		Flags: append([]cli.Flag{
+			&cli.BoolFlag{
+				Name:    "small",
+				Aliases: []string{"s"},
+				Value:   false,
+				Usage:   cliOpts.ExecTemplate("Print only the main components of a {{.ProductName}} config (input, pipeline, output) and omit all fields marked as advanced."),
+			},
+		}, common.EnvFileAndTemplateFlags(cliOpts, false)...),
 		Usage: cliOpts.ExecTemplate("Create a new {{.ProductName}} config"),
 		Description: cliOpts.ExecTemplate(`
 Prints a new {{.ProductName}} config to stdout containing specified components
@@ -122,13 +130,8 @@ forward slashes:
   {{.BinaryName}} create file,http_server/protobuf/http_client
 
 If the expression is omitted a default config is created.`)[1:],
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "small",
-				Aliases: []string{"s"},
-				Value:   false,
-				Usage:   cliOpts.ExecTemplate("Print only the main components of a {{.ProductName}} config (input, pipeline, output) and omit all fields marked as advanced."),
-			},
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
 		},
 		Action: func(c *cli.Context) error {
 			conf := map[string]any{

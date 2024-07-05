@@ -13,7 +13,7 @@ import (
 
 // CreateLogger from a CLI context and a stream config.
 func CreateLogger(c *cli.Context, opts *CLIOpts, conf config.Type, streamsMode bool) (logger log.Modular, err error) {
-	if overrideLogLevel := c.String("log.level"); overrideLogLevel != "" {
+	if overrideLogLevel := opts.RootFlags.GetLogLevel(c); overrideLogLevel != "" {
 		conf.Logger.LogLevel = strings.ToUpper(overrideLogLevel)
 	}
 

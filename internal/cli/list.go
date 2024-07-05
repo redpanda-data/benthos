@@ -16,8 +16,29 @@ import (
 )
 
 func listCliCommand(opts *common.CLIOpts) *cli.Command {
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:  "format",
+			Value: "text",
+			Usage: "Print the component list in a specific format. Options are text, json or cue.",
+		},
+		&cli.StringFlag{
+			Name:  "status",
+			Value: "",
+			Usage: "Filter the component list to only those matching the given status. Options are stable, beta or experimental.",
+		},
+
+		// Template imports
+		&cli.StringSliceFlag{
+			Name:    common.RootFlagTemplates,
+			Aliases: []string{"t"},
+			Usage:   opts.ExecTemplate("EXPERIMENTAL: import {{.ProductName}} templates, supports glob patterns (requires quotes)"),
+		},
+	}
+
 	return &cli.Command{
 		Name:  "list",
+		Flags: flags,
 		Usage: opts.ExecTemplate("List all {{.ProductName}} component types"),
 		Description: opts.ExecTemplate(`
 If any component types are explicitly listed then only types of those
@@ -26,17 +47,8 @@ components will be shown.
   {{.BinaryName}} list
   {{.BinaryName}} list --format json inputs output
   {{.BinaryName}} list rate-limits buffers`)[1:],
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "format",
-				Value: "text",
-				Usage: "Print the component list in a specific format. Options are text, json or cue.",
-			},
-			&cli.StringFlag{
-				Name:  "status",
-				Value: "",
-				Usage: "Filter the component list to only those matching the given status. Options are stable, beta or experimental.",
-			},
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
 		Action: func(c *cli.Context) error {
 			listComponents(c, opts)

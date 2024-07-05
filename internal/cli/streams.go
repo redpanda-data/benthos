@@ -3,8 +3,9 @@ package cli
 import (
 	"os"
 
-	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/urfave/cli/v2"
+
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 )
 
 func streamsCliCommand(opts *common.CLIOpts) *cli.Command {
@@ -19,7 +20,18 @@ func streamsCliCommand(opts *common.CLIOpts) *cli.Command {
 			Value: true,
 			Usage: "Whether HTTP endpoints registered by stream configs should be prefixed with the stream ID",
 		},
+
+		// Observability config only
+		&cli.StringFlag{
+			Name:    common.RootFlagConfig,
+			Aliases: []string{"c"},
+			Value:   "",
+			Usage:   "a path to a configuration file containing general service-wide fields such as http, logger, and so on",
+		},
 	}
+
+	flags = append(flags, common.RunFlags(opts, false)...)
+	flags = append(flags, common.EnvFileAndTemplateFlags(opts, false)...)
 
 	return &cli.Command{
 		Name:  "streams",
@@ -31,16 +43,19 @@ single process and can be created, updated and removed via REST HTTP
 endpoints.
 
   {{.BinaryName}} streams
-  {{.BinaryName}} -c ./root_config.yaml streams
+  {{.BinaryName}} streams -c ./root_config.yaml
   {{.BinaryName}} streams ./path/to/stream/configs ./and/some/more
-  {{.BinaryName}} -c ./root_config.yaml streams ./streams/*.yaml
+  {{.BinaryName}} streams -c ./root_config.yaml ./streams/*.yaml
 
-In streams mode the stream fields of a root target config (input, buffer,
-pipeline, output) will be ignored. Other fields will be shared across all
-loaded streams (resources, metrics, etc).
+The config field specified with the --config/-c flag is known as the root config
+and should only contain observability and service-wide config fields such as
+http, metrics, logger, resources, and so on.
 
 For more information check out the docs at:
 {{.DocumentationURL}}/guides/streams_mode/about`)[1:],
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, opts)
+		},
 		Action: func(c *cli.Context) error {
 			os.Exit(common.RunService(c, opts, true))
 			return nil
