@@ -1,9 +1,9 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -19,8 +19,9 @@ import (
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
 )
 
-func TestRunCLIShutdown(t *testing.T) {
+func TestStreamsMode(t *testing.T) {
 	tmpDir := t.TempDir()
+	obsPath := filepath.Join(tmpDir, "o11y.yaml")
 	confPath := filepath.Join(tmpDir, "foo.yaml")
 	outPath := filepath.Join(tmpDir, "out.txt")
 
@@ -35,20 +36,29 @@ output:
     path: %v
 `, outPath), 0o644))
 
+	require.NoError(t, os.WriteFile(obsPath, []byte(`
+logger:
+  level: TRACE
+`), 0o644))
+
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
 	defer cancel()
 
+	var stdout bytes.Buffer
 	opts := common.NewCLIOpts("1.2.3", "aaa")
-	opts.Stdout = io.Discard
+	opts.Stdout = &stdout
 
-	require.NoError(t, icli.App(opts).RunContext(ctx, []string{"benthos", "run", confPath}))
+	require.NoError(t, icli.App(opts).RunContext(ctx, []string{"benthos", "streams", "-o", obsPath, confPath}))
 
 	data, _ := os.ReadFile(outPath)
 	assert.Contains(t, string(data), "foobar")
+
+	assert.Contains(t, stdout.String(), "level=trace")
 }
 
-func TestRunCLIOldStyle(t *testing.T) {
+func TestStreamsModeOldStyle(t *testing.T) {
 	tmpDir := t.TempDir()
+	obsPath := filepath.Join(tmpDir, "o11y.yaml")
 	confPath := filepath.Join(tmpDir, "foo.yaml")
 	outPath := filepath.Join(tmpDir, "out.txt")
 
@@ -63,14 +73,22 @@ output:
     path: %v
 `, outPath), 0o644))
 
+	require.NoError(t, os.WriteFile(obsPath, []byte(`
+logger:
+  level: TRACE
+`), 0o644))
+
 	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
 	defer cancel()
 
+	var stdout bytes.Buffer
 	opts := common.NewCLIOpts("1.2.3", "aaa")
-	opts.Stdout = io.Discard
+	opts.Stdout = &stdout
 
-	require.NoError(t, icli.App(opts).RunContext(ctx, []string{"benthos", "-c", confPath}))
+	require.NoError(t, icli.App(opts).RunContext(ctx, []string{"benthos", "-c", obsPath, "streams", confPath}))
 
 	data, _ := os.ReadFile(outPath)
 	assert.Contains(t, string(data), "foobar")
+
+	assert.Contains(t, stdout.String(), "level=trace")
 }

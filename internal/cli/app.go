@@ -2,8 +2,8 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
 	"runtime/debug"
 	"strings"
 
@@ -132,23 +132,20 @@ Either run {{.ProductName}} as a stream processor or choose a command:
 		},
 		Action: func(c *cli.Context) error {
 			if c.Bool("version") {
-				fmt.Printf("Version: %v\nDate: %v\n", opts.Version, opts.DateBuilt)
-				os.Exit(0)
+				fmt.Fprintf(opts.Stdout, "Version: %v\nDate: %v\n", opts.Version, opts.DateBuilt)
+				return nil
 			}
 			if c.Bool("help-autocomplete") {
-				_ = json.NewEncoder(os.Stdout).Encode(traverseHelp(c.Command, nil))
-				os.Exit(0)
+				_ = json.NewEncoder(opts.Stdout).Encode(traverseHelp(c.Command, nil))
+				return nil
 			}
 			if c.Args().Len() > 0 {
-				fmt.Fprintf(os.Stderr, "Unrecognised command: %v\n", c.Args().First())
+				fmt.Fprintf(opts.Stderr, "Unrecognised command: %v\n", c.Args().First())
 				_ = cli.ShowAppHelp(c)
-				os.Exit(1)
+				return &common.ErrExitCode{Err: errors.New("unrecognised command"), Code: 1}
 			}
 
-			if code := common.RunService(c, opts, false); code != 0 {
-				os.Exit(code)
-			}
-			return nil
+			return common.RunService(c, opts, false)
 		},
 		Commands: []*cli.Command{
 			echoCliCommand(opts),
@@ -165,7 +162,7 @@ Either run {{.ProductName}} as a stream processor or choose a command:
 	}
 
 	app.OnUsageError = func(context *cli.Context, err error, isSubcommand bool) error {
-		fmt.Printf("Usage error: %v\n", err)
+		fmt.Fprintf(opts.Stdout, "Usage error: %v\n", err)
 		_ = cli.ShowAppHelp(context)
 		return err
 	}

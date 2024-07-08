@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -52,7 +51,6 @@ components will be shown.
 		},
 		Action: func(c *cli.Context) error {
 			listComponents(c, opts)
-			os.Exit(0)
 			return nil
 		},
 	}
@@ -91,13 +89,13 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 				continue
 			}
 			if i > 0 {
-				fmt.Println("")
+				fmt.Fprintln(opts.Stdout, "")
 			}
 			i++
 			title := cases.Title(language.English).String(strings.ReplaceAll(k, "-", " "))
-			fmt.Printf("%v:\n", title)
+			fmt.Fprintf(opts.Stdout, "%v:\n", title)
 			for _, t := range flat[k] {
-				fmt.Printf("  - %v\n", t)
+				fmt.Fprintf(opts.Stdout, "  - %v\n", t)
 			}
 		}
 	case "json":
@@ -113,25 +111,25 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(string(jsonBytes))
+		fmt.Fprintln(opts.Stdout, string(jsonBytes))
 	case "json-full":
 		jsonBytes, err := json.Marshal(schema)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(string(jsonBytes))
+		fmt.Fprintln(opts.Stdout, string(jsonBytes))
 	case "json-full-scrubbed":
 		schema.Scrub()
 		jsonBytes, err := json.Marshal(schema)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(string(jsonBytes))
+		fmt.Fprintln(opts.Stdout, string(jsonBytes))
 	case "cue":
 		source, err := cuegen.GenerateSchema(schema)
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println(string(source))
+		fmt.Fprintln(opts.Stdout, string(source))
 	}
 }

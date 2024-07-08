@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"sync"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/fatih/color"
 	"github.com/urfave/cli/v2"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/mapping"
@@ -64,7 +64,9 @@ Find out more about Bloblang at: {{.DocumentationURL}}/guides/bloblang/about`)[1
 				Value: bufio.MaxScanTokenSize,
 			},
 		},
-		Action: run,
+		Action: func(ctx *cli.Context) error {
+			return run(ctx, opts)
+		},
 		Subcommands: []*cli.Command{
 			{
 				Name:  "server",
@@ -217,7 +219,7 @@ func (e *execCache) executeMapping(exec *mapping.Executor, rawInput, prettyOutpu
 	return resultStr, nil
 }
 
-func run(c *cli.Context) error {
+func run(c *cli.Context, opts *common.CLIOpts) error {
 	t := c.Int("threads")
 	if t < 1 {
 		t = 1
@@ -229,13 +231,11 @@ func run(c *cli.Context) error {
 
 	if file != "" {
 		if m != "" {
-			fmt.Fprintln(os.Stderr, red("invalid flags, unable to execute both a file mapping and an inline mapping"))
-			os.Exit(1)
+			return errors.New("invalid flags, unable to execute both a file mapping and an inline mapping")
 		}
 		mappingBytes, err := ifs.ReadFile(ifs.OS(), file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, red("failed to read mapping file: %v\n"), err)
-			os.Exit(1)
+			return fmt.Errorf("failed to read mapping file: %w", err)
 		}
 		m = string(mappingBytes)
 	}
@@ -244,15 +244,15 @@ func run(c *cli.Context) error {
 	exec, err := bEnv.NewMapping(m)
 	if err != nil {
 		if perr, ok := err.(*parser.Error); ok {
-			fmt.Fprintf(os.Stderr, "%v %v\n", red("failed to parse mapping:"), perr.ErrorAtPositionStructured("", []rune(m)))
-		} else {
-			fmt.Fprintln(os.Stderr, red(err.Error()))
+			return fmt.Errorf("failed to parse mapping: %v", perr.ErrorAtPositionStructured("", []rune(m)))
 		}
-		os.Exit(1)
+		return errors.New(err.Error())
 	}
 
+	eGroup, _ := errgroup.WithContext(c.Context)
+
 	inputsChan := make(chan []byte)
-	go func() {
+	eGroup.Go(func() error {
 		defer close(inputsChan)
 
 		scanner := bufio.NewScanner(os.Stdin)
@@ -262,44 +262,36 @@ func run(c *cli.Context) error {
 			copy(input, scanner.Bytes())
 			inputsChan <- input
 		}
-		if scanner.Err() != nil {
-			fmt.Fprintln(os.Stderr, red(scanner.Err()))
-			os.Exit(1)
+		return scanner.Err()
+	})
+
+	resultsChan := make(chan string)
+	go func() {
+		for res := range resultsChan {
+			fmt.Fprintln(opts.Stdout, res)
 		}
 	}()
 
-	wg := sync.WaitGroup{}
-	wg.Add(t)
-	resultsChan := make(chan string)
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
-
 	for i := 0; i < t; i++ {
-		go func() {
-			defer wg.Done()
-
+		eGroup.Go(func() error {
 			execCache := newExecCache()
 			for {
 				input, open := <-inputsChan
 				if !open {
-					return
+					return nil
 				}
 
 				resultStr, err := execCache.executeMapping(exec, raw, pretty, input)
 				if err != nil {
-					fmt.Fprintln(os.Stderr, red(fmt.Sprintf("failed to execute map: %v", err)))
+					fmt.Fprintln(opts.Stderr, red(fmt.Sprintf("failed to execute map: %v", err)))
 					continue
 				}
 				resultsChan <- resultStr
 			}
-		}()
+		})
 	}
 
-	for res := range resultsChan {
-		fmt.Println(res)
-	}
-	os.Exit(0)
-	return nil
+	err = eGroup.Wait()
+	close(resultsChan)
+	return err
 }

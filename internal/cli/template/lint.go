@@ -3,7 +3,6 @@ package template
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/fatih/color"
 	"github.com/urfave/cli/v2"
@@ -36,8 +35,7 @@ files with the .yaml or .yml extension.`)[1:],
 		Action: func(c *cli.Context) error {
 			targets, err := ifilepath.GlobsAndSuperPaths(ifs.OS(), c.Args().Slice(), "yaml", "yml")
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Lint paths error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("lint paths error: %w", err)
 			}
 			var pathLints []pathLint
 			for _, target := range targets {
@@ -50,18 +48,17 @@ files with the .yaml or .yml extension.`)[1:],
 				}
 			}
 			if len(pathLints) == 0 {
-				os.Exit(0)
+				return nil
 			}
 			for _, lint := range pathLints {
 				lintText := fmt.Sprintf("%v%v\n", lint.source, lint.lint.Error())
 				if lint.lint.Type == docs.LintFailedRead {
-					fmt.Fprint(os.Stderr, red(lintText))
+					fmt.Fprint(opts.Stderr, red(lintText))
 				} else {
-					fmt.Fprint(os.Stderr, yellow(lintText))
+					fmt.Fprint(opts.Stderr, yellow(lintText))
 				}
 			}
-			os.Exit(1)
-			return nil
+			return &common.ErrExitCode{Err: errors.New("lint errors"), Code: 1}
 		},
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"runtime"
 	"sync"
@@ -66,10 +65,7 @@ files with the .yaml or .yml extension.`)[1:],
 			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
 		},
 		Action: func(c *cli.Context) error {
-			if code := LintAction(c, cliOpts, os.Stderr); code != 0 {
-				os.Exit(code)
-			}
-			return nil
+			return LintAction(c, cliOpts, cliOpts.Stderr)
 		},
 	}
 }
@@ -191,11 +187,10 @@ func lintMDSnippets(path string, spec docs.FieldSpecs, lConf docs.LintConfig) (p
 
 // LintAction performs the benthos lint subcommand and returns the appropriate
 // exit code. This function is exported for testing purposes only.
-func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
+func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) error {
 	targets, err := ifilepath.GlobsAndSuperPaths(ifs.OS(), c.Args().Slice(), "yaml", "yml")
 	if err != nil {
-		fmt.Fprintf(stderr, "Lint paths error: %v\n", err)
-		return 1
+		return fmt.Errorf("lint paths error: %w", err)
 	}
 	if conf := opts.RootFlags.GetConfig(c); conf != "" {
 		targets = append(targets, conf)
@@ -242,7 +237,7 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
 	wg.Wait()
 
 	if len(pathLints) == 0 {
-		return 0
+		return nil
 	}
 
 	for _, lint := range pathLints {
@@ -253,5 +248,5 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
 			fmt.Fprint(stderr, yellow(lintText))
 		}
 	}
-	return 1
+	return &common.ErrExitCode{Err: errors.New("lint errors"), Code: 1}
 }

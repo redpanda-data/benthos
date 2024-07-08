@@ -2,6 +2,7 @@ package studio
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -59,29 +60,27 @@ files and execute them, replacing the previous stream running.`[1:],
 		Action: func(c *cli.Context) error {
 			// Start off by warning about all unsupported flags
 			if cliOpts.RootFlags.GetWatcher(c) {
-				fmt.Fprintln(os.Stderr, "The --watcher/-w flag is not supported in this mode of operation")
-				os.Exit(1)
+				return errors.New("the --watcher/-w flag is not supported in this mode of operation")
 			}
 
 			token, secret := c.String("token"), c.String("token-secret")
 			if token == "" {
 				if token = os.Getenv("BSTDIO_NODE_TOKEN"); token == "" {
-					fmt.Fprintln(os.Stderr, "Must specify either --token or BSTDIO_NODE_TOKEN")
+					fmt.Fprintln(cliOpts.Stderr, "Must specify either --token or BSTDIO_NODE_TOKEN")
 				}
 			}
 			if secret == "" {
 				if secret = os.Getenv("BSTDIO_NODE_SECRET"); secret == "" {
-					fmt.Fprintln(os.Stderr, "Must specify either --token-secret or BSTDIO_NODE_SECRET")
+					fmt.Fprintln(cliOpts.Stderr, "Must specify either --token-secret or BSTDIO_NODE_SECRET")
 				}
 			}
 			if token == "" || secret == "" {
-				os.Exit(1)
+				return errors.New("must specify a node token and secret")
 			}
 
 			pullRunner, err := NewPullRunner(c, cliOpts, token, secret)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error encountered whilst initiating studio sync: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("error encountered whilst initiating studio sync: %v", err)
 			}
 
 			sigCtx, done := context.WithCancel(context.Background())
@@ -124,10 +123,7 @@ files and execute them, replacing the previous stream running.`[1:],
 					sigNameMut.Lock()
 					pullRunner.logger.Info("Received signal %s, shutting down", sigName)
 					sigNameMut.Unlock()
-					if pullRunner.Stop(context.Background()) != nil {
-						os.Exit(1)
-					}
-					return nil
+					return pullRunner.Stop(context.Background())
 				}
 			}
 		},

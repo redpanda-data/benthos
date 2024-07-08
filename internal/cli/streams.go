@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"os"
-
 	"github.com/urfave/cli/v2"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
@@ -23,8 +21,8 @@ func streamsCliCommand(opts *common.CLIOpts) *cli.Command {
 
 		// Observability config only
 		&cli.StringFlag{
-			Name:    common.RootFlagConfig,
-			Aliases: []string{"c"},
+			Name:    "observability",
+			Aliases: []string{"o"},
 			Value:   "",
 			Usage:   "a path to a configuration file containing general service-wide fields such as http, logger, and so on",
 		},
@@ -57,8 +55,10 @@ For more information check out the docs at:
 			return common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
 		Action: func(c *cli.Context) error {
-			os.Exit(common.RunService(c, opts, true))
-			return nil
+			if oConf := c.String("observability"); oConf != "" {
+				opts.RootFlags.Config = oConf
+			}
+			return common.RunService(c, opts, true)
 		},
 	}
 }

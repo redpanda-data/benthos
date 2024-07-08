@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -147,8 +146,7 @@ If the expression is omitted a default config is created.`)[1:],
 			}
 			if expression := c.Args().First(); expression != "" {
 				if err := addExpression(conf, expression); err != nil {
-					fmt.Fprintf(os.Stderr, "Generate error: %v\n", err)
-					os.Exit(1)
+					return fmt.Errorf("generate error: %w", err)
 				}
 			}
 
@@ -165,8 +163,7 @@ If the expression is omitted a default config is created.`)[1:],
 				FallbackToAny: true,
 			})
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Generate error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("generate error: %w", err)
 			}
 
 			var node yaml.Node
@@ -182,12 +179,11 @@ If the expression is omitted a default config is created.`)[1:],
 			if err == nil {
 				var configYAML []byte
 				if configYAML, err = docs.MarshalYAML(node); err == nil {
-					fmt.Println(string(configYAML))
+					fmt.Fprintln(cliOpts.Stdout, string(configYAML))
 				}
 			}
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Generate error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("generate error: %w", err)
 			}
 			return nil
 		},

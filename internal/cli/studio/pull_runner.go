@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path"
 	"runtime/pprof"
 	"time"
@@ -473,7 +472,7 @@ func (r *PullRunner) Stop(ctx context.Context) error {
 				"Service failed to close the running stream cleanly within allocated time: %v."+
 					" Exiting forcefully and dumping stack trace to stderr\n", err,
 			)
-			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			_ = pprof.Lookup("goroutine").WriteTo(r.cliOpts.Stderr, 1)
 			return err
 		}
 		if r.stoppableMgr == nil {
@@ -484,7 +483,7 @@ func (r *PullRunner) Stop(ctx context.Context) error {
 				"Service failed to close resources cleanly within allocated time: %v."+
 					" Exiting forcefully and dumping stack trace to stderr\n", err,
 			)
-			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			_ = pprof.Lookup("goroutine").WriteTo(r.cliOpts.Stderr, 1)
 			return err
 		}
 		return nil

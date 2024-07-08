@@ -1,8 +1,7 @@
 package cli
 
 import (
-	"fmt"
-	"os"
+	"errors"
 
 	"github.com/urfave/cli/v2"
 
@@ -27,13 +26,11 @@ Run a {{.ProductName}} config.
 		Action: func(c *cli.Context) error {
 			if c.Args().Len() > 0 {
 				if c.Args().Len() > 1 || opts.RootFlags.Config != "" {
-					fmt.Fprintln(os.Stderr, "A maximum of one config must be specified with the run command")
-					os.Exit(1)
+					return errors.New("a maximum of one config must be specified with the run command")
 				}
 				opts.RootFlags.Config = c.Args().First()
 			}
-			os.Exit(common.RunService(c, opts, false))
-			return nil
+			return common.RunService(c, opts, false)
 		},
 	}
 }
