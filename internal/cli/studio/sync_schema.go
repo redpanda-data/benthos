@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"path"
 
 	"github.com/urfave/cli/v2"
@@ -49,8 +48,7 @@ page within the studio application.`[1:],
 
 			u, err := url.Parse(endpoint)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to parse endpoint: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("failed to parse endpoint: %w", err)
 			}
 			u.Path = path.Join(u.Path, fmt.Sprintf("/api/v1/token/%v/session/%v/schema", tokenID, sessionID))
 
@@ -59,22 +57,19 @@ page within the studio application.`[1:],
 			schema.Scrub()
 			schemaBytes, err := json.Marshal(schema)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to encode schema: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("failed to encode schema: %w", err)
 			}
 
 			res, err := http.Post(u.String(), "application/json", bytes.NewReader(schemaBytes))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Sync request failed: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("sync request failed: %w", err)
 			}
 
 			defer res.Body.Close()
 
 			if res.StatusCode < 200 || res.StatusCode > 299 {
 				resBytes, _ := io.ReadAll(res.Body)
-				fmt.Fprintf(os.Stderr, "Sync request failed (%v): %v\n", res.StatusCode, string(resBytes))
-				os.Exit(1)
+				return fmt.Errorf("sync request failed (%v): %v", res.StatusCode, string(resBytes))
 			}
 			return nil
 		},

@@ -17,20 +17,21 @@ import (
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
 )
 
-func executeLintSubcmd(t *testing.T, args []string) (exitCode int, printedErr string) {
+func executeLintSubcmd(args []string) (stderr string, err error) {
 	opts := common.NewCLIOpts("1.2.3", "now")
+	var buf bytes.Buffer
+
 	cliApp := icli.App(opts)
 	for _, c := range cliApp.Commands {
 		if c.Name == "lint" {
 			c.Action = func(ctx *cli.Context) error {
-				var buf bytes.Buffer
-				exitCode = icli.LintAction(ctx, opts, &buf)
-				printedErr = buf.String()
-				return nil
+				return icli.LintAction(ctx, opts, &buf)
 			}
 		}
 	}
-	require.NoError(t, cliApp.Run(args))
+
+	err = cliApp.Run(args)
+	stderr = buf.String()
 	return
 }
 
@@ -44,7 +45,7 @@ func TestLints(t *testing.T) {
 		name          string
 		files         map[string]string
 		args          []string
-		expectedCode  int
+		expectedErr   bool
 		expectedLints []string
 	}{
 		{
@@ -74,7 +75,7 @@ output:
   drop: {}
 `,
 			},
-			expectedCode: 1,
+			expectedErr: true,
 			expectedLints: []string{
 				"field huh not recognised",
 				"field nah is invalid",
@@ -94,7 +95,7 @@ output:
   drop: {}
 `,
 			},
-			expectedCode: 1,
+			expectedErr: true,
 			expectedLints: []string{
 				"field huh not recognised",
 				"field nah is invalid",
@@ -114,7 +115,7 @@ output:
   drop: {}
 `,
 			},
-			expectedCode: 1,
+			expectedErr: true,
 			expectedLints: []string{
 				"field huh not recognised",
 				"field nah is invalid",
@@ -132,7 +133,7 @@ output:
   drop: {}
 `,
 			},
-			expectedCode: 1,
+			expectedErr: true,
 			expectedLints: []string{
 				"required environment variables were not set: [BENTHOS_ENV_VAR_HOPEFULLY_MISSING]",
 			},
@@ -159,8 +160,12 @@ output:
 				require.NoError(t, os.WriteFile(tFile(name), []byte(c), 0o644))
 			}
 
-			code, outStr := executeLintSubcmd(t, test.args)
-			assert.Equal(t, test.expectedCode, code)
+			outStr, err := executeLintSubcmd(test.args)
+			if test.expectedErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 
 			if len(test.expectedLints) == 0 {
 				assert.Empty(t, outStr)

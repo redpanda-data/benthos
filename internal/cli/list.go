@@ -3,7 +3,6 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -52,7 +51,6 @@ components will be shown.
 		},
 		Action: func(c *cli.Context) error {
 			listComponents(c, opts)
-			os.Exit(0)
 			return nil
 		},
 	}

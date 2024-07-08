@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -43,7 +45,15 @@ func RunCLI(ctx context.Context, optFuncs ...CLIOptFunc) {
 		}
 		return l, nil
 	}
-	_ = cli.App(cliOpts.opts).RunContext(ctx, os.Args)
+
+	if err := cli.App(cliOpts.opts).RunContext(ctx, os.Args); err != nil {
+		var cerr *common.ErrExitCode
+		if errors.As(err, &cerr) {
+			os.Exit(cerr.Code)
+		}
+		fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
 }
 
 // CLIOptBuilder represents a CLI opts builder.

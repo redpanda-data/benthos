@@ -1,8 +1,8 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
-	"os"
 
 	"github.com/urfave/cli/v2"
 	"gopkg.in/yaml.v3"
@@ -45,8 +45,7 @@ variables have been resolved:
 		Action: func(c *cli.Context) error {
 			if c.Args().Len() > 0 {
 				if c.Args().Len() > 1 {
-					fmt.Fprintln(os.Stderr, "A maximum of one config must be specified with the echo command")
-					os.Exit(1)
+					return errors.New("a maximum of one config must be specified with the echo command")
 				}
 				opts.RootFlags.Config = c.Args().First()
 			}
@@ -54,8 +53,7 @@ variables have been resolved:
 			_, _, confReader := common.ReadConfig(c, opts, false)
 			_, pConf, _, err := confReader.Read()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Configuration file read error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("configuration file read error: %w", err)
 			}
 			var node yaml.Node
 			if err = node.Encode(pConf.Raw()); err == nil {
@@ -71,8 +69,7 @@ variables have been resolved:
 				}
 			}
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Echo error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("echo error: %w", err)
 			}
 			return nil
 		},

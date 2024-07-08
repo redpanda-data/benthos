@@ -1,6 +1,7 @@
 package test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -48,31 +49,27 @@ For more information check out the docs at:
 		},
 		Action: func(c *cli.Context) error {
 			if len(cliOpts.RootFlags.GetSet(c)) > 0 {
-				fmt.Fprintln(os.Stderr, "Cannot override fields with --set (-s) during unit tests")
-				os.Exit(1)
+				return errors.New("cannot override fields with --set (-s) during unit tests")
 			}
 			resourcesPaths := cliOpts.RootFlags.GetResources(c)
 			var err error
 			if resourcesPaths, err = filepath.Globs(ifs.OS(), resourcesPaths); err != nil {
-				fmt.Printf("Failed to resolve resource glob pattern: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("failed to resolve resource glob pattern: %w", err)
 			}
 			if logLevel := c.String("log"); logLevel != "" {
 				logConf := log.NewConfig()
 				logConf.LogLevel = logLevel
 				logger, err := log.New(os.Stdout, ifs.OS(), logConf)
 				if err != nil {
-					fmt.Printf("Failed to init logger: %v\n", err)
-					os.Exit(1)
+					return fmt.Errorf("failed to init logger: %w", err)
 				}
 				if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, logger, resourcesPaths) {
-					os.Exit(0)
+					return nil
 				}
 			} else if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, log.Noop(), resourcesPaths) {
-				os.Exit(0)
+				return nil
 			}
-			os.Exit(1)
-			return nil
+			return &common.ErrExitCode{Err: errors.New("lint errors"), Code: 1}
 		},
 	}
 }

@@ -127,13 +127,12 @@ func RunManagerUntilStopped(
 	stopMgr *StoppableManager,
 	stopStrm Stoppable,
 	dataStreamClosedChan chan struct{},
-) int {
+) error {
 	var exitDelay time.Duration
 	if td := conf.SystemCloseDelay; td != "" {
 		var err error
 		if exitDelay, err = time.ParseDuration(td); err != nil {
-			stopMgr.Manager().Logger().Error("Failed to parse shutdown delay period string: %v\n", err)
-			return 1
+			return fmt.Errorf("failed to parse shutdown delay period string: %w", err)
 		}
 	}
 
@@ -141,8 +140,7 @@ func RunManagerUntilStopped(
 	if tout := conf.SystemCloseTimeout; tout != "" {
 		var err error
 		if exitTimeout, err = time.ParseDuration(tout); err != nil {
-			stopMgr.Manager().Logger().Error("Failed to parse shutdown timeout period string: %v\n", err)
-			return 1
+			return fmt.Errorf("failed to parse shutdown timeout period string: %w", err)
 		}
 	}
 
@@ -166,8 +164,10 @@ func RunManagerUntilStopped(
 		}()
 
 		ctx, done := context.WithTimeout(c.Context, exitTimeout)
+		defer done()
+
 		if err := stopStrm.Stop(ctx); err != nil {
-			os.Exit(1)
+			return
 		}
 
 		if err := stopMgr.Stop(ctx); err != nil {
@@ -176,9 +176,8 @@ func RunManagerUntilStopped(
 					" Exiting forcefully and dumping stack trace to stderr\n", err,
 			)
 			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
-			os.Exit(1)
+			return
 		}
-		done()
 	}()
 
 	var deadLineTrigger <-chan time.Time
@@ -221,7 +220,7 @@ func RunManagerUntilStopped(
 	case <-c.Context.Done():
 		stopMgr.Manager().Logger().Info("Run context was cancelled. Shutting down the service")
 	}
-	return 0
+	return nil
 }
 
 func newStoppableManager(api *api.Type, mgr *manager.Type) *StoppableManager {

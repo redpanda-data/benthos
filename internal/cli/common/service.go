@@ -18,15 +18,31 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+// ErrExitCode is an error that could be returned by the cli application in
+// order to indicate that a given exit code should be returned by the process.
+type ErrExitCode struct {
+	Err  error
+	Code int
+}
+
+// Error returns the underlying error string.
+func (e *ErrExitCode) Error() string {
+	return e.Err.Error()
+}
+
+// Unwrap returns the underlying error.
+func (e *ErrExitCode) Unwrap() error {
+	return e.Err
+}
+
 // RunService runs a service command (either the default or the streams
 // subcommand).
-func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) int {
+func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 	mainPath, inferredMainPath, confReader := ReadConfig(c, cliOpts, streamsMode)
 
 	conf, pConf, lints, err := confReader.Read()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Configuration file read error: %v\n", err)
-		return 1
+		return fmt.Errorf("configuration file read error: %w", err)
 	}
 	defer func() {
 		_ = confReader.Close(c.Context)
@@ -34,8 +50,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) int {
 
 	logger, err := CreateLogger(c, cliOpts, conf, streamsMode)
 	if err != nil {
-		fmt.Printf("Failed to create logger: %v\n", err)
-		return 1
+		return fmt.Errorf("failed to create logger: %w", err)
 	}
 
 	verLogger := logger.With("benthos_version", cliOpts.Version)
@@ -56,19 +71,16 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) int {
 		}
 	}
 	if strict && len(lints) > 0 {
-		logger.Error(cliOpts.ExecTemplate("Shutting down due to linter errors, to prevent shutdown run {{.ProductName}} with --chilled"))
-		return 1
+		return errors.New(cliOpts.ExecTemplate("shutting down due to linter errors, to prevent shutdown run {{.ProductName}} with --chilled"))
 	}
 
 	stoppableManager, err := CreateManager(c, cliOpts, logger, streamsMode, conf)
 	if err != nil {
-		logger.Error(err.Error())
-		return 1
+		return err
 	}
 
 	if err := cliOpts.OnManagerInitialised(stoppableManager.mgr, pConf); err != nil {
-		logger.Error(err.Error())
-		return 1
+		return err
 	}
 
 	var stoppableStream Stoppable
@@ -78,9 +90,12 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) int {
 	watching := cliOpts.RootFlags.GetWatcher(c)
 	if streamsMode {
 		enableStreamsAPI := !c.Bool("no-api")
-		stoppableStream = initStreamsMode(cliOpts, strict, watching, enableStreamsAPI, confReader, stoppableManager.Manager())
+		stoppableStream, err = initStreamsMode(cliOpts, strict, watching, enableStreamsAPI, confReader, stoppableManager.Manager())
 	} else {
-		stoppableStream, dataStreamClosedChan = initNormalMode(cliOpts, conf, strict, watching, confReader, stoppableManager.Manager())
+		stoppableStream, dataStreamClosedChan, err = initNormalMode(cliOpts, conf, strict, watching, confReader, stoppableManager.Manager())
+	}
+	if err != nil {
+		return err
 	}
 
 	return RunManagerUntilStopped(c, conf, stoppableManager, stoppableStream, dataStreamClosedChan)
@@ -115,15 +130,14 @@ func initStreamsMode(
 	strict, watching, enableAPI bool,
 	confReader *config.Reader,
 	mgr *manager.Type,
-) Stoppable {
+) (Stoppable, error) {
 	logger := mgr.Logger()
 	streamMgr := strmmgr.New(mgr, strmmgr.OptAPIEnabled(enableAPI))
 
 	streamConfs := map[string]stream.Config{}
 	lints, err := confReader.ReadStreams(streamConfs)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Stream configuration file read error: %v\n", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("stream configuration file read error: %w", err)
 	}
 
 	for _, lint := range lints {
@@ -134,14 +148,12 @@ func initStreamsMode(
 		}
 	}
 	if strict && len(lints) > 0 {
-		logger.Error(opts.ExecTemplate("Shutting down due to stream linter errors, to prevent shutdown run {{.ProductName}} with --chilled"))
-		os.Exit(1)
+		return nil, errors.New("shutting down due to stream linter errors, to prevent shutdown run {{.ProductName}} with --chilled")
 	}
 
 	for id, conf := range streamConfs {
 		if err := streamMgr.Create(id, conf); err != nil {
-			logger.Error("Failed to create stream (%v): %v\n", id, err)
-			os.Exit(1)
+			return nil, fmt.Errorf("failed to create stream (%v): %w", id, err)
 		}
 	}
 	logger.Info(opts.ExecTemplate("Launching {{.ProductName}} in streams mode, use CTRL+C to close"))
@@ -162,17 +174,15 @@ func initStreamsMode(
 		}
 		return updateErr
 	}); err != nil {
-		logger.Error("Failed to create stream config watcher: %v", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to create stream config watcher: %w", err)
 	}
 
 	if watching {
 		if err := confReader.BeginFileWatching(mgr, strict); err != nil {
-			logger.Error("Failed to create stream config watcher: %v", err)
-			os.Exit(1)
+			return nil, fmt.Errorf("failed to create stream config watcher: %w", err)
 		}
 	}
-	return streamMgr
+	return streamMgr, nil
 }
 
 func initNormalMode(
@@ -181,7 +191,7 @@ func initNormalMode(
 	strict, watching bool,
 	confReader *config.Reader,
 	mgr *manager.Type,
-) (newStream Stoppable, stoppedChan chan struct{}) {
+) (newStream Stoppable, stoppedChan chan struct{}, err error) {
 	logger := mgr.Logger()
 
 	stoppedChan = make(chan struct{})
@@ -198,8 +208,7 @@ func initNormalMode(
 
 	initStream, err := streamInit()
 	if err != nil {
-		logger.Error("Service closing due to: %v\n", err)
-		os.Exit(1)
+		return nil, nil, fmt.Errorf("service closing due to: %w", err)
 	}
 
 	stoppableStream := NewSwappableStopper(initStream)
@@ -215,14 +224,12 @@ func initNormalMode(
 			return streamInit()
 		})
 	}); err != nil {
-		logger.Error("Failed to create config file watcher: %v", err)
-		os.Exit(1)
+		return nil, nil, fmt.Errorf("failed to create config file watcher: %w", err)
 	}
 
 	if watching {
 		if err := confReader.BeginFileWatching(mgr, strict); err != nil {
-			logger.Error("Failed to create config file watcher: %v", err)
-			os.Exit(1)
+			return nil, nil, fmt.Errorf("failed to create config file watcher: %w", err)
 		}
 	}
 

@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -165,44 +166,37 @@ func EnvFileAndTemplateFlags(opts *CLIOpts, hidden bool) []cli.Flag {
 func PreApplyEnvFilesAndTemplates(c *cli.Context, opts *CLIOpts) error {
 	dotEnvPaths, err := filepath.Globs(ifs.OS(), c.StringSlice(RootFlagEnvFile))
 	if err != nil {
-		fmt.Printf("Failed to resolve env file glob pattern: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to resolve env file glob pattern: %w", err)
 	}
 	for _, dotEnvFile := range dotEnvPaths {
 		dotEnvBytes, err := ifs.ReadFile(ifs.OS(), dotEnvFile)
 		if err != nil {
-			fmt.Printf("Failed to read dotenv file: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to read dotenv file: %w", err)
 		}
 		vars, err := parser.ParseDotEnvFile(dotEnvBytes)
 		if err != nil {
-			fmt.Printf("Failed to parse dotenv file: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("failed to parse dotenv file: %w", err)
 		}
 		for k, v := range vars {
 			if err = os.Setenv(k, v); err != nil {
-				fmt.Printf("Failed to set env var '%v': %v\n", k, err)
-				os.Exit(1)
+				return fmt.Errorf("failed to set env var '%v': %w", k, err)
 			}
 		}
 	}
 
 	templatesPaths, err := filepath.Globs(ifs.OS(), c.StringSlice(RootFlagTemplates))
 	if err != nil {
-		fmt.Printf("Failed to resolve template glob pattern: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to resolve template glob pattern: %w", err)
 	}
 	lints, err := template.InitTemplates(templatesPaths...)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Template file read error: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("template file read error: %w", err)
 	}
 	if !opts.RootFlags.GetChilled(c) && len(lints) > 0 {
 		for _, lint := range lints {
 			fmt.Fprintln(os.Stderr, lint)
 		}
-		fmt.Println(opts.ExecTemplate("Shutting down due to linter errors, to prevent shutdown run {{.ProductName}} with --chilled"))
-		os.Exit(1)
+		return errors.New(opts.ExecTemplate("Shutting down due to linter errors, to prevent shutdown run {{.ProductName}} with --chilled"))
 	}
 	return nil
 }
