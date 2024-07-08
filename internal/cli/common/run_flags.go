@@ -194,7 +194,7 @@ func PreApplyEnvFilesAndTemplates(c *cli.Context, opts *CLIOpts) error {
 	}
 	if !opts.RootFlags.GetChilled(c) && len(lints) > 0 {
 		for _, lint := range lints {
-			fmt.Fprintln(os.Stderr, lint)
+			fmt.Fprintln(opts.Stderr, lint)
 		}
 		return errors.New(opts.ExecTemplate("Shutting down due to linter errors, to prevent shutdown run {{.ProductName}} with --chilled"))
 	}

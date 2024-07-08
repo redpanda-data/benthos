@@ -3,7 +3,6 @@ package template
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/fatih/color"
 	"github.com/urfave/cli/v2"
@@ -54,9 +53,9 @@ files with the .yaml or .yml extension.`)[1:],
 			for _, lint := range pathLints {
 				lintText := fmt.Sprintf("%v%v\n", lint.source, lint.lint.Error())
 				if lint.lint.Type == docs.LintFailedRead {
-					fmt.Fprint(os.Stderr, red(lintText))
+					fmt.Fprint(opts.Stderr, red(lintText))
 				} else {
-					fmt.Fprint(os.Stderr, yellow(lintText))
+					fmt.Fprint(opts.Stderr, yellow(lintText))
 				}
 			}
 			return &common.ErrExitCode{Err: errors.New("lint errors"), Code: 1}

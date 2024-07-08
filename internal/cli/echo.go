@@ -65,7 +65,7 @@ variables have been resolved:
 			if err == nil {
 				var configYAML []byte
 				if configYAML, err = docs.MarshalYAML(node); err == nil {
-					fmt.Println(string(configYAML))
+					fmt.Fprintln(opts.Stdout, string(configYAML))
 				}
 			}
 			if err != nil {

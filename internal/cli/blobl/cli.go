@@ -64,7 +64,9 @@ Find out more about Bloblang at: {{.DocumentationURL}}/guides/bloblang/about`)[1
 				Value: bufio.MaxScanTokenSize,
 			},
 		},
-		Action: run,
+		Action: func(ctx *cli.Context) error {
+			return run(ctx, opts)
+		},
 		Subcommands: []*cli.Command{
 			{
 				Name:  "server",
@@ -217,7 +219,7 @@ func (e *execCache) executeMapping(exec *mapping.Executor, rawInput, prettyOutpu
 	return resultStr, nil
 }
 
-func run(c *cli.Context) error {
+func run(c *cli.Context, opts *common.CLIOpts) error {
 	t := c.Int("threads")
 	if t < 1 {
 		t = 1
@@ -266,7 +268,7 @@ func run(c *cli.Context) error {
 	resultsChan := make(chan string)
 	go func() {
 		for res := range resultsChan {
-			fmt.Println(res)
+			fmt.Fprintln(opts.Stdout, res)
 		}
 	}()
 
@@ -281,7 +283,7 @@ func run(c *cli.Context) error {
 
 				resultStr, err := execCache.executeMapping(exec, raw, pretty, input)
 				if err != nil {
-					fmt.Fprintln(os.Stderr, red(fmt.Sprintf("failed to execute map: %v", err)))
+					fmt.Fprintln(opts.Stderr, red(fmt.Sprintf("failed to execute map: %v", err)))
 					continue
 				}
 				resultsChan <- resultStr

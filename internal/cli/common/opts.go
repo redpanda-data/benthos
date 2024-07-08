@@ -3,6 +3,7 @@ package common
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path"
 	"text/template"
@@ -17,6 +18,9 @@ import (
 // CLIOpts contains the available CLI configuration options.
 type CLIOpts struct {
 	RootFlags *RootCommonFlags
+
+	Stdout io.Writer
+	Stderr io.Writer
 
 	Version   string
 	DateBuilt string
@@ -44,6 +48,8 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 	}
 	return &CLIOpts{
 		RootFlags:        &RootCommonFlags{},
+		Stdout:           os.Stdout,
+		Stderr:           os.Stderr,
 		Version:          version,
 		DateBuilt:        dateBuilt,
 		BinaryName:       binaryName,

@@ -66,12 +66,12 @@ files and execute them, replacing the previous stream running.`[1:],
 			token, secret := c.String("token"), c.String("token-secret")
 			if token == "" {
 				if token = os.Getenv("BSTDIO_NODE_TOKEN"); token == "" {
-					fmt.Fprintln(os.Stderr, "Must specify either --token or BSTDIO_NODE_TOKEN")
+					fmt.Fprintln(cliOpts.Stderr, "Must specify either --token or BSTDIO_NODE_TOKEN")
 				}
 			}
 			if secret == "" {
 				if secret = os.Getenv("BSTDIO_NODE_SECRET"); secret == "" {
-					fmt.Fprintln(os.Stderr, "Must specify either --token-secret or BSTDIO_NODE_SECRET")
+					fmt.Fprintln(cliOpts.Stderr, "Must specify either --token-secret or BSTDIO_NODE_SECRET")
 				}
 			}
 			if token == "" || secret == "" {

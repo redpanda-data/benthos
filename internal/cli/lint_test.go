@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli/v2"
 
 	icli "github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
@@ -17,22 +16,14 @@ import (
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
 )
 
-func executeLintSubcmd(args []string) (stderr string, err error) {
-	opts := common.NewCLIOpts("1.2.3", "now")
+func executeLintSubcmd(args []string) (string, error) {
 	var buf bytes.Buffer
 
-	cliApp := icli.App(opts)
-	for _, c := range cliApp.Commands {
-		if c.Name == "lint" {
-			c.Action = func(ctx *cli.Context) error {
-				return icli.LintAction(ctx, opts, &buf)
-			}
-		}
-	}
+	opts := common.NewCLIOpts("1.2.3", "now")
+	opts.Stderr = &buf
 
-	err = cliApp.Run(args)
-	stderr = buf.String()
-	return
+	err := icli.App(opts).Run(args)
+	return buf.String(), err
 }
 
 func TestLints(t *testing.T) {
@@ -104,6 +95,26 @@ output:
 		{
 			name: "one file with r flag",
 			args: []string{"benthos", "-r", tFile("foo.yaml"), "lint"},
+			files: map[string]string{
+				"foo.yaml": `
+input:
+  generate:
+    huh: what
+    mapping: 'root.id = uuid_v4()'
+output:
+  nah: nope
+  drop: {}
+`,
+			},
+			expectedErr: true,
+			expectedLints: []string{
+				"field huh not recognised",
+				"field nah is invalid",
+			},
+		},
+		{
+			name: "one file with r flag tailed",
+			args: []string{"benthos", "lint", "-r", tFile("foo.yaml")},
 			files: map[string]string{
 				"foo.yaml": `
 input:

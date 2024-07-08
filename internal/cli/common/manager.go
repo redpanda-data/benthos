@@ -123,6 +123,7 @@ func CreateManager(
 // stopped according to the configured shutdown timeout.
 func RunManagerUntilStopped(
 	c *cli.Context,
+	opts *CLIOpts,
 	conf config.Type,
 	stopMgr *StoppableManager,
 	stopStrm Stoppable,
@@ -159,7 +160,7 @@ func RunManagerUntilStopped(
 				"Service failed to close cleanly within allocated time." +
 					" Exiting forcefully and dumping stack trace to stderr",
 			)
-			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			_ = pprof.Lookup("goroutine").WriteTo(opts.Stderr, 1)
 			os.Exit(1)
 		}()
 
@@ -175,7 +176,7 @@ func RunManagerUntilStopped(
 				"Service failed to close resources cleanly within allocated time: %v."+
 					" Exiting forcefully and dumping stack trace to stderr\n", err,
 			)
-			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			_ = pprof.Lookup("goroutine").WriteTo(opts.Stderr, 1)
 			return
 		}
 	}()

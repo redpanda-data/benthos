@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"runtime"
 	"sync"
@@ -66,7 +65,7 @@ files with the .yaml or .yml extension.`)[1:],
 			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
 		},
 		Action: func(c *cli.Context) error {
-			return LintAction(c, cliOpts, os.Stderr)
+			return LintAction(c, cliOpts, cliOpts.Stderr)
 		},
 	}
 }

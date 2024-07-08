@@ -179,7 +179,7 @@ If the expression is omitted a default config is created.`)[1:],
 			if err == nil {
 				var configYAML []byte
 				if configYAML, err = docs.MarshalYAML(node); err == nil {
-					fmt.Println(string(configYAML))
+					fmt.Fprintln(cliOpts.Stdout, string(configYAML))
 				}
 			}
 			if err != nil {

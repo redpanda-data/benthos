@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -127,11 +126,11 @@ func lintTarget(opts *common.CLIOpts, spec docs.FieldSpecs, path, testSuffix str
 func RunAll(opts *common.CLIOpts, paths []string, testSuffix string, lint bool, logger log.Modular, resourcesPaths []string) bool {
 	targets, err := GetTestTargets(paths, testSuffix)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to obtain test targets: %v\n", err)
+		fmt.Fprintf(opts.Stderr, "Failed to obtain test targets: %v\n", err)
 		return false
 	}
 	if len(targets) == 0 {
-		fmt.Printf("%v\n", yellow("No tests were found"))
+		fmt.Fprintf(opts.Stdout, "%v\n", yellow("No tests were found"))
 		return false
 	}
 
@@ -153,12 +152,12 @@ func RunAll(opts *common.CLIOpts, paths []string, testSuffix string, lint bool, 
 		var failCases []CaseFailure
 		if lint {
 			if lints, err = lintTarget(opts, opts.MainConfigSpecCtor(), target, testSuffix); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to execute test target '%v': %v\n", target, err)
+				fmt.Fprintf(opts.Stderr, "Failed to execute test target '%v': %v\n", target, err)
 				return false
 			}
 		}
 		if failCases, err = Execute(opts.Environment, opts.MainConfigSpecCtor(), targets[target], target, resourcesPaths, logger); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to execute test target '%v': %v\n", target, err)
+			fmt.Fprintf(opts.Stderr, "Failed to execute test target '%v': %v\n", target, err)
 			return false
 		}
 		if len(lints) > 0 || len(failCases) > 0 {
@@ -167,35 +166,35 @@ func RunAll(opts *common.CLIOpts, paths []string, testSuffix string, lint bool, 
 				lints:  lints,
 				cases:  failCases,
 			})
-			fmt.Printf("Test '%v' %v\n", target, red("failed"))
+			fmt.Fprintf(opts.Stdout, "Test '%v' %v\n", target, red("failed"))
 		} else {
-			fmt.Printf("Test '%v' %v\n", target, green("succeeded"))
+			fmt.Fprintf(opts.Stdout, "Test '%v' %v\n", target, green("succeeded"))
 		}
 	}
 	if len(fails) > 0 {
-		fmt.Printf("\nFailures:\n\n")
+		fmt.Fprintf(opts.Stdout, "\nFailures:\n\n")
 		for i, fail := range fails {
 			if i > 0 {
-				fmt.Println("")
+				fmt.Fprintln(opts.Stdout, "")
 			}
-			fmt.Printf("--- %v ---\n\n", fail.target)
+			fmt.Fprintf(opts.Stdout, "--- %v ---\n\n", fail.target)
 			for _, lint := range fail.lints {
-				fmt.Printf("Lint: %v\n", lint)
+				fmt.Fprintf(opts.Stdout, "Lint: %v\n", lint)
 			}
 			if len(fail.cases) > 0 {
 				if len(fail.lints) > 0 {
-					fmt.Println("")
+					fmt.Fprintln(opts.Stdout, "")
 				}
 				var namePrev string
 				for i, fail := range fail.cases {
 					if namePrev != fail.Name {
 						if i > 0 {
-							fmt.Println("")
+							fmt.Fprintln(opts.Stdout, "")
 						}
-						fmt.Printf("%v [line %v]:\n", fail.Name, fail.TestLine)
+						fmt.Fprintf(opts.Stdout, "%v [line %v]:\n", fail.Name, fail.TestLine)
 						namePrev = fail.Name
 					}
-					fmt.Println(fail.Reason)
+					fmt.Fprintln(opts.Stdout, fail.Reason)
 				}
 			}
 		}

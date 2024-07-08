@@ -98,7 +98,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 		return err
 	}
 
-	return RunManagerUntilStopped(c, conf, stoppableManager, stoppableStream, dataStreamClosedChan)
+	return RunManagerUntilStopped(c, cliOpts, conf, stoppableManager, stoppableStream, dataStreamClosedChan)
 }
 
 // DelayShutdown attempts to block until either:

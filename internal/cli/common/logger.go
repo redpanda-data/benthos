@@ -1,7 +1,6 @@
 package common
 
 import (
-	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -17,9 +16,9 @@ func CreateLogger(c *cli.Context, opts *CLIOpts, conf config.Type, streamsMode b
 		conf.Logger.LogLevel = strings.ToUpper(overrideLogLevel)
 	}
 
-	defaultStream := os.Stdout
+	defaultStream := opts.Stdout
 	if !streamsMode && conf.Output.Type == "stdout" {
-		defaultStream = os.Stderr
+		defaultStream = opts.Stderr
 	}
 	if logger, err = log.New(defaultStream, ifs.OS(), conf.Logger); err != nil {
 		return

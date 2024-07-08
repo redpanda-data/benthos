@@ -3,7 +3,6 @@ package test
 import (
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/urfave/cli/v2"
 
@@ -59,7 +58,7 @@ For more information check out the docs at:
 			if logLevel := c.String("log"); logLevel != "" {
 				logConf := log.NewConfig()
 				logConf.LogLevel = logLevel
-				logger, err := log.New(os.Stdout, ifs.OS(), logConf)
+				logger, err := log.New(cliOpts.Stdout, ifs.OS(), logConf)
 				if err != nil {
 					return fmt.Errorf("failed to init logger: %w", err)
 				}
