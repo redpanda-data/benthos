@@ -26,10 +26,34 @@ import (
 // 3. The provided context has a deadline that is reached, triggering graceful termination
 // 4. The provided context is cancelled (WARNING, this prevents graceful termination)
 //
-// This function must only be called once during the entire lifecycle of your
-// program, as it interacts with singleton state. In order to manage multiple
-// Benthos stream lifecycles in a program use the StreamBuilder API instead.
+// In order to manage multiple Benthos stream lifecycles in a program use the
+// StreamBuilder API instead.
 func RunCLI(ctx context.Context, optFuncs ...CLIOptFunc) {
+	s, err := RunCLIToCode(ctx, optFuncs...)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+	}
+	if s != 0 {
+		os.Exit(s)
+	}
+}
+
+// RunCLIToCode executes Benthos as a CLI, allowing users to specify a
+// configuration file path(s) and execute subcommands for linting configs,
+// testing configs, etc. This is how a standard distribution of Benthos
+// operates. When the CLI exits the appropriate exit code is returned along with
+// an error if operation was unsuccessful in an unexpected way.
+//
+// This call blocks until either:
+//
+// 1. The service shuts down gracefully due to the inputs closing
+// 2. A termination signal is received
+// 3. The provided context has a deadline that is reached, triggering graceful termination
+// 4. The provided context is cancelled (WARNING, this prevents graceful termination)
+//
+// In order to manage multiple Benthos stream lifecycles in a program use the
+// StreamBuilder API instead.
+func RunCLIToCode(ctx context.Context, optFuncs ...CLIOptFunc) (exitCode int, err error) {
 	cliOpts := &CLIOptBuilder{
 		args: os.Args,
 		opts: common.NewCLIOpts(cli.Version, cli.DateBuilt),
@@ -50,11 +74,11 @@ func RunCLI(ctx context.Context, optFuncs ...CLIOptFunc) {
 	if err := cli.App(cliOpts.opts).RunContext(ctx, cliOpts.args); err != nil {
 		var cerr *common.ErrExitCode
 		if errors.As(err, &cerr) {
-			os.Exit(cerr.Code)
+			return cerr.Code, nil
 		}
-		fmt.Fprintln(os.Stderr, err.Error())
-		os.Exit(1)
+		return 1, err
 	}
+	return 0, nil
 }
 
 // CLIOptBuilder represents a CLI opts builder.
