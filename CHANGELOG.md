@@ -3,7 +3,7 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.31.0 - TBD
+## 4.31.0 - 2024-07-10
 
 ### Added
 
@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
 - Metadata fields `retry_count` and `backoff_duration` added to the `retry` processor. (@mihaitodor)
 - Parameter `escape_html` added to the `format_json()` Bloblang method. (@mihaitodor)
 - Go API: New generic key/value store methods added to the `*Resources` type. (@Jeffail)
+- Go API: Variadic options added to the public `service.RunCLI` function for customising cli args and accessing running stream data. (@Jeffail)
+- Go API: New `BloblangExecutor` and `InterpolationExecutor` added to the `MessageBatch`. (@Jeffail)
+- New `array` bloblang method. (@gramian)
+- Go API: New `CLIOptSetEnvVarLookup` cli option for customising config interpolations. (@Jeffail)
+- Algorithm `fnv32` added to the `hash` bloblang method. (@CallMeMhz)
 
 ### Changed
 

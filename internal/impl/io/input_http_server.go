@@ -25,6 +25,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/api"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
 	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
@@ -907,10 +908,10 @@ func (h *httpServerInput) TransactionChan() <-chan message.Transaction {
 	return h.transactions
 }
 
-// Connected returns a boolean indicating whether this input is currently
-// connected to its target.
-func (h *httpServerInput) Connected() bool {
-	return true
+func (h *httpServerInput) ConnectionStatus() component.ConnectionStatuses {
+	return component.ConnectionStatuses{
+		component.ConnectionActive(h.mgr),
+	}
 }
 
 func (h *httpServerInput) TriggerStopConsuming() {

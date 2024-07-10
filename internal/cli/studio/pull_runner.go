@@ -18,6 +18,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/cli/studio/metrics"
 	stracing "github.com/redpanda-data/benthos/v4/internal/cli/studio/tracing"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
@@ -27,6 +28,10 @@ import (
 )
 
 type noopStopper struct{}
+
+func (n noopStopper) ConnectionStatus() component.ConnectionStatuses {
+	return nil
+}
 
 func (n noopStopper) Stop(_ context.Context) error {
 	return nil
@@ -204,13 +209,13 @@ func (r *PullRunner) setStreamDisabled(ctx context.Context, toDisabled bool) err
 
 	return r.withExitContext(ctx, func(ctx context.Context) error {
 		if toDisabled {
-			if err := r.stoppableStream.Replace(ctx, func() (common.Stoppable, error) {
+			if err := r.stoppableStream.Replace(ctx, func() (common.RunningStream, error) {
 				return &noopStopper{}, nil
 			}); err != nil {
 				return err
 			}
 		} else if r.latestMainConf != nil && r.mgr != nil {
-			if err := r.stoppableStream.Replace(ctx, func() (common.Stoppable, error) {
+			if err := r.stoppableStream.Replace(ctx, func() (common.RunningStream, error) {
 				return stream.New(*r.latestMainConf, r.mgr)
 			}); err != nil {
 				return err
@@ -231,7 +236,7 @@ func (r *PullRunner) triggerStreamReset(ctx context.Context, conf *config.Type, 
 		return nil
 	}
 	return r.withExitContext(ctx, func(ctx context.Context) error {
-		return r.stoppableStream.Replace(ctx, func() (common.Stoppable, error) {
+		return r.stoppableStream.Replace(ctx, func() (common.RunningStream, error) {
 			return stream.New(conf.Config, mgr)
 		})
 	})

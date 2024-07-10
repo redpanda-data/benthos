@@ -3,6 +3,7 @@ package pure
 import (
 	"context"
 
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 )
@@ -26,13 +27,11 @@ func (g *greedyOutputBroker) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
-func (g *greedyOutputBroker) Connected() bool {
+func (g *greedyOutputBroker) ConnectionStatus() (s component.ConnectionStatuses) {
 	for _, out := range g.outputs {
-		if !out.Connected() {
-			return false
-		}
+		s = append(s, out.ConnectionStatus()...)
 	}
-	return true
+	return
 }
 
 func (g *greedyOutputBroker) TriggerCloseNow() {

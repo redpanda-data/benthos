@@ -21,6 +21,8 @@ import (
 // 2. A termination signal is received
 // 3. The provided context has a deadline that is reached, triggering graceful termination
 // 4. The provided context is cancelled (WARNING, this prevents graceful termination)
+//
+// Deprecated: Use the service.CLIOptSetArgs opt func instead.
 func RunCLIWithArgs(ctx context.Context, args ...string) {
 	if err := cli.App(common.NewCLIOpts(cli.Version, cli.DateBuilt)).RunContext(ctx, args); err != nil {
 		var cerr *common.ErrExitCode
