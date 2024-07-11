@@ -48,6 +48,36 @@ func New(stream io.Writer, fs ifs.FS, config Config) (Modular, error) {
 	logger.Out = stream
 
 	switch config.Format {
+	case "gcp_errorreporting":
+		logger.SetFormatter(&logrus.JSONFormatter{
+			DisableTimestamp: !config.AddTimeStamp,
+			FieldMap: logrus.FieldMap{
+				logrus.FieldKeyTime:  "eventTime",
+				logrus.FieldKeyMsg:   "message",
+				logrus.FieldKeyLevel: "level",
+			},
+		})
+		sca, ok := config.StaticFields["serviceContext"]
+		if !ok {
+			panic("missing static_field serviceContext. Google Cloud Error Reporting requires this field to be set.")
+		}
+		sc, ok := sca.(map[string]any)
+		if !ok {
+			panic("value of static_field serviceContext not an object. Google Cloud Error Reporting requires this field to be an object.")
+		}
+		srva, ok := sc["service"]
+		if !ok {
+			panic("missing static_field serviceContext.service. Google Cloud Error Reporting requires this field to be set.")
+		}
+		srv, ok := srva.(string)
+		if !ok {
+			panic("value of static_field serviceContext.service not a string. Google Cloud Error Reporting requires this field to be a string.")
+		}
+		if srv == "" {
+			panic("empty value of static_field serviceContext.service. Google Cloud Error Reporting requires this field to be set.")
+		}
+		// According to https://cloud.google.com/error-reporting/docs/formatting-error-messages#format-log-entry
+		// having a serviceContext.service and a message should be sufficient for Error Reporting to pick errors up automatically.
 	case "json":
 		logger.SetFormatter(&logrus.JSONFormatter{
 			DisableTimestamp: !config.AddTimeStamp,

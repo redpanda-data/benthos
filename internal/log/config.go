@@ -18,14 +18,14 @@ const (
 
 // Config holds configuration options for a logger object.
 type Config struct {
-	LogLevel      string            `yaml:"level"`
-	Format        string            `yaml:"format"`
-	AddTimeStamp  bool              `yaml:"add_timestamp"`
-	LevelName     string            `yaml:"level_name"`
-	MessageName   string            `yaml:"message_name"`
-	TimestampName string            `yaml:"timestamp_name"`
-	StaticFields  map[string]string `yaml:"static_fields"`
-	File          File              `yaml:"file"`
+	LogLevel      string         `yaml:"level"`
+	Format        string         `yaml:"format"`
+	AddTimeStamp  bool           `yaml:"add_timestamp"`
+	LevelName     string         `yaml:"level_name"`
+	MessageName   string         `yaml:"message_name"`
+	TimestampName string         `yaml:"timestamp_name"`
+	StaticFields  map[string]any `yaml:"static_fields"`
+	File          File           `yaml:"file"`
 }
 
 // File contains configuration for file based logging.
@@ -44,7 +44,7 @@ func NewConfig() Config {
 		LevelName:     "level",
 		TimestampName: "time",
 		MessageName:   "msg",
-		StaticFields: map[string]string{
+		StaticFields: map[string]any{
 			"@service": "benthos",
 		},
 	}
@@ -91,8 +91,15 @@ func FromParsed(pConf *docs.ParsedConfig) (conf Config, err error) {
 	if conf.TimestampName, err = pConf.FieldString(fieldTimestampName); err != nil {
 		return
 	}
-	if conf.StaticFields, err = pConf.FieldStringMap(fieldStaticFields); err != nil {
+
+	staticFields, err := pConf.FieldAnyMap(fieldStaticFields)
+	if err != nil {
 		return
+	}
+
+	conf.StaticFields = make(map[string]any, len(staticFields))
+	for k, v := range staticFields {
+		conf.StaticFields[k] = v.Raw()
 	}
 
 	if pConf.Contains(fieldFile) {

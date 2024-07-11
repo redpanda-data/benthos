@@ -11,6 +11,7 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gofrs/uuid v4.4.0+incompatible
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/google/go-cmp v0.6.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3

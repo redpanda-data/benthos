@@ -10,12 +10,44 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 )
 
+func TestGcpErrorReportingWithOtherNames(t *testing.T) {
+	loggerConfig := NewConfig()
+	loggerConfig.AddTimeStamp = false
+	loggerConfig.Format = "gcp_errorreporting"
+	loggerConfig.LogLevel = "ERROR"
+	loggerConfig.StaticFields = map[string]any{
+		"serviceContext": map[string]any{
+			"service": "benthos_service",
+			"version": "1.0",
+		},
+	}
+	loggerConfig.LevelName = "level"
+	loggerConfig.MessageName = "message"
+
+	var buf bytes.Buffer
+
+	logger, err := New(&buf, ifs.OS(), loggerConfig)
+	require.NoError(t, err)
+
+	logger = logger.WithFields(map[string]string{
+		"foo": "bar",
+	})
+	require.NoError(t, err)
+
+	logger.Error("Error message foo fields")
+
+	expected := `{"foo":"bar", "level":"error", "message":"Error message foo fields", "serviceContext":{"service":"benthos_service", "version":"1.0"}}
+`
+
+	require.JSONEq(t, expected, buf.String())
+}
+
 func TestLoggerWith(t *testing.T) {
 	loggerConfig := NewConfig()
 	loggerConfig.AddTimeStamp = false
 	loggerConfig.Format = "logfmt"
 	loggerConfig.LogLevel = "WARN"
-	loggerConfig.StaticFields = map[string]string{
+	loggerConfig.StaticFields = map[string]any{
 		"@service": "benthos_service",
 		"@system":  "foo",
 	}
@@ -48,7 +80,7 @@ func TestLoggerWithOddArgs(t *testing.T) {
 	loggerConfig.AddTimeStamp = false
 	loggerConfig.Format = "logfmt"
 	loggerConfig.LogLevel = "WARN"
-	loggerConfig.StaticFields = map[string]string{
+	loggerConfig.StaticFields = map[string]any{
 		"@service": "benthos_service",
 		"@system":  "foo",
 	}
@@ -76,7 +108,7 @@ func TestLoggerWithNonStringKeys(t *testing.T) {
 	loggerConfig.AddTimeStamp = false
 	loggerConfig.Format = "logfmt"
 	loggerConfig.LogLevel = "WARN"
-	loggerConfig.StaticFields = map[string]string{
+	loggerConfig.StaticFields = map[string]any{
 		"@service": "benthos_service",
 		"@system":  "foo",
 	}
@@ -106,7 +138,7 @@ func TestLoggerWithOtherNames(t *testing.T) {
 	loggerConfig.AddTimeStamp = false
 	loggerConfig.Format = "json"
 	loggerConfig.LogLevel = "WARN"
-	loggerConfig.StaticFields = map[string]string{
+	loggerConfig.StaticFields = map[string]any{
 		"@service": "benthos_service",
 		"@system":  "foo",
 	}
