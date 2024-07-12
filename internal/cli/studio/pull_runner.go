@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"path"
 	"runtime/pprof"
 	"time"
@@ -19,6 +18,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/cli/studio/metrics"
 	stracing "github.com/redpanda-data/benthos/v4/internal/cli/studio/tracing"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
@@ -28,6 +28,10 @@ import (
 )
 
 type noopStopper struct{}
+
+func (n noopStopper) ConnectionStatus() component.ConnectionStatuses {
+	return nil
+}
 
 func (n noopStopper) Stop(_ context.Context) error {
 	return nil
@@ -48,9 +52,12 @@ const defaultCloseDeadline = time.Second * 30
 // reallocations, or config changes and attempt to reflect those changes in the
 // running stream.
 type PullRunner struct {
-	confReaderSpec docs.FieldSpecs
-	confReader     *config.Reader
-	sessionTracker *sessionTracker
+	secretLookupFn   func(context.Context, string) (string, bool)
+	bloblEnvironment *ibloblang.Environment
+	environment      *bundle.Environment
+	confReaderSpec   docs.FieldSpecs
+	confReader       *config.Reader
+	sessionTracker   *sessionTracker
 
 	// Controls disabled deployment rotations
 	isDisabled     bool
@@ -98,13 +105,16 @@ func OptSetNowFn(fn func() time.Time) func(*PullRunner) {
 // that calls into it.
 func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string, opts ...func(p *PullRunner)) (*PullRunner, error) {
 	r := &PullRunner{
+		secretLookupFn:     cliOpts.SecretAccessFn,
+		bloblEnvironment:   cliOpts.BloblEnvironment,
+		environment:        cliOpts.Environment,
 		confReaderSpec:     cliOpts.MainConfigSpecCtor(),
 		metricsFlushPeriod: time.Second * 30,
 		stoppableStream:    common.NewSwappableStopper(&noopStopper{}),
 		logger:             &hotSwapLogger{},
 		cliContext:         c,
 		cliOpts:            cliOpts,
-		strictMode:         !c.Bool("chilled"),
+		strictMode:         !cliOpts.RootFlags.GetChilled(c),
 		version:            cliOpts.Version,
 		dateBuilt:          cliOpts.DateBuilt,
 		nowFn:              time.Now,
@@ -134,8 +144,12 @@ func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string
 	// bootstrap. In order to accommodate this we create a hot swappable logger
 	// that gets replaced each time a new config is loaded.
 	{
-		confPath, confResPaths, setSlice := c.String("config"), c.StringSlice("resources"), c.StringSlice("set")
-		tmpConf, _, localLints, err := config.NewReader(confPath, confResPaths, config.OptAddOverrides(setSlice...)).Read()
+		confPath, confResPaths, setSlice := cliOpts.RootFlags.GetConfig(c), cliOpts.RootFlags.GetResources(c), cliOpts.RootFlags.GetSet(c)
+		tmpConf, _, localLints, err := config.NewReader(
+			confPath, confResPaths,
+			config.OptAddOverrides(setSlice...),
+			config.OptUseEnvLookupFunc(cliOpts.SecretAccessFn),
+		).Read()
 		if err != nil {
 			return nil, fmt.Errorf("failed to create initial logger: %w", err)
 		}
@@ -195,13 +209,13 @@ func (r *PullRunner) setStreamDisabled(ctx context.Context, toDisabled bool) err
 
 	return r.withExitContext(ctx, func(ctx context.Context) error {
 		if toDisabled {
-			if err := r.stoppableStream.Replace(ctx, func() (common.Stoppable, error) {
+			if err := r.stoppableStream.Replace(ctx, func() (common.RunningStream, error) {
 				return &noopStopper{}, nil
 			}); err != nil {
 				return err
 			}
 		} else if r.latestMainConf != nil && r.mgr != nil {
-			if err := r.stoppableStream.Replace(ctx, func() (common.Stoppable, error) {
+			if err := r.stoppableStream.Replace(ctx, func() (common.RunningStream, error) {
 				return stream.New(*r.latestMainConf, r.mgr)
 			}); err != nil {
 				return err
@@ -222,15 +236,15 @@ func (r *PullRunner) triggerStreamReset(ctx context.Context, conf *config.Type, 
 		return nil
 	}
 	return r.withExitContext(ctx, func(ctx context.Context) error {
-		return r.stoppableStream.Replace(ctx, func() (common.Stoppable, error) {
+		return r.stoppableStream.Replace(ctx, func() (common.RunningStream, error) {
 			return stream.New(conf.Config, mgr)
 		})
 	})
 }
 
 func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr error) {
-	initMainFile := r.cliContext.String("config")
-	initResources := r.cliContext.StringSlice("resources")
+	initMainFile := r.cliOpts.RootFlags.GetConfig(r.cliContext)
+	initResources := r.cliOpts.RootFlags.GetResources(r.cliContext)
 	initFiles := r.sessionTracker.Files()
 	if initFiles.MainConfig != nil {
 		initMainFile = initFiles.MainConfig.Name
@@ -244,15 +258,16 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 		backup:  ifs.OS(),
 	}
 
-	bloblEnv := ibloblang.GlobalEnvironment().WithCustomImporter(func(name string) ([]byte, error) {
+	bloblEnv := r.bloblEnvironment.WithCustomImporter(func(name string) ([]byte, error) {
 		return ifs.ReadFile(sessFS, name)
 	})
 
-	lintConf := docs.NewLintConfig(bundle.GlobalEnvironment)
-	lintConf.BloblangEnv = bloblang.XWrapEnvironment(bloblEnv).Deactivated()
+	lintConf := docs.NewLintConfig(r.environment)
+	lintConf.BloblangEnv = bloblang.XWrapEnvironment(bloblEnv.Deactivated())
 
 	confReaderTmp := config.NewReader(initMainFile, initResources,
-		config.OptAddOverrides(r.cliContext.StringSlice("set")...),
+		config.OptUseEnvLookupFunc(r.secretLookupFn),
+		config.OptAddOverrides(r.cliOpts.RootFlags.GetSet(r.cliContext)...),
 		config.OptTestSuffix("_benthos_test"),
 		config.OptUseFS(sessFS),
 		config.OptSetLintConfig(lintConf),
@@ -278,7 +293,7 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 		return errors.New("found linting errors in config")
 	}
 
-	tmpEnv, tmpTracingSummary := tracing.TracedBundle(bundle.GlobalEnvironment)
+	tmpEnv, tmpTracingSummary := tracing.TracedBundle(r.environment)
 	tmpTracingSummary.SetEnabled(false)
 
 	stopMgrTmp, err := common.CreateManager(
@@ -462,7 +477,7 @@ func (r *PullRunner) Stop(ctx context.Context) error {
 				"Service failed to close the running stream cleanly within allocated time: %v."+
 					" Exiting forcefully and dumping stack trace to stderr\n", err,
 			)
-			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			_ = pprof.Lookup("goroutine").WriteTo(r.cliOpts.Stderr, 1)
 			return err
 		}
 		if r.stoppableMgr == nil {
@@ -473,7 +488,7 @@ func (r *PullRunner) Stop(ctx context.Context) error {
 				"Service failed to close resources cleanly within allocated time: %v."+
 					" Exiting forcefully and dumping stack trace to stderr\n", err,
 			)
-			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			_ = pprof.Lookup("goroutine").WriteTo(r.cliOpts.Stderr, 1)
 			return err
 		}
 		return nil

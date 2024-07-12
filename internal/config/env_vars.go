@@ -2,6 +2,7 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
@@ -38,7 +39,7 @@ func (e *ErrMissingEnvVars) Error() string {
 // respective environment variable will be read and will replace the pattern. If
 // the environment variable is empty or does not exist then either the default
 // value is used or the field will be left empty.
-func ReplaceEnvVariables(inBytes []byte, lookupFn func(string) (string, bool)) (replaced []byte, err error) {
+func (r *Reader) ReplaceEnvVariables(ctx context.Context, inBytes []byte) (replaced []byte, err error) {
 	var missingVarsErr ErrMissingEnvVars
 
 	replaced = envRegex.ReplaceAllFunc(inBytes, func(content []byte) []byte {
@@ -47,13 +48,13 @@ func ReplaceEnvVariables(inBytes []byte, lookupFn func(string) (string, bool)) (
 		if len(content) > 3 {
 			if colonIndex := bytes.IndexByte(content, ':'); colonIndex == -1 {
 				varName := string(content[2 : len(content)-1])
-				if value, ok = lookupFn(varName); !ok {
+				if value, ok = r.envLookupFunc(ctx, varName); !ok {
 					missingVarsErr.Variables = append(missingVarsErr.Variables, varName)
 				}
 			} else {
 				targetVar := content[2:colonIndex]
 				defaultVal := content[colonIndex+1 : len(content)-1]
-				value, _ = lookupFn(string(targetVar))
+				value, _ = r.envLookupFunc(ctx, string(targetVar))
 				if value == "" {
 					value = string(defaultVal)
 				}

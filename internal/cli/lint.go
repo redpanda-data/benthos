@@ -2,10 +2,10 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"runtime"
 	"sync"
@@ -13,13 +13,62 @@ import (
 	"github.com/fatih/color"
 	"github.com/urfave/cli/v2"
 
-	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	ifilepath "github.com/redpanda-data/benthos/v4/internal/filepath"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
+	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
+
+func lintCliCommand(cliOpts *common.CLIOpts) *cli.Command {
+	flags := []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "deprecated",
+			Value: false,
+			Usage: "Print linting errors for the presence of deprecated fields.",
+		},
+		&cli.BoolFlag{
+			Name:  "labels",
+			Value: false,
+			Usage: "Print linting errors when components do not have labels.",
+		},
+		&cli.BoolFlag{
+			Name:  "skip-env-var-check",
+			Value: false,
+			Usage: "Do not produce lint errors when environment interpolations exist without defaults within configs but aren't defined.",
+		},
+
+		// General config flags
+		&cli.StringSliceFlag{
+			Name:    common.RootFlagResources,
+			Aliases: []string{"r"},
+			Usage:   "pull in extra resources from a file, which can be referenced the same as resources defined in the main config, supports glob patterns (requires quotes)",
+		},
+	}
+	flags = append(flags, common.EnvFileAndTemplateFlags(cliOpts, false)...)
+
+	return &cli.Command{
+		Name:  "lint",
+		Usage: cliOpts.ExecTemplate("Parse {{.ProductName}} configs and report any linting errors"),
+		Flags: flags,
+		Description: cliOpts.ExecTemplate(`
+Exits with a status code 1 if any linting errors are detected:
+
+  {{.BinaryName}} lint ./configs/*.yaml
+  {{.BinaryName}} lint ./foo.yaml ./bar.yaml
+  {{.BinaryName}} lint ./configs/...
+
+If a path ends with '...' then {{.ProductName}} will walk the target and lint any
+files with the .yaml or .yml extension.`)[1:],
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
+		},
+		Action: func(c *cli.Context) error {
+			return LintAction(c, cliOpts, cliOpts.Stderr)
+		},
+	}
+}
 
 var (
 	red    = color.New(color.FgRed).SprintFunc()
@@ -31,8 +80,9 @@ type pathLint struct {
 	lint   docs.Lint
 }
 
-func lintFile(path string, skipEnvVarCheck bool, spec docs.FieldSpecs, lConf docs.LintConfig) (pathLints []pathLint) {
-	_, lints, err := config.ReadYAMLFileLinted(ifs.OS(), spec, path, skipEnvVarCheck, lConf)
+func lintFile(opts *common.CLIOpts, path string, skipEnvVarCheck bool, spec docs.FieldSpecs, lConf docs.LintConfig) (pathLints []pathLint) {
+	_, lints, err := config.NewReader("", nil, config.OptUseEnvLookupFunc(opts.SecretAccessFn)).
+		ReadYAMLFileLinted(context.TODO(), spec, path, skipEnvVarCheck, lConf)
 	if err != nil {
 		pathLints = append(pathLints, pathLint{
 			source: path,
@@ -135,60 +185,20 @@ func lintMDSnippets(path string, spec docs.FieldSpecs, lConf docs.LintConfig) (p
 	return
 }
 
-func lintCliCommand(cliOpts *common.CLIOpts) *cli.Command {
-	return &cli.Command{
-		Name:  "lint",
-		Usage: cliOpts.ExecTemplate("Parse {{.ProductName}} configs and report any linting errors"),
-		Description: cliOpts.ExecTemplate(`
-Exits with a status code 1 if any linting errors are detected:
-
-  {{.BinaryName}} -c target.yaml lint
-  {{.BinaryName}} lint ./configs/*.yaml
-  {{.BinaryName}} lint ./foo.yaml ./bar.yaml
-  {{.BinaryName}} lint ./configs/...
-
-If a path ends with '...' then {{.ProductName}} will walk the target and lint any
-files with the .yaml or .yml extension.`)[1:],
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:  "deprecated",
-				Value: false,
-				Usage: "Print linting errors for the presence of deprecated fields.",
-			},
-			&cli.BoolFlag{
-				Name:  "labels",
-				Value: false,
-				Usage: "Print linting errors when components do not have labels.",
-			},
-			&cli.BoolFlag{
-				Name:  "skip-env-var-check",
-				Value: false,
-				Usage: "Do not produce lint errors when environment interpolations exist without defaults within configs but aren't defined.",
-			},
-		},
-		Action: func(c *cli.Context) error {
-			if code := LintAction(c, cliOpts, os.Stderr); code != 0 {
-				os.Exit(code)
-			}
-			return nil
-		},
-	}
-}
-
 // LintAction performs the benthos lint subcommand and returns the appropriate
 // exit code. This function is exported for testing purposes only.
-func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
+func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) error {
 	targets, err := ifilepath.GlobsAndSuperPaths(ifs.OS(), c.Args().Slice(), "yaml", "yml")
 	if err != nil {
-		fmt.Fprintf(stderr, "Lint paths error: %v\n", err)
-		return 1
+		return fmt.Errorf("lint paths error: %w", err)
 	}
-	if conf := c.String("config"); conf != "" {
+	if conf := opts.RootFlags.GetConfig(c); conf != "" {
 		targets = append(targets, conf)
 	}
-	targets = append(targets, c.StringSlice("resources")...)
+	targets = append(targets, opts.RootFlags.GetResources(c)...)
 
-	lConf := docs.NewLintConfig(bundle.GlobalEnvironment)
+	lConf := docs.NewLintConfig(opts.Environment)
+	lConf.BloblangEnv = bloblang.XWrapEnvironment(opts.BloblEnvironment)
 	lConf.RejectDeprecated = c.Bool("deprecated")
 	lConf.RequireLabels = c.Bool("labels")
 	skipEnvVarCheck := c.Bool("skip-env-var-check")
@@ -214,7 +224,7 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
 				if path.Ext(target) == ".md" {
 					lints = lintMDSnippets(target, spec, lConf)
 				} else {
-					lints = lintFile(target, skipEnvVarCheck, spec, lConf)
+					lints = lintFile(opts, target, skipEnvVarCheck, spec, lConf)
 				}
 				if len(lints) > 0 {
 					pathLintMut.Lock()
@@ -227,7 +237,7 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
 	wg.Wait()
 
 	if len(pathLints) == 0 {
-		return 0
+		return nil
 	}
 
 	for _, lint := range pathLints {
@@ -238,5 +248,5 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) int {
 			fmt.Fprint(stderr, yellow(lintText))
 		}
 	}
-	return 1
+	return &common.ErrExitCode{Err: errors.New("lint errors"), Code: 1}
 }

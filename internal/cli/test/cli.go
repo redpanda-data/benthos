@@ -1,8 +1,8 @@
 package test
 
 import (
+	"errors"
 	"fmt"
-	"os"
 
 	"github.com/urfave/cli/v2"
 
@@ -14,9 +14,25 @@ import (
 
 // CliCommand is a cli.Command definition for unit testing.
 func CliCommand(cliOpts *common.CLIOpts) *cli.Command {
+	flags := []cli.Flag{
+		&cli.StringFlag{
+			Name:  "log",
+			Value: "",
+			Usage: "allow components to write logs at a provided level to stdout.",
+		},
+
+		&cli.StringSliceFlag{
+			Name:    common.RootFlagResources,
+			Aliases: []string{"r"},
+			Usage:   "pull in extra resources from a file, which can be referenced the same as resources defined in the main config, supports glob patterns (requires quotes)",
+		},
+	}
+	flags = append(flags, common.EnvFileAndTemplateFlags(cliOpts, false)...)
+
 	return &cli.Command{
 		Name:  "test",
 		Usage: cliOpts.ExecTemplate("Execute {{.ProductName}} unit tests"),
+		Flags: flags,
 		Description: cliOpts.ExecTemplate(`
 Execute any number of {{.ProductName}} unit test definitions. If one or more tests
 fail the process will report the errors and exit with a status code 1.
@@ -27,40 +43,32 @@ fail the process will report the errors and exit with a status code 1.
 
 For more information check out the docs at:
 {{.DocumentationURL}}/configuration/unit_testing`)[1:],
-		Flags: []cli.Flag{
-			&cli.StringFlag{
-				Name:  "log",
-				Value: "",
-				Usage: "allow components to write logs at a provided level to stdout.",
-			},
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
 		},
 		Action: func(c *cli.Context) error {
-			if len(c.StringSlice("set")) > 0 {
-				fmt.Fprintln(os.Stderr, "Cannot override fields with --set (-s) during unit tests")
-				os.Exit(1)
+			if len(cliOpts.RootFlags.GetSet(c)) > 0 {
+				return errors.New("cannot override fields with --set (-s) during unit tests")
 			}
-			resourcesPaths := c.StringSlice("resources")
+			resourcesPaths := cliOpts.RootFlags.GetResources(c)
 			var err error
 			if resourcesPaths, err = filepath.Globs(ifs.OS(), resourcesPaths); err != nil {
-				fmt.Printf("Failed to resolve resource glob pattern: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("failed to resolve resource glob pattern: %w", err)
 			}
 			if logLevel := c.String("log"); logLevel != "" {
 				logConf := log.NewConfig()
 				logConf.LogLevel = logLevel
-				logger, err := log.New(os.Stdout, ifs.OS(), logConf)
+				logger, err := log.New(cliOpts.Stdout, ifs.OS(), logConf)
 				if err != nil {
-					fmt.Printf("Failed to init logger: %v\n", err)
-					os.Exit(1)
+					return fmt.Errorf("failed to init logger: %w", err)
 				}
-				if RunAll(c.Args().Slice(), cliOpts.MainConfigSpecCtor(), "_benthos_test", true, logger, resourcesPaths) {
-					os.Exit(0)
+				if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, logger, resourcesPaths) {
+					return nil
 				}
-			} else if RunAll(c.Args().Slice(), cliOpts.MainConfigSpecCtor(), "_benthos_test", true, log.Noop(), resourcesPaths) {
-				os.Exit(0)
+			} else if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, log.Noop(), resourcesPaths) {
+				return nil
 			}
-			os.Exit(1)
-			return nil
+			return &common.ErrExitCode{Err: errors.New("lint errors"), Code: 1}
 		},
 	}
 }

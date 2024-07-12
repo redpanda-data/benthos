@@ -996,7 +996,9 @@ func (s *StreamBuilder) buildConfig() builderConfig {
 
 func (s *StreamBuilder) getYAMLNode(b []byte) (*yaml.Node, error) {
 	var err error
-	if b, err = config.ReplaceEnvVariables(b, s.envVarLookupFn); err != nil {
+	if b, err = config.NewReader("", nil, config.OptUseEnvLookupFunc(func(ctx context.Context, key string) (string, bool) {
+		return s.envVarLookupFn(key)
+	})).ReplaceEnvVariables(context.TODO(), b); err != nil {
 		// TODO: Allow users to specify whether they care about env variables
 		// missing, in which case we error or not based on that.
 		var errEnvMissing *config.ErrMissingEnvVars

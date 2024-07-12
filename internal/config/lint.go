@@ -2,21 +2,20 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"io/fs"
-	"os"
 	"time"
 	"unicode/utf8"
 
 	"github.com/redpanda-data/benthos/v4/internal/docs"
-	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 )
 
 // ReadYAMLFileLinted will attempt to read a configuration file path into a
 // structure. Returns an array of lint messages or an error.
-func ReadYAMLFileLinted(fs ifs.FS, spec docs.FieldSpecs, path string, skipEnvVarCheck bool, lConf docs.LintConfig) (Type, []docs.Lint, error) {
-	configBytes, lints, _, err := ReadFileEnvSwap(fs, path, os.LookupEnv)
+func (r *Reader) ReadYAMLFileLinted(ctx context.Context, spec docs.FieldSpecs, path string, skipEnvVarCheck bool, lConf docs.LintConfig) (Type, []docs.Lint, error) {
+	configBytes, lints, _, err := r.ReadFileEnvSwap(ctx, path)
 	if err != nil {
 		return Type{}, nil, err
 	}
@@ -76,9 +75,9 @@ func LintYAMLBytes(lintConf docs.LintConfig, rawBytes []byte) ([]docs.Lint, erro
 // encoding.
 //
 // An modTime timestamp is returned if the modtime of the file is available.
-func ReadFileEnvSwap(store ifs.FS, path string, lookupEnvFn func(name string) (string, bool)) (configBytes []byte, lints []docs.Lint, modTime time.Time, err error) {
+func (r *Reader) ReadFileEnvSwap(ctx context.Context, path string) (configBytes []byte, lints []docs.Lint, modTime time.Time, err error) {
 	var configFile fs.File
-	if configFile, err = store.Open(path); err != nil {
+	if configFile, err = r.fs.Open(path); err != nil {
 		return
 	}
 
@@ -97,7 +96,7 @@ func ReadFileEnvSwap(store ifs.FS, path string, lookupEnvFn func(name string) (s
 		))
 	}
 
-	if configBytes, err = ReplaceEnvVariables(configBytes, lookupEnvFn); err != nil {
+	if configBytes, err = r.ReplaceEnvVariables(ctx, configBytes); err != nil {
 		var errEnvMissing *ErrMissingEnvVars
 		if errors.As(err, &errEnvMissing) {
 			configBytes = errEnvMissing.BestAttempt

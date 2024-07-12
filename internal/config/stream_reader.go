@@ -2,10 +2,10 @@ package config
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -47,7 +47,7 @@ func (r *Reader) readStreamFileConfig(path string) (conf stream.Config, lints []
 	var confBytes []byte
 	var dLints []docs.Lint
 	var modTime time.Time
-	if confBytes, dLints, modTime, err = ReadFileEnvSwap(r.fs, path, os.LookupEnv); err != nil {
+	if confBytes, dLints, modTime, err = r.ReadFileEnvSwap(context.TODO(), path); err != nil {
 		return
 	}
 	for _, l := range dLints {

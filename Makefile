@@ -2,6 +2,12 @@
 
 GOMAXPROCS ?= 1
 
+build:
+	@go build ./cmd/benthos
+
+install:
+	@go install ./cmd/benthos
+
 deps:
 	@go mod tidy
 

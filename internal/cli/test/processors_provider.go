@@ -37,43 +37,22 @@ type ProcessorsProvider struct {
 	resourcesPaths []string
 	cachedConfigs  map[string]cachedConfig
 
+	env    *bundle.Environment
 	spec   docs.FieldSpecs
 	logger log.Modular
 }
 
 // NewProcessorsProvider returns a new processors provider aimed at a filepath.
-func NewProcessorsProvider(targetPath string, opts ...func(*ProcessorsProvider)) *ProcessorsProvider {
+func NewProcessorsProvider(targetPath string, resources []string, spec docs.FieldSpecs, env *bundle.Environment, logger log.Modular) *ProcessorsProvider {
 	p := &ProcessorsProvider{
-		targetPath:    targetPath,
-		cachedConfigs: map[string]cachedConfig{},
-		spec:          config.Spec(),
-		logger:        log.Noop(),
-	}
-	for _, opt := range opts {
-		opt(p)
+		targetPath:     targetPath,
+		resourcesPaths: resources,
+		cachedConfigs:  map[string]cachedConfig{},
+		env:            env,
+		spec:           spec,
+		logger:         logger,
 	}
 	return p
-}
-
-// OptSetConfigSpec sets the config spec used for linting.
-func OptSetConfigSpec(spec docs.FieldSpecs) func(*ProcessorsProvider) {
-	return func(p *ProcessorsProvider) {
-		p.spec = spec
-	}
-}
-
-// OptAddResourcesPaths adds paths to files where resources should be parsed.
-func OptAddResourcesPaths(paths []string) func(*ProcessorsProvider) {
-	return func(p *ProcessorsProvider) {
-		p.resourcesPaths = paths
-	}
-}
-
-// OptProcessorsProviderSetLogger sets the logger used by tested components.
-func OptProcessorsProviderSetLogger(logger log.Modular) func(*ProcessorsProvider) {
-	return func(p *ProcessorsProvider) {
-		p.logger = logger
-	}
 }
 
 //------------------------------------------------------------------------------
@@ -222,7 +201,7 @@ func resolveProcessorsPointer(targetFile, jsonPtr string) (filePath, procPath st
 	return
 }
 
-func setMock(confSpec docs.FieldSpecs, root *yaml.Node, mock any, pathSlice ...string) error {
+func (p *ProcessorsProvider) setMock(root *yaml.Node, mock any, pathSlice ...string) error {
 	var mockNode yaml.Node
 	if err := mockNode.Encode(mock); err != nil {
 		return fmt.Errorf("encode mock value: %w", err)
@@ -242,7 +221,7 @@ func setMock(confSpec docs.FieldSpecs, root *yaml.Node, mock any, pathSlice ...s
 		labelPull.Label = nil
 	}
 
-	if err := confSpec.SetYAMLPath(bundle.GlobalEnvironment, root, &mockNode, pathSlice...); err != nil {
+	if err := p.spec.SetYAMLPath(p.env, root, &mockNode, pathSlice...); err != nil {
 		return err
 	}
 	if labelPull.Label != nil {
@@ -250,7 +229,7 @@ func setMock(confSpec docs.FieldSpecs, root *yaml.Node, mock any, pathSlice ...s
 		if err := labelNode.Encode(labelPull.Label); err != nil {
 			return fmt.Errorf("encode mock label: %w", err)
 		}
-		if err := confSpec.SetYAMLPath(bundle.GlobalEnvironment, root, &labelNode, append(pathSlice, "label")...); err != nil {
+		if err := p.spec.SetYAMLPath(p.env, root, &labelNode, append(pathSlice, "label")...); err != nil {
 			return fmt.Errorf("set mock label: %w", err)
 		}
 	}
@@ -283,7 +262,7 @@ func (p *ProcessorsProvider) getConfs(jsonPtr string, environment map[string]str
 	cleanupEnv := setEnvironment(environment)
 	defer cleanupEnv()
 
-	envVarLookup := func(name string) (string, bool) {
+	envVarLookup := func(ctx context.Context, name string) (string, bool) {
 		if s, ok := environment[name]; ok {
 			return s, true
 		}
@@ -295,7 +274,8 @@ func (p *ProcessorsProvider) getConfs(jsonPtr string, environment map[string]str
 		remainingMocks[k] = v
 	}
 
-	configBytes, _, _, err := config.ReadFileEnvSwap(ifs.OS(), targetPath, envVarLookup)
+	configBytes, _, _, err := config.NewReader("", nil, config.OptUseEnvLookupFunc(envVarLookup)).
+		ReadFileEnvSwap(context.TODO(), targetPath)
 	if err != nil {
 		return confs, fmt.Errorf("failed to parse config file '%v': %v", targetPath, err)
 	}
@@ -317,7 +297,7 @@ func (p *ProcessorsProvider) getConfs(jsonPtr string, environment map[string]str
 		if err != nil {
 			return confs, fmt.Errorf("failed to parse mock path '%v': %w", k, err)
 		}
-		if err = setMock(confSpec, root, &v, mockPathSlice...); err != nil {
+		if err = p.setMock(root, &v, mockPathSlice...); err != nil {
 			return confs, fmt.Errorf("failed to set mock '%v': %w", k, err)
 		}
 		delete(remainingMocks, k)
@@ -325,13 +305,13 @@ func (p *ProcessorsProvider) getConfs(jsonPtr string, environment map[string]str
 
 	labelsToPaths := map[string][]string{}
 	if len(remainingMocks) > 0 {
-		confSpec.YAMLLabelsToPaths(bundle.GlobalEnvironment, root, labelsToPaths, nil)
+		confSpec.YAMLLabelsToPaths(p.env, root, labelsToPaths, nil)
 		for k, v := range remainingMocks {
 			mockPathSlice, exists := labelsToPaths[k]
 			if !exists {
 				return confs, fmt.Errorf("mock for label '%v' could not be applied as the label was not found in the test target file, it is not currently possible to mock resources imported separate to the test file", k)
 			}
-			if err = setMock(confSpec, root, &v, mockPathSlice...); err != nil {
+			if err = p.setMock(root, &v, mockPathSlice...); err != nil {
 				return confs, fmt.Errorf("failed to set mock '%v': %w", k, err)
 			}
 			delete(remainingMocks, k)
@@ -343,13 +323,14 @@ func (p *ProcessorsProvider) getConfs(jsonPtr string, environment map[string]str
 		return confs, fmt.Errorf("failed to parse config file '%v': %v", targetPath, err)
 	}
 
-	mgrWrapper, err := manager.FromParsed(bundle.GlobalEnvironment, pConf)
+	mgrWrapper, err := manager.FromParsed(p.env, pConf)
 	if err != nil {
 		return confs, fmt.Errorf("failed to parse config file '%v': %v", targetPath, err)
 	}
 
 	for _, path := range p.resourcesPaths {
-		resourceBytes, _, _, err := config.ReadFileEnvSwap(ifs.OS(), path, envVarLookup)
+		resourceBytes, _, _, err := config.NewReader("", nil, config.OptUseEnvLookupFunc(envVarLookup)).
+			ReadFileEnvSwap(context.TODO(), path)
 		if err != nil {
 			return confs, fmt.Errorf("failed to parse resources config file '%v': %v", path, err)
 		}
@@ -359,7 +340,7 @@ func (p *ProcessorsProvider) getConfs(jsonPtr string, environment map[string]str
 			return confs, fmt.Errorf("failed to parse resources config file '%v': %v", path, err)
 		}
 
-		extraMgrWrapper, err := manager.FromAny(bundle.GlobalEnvironment, confNode)
+		extraMgrWrapper, err := manager.FromAny(p.env, confNode)
 		if err != nil {
 			return confs, fmt.Errorf("failed to parse resources config file '%v': %v", path, err)
 		}
@@ -382,7 +363,7 @@ func (p *ProcessorsProvider) getConfs(jsonPtr string, environment map[string]str
 		}
 	} else {
 		if len(labelsToPaths) == 0 {
-			confSpec.YAMLLabelsToPaths(bundle.GlobalEnvironment, root, labelsToPaths, nil)
+			confSpec.YAMLLabelsToPaths(p.env, root, labelsToPaths, nil)
 		}
 		if pathSlice, exists = labelsToPaths[procPath]; !exists {
 			return confs, fmt.Errorf("target for label '%v' failed as the label was not found in the test target file, it is not currently possible to target resources imported separate to the test file", procPath)
@@ -395,14 +376,14 @@ func (p *ProcessorsProvider) getConfs(jsonPtr string, environment map[string]str
 
 	if root.Kind == yaml.SequenceNode {
 		for _, n := range root.Content {
-			procConf, err := processor.FromAny(bundle.GlobalEnvironment, n)
+			procConf, err := processor.FromAny(p.env, n)
 			if err != nil {
 				return confs, fmt.Errorf("failed to resolve case processors from '%v': %v", targetPath, err)
 			}
 			confs.procs = append(confs.procs, procConf)
 		}
 	} else {
-		procConf, err := processor.FromAny(bundle.GlobalEnvironment, root)
+		procConf, err := processor.FromAny(p.env, root)
 		if err != nil {
 			return confs, fmt.Errorf("failed to resolve case processors from '%v': %v", targetPath, err)
 		}

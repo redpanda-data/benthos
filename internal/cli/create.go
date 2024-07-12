@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -110,7 +109,15 @@ func addExpression(conf map[string]any, expression string) error {
 
 func createCliCommand(cliOpts *common.CLIOpts) *cli.Command {
 	return &cli.Command{
-		Name:  "create",
+		Name: "create",
+		Flags: append([]cli.Flag{
+			&cli.BoolFlag{
+				Name:    "small",
+				Aliases: []string{"s"},
+				Value:   false,
+				Usage:   cliOpts.ExecTemplate("Print only the main components of a {{.ProductName}} config (input, pipeline, output) and omit all fields marked as advanced."),
+			},
+		}, common.EnvFileAndTemplateFlags(cliOpts, false)...),
 		Usage: cliOpts.ExecTemplate("Create a new {{.ProductName}} config"),
 		Description: cliOpts.ExecTemplate(`
 Prints a new {{.ProductName}} config to stdout containing specified components
@@ -122,13 +129,8 @@ forward slashes:
   {{.BinaryName}} create file,http_server/protobuf/http_client
 
 If the expression is omitted a default config is created.`)[1:],
-		Flags: []cli.Flag{
-			&cli.BoolFlag{
-				Name:    "small",
-				Aliases: []string{"s"},
-				Value:   false,
-				Usage:   cliOpts.ExecTemplate("Print only the main components of a {{.ProductName}} config (input, pipeline, output) and omit all fields marked as advanced."),
-			},
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
 		},
 		Action: func(c *cli.Context) error {
 			conf := map[string]any{
@@ -144,8 +146,7 @@ If the expression is omitted a default config is created.`)[1:],
 			}
 			if expression := c.Args().First(); expression != "" {
 				if err := addExpression(conf, expression); err != nil {
-					fmt.Fprintf(os.Stderr, "Generate error: %v\n", err)
-					os.Exit(1)
+					return fmt.Errorf("generate error: %w", err)
 				}
 			}
 
@@ -162,13 +163,12 @@ If the expression is omitted a default config is created.`)[1:],
 				FallbackToAny: true,
 			})
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Generate error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("generate error: %w", err)
 			}
 
 			var node yaml.Node
 			if err = node.Encode(conf); err == nil {
-				sanitConf := docs.NewSanitiseConfig(bundle.GlobalEnvironment)
+				sanitConf := docs.NewSanitiseConfig(cliOpts.Environment)
 				sanitConf.RemoveTypeField = true
 				sanitConf.RemoveDeprecated = true
 				sanitConf.ForExample = true
@@ -179,12 +179,11 @@ If the expression is omitted a default config is created.`)[1:],
 			if err == nil {
 				var configYAML []byte
 				if configYAML, err = docs.MarshalYAML(node); err == nil {
-					fmt.Println(string(configYAML))
+					fmt.Fprintln(cliOpts.Stdout, string(configYAML))
 				}
 			}
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Generate error: %v\n", err)
-				os.Exit(1)
+				return fmt.Errorf("generate error: %w", err)
 			}
 			return nil
 		},

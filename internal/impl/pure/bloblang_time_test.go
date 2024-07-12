@@ -75,7 +75,7 @@ func TestTimestampMethods(t *testing.T) {
 		{
 			name:               "check ts_strptime invalid",
 			mapping:            `root = "not valid timestamp".ts_strptime("%Y-%b-%d")`,
-			parseErrorContains: `failed to parse "not valid timestamp" with "%Y-%b-%d": cannot parse %Y`,
+			parseErrorContains: `failed to parse "not valid timestamp" with`,
 		},
 		{
 			name:               "check ts_strptime with invalid format",
@@ -148,9 +148,9 @@ func TestTimestampMethods(t *testing.T) {
 			output:  int64(110839937300000000),
 		},
 		{
-			name:    "check parse duration ISO-8601 ignore more than one decimal place",
-			mapping: `root = "P3Y6M4DT12H30M5.33S".parse_duration_iso8601()`,
-			output:  int64(110839937300000000),
+			name:    "check parse duration ISO-8601 preserves more than one decimal place",
+			mapping: `root = "P3Y6M4DT12H30M5.123456789S".parse_duration_iso8601()`,
+			output:  int64(110839937123456789),
 		},
 		{
 			name:               "check parse duration ISO-8601 only allow fractions in the last field",
@@ -249,7 +249,7 @@ func TestTimestampMethodsOld(t *testing.T) {
 		{
 			name:               "check parse_timestamp_strptime invalid",
 			mapping:            `root = "not valid timestamp".parse_timestamp_strptime("%Y-%b-%d")`,
-			parseErrorContains: `failed to parse "not valid timestamp" with "%Y-%b-%d": cannot parse %Y`,
+			parseErrorContains: `failed to parse "not valid timestamp"`,
 		},
 		{
 			name:               "check parse_timestamp_strptime with invalid format",

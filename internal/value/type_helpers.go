@@ -308,6 +308,10 @@ func IIsNull(i any) bool {
 	return false
 }
 
+// RestrictForComparison takes a boxed value of any type sanitizes it and,
+// additionally, it attempts to perform the following conversions:
+// - int64, uint64 and json.Number to float64.
+// - []byte to string.
 func RestrictForComparison(v any) any {
 	v = ISanitize(v)
 	switch t := v.(type) {
@@ -524,14 +528,16 @@ const (
 	maxUint32 = ^uint32(0)
 	maxUint16 = ^uint16(0)
 	maxUint8  = ^uint8(0)
-	MaxInt    = maxUint >> 1
-	maxInt32  = maxUint32 >> 1
-	maxInt16  = maxUint16 >> 1
-	maxInt8   = maxUint8 >> 1
-	MinInt    = ^int64(MaxInt)
-	minInt32  = ^int32(maxInt32)
-	minInt16  = ^int16(maxInt16)
-	minInt8   = ^int8(maxInt8)
+	// MaxInt represents the maximum value for a signed integer.
+	MaxInt   = maxUint >> 1
+	maxInt32 = maxUint32 >> 1
+	maxInt16 = maxUint16 >> 1
+	maxInt8  = maxUint8 >> 1
+	// MinInt represents the minimum value for a signed integer.
+	MinInt   = ^int64(MaxInt)
+	minInt32 = ^int32(maxInt32)
+	minInt16 = ^int16(maxInt16)
+	minInt8  = ^int8(maxInt8)
 )
 
 // IToInt takes a boxed value and attempts to extract a number (int64) from it
@@ -883,6 +889,8 @@ func ICompare(left, right any) bool {
 	return false
 }
 
+// IGetStringMap takes a boxed value and attempts to extract a string map from
+// it.
 func IGetStringMap(v any) (map[string]string, error) {
 	iMap, ok := v.(map[string]any)
 	if !ok {

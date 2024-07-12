@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli/v2"
 
 	icli "github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
@@ -17,21 +16,14 @@ import (
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
 )
 
-func executeLintSubcmd(t *testing.T, args []string) (exitCode int, printedErr string) {
+func executeLintSubcmd(args []string) (string, error) {
+	var buf bytes.Buffer
+
 	opts := common.NewCLIOpts("1.2.3", "now")
-	cliApp := icli.App(opts)
-	for _, c := range cliApp.Commands {
-		if c.Name == "lint" {
-			c.Action = func(ctx *cli.Context) error {
-				var buf bytes.Buffer
-				exitCode = icli.LintAction(ctx, opts, &buf)
-				printedErr = buf.String()
-				return nil
-			}
-		}
-	}
-	require.NoError(t, cliApp.Run(args))
-	return
+	opts.Stderr = &buf
+
+	err := icli.App(opts).Run(args)
+	return buf.String(), err
 }
 
 func TestLints(t *testing.T) {
@@ -44,7 +36,7 @@ func TestLints(t *testing.T) {
 		name          string
 		files         map[string]string
 		args          []string
-		expectedCode  int
+		expectedErr   bool
 		expectedLints []string
 	}{
 		{
@@ -74,7 +66,7 @@ output:
   drop: {}
 `,
 			},
-			expectedCode: 1,
+			expectedErr: true,
 			expectedLints: []string{
 				"field huh not recognised",
 				"field nah is invalid",
@@ -94,7 +86,7 @@ output:
   drop: {}
 `,
 			},
-			expectedCode: 1,
+			expectedErr: true,
 			expectedLints: []string{
 				"field huh not recognised",
 				"field nah is invalid",
@@ -114,7 +106,27 @@ output:
   drop: {}
 `,
 			},
-			expectedCode: 1,
+			expectedErr: true,
+			expectedLints: []string{
+				"field huh not recognised",
+				"field nah is invalid",
+			},
+		},
+		{
+			name: "one file with r flag tailed",
+			args: []string{"benthos", "lint", "-r", tFile("foo.yaml")},
+			files: map[string]string{
+				"foo.yaml": `
+input:
+  generate:
+    huh: what
+    mapping: 'root.id = uuid_v4()'
+output:
+  nah: nope
+  drop: {}
+`,
+			},
+			expectedErr: true,
 			expectedLints: []string{
 				"field huh not recognised",
 				"field nah is invalid",
@@ -132,7 +144,7 @@ output:
   drop: {}
 `,
 			},
-			expectedCode: 1,
+			expectedErr: true,
 			expectedLints: []string{
 				"required environment variables were not set: [BENTHOS_ENV_VAR_HOPEFULLY_MISSING]",
 			},
@@ -159,8 +171,12 @@ output:
 				require.NoError(t, os.WriteFile(tFile(name), []byte(c), 0o644))
 			}
 
-			code, outStr := executeLintSubcmd(t, test.args)
-			assert.Equal(t, test.expectedCode, code)
+			outStr, err := executeLintSubcmd(test.args)
+			if test.expectedErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
 
 			if len(test.expectedLints) == 0 {
 				assert.Empty(t, outStr)

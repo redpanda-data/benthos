@@ -8,6 +8,7 @@ import (
 	"github.com/Jeffail/shutdown"
 
 	"github.com/redpanda-data/benthos/v4/internal/batch/policy"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -151,9 +152,11 @@ func (m *Impl) loop() {
 	}
 }
 
-// Connected returns true if the underlying input is connected.
-func (m *Impl) Connected() bool {
-	return m.child.Connected()
+// ConnectionStatus returns the current status of the given component
+// connection. The result is a slice in order to accommodate higher order
+// components that wrap several others.
+func (m *Impl) ConnectionStatus() component.ConnectionStatuses {
+	return m.child.ConnectionStatus()
 }
 
 // TransactionChan returns the channel used for consuming messages from this

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/cli/test"
-	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/log"
 )
 
@@ -245,15 +245,15 @@ tests:
 	}
 	defer os.RemoveAll(testDir)
 
-	if !test.RunAll([]string{filepath.Join(testDir, "foo.yaml")}, config.Spec(), "_benthos_test", false, log.Noop(), nil) {
+	if !test.RunAll(common.NewCLIOpts("", ""), []string{filepath.Join(testDir, "foo.yaml")}, "_benthos_test", false, log.Noop(), nil) {
 		t.Error("Unexpected result")
 	}
 
-	if test.RunAll([]string{filepath.Join(testDir, "foo.yaml")}, config.Spec(), "_benthos_test", true, log.Noop(), nil) {
+	if test.RunAll(common.NewCLIOpts("", ""), []string{filepath.Join(testDir, "foo.yaml")}, "_benthos_test", true, log.Noop(), nil) {
 		t.Error("Unexpected result")
 	}
 
-	if test.RunAll([]string{testDir}, config.Spec(), "_benthos_test", true, log.Noop(), nil) {
+	if test.RunAll(common.NewCLIOpts("", ""), []string{testDir}, "_benthos_test", true, log.Noop(), nil) {
 		t.Error("Unexpected result")
 	}
 }

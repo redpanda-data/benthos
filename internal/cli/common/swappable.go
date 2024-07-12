@@ -4,50 +4,42 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"github.com/redpanda-data/benthos/v4/internal/component"
 )
 
-// Stoppable represents a resource (a Benthos stream) that can be stopped.
-type Stoppable interface {
+// RunningStream represents a resource (a Benthos stream or a streams mode
+// manager) that can be stopped.
+type RunningStream interface {
+	ConnectionStatus() component.ConnectionStatuses
 	Stop(ctx context.Context) error
-}
-
-// CombineStoppables returns a single Stoppable that will call each provided
-// Stoppable in the order they are specified on a Stop. If any stoppable returns
-// an error all subsequent stoppables will still be called before an error is
-// returned.
-func CombineStoppables(stoppables ...Stoppable) Stoppable {
-	return &combinedStoppables{
-		stoppables: stoppables,
-	}
-}
-
-type combinedStoppables struct {
-	stoppables []Stoppable
-}
-
-func (c *combinedStoppables) Stop(ctx context.Context) (stopErr error) {
-	for _, s := range c.stoppables {
-		if err := s.Stop(ctx); err != nil && stopErr == nil {
-			stopErr = err
-		}
-	}
-	return
 }
 
 // SwappableStopper wraps an active Stoppable resource in a mechanism that
 // allows changing the resource for something else after stopping it.
 type SwappableStopper struct {
 	stopped bool
-	current Stoppable
+	current RunningStream
 	mut     sync.Mutex
 }
 
 // NewSwappableStopper creates a new swappable stopper resource around an
 // initial stoppable.
-func NewSwappableStopper(s Stoppable) *SwappableStopper {
+func NewSwappableStopper(s RunningStream) *SwappableStopper {
 	return &SwappableStopper{
 		current: s,
 	}
+}
+
+// ConnectionStatus returns the connection status of the underlying stream.
+func (s *SwappableStopper) ConnectionStatus() component.ConnectionStatuses {
+	s.mut.Lock()
+	defer s.mut.Unlock()
+
+	if s.stopped {
+		return nil
+	}
+	return s.current.ConnectionStatus()
 }
 
 // Stop the wrapped resource.
@@ -66,7 +58,7 @@ func (s *SwappableStopper) Stop(ctx context.Context) error {
 // Replace the resource with something new only once the existing one is
 // stopped. In order to avoid unnecessary start up of the swapping resource we
 // accept a closure that constructs it and is only called when we're ready.
-func (s *SwappableStopper) Replace(ctx context.Context, fn func() (Stoppable, error)) error {
+func (s *SwappableStopper) Replace(ctx context.Context, fn func() (RunningStream, error)) error {
 	s.mut.Lock()
 	defer s.mut.Unlock()
 

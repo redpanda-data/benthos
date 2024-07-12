@@ -26,10 +26,12 @@ type Config struct {
 	rawSource any
 }
 
+// GetRawSource returns the stream config raw source.
 func (c *Config) GetRawSource() any {
 	return c.rawSource
 }
 
+// FromParsed extracts the stream fields from the parsed config and returns a stream config.
 func FromParsed(prov docs.Provider, pConf *docs.ParsedConfig, rawSource any) (conf Config, err error) {
 	conf.rawSource = rawSource
 	var v any

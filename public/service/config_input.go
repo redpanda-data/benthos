@@ -9,6 +9,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 )
 
+// AutoRetryNacksToggleFieldName is the configuration field name for toggling the auto-replaying of nacks.
 const AutoRetryNacksToggleFieldName = "auto_replay_nacks"
 
 // NewAutoRetryNacksToggleField creates a configuration field for toggling the

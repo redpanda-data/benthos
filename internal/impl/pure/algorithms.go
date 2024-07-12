@@ -17,12 +17,17 @@ import (
 )
 
 type (
-	CompressFunc     func(level int, b []byte) ([]byte, error)
-	CompressWriter   func(level int, w io.Writer) (io.Writer, error)
-	DecompressFunc   func(b []byte) ([]byte, error)
+	// CompressFunc is a func which compresses a byte slice.
+	CompressFunc func(level int, b []byte) ([]byte, error)
+	// CompressWriter is a compressor func which wraps an io.Writer.
+	CompressWriter func(level int, w io.Writer) (io.Writer, error)
+	// DecompressFunc is a func which decompresses a byte slice.
+	DecompressFunc func(b []byte) ([]byte, error)
+	// DecompressReader is a decompressor func which wraps an io.Reader.
 	DecompressReader func(r io.Reader) (io.Reader, error)
 )
 
+// KnownCompressionAlgorithm is a unified interface for various compression algorithms.
 type KnownCompressionAlgorithm struct {
 	CompressFunc     CompressFunc
 	CompressWriter   CompressWriter
@@ -34,6 +39,7 @@ var knownCompressionAlgorithms = map[string]KnownCompressionAlgorithm{}
 
 var knownCompressionAlgorithmsLock sync.Mutex
 
+// AddKnownCompressionAlgorithm registers a compression algorithm.
 func AddKnownCompressionAlgorithm(name string, a KnownCompressionAlgorithm) struct{} {
 	if a.CompressFunc == nil && a.CompressWriter != nil {
 		a.CompressFunc = func(level int, b []byte) ([]byte, error) {
@@ -74,6 +80,7 @@ func AddKnownCompressionAlgorithm(name string, a KnownCompressionAlgorithm) stru
 	return struct{}{}
 }
 
+// CompressionAlgsList returns the list of registered compression algorithms.
 func CompressionAlgsList() (v []string) {
 	knownCompressionAlgorithmsLock.Lock()
 	v = make([]string, 0, len(knownCompressionAlgorithms))
@@ -87,6 +94,7 @@ func CompressionAlgsList() (v []string) {
 	return v
 }
 
+// DecompressionAlgsList returns the list of registered decompression algorithms.
 func DecompressionAlgsList() (v []string) {
 	knownCompressionAlgorithmsLock.Lock()
 	v = make([]string, 0, len(knownCompressionAlgorithms))
@@ -143,15 +151,17 @@ func strToDecompressReader(str string) (DecompressReader, error) {
 
 //------------------------------------------------------------------------------
 
-// The Primary is written to and closed first. The Sink is closed second.
+// CombinedWriteCloser combines a Primary source and a Sink. The Primary is written to and closed first. The Sink is closed second.
 type CombinedWriteCloser struct {
 	Primary, Sink io.Writer
 }
 
+// Read writes data to the Primary.
 func (c *CombinedWriteCloser) Write(b []byte) (int, error) {
 	return c.Primary.Write(b)
 }
 
+// Close closes the Primary and then the Sink.
 func (c *CombinedWriteCloser) Close() error {
 	if closer, ok := c.Primary.(io.Closer); ok {
 		if err := closer.Close(); err != nil {
@@ -166,15 +176,17 @@ func (c *CombinedWriteCloser) Close() error {
 	return nil
 }
 
-// The Primary is read from and closed second. The Source is closed first.
+// CombinedReadCloser combines a Primary destination and a Source. The Primary is read from and closed second. The Source is closed first.
 type CombinedReadCloser struct {
 	Primary, Source io.Reader
 }
 
+// Read reads data from the Primary.
 func (c *CombinedReadCloser) Read(b []byte) (int, error) {
 	return c.Primary.Read(b)
 }
 
+// Close closes the Source and then the Primary.
 func (c *CombinedReadCloser) Close() error {
 	if closer, ok := c.Source.(io.Closer); ok {
 		if err := closer.Close(); err != nil {

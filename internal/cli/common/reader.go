@@ -11,7 +11,7 @@ import (
 // config.Reader based on input CLI flags. This includes applying any config
 // overrides expressed by the --set flag.
 func ReadConfig(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) (mainPath string, inferred bool, conf *config.Reader) {
-	path := c.String("config")
+	path := cliOpts.RootFlags.GetConfig(c)
 	if path == "" {
 		// Iterate default config paths
 		for _, dpath := range cliOpts.ConfigSearchPaths {
@@ -24,11 +24,14 @@ func ReadConfig(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) (mainPath st
 	}
 	opts := []config.OptFunc{
 		config.OptSetFullSpec(cliOpts.MainConfigSpecCtor),
-		config.OptAddOverrides(c.StringSlice("set")...),
+		config.OptAddOverrides(cliOpts.RootFlags.GetSet(c)...),
 		config.OptTestSuffix("_benthos_test"),
 	}
 	if streamsMode {
 		opts = append(opts, config.OptSetStreamPaths(c.Args().Slice()...))
 	}
-	return path, inferred, config.NewReader(path, c.StringSlice("resources"), opts...)
+	if cliOpts.SecretAccessFn != nil {
+		opts = append(opts, config.OptUseEnvLookupFunc(cliOpts.SecretAccessFn))
+	}
+	return path, inferred, config.NewReader(path, cliOpts.RootFlags.GetResources(c), opts...)
 }

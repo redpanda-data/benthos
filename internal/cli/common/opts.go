@@ -2,19 +2,30 @@ package common
 
 import (
 	"bytes"
+	"context"
+	"io"
 	"os"
 	"path"
 	"text/template"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
 )
 
-type CLIStreamBootstrapFunc func()
+// StreamInitFunc is an optional func to be called when a stream (or streams
+// mode) is initialised.
+type StreamInitFunc func(s RunningStream) error
 
+// CLIOpts contains the available CLI configuration options.
 type CLIOpts struct {
+	RootFlags *RootCommonFlags
+
+	Stdout io.Writer
+	Stderr io.Writer
+
 	Version   string
 	DateBuilt string
 
@@ -22,30 +33,43 @@ type CLIOpts struct {
 	ProductName      string
 	DocumentationURL string
 
-	ShowRunCommand    bool
 	ConfigSearchPaths []string
+
+	Environment      *bundle.Environment
+	BloblEnvironment *bloblang.Environment
+	SecretAccessFn   func(context.Context, string) (string, bool)
 
 	MainConfigSpecCtor   func() docs.FieldSpecs // TODO: This becomes a service.Environment
 	OnManagerInitialised func(mgr bundle.NewManagement, pConf *docs.ParsedConfig) error
 	OnLoggerInit         func(l log.Modular) (log.Modular, error)
+
+	OnStreamInit StreamInitFunc
 }
 
+// NewCLIOpts returns a new CLIOpts instance populated with default values.
 func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 	binaryName := ""
 	if len(os.Args) > 0 {
 		binaryName = path.Base(os.Args[0])
 	}
 	return &CLIOpts{
+		RootFlags:        &RootCommonFlags{},
+		Stdout:           os.Stdout,
+		Stderr:           os.Stderr,
 		Version:          version,
 		DateBuilt:        dateBuilt,
 		BinaryName:       binaryName,
 		ProductName:      "Benthos",
 		DocumentationURL: "https://benthos.dev/docs",
-		ShowRunCommand:   false,
 		ConfigSearchPaths: []string{
 			"/benthos.yaml",
 			"/etc/benthos/config.yaml",
 			"/etc/benthos.yaml",
+		},
+		Environment:      bundle.GlobalEnvironment,
+		BloblEnvironment: bloblang.GlobalEnvironment(),
+		SecretAccessFn: func(ctx context.Context, key string) (string, bool) {
+			return os.LookupEnv(key)
 		},
 		MainConfigSpecCtor: config.Spec,
 		OnManagerInitialised: func(mgr bundle.NewManagement, pConf *docs.ParsedConfig) error {
@@ -54,9 +78,11 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 		OnLoggerInit: func(l log.Modular) (log.Modular, error) {
 			return l, nil
 		},
+		OnStreamInit: func(s RunningStream) error { return nil },
 	}
 }
 
+// ExecTemplate parses a template and applies the CLI branding information to it.
 func (c *CLIOpts) ExecTemplate(str string) string {
 	t, err := template.New("cli").Parse(str)
 	if err != nil {

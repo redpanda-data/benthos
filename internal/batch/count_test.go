@@ -9,16 +9,16 @@ import (
 )
 
 func TestCount(t *testing.T) {
-	p1 := message.NewPart([]byte("foo bar"))
+	p1 := message.GetContext(message.NewPart([]byte("foo bar")))
 
-	p2 := WithCollapsedCount(p1, 2)
-	p3 := WithCollapsedCount(p2, 3)
-	p4 := WithCollapsedCount(p1, 4)
+	p2 := CtxWithCollapsedCount(p1, 2)
+	p3 := CtxWithCollapsedCount(p2, 3)
+	p4 := CtxWithCollapsedCount(p1, 4)
 
-	assert.Equal(t, 1, CollapsedCount(p1))
-	assert.Equal(t, 2, CollapsedCount(p2))
-	assert.Equal(t, 4, CollapsedCount(p3))
-	assert.Equal(t, 4, CollapsedCount(p4))
+	assert.Equal(t, 1, CtxCollapsedCount(p1))
+	assert.Equal(t, 2, CtxCollapsedCount(p2))
+	assert.Equal(t, 4, CtxCollapsedCount(p3))
+	assert.Equal(t, 4, CtxCollapsedCount(p4))
 }
 
 func TestMessageCount(t *testing.T) {

@@ -275,7 +275,7 @@ type Workflow struct {
 	mLatency       metrics.StatTimer
 }
 
-// NewWorkflow instanciates a new workflow processor.
+// NewWorkflow instantiates a new workflow processor.
 func NewWorkflow(conf *service.ParsedConfig, mgr bundle.NewManagement) (*Workflow, error) {
 	stats := mgr.Metrics()
 	w := &Workflow{

@@ -71,6 +71,7 @@ func (conf *Config) UnmarshalYAML(unmarshal func(any) error) error {
 	return nil
 }
 
+// FromParsed extracts the log fields from the parsed config and returns a log config.
 func FromParsed(pConf *docs.ParsedConfig) (conf Config, err error) {
 	if conf.LogLevel, err = pConf.FieldString(fieldLogLevel); err != nil {
 		return

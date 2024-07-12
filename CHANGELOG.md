@@ -3,6 +3,37 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.31.0 - 2024-07-10
+
+### Added
+
+- Field `max_retries` added to the `retry` processor. (@mihaitodor)
+- Metadata fields `retry_count` and `backoff_duration` added to the `retry` processor. (@mihaitodor)
+- Parameter `escape_html` added to the `format_json()` Bloblang method. (@mihaitodor)
+- Go API: New generic key/value store methods added to the `*Resources` type. (@Jeffail)
+- Go API: Variadic options added to the public `service.RunCLI` function for customising cli args and accessing running stream data. (@Jeffail)
+- Go API: New `BloblangExecutor` and `InterpolationExecutor` added to the `MessageBatch`. (@Jeffail)
+- New `array` bloblang method. (@gramian)
+- Go API: New `CLIOptSetEnvVarLookup` cli option for customising config interpolations. (@Jeffail)
+- Algorithm `fnv32` added to the `hash` bloblang method. (@CallMeMhz)
+
+### Changed
+
+- All cli subcommands that previously relied on root-level flags (`streams`, `lint`, `test`, `echo`) now explicitly define those flags such that they appear in help-text and can be specified _after_ the subcommand itself. This means previous commands such as `connect -r ./foo.yaml streams ./bar.yaml` can now be more intuitively written as `connect streams -r ./foo.yaml ./bar.yaml` and so on. The old style will still work in order to preserve backwards compatibility, but the help-text for these root-level flags has been hidden.
+
+## 4.30.0 - 2024-06-13
+
+### Added
+
+- Go API: New APIs for capturing synchronous responses from downstream components. (@Jeffail)
+- Go API: Ability to customise the overall configuration schema of a stream builder. (@Jeffail)
+- New `sin`, `cos`, `tan` and `pi` bloblang methods. (@mfamador)
+- Field `proxy_url` added to the `websocket` input and output. (@mihaitodor)
+
+### Fixed
+
+- The `websocket` input and output now obey the `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` environment variables. (@mihaitodor)
+
 ## 4.29.0 - 2024-06-10
 
 ### Added

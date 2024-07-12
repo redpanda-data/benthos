@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
@@ -23,11 +26,36 @@ import (
 // 3. The provided context has a deadline that is reached, triggering graceful termination
 // 4. The provided context is cancelled (WARNING, this prevents graceful termination)
 //
-// This function must only be called once during the entire lifecycle of your
-// program, as it interacts with singleton state. In order to manage multiple
-// Benthos stream lifecycles in a program use the StreamBuilder API instead.
+// In order to manage multiple Benthos stream lifecycles in a program use the
+// StreamBuilder API instead.
 func RunCLI(ctx context.Context, optFuncs ...CLIOptFunc) {
+	s, err := RunCLIToCode(ctx, optFuncs...)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+	}
+	if s != 0 {
+		os.Exit(s)
+	}
+}
+
+// RunCLIToCode executes Benthos as a CLI, allowing users to specify a
+// configuration file path(s) and execute subcommands for linting configs,
+// testing configs, etc. This is how a standard distribution of Benthos
+// operates. When the CLI exits the appropriate exit code is returned along with
+// an error if operation was unsuccessful in an unexpected way.
+//
+// This call blocks until either:
+//
+// 1. The service shuts down gracefully due to the inputs closing
+// 2. A termination signal is received
+// 3. The provided context has a deadline that is reached, triggering graceful termination
+// 4. The provided context is cancelled (WARNING, this prevents graceful termination)
+//
+// In order to manage multiple Benthos stream lifecycles in a program use the
+// StreamBuilder API instead.
+func RunCLIToCode(ctx context.Context, optFuncs ...CLIOptFunc) (exitCode int, err error) {
 	cliOpts := &CLIOptBuilder{
+		args: os.Args,
 		opts: common.NewCLIOpts(cli.Version, cli.DateBuilt),
 	}
 	for _, o := range optFuncs {
@@ -42,10 +70,20 @@ func RunCLI(ctx context.Context, optFuncs ...CLIOptFunc) {
 		}
 		return l, nil
 	}
-	_ = cli.App(cliOpts.opts).RunContext(ctx, os.Args)
+
+	if err := cli.App(cliOpts.opts).RunContext(ctx, cliOpts.args); err != nil {
+		var cerr *common.ErrExitCode
+		if errors.As(err, &cerr) {
+			return cerr.Code, nil
+		}
+		return 1, err
+	}
+	return 0, nil
 }
 
+// CLIOptBuilder represents a CLI opts builder.
 type CLIOptBuilder struct {
+	args        []string
 	opts        *common.CLIOpts
 	teeLogger   *slog.Logger
 	outLoggerFn func(*Logger)
@@ -54,6 +92,14 @@ type CLIOptBuilder struct {
 // CLIOptFunc defines an option to pass through the standard Benthos CLI in order
 // to customise it's behaviour.
 type CLIOptFunc func(*CLIOptBuilder)
+
+// CLIOptSetArgs overrides the default args provided to the CLI (os.Args) for
+// the provided slice.
+func CLIOptSetArgs(args ...string) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.args = args
+	}
+}
 
 // CLIOptSetVersion overrides the default version and date built stamps.
 func CLIOptSetVersion(version, dateBuilt string) CLIOptFunc {
@@ -87,10 +133,10 @@ func CLIOptSetDocumentationURL(n string) CLIOptFunc {
 
 // CLIOptSetShowRunCommand determines whether a `run` subcommand should appear
 // in CLI help and autocomplete.
+//
+// Deprecated: The run command is always shown now.
 func CLIOptSetShowRunCommand(show bool) CLIOptFunc {
-	return func(c *CLIOptBuilder) {
-		c.opts.ShowRunCommand = show
-	}
+	return func(c *CLIOptBuilder) {}
 }
 
 // CLIOptSetDefaultConfigPaths overrides the default paths used for detecting
@@ -133,18 +179,53 @@ func CLIOptSetMainSchemaFrom(fn func() *ConfigSchema) CLIOptFunc {
 	}
 }
 
+// CLIOptSetEnvironment overrides the default Benthos plugin environment for
+// another.
+func CLIOptSetEnvironment(e *Environment) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.Environment = e.internal
+		c.opts.BloblEnvironment = e.bloblangEnv.XUnwrapper().(interface {
+			Unwrap() *bloblang.Environment
+		}).Unwrap()
+	}
+}
+
 // CLIOptOnConfigParse sets a closure function to be called when a main
 // configuration file load has occurred.
 //
 // If an error is returned this will be treated by the CLI the same as any other
 // failure to parse the bootstrap config.
-func CLIOptOnConfigParse(fn func(fn *ParsedConfig) error) CLIOptFunc {
+func CLIOptOnConfigParse(fn func(pConf *ParsedConfig) error) CLIOptFunc {
 	return func(c *CLIOptBuilder) {
 		c.opts.OnManagerInitialised = func(mgr bundle.NewManagement, pConf *docs.ParsedConfig) error {
 			return fn(&ParsedConfig{
 				i:   pConf,
 				mgr: mgr,
 			})
+		}
+	}
+}
+
+// CLIOptSetEnvVarLookup overrides the default environment variable lookup
+// function for config interpolation functions, this allows custom secret
+// mechanisms to be referenced as an alternative, or in combination with,
+// environment variables.
+func CLIOptSetEnvVarLookup(fn func(context.Context, string) (string, bool)) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.SecretAccessFn = fn
+	}
+}
+
+// CLIOptOnStreamStart sets a function to be called when the CLI initialises
+// either a single stream config execution (the `run` subcommand) or streams
+// mode (the `streams` subcommand).
+//
+// The provided RunningStreamSummary grants access to information such as
+// connectivity statuses of the stream(s) process.
+func CLIOptOnStreamStart(fn func(s *RunningStreamSummary) error) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.OnStreamInit = func(s common.RunningStream) error {
+			return fn(&RunningStreamSummary{c: s})
 		}
 	}
 }

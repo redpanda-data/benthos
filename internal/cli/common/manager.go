@@ -15,7 +15,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/api"
-	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
@@ -60,13 +59,13 @@ func CreateManager(
 	tmpMgr.Version = cliOpts.Version
 
 	// Create our metrics type.
-	if stats, err = bundle.AllMetrics.Init(conf.Metrics, tmpMgr); err != nil {
+	if stats, err = cliOpts.Environment.MetricsInit(conf.Metrics, tmpMgr); err != nil {
 		err = fmt.Errorf("failed to connect to metrics aggregator: %w", err)
 		return
 	}
 
 	// Create our tracer type.
-	if trac, err = bundle.AllTracers.Init(conf.Tracer, tmpMgr); err != nil {
+	if trac, err = cliOpts.Environment.TracersInit(conf.Tracer, tmpMgr); err != nil {
 		err = fmt.Errorf("failed to initialise tracer: %w", err)
 		return
 	}
@@ -74,7 +73,7 @@ func CreateManager(
 	// Create HTTP API with a sanitised service config.
 	var sanitNode yaml.Node
 	if err = sanitNode.Encode(conf); err == nil {
-		sanitConf := docs.NewSanitiseConfig(bundle.GlobalEnvironment)
+		sanitConf := docs.NewSanitiseConfig(cliOpts.Environment)
 		sanitConf.RemoveTypeField = true
 		sanitConf.ScrubSecrets = true
 		sanitSpec := cliOpts.MainConfigSpecCtor()
@@ -102,6 +101,8 @@ func CreateManager(
 		manager.OptSetMetrics(stats),
 		manager.OptSetTracer(trac),
 		manager.OptSetStreamsMode(streamsMode),
+		manager.OptSetBloblangEnvironment(cliOpts.BloblEnvironment),
+		manager.OptSetEnvironment(cliOpts.Environment),
 	}, mgrOpts...)
 
 	// Create resource manager.
@@ -122,17 +123,17 @@ func CreateManager(
 // stopped according to the configured shutdown timeout.
 func RunManagerUntilStopped(
 	c *cli.Context,
+	opts *CLIOpts,
 	conf config.Type,
 	stopMgr *StoppableManager,
-	stopStrm Stoppable,
+	stopStrm RunningStream,
 	dataStreamClosedChan chan struct{},
-) int {
+) error {
 	var exitDelay time.Duration
 	if td := conf.SystemCloseDelay; td != "" {
 		var err error
 		if exitDelay, err = time.ParseDuration(td); err != nil {
-			stopMgr.Manager().Logger().Error("Failed to parse shutdown delay period string: %v\n", err)
-			return 1
+			return fmt.Errorf("failed to parse shutdown delay period string: %w", err)
 		}
 	}
 
@@ -140,8 +141,7 @@ func RunManagerUntilStopped(
 	if tout := conf.SystemCloseTimeout; tout != "" {
 		var err error
 		if exitTimeout, err = time.ParseDuration(tout); err != nil {
-			stopMgr.Manager().Logger().Error("Failed to parse shutdown timeout period string: %v\n", err)
-			return 1
+			return fmt.Errorf("failed to parse shutdown timeout period string: %w", err)
 		}
 	}
 
@@ -160,13 +160,15 @@ func RunManagerUntilStopped(
 				"Service failed to close cleanly within allocated time." +
 					" Exiting forcefully and dumping stack trace to stderr",
 			)
-			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
+			_ = pprof.Lookup("goroutine").WriteTo(opts.Stderr, 1)
 			os.Exit(1)
 		}()
 
 		ctx, done := context.WithTimeout(c.Context, exitTimeout)
+		defer done()
+
 		if err := stopStrm.Stop(ctx); err != nil {
-			os.Exit(1)
+			return
 		}
 
 		if err := stopMgr.Stop(ctx); err != nil {
@@ -174,10 +176,9 @@ func RunManagerUntilStopped(
 				"Service failed to close resources cleanly within allocated time: %v."+
 					" Exiting forcefully and dumping stack trace to stderr\n", err,
 			)
-			_ = pprof.Lookup("goroutine").WriteTo(os.Stderr, 1)
-			os.Exit(1)
+			_ = pprof.Lookup("goroutine").WriteTo(opts.Stderr, 1)
+			return
 		}
-		done()
 	}()
 
 	var deadLineTrigger <-chan time.Time
@@ -220,7 +221,7 @@ func RunManagerUntilStopped(
 	case <-c.Context.Done():
 		stopMgr.Manager().Logger().Info("Run context was cancelled. Shutting down the service")
 	}
-	return 0
+	return nil
 }
 
 func newStoppableManager(api *api.Type, mgr *manager.Type) *StoppableManager {

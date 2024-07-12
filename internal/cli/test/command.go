@@ -1,23 +1,24 @@
 package test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/fatih/color"
 
-	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/config/test"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	ifilepath "github.com/redpanda-data/benthos/v4/internal/filepath"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
+	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
 var (
@@ -99,14 +100,18 @@ func GetTestTargets(targetPaths []string, testSuffix string) (map[string][]test.
 
 // Lints the config target of a test definition and either returns linting
 // errors (false for failed) or returns an error.
-func lintTarget(spec docs.FieldSpecs, path, testSuffix string) ([]docs.Lint, error) {
+func lintTarget(opts *common.CLIOpts, spec docs.FieldSpecs, path, testSuffix string) ([]docs.Lint, error) {
 	confPath, _ := GetPathPair(path, testSuffix)
+
+	lintConf := docs.NewLintConfig(opts.Environment)
+	lintConf.BloblangEnv = bloblang.XWrapEnvironment(opts.BloblEnvironment)
 
 	// This is necessary as each test case can provide a different set of
 	// environment variables, so in order to test env vars properly we would
 	// need to lint for each case.
 	skipEnvVarCheck := true
-	_, lints, err := config.ReadYAMLFileLinted(ifs.OS(), spec, confPath, skipEnvVarCheck, docs.NewLintConfig(bundle.GlobalEnvironment))
+	_, lints, err := config.NewReader("", nil, config.OptUseEnvLookupFunc(opts.SecretAccessFn)).
+		ReadYAMLFileLinted(context.TODO(), spec, confPath, skipEnvVarCheck, lintConf)
 	if err != nil {
 		return nil, err
 	}
@@ -118,14 +123,14 @@ func lintTarget(spec docs.FieldSpecs, path, testSuffix string) ([]docs.Lint, err
 // RunAll executes the test command for a slice of paths. The path can either be
 // a config file, a config files test definition file, a directory, or the
 // wildcard pattern './...'.
-func RunAll(paths []string, spec docs.FieldSpecs, testSuffix string, lint bool, logger log.Modular, resourcesPaths []string) bool {
+func RunAll(opts *common.CLIOpts, paths []string, testSuffix string, lint bool, logger log.Modular, resourcesPaths []string) bool {
 	targets, err := GetTestTargets(paths, testSuffix)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to obtain test targets: %v\n", err)
+		fmt.Fprintf(opts.Stderr, "Failed to obtain test targets: %v\n", err)
 		return false
 	}
 	if len(targets) == 0 {
-		fmt.Printf("%v\n", yellow("No tests were found"))
+		fmt.Fprintf(opts.Stdout, "%v\n", yellow("No tests were found"))
 		return false
 	}
 
@@ -146,13 +151,13 @@ func RunAll(paths []string, spec docs.FieldSpecs, testSuffix string, lint bool, 
 		var lints []docs.Lint
 		var failCases []CaseFailure
 		if lint {
-			if lints, err = lintTarget(spec, target, testSuffix); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to execute test target '%v': %v\n", target, err)
+			if lints, err = lintTarget(opts, opts.MainConfigSpecCtor(), target, testSuffix); err != nil {
+				fmt.Fprintf(opts.Stderr, "Failed to execute test target '%v': %v\n", target, err)
 				return false
 			}
 		}
-		if failCases, err = Execute(spec, targets[target], target, resourcesPaths, logger); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to execute test target '%v': %v\n", target, err)
+		if failCases, err = Execute(opts.Environment, opts.MainConfigSpecCtor(), targets[target], target, resourcesPaths, logger); err != nil {
+			fmt.Fprintf(opts.Stderr, "Failed to execute test target '%v': %v\n", target, err)
 			return false
 		}
 		if len(lints) > 0 || len(failCases) > 0 {
@@ -161,35 +166,35 @@ func RunAll(paths []string, spec docs.FieldSpecs, testSuffix string, lint bool, 
 				lints:  lints,
 				cases:  failCases,
 			})
-			fmt.Printf("Test '%v' %v\n", target, red("failed"))
+			fmt.Fprintf(opts.Stdout, "Test '%v' %v\n", target, red("failed"))
 		} else {
-			fmt.Printf("Test '%v' %v\n", target, green("succeeded"))
+			fmt.Fprintf(opts.Stdout, "Test '%v' %v\n", target, green("succeeded"))
 		}
 	}
 	if len(fails) > 0 {
-		fmt.Printf("\nFailures:\n\n")
+		fmt.Fprintf(opts.Stdout, "\nFailures:\n\n")
 		for i, fail := range fails {
 			if i > 0 {
-				fmt.Println("")
+				fmt.Fprintln(opts.Stdout, "")
 			}
-			fmt.Printf("--- %v ---\n\n", fail.target)
+			fmt.Fprintf(opts.Stdout, "--- %v ---\n\n", fail.target)
 			for _, lint := range fail.lints {
-				fmt.Printf("Lint: %v\n", lint)
+				fmt.Fprintf(opts.Stdout, "Lint: %v\n", lint)
 			}
 			if len(fail.cases) > 0 {
 				if len(fail.lints) > 0 {
-					fmt.Println("")
+					fmt.Fprintln(opts.Stdout, "")
 				}
 				var namePrev string
 				for i, fail := range fail.cases {
 					if namePrev != fail.Name {
 						if i > 0 {
-							fmt.Println("")
+							fmt.Fprintln(opts.Stdout, "")
 						}
-						fmt.Printf("%v [line %v]:\n", fail.Name, fail.TestLine)
+						fmt.Fprintf(opts.Stdout, "%v [line %v]:\n", fail.Name, fail.TestLine)
 						namePrev = fail.Name
 					}
-					fmt.Println(fail.Reason)
+					fmt.Fprintln(opts.Stdout, fail.Reason)
 				}
 			}
 		}

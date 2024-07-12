@@ -14,6 +14,7 @@ import (
 
 var threadsField = docs.FieldInt("threads", "The number of threads to execute processing pipelines across.").HasDefault(-1)
 
+// ConfigSpec returns a configuration spec for a processor pipeline.
 func ConfigSpec() docs.FieldSpec {
 	return docs.FieldObject(
 		"pipeline", "Describes optional processing pipelines used for mutating messages.",
@@ -46,7 +47,7 @@ func NewConfig() Config {
 
 //------------------------------------------------------------------------------
 
-// New creates an input type based on an input configuration.
+// New creates a processor pipeline based on a processor pipeline configuration.
 func New(conf Config, mgr bundle.NewManagement) (processor.Pipeline, error) {
 	processors := make([]processor.V1, len(conf.Processors))
 	for j, procConf := range conf.Processors {
@@ -63,6 +64,7 @@ func New(conf Config, mgr bundle.NewManagement) (processor.Pipeline, error) {
 	return NewPool(conf.Threads, mgr.Logger(), processors...)
 }
 
+// FromAny returns a pipeline config from a parsed config, yaml node or map.
 func FromAny(prov docs.Provider, value any) (conf Config, err error) {
 	switch t := value.(type) {
 	case Config:
