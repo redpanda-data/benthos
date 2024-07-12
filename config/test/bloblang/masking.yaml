@@ -1,7 +1,14 @@
 pipeline:
   processors:
-    - bloblang: |
-        root = if env("MASK") == "FIXED_5" { this.value.mask(5)} else if env("MASK") == "LEFT_5" { this.value.mask(5, "left")} else if env("MASK") == "RIGHT_4" {this.value.mask(4,"right")} else if env("MASK") == "RIGHT_4_HASH" {this.value.mask(4,"right", "#")} else { this.value.mask() }
+    - mapping: |
+        root = this
+        root = match env("MASK") {
+          "FIXED_5"      => root.value.mask(5)
+          "LEFT_5"       => root.value.mask(5, "left")
+          "RIGHT_4"      => root.value.mask(4,"right")
+          "RIGHT_4_HASH" => root.value.mask(4,"right", "#")
+          _              => root.value.mask()
+        }
 
 tests:
     - name: Fixed mask 5
