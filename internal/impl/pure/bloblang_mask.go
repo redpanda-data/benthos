@@ -45,7 +45,7 @@ func init() {
 			}
 
 			return bloblang.StringMethod(func(s string) (any, error) {
-				return maskString(s, char, direction, int(count)), nil
+				return maskString(s, char, direction, count), nil
 			}), nil
 		}); err != nil {
 		panic(err)
