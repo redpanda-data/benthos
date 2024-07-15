@@ -69,6 +69,72 @@ func (e *Environment) Clone() *Environment {
 	return newEnv
 }
 
+// Without creates a clone of an existing environment with a variadic list of
+// plugin names excluded from the resulting environment.
+func (e *Environment) Without(names ...string) *Environment {
+	excludeMap := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		excludeMap[n] = struct{}{}
+	}
+
+	newEnv := NewEnvironment()
+	for k, v := range e.buffers.specs {
+		if _, exists := excludeMap[k]; exists {
+			continue
+		}
+		_ = newEnv.buffers.Add(v.constructor, v.spec)
+	}
+	for k, v := range e.caches.specs {
+		if _, exists := excludeMap[k]; exists {
+			continue
+		}
+		_ = newEnv.caches.Add(v.constructor, v.spec)
+	}
+	for k, v := range e.inputs.specs {
+		if _, exists := excludeMap[k]; exists {
+			continue
+		}
+		_ = newEnv.inputs.Add(v.constructor, v.spec)
+	}
+	for k, v := range e.outputs.specs {
+		if _, exists := excludeMap[k]; exists {
+			continue
+		}
+		_ = newEnv.outputs.Add(v.constructor, v.spec)
+	}
+	for k, v := range e.processors.specs {
+		if _, exists := excludeMap[k]; exists {
+			continue
+		}
+		_ = newEnv.processors.Add(v.constructor, v.spec)
+	}
+	for k, v := range e.rateLimits.specs {
+		if _, exists := excludeMap[k]; exists {
+			continue
+		}
+		_ = newEnv.rateLimits.Add(v.constructor, v.spec)
+	}
+	for k, v := range e.metrics.specs {
+		if _, exists := excludeMap[k]; exists {
+			continue
+		}
+		_ = newEnv.metrics.Add(v.constructor, v.spec)
+	}
+	for k, v := range e.tracers.specs {
+		if _, exists := excludeMap[k]; exists {
+			continue
+		}
+		_ = newEnv.tracers.Add(v.constructor, v.spec)
+	}
+	for k, v := range e.scanners.specs {
+		if _, exists := excludeMap[k]; exists {
+			continue
+		}
+		_ = newEnv.scanners.Add(v.constructor, v.spec)
+	}
+	return newEnv
+}
+
 // GetDocs returns a documentation spec for an implementation of a component.
 func (e *Environment) GetDocs(name string, ctype docs.Type) (docs.ComponentSpec, bool) {
 	var spec docs.ComponentSpec
@@ -109,4 +175,76 @@ var GlobalEnvironment = &Environment{
 	metrics:    AllMetrics,
 	tracers:    AllTracers,
 	scanners:   AllScanners,
+}
+
+// WithoutBuffers returns a copy of Environment with a cloned plugin registry of
+// buffers, where the specified plugins are not included.
+func (e *Environment) WithoutBuffers(names ...string) *Environment {
+	newEnv := *e
+	newEnv.buffers = e.buffers.Without(names...)
+	return &newEnv
+}
+
+// WithoutCaches returns a copy of Environment with a cloned plugin registry of
+// caches, where the specified plugins are not included.
+func (e *Environment) WithoutCaches(names ...string) *Environment {
+	newEnv := *e
+	newEnv.caches = e.caches.Without(names...)
+	return &newEnv
+}
+
+// WithoutInputs returns a copy of Environment with a cloned plugin registry of
+// inputs, where the specified plugins are not included.
+func (e *Environment) WithoutInputs(names ...string) *Environment {
+	newEnv := *e
+	newEnv.inputs = e.inputs.Without(names...)
+	return &newEnv
+}
+
+// WithoutOutputs returns a copy of Environment with a cloned plugin registry of
+// outputs, where the specified plugins are not included.
+func (e *Environment) WithoutOutputs(names ...string) *Environment {
+	newEnv := *e
+	newEnv.outputs = e.outputs.Without(names...)
+	return &newEnv
+}
+
+// WithoutProcessors returns a copy of Environment with a cloned plugin registry
+// of processors, where the specified plugins are not included.
+func (e *Environment) WithoutProcessors(names ...string) *Environment {
+	newEnv := *e
+	newEnv.processors = e.processors.Without(names...)
+	return &newEnv
+}
+
+// WithoutRateLimits returns a copy of Environment with a cloned plugin registry
+// of rate limits, where the specified plugins are not included.
+func (e *Environment) WithoutRateLimits(names ...string) *Environment {
+	newEnv := *e
+	newEnv.rateLimits = e.rateLimits.Without(names...)
+	return &newEnv
+}
+
+// WithoutMetrics returns a copy of Environment with a cloned plugin registry of
+// metrics, where the specified plugins are not included.
+func (e *Environment) WithoutMetrics(names ...string) *Environment {
+	newEnv := *e
+	newEnv.metrics = e.metrics.Without(names...)
+	return &newEnv
+}
+
+// WithoutTracers returns a copy of Environment with a cloned plugin registry of
+// tracers, where the specified plugins are not included.
+func (e *Environment) WithoutTracers(names ...string) *Environment {
+	newEnv := *e
+	newEnv.tracers = e.tracers.Without(names...)
+	return &newEnv
+}
+
+// WithoutScanners returns a copy of Environment with a cloned plugin registry
+// of scanners, where the specified plugins are not included.
+func (e *Environment) WithoutScanners(names ...string) *Environment {
+	newEnv := *e
+	newEnv.scanners = e.scanners.Without(names...)
+	return &newEnv
 }
