@@ -71,7 +71,27 @@ func NewEmptyEnvironment() *Environment {
 func (e *Environment) Clone() *Environment {
 	return &Environment{
 		internal:    e.internal.Clone(),
-		bloblangEnv: e.bloblangEnv.WithoutFunctions().WithoutMethods(),
+		bloblangEnv: e.bloblangEnv.Clone(),
+		fs:          e.fs,
+	}
+}
+
+// Without creates a clone of an existing environment with a variadic list of
+// plugin names excluded from the resulting environment.
+func (e *Environment) Without(names ...string) *Environment {
+	return &Environment{
+		internal:    e.internal.Without(names...),
+		bloblangEnv: e.bloblangEnv.Clone(),
+		fs:          e.fs,
+	}
+}
+
+// With creates a clone of an existing environment with only a variadic list of
+// plugin names included from the resulting environment.
+func (e *Environment) With(names ...string) *Environment {
+	return &Environment{
+		internal:    e.internal.With(names...),
+		bloblangEnv: e.bloblangEnv.Clone(),
 		fs:          e.fs,
 	}
 }
