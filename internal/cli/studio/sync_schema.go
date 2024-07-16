@@ -52,7 +52,7 @@ page within the studio application.`[1:],
 			}
 			u.Path = path.Join(u.Path, fmt.Sprintf("/api/v1/token/%v/session/%v/schema", tokenID, sessionID))
 
-			schema := schema.New(cliOpts.Version, cliOpts.DateBuilt)
+			schema := schema.New(cliOpts.Version, cliOpts.DateBuilt, cliOpts.Environment, cliOpts.BloblEnvironment)
 			schema.Config = cliOpts.MainConfigSpecCtor()
 			schema.Scrub()
 			schemaBytes, err := json.Marshal(schema)
