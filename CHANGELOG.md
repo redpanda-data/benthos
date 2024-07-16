@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 
 - Go API: New `With` and `Without` methods added to plugin environments, allowing granular customisation as to which plugins are present.
 
+### Fixed
+
+- Go API: Custom environments are now honoured when running the `list` cli subcommand.
+
 ## 4.31.0 - 2024-07-10
 
 ### Added

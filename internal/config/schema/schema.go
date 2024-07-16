@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/query"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/config"
@@ -28,23 +29,27 @@ type Full struct {
 
 // New walks all registered Benthos components and creates a full schema
 // definition of it.
-func New(version, date string) Full {
+func New(version, date string, env *bundle.Environment, bEnv *bloblang.Environment) Full {
 	s := Full{
-		Version:           version,
-		Date:              date,
-		Config:            config.Spec(),
-		Buffers:           bundle.AllBuffers.Docs(),
-		Caches:            bundle.AllCaches.Docs(),
-		Inputs:            bundle.AllInputs.Docs(),
-		Outputs:           bundle.AllOutputs.Docs(),
-		Processors:        bundle.AllProcessors.Docs(),
-		RateLimits:        bundle.AllRateLimits.Docs(),
-		Metrics:           bundle.AllMetrics.Docs(),
-		Tracers:           bundle.AllTracers.Docs(),
-		Scanners:          bundle.AllScanners.Docs(),
-		BloblangFunctions: query.FunctionDocs(),
-		BloblangMethods:   query.MethodDocs(),
+		Version:    version,
+		Date:       date,
+		Config:     config.Spec(),
+		Buffers:    env.BufferDocs(),
+		Caches:     env.CacheDocs(),
+		Inputs:     env.InputDocs(),
+		Outputs:    env.OutputDocs(),
+		Processors: env.ProcessorDocs(),
+		RateLimits: env.RateLimitDocs(),
+		Metrics:    env.MetricsDocs(),
+		Tracers:    env.TracersDocs(),
+		Scanners:   env.ScannerDocs(),
 	}
+	bEnv.WalkFunctions(func(name string, spec query.FunctionSpec) {
+		s.BloblangFunctions = append(s.BloblangFunctions, spec)
+	})
+	bEnv.WalkMethods(func(name string, spec query.MethodSpec) {
+		s.BloblangMethods = append(s.BloblangMethods, spec)
+	})
 	return s
 }
 

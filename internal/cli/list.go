@@ -62,7 +62,7 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 		ofTypes[k] = struct{}{}
 	}
 
-	schema := schema.New(opts.Version, opts.DateBuilt)
+	schema := schema.New(opts.Version, opts.DateBuilt, opts.Environment, opts.BloblEnvironment)
 	if status := c.String("status"); status != "" {
 		schema.ReduceToStatus(status)
 	}
