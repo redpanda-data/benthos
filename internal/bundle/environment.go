@@ -135,6 +135,63 @@ func (e *Environment) Without(names ...string) *Environment {
 	return newEnv
 }
 
+// With creates a clone of an existing environment with only a variadic list of
+// plugin names included from the resulting environment.
+func (e *Environment) With(names ...string) *Environment {
+	includeMap := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		includeMap[n] = struct{}{}
+	}
+
+	newEnv := NewEnvironment()
+	for k, v := range e.buffers.specs {
+		if _, exists := includeMap[k]; exists {
+			_ = newEnv.buffers.Add(v.constructor, v.spec)
+		}
+	}
+	for k, v := range e.caches.specs {
+		if _, exists := includeMap[k]; exists {
+			_ = newEnv.caches.Add(v.constructor, v.spec)
+		}
+	}
+	for k, v := range e.inputs.specs {
+		if _, exists := includeMap[k]; exists {
+			_ = newEnv.inputs.Add(v.constructor, v.spec)
+		}
+	}
+	for k, v := range e.outputs.specs {
+		if _, exists := includeMap[k]; exists {
+			_ = newEnv.outputs.Add(v.constructor, v.spec)
+		}
+	}
+	for k, v := range e.processors.specs {
+		if _, exists := includeMap[k]; exists {
+			_ = newEnv.processors.Add(v.constructor, v.spec)
+		}
+	}
+	for k, v := range e.rateLimits.specs {
+		if _, exists := includeMap[k]; exists {
+			_ = newEnv.rateLimits.Add(v.constructor, v.spec)
+		}
+	}
+	for k, v := range e.metrics.specs {
+		if _, exists := includeMap[k]; exists {
+			_ = newEnv.metrics.Add(v.constructor, v.spec)
+		}
+	}
+	for k, v := range e.tracers.specs {
+		if _, exists := includeMap[k]; exists {
+			_ = newEnv.tracers.Add(v.constructor, v.spec)
+		}
+	}
+	for k, v := range e.scanners.specs {
+		if _, exists := includeMap[k]; exists {
+			_ = newEnv.scanners.Add(v.constructor, v.spec)
+		}
+	}
+	return newEnv
+}
+
 // GetDocs returns a documentation spec for an implementation of a component.
 func (e *Environment) GetDocs(name string, ctype docs.Type) (docs.ComponentSpec, bool) {
 	var spec docs.ComponentSpec

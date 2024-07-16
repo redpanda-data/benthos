@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.32.0 - 2024-07-16
+
+### Added
+
+- Go API: New `With` and `Without` methods added to plugin environments, allowing granular customisation as to which plugins are present.
+
 ## 4.31.0 - 2024-07-10
 
 ### Added
