@@ -41,13 +41,13 @@ single process and can be created, updated and removed via REST HTTP
 endpoints.
 
   {{.BinaryName}} streams
-  {{.BinaryName}} streams -c ./root_config.yaml
+  {{.BinaryName}} streams -o ./root_config.yaml
   {{.BinaryName}} streams ./path/to/stream/configs ./and/some/more
-  {{.BinaryName}} streams -c ./root_config.yaml ./streams/*.yaml
+  {{.BinaryName}} streams -o ./root_config.yaml ./streams/*.yaml
 
-The config field specified with the --config/-c flag is known as the root config
-and should only contain observability and service-wide config fields such as
-http, metrics, logger, resources, and so on.
+The config field specified with the --observability/-o flag is known as the root
+config and should only contain observability and service-wide config fields such
+as http, metrics, logger, resources, and so on.
 
 For more information check out the docs at:
 {{.DocumentationURL}}/guides/streams_mode/about`)[1:],
