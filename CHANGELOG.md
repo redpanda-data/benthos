@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.33.0 - 2024-07-19
+
+### Added
+
+- The `/ready` endpoint in regular operation now provides a detailed summary of all inputs and outputs, including connection errors where applicable.
+
 ## 4.32.0 - 2024-07-16
 
 ### Added
