@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 
 - The `list` subcommand now supports the format `jsonschema`. (@Jeffail)
 
+### Fixed
+
+- The `switch` output metrics now emit the case id as part of their labels. This is a regression introduced in v4.25.0. (@mihaitodor)
+
 ## 4.33.0 - 2024-07-19
 
 ### Added
