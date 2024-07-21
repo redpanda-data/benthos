@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.37.0 - TBD
+
+### Fixed
+
+- The `switch` output metrics now emit the case id as part of their labels. This is a regression introduced in v4.25.0. (@mihaitodor)
+
 ## 4.36.0 - 2024-08-29
 
 ### Fixed
