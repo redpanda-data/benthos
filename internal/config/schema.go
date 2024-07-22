@@ -42,7 +42,9 @@ func (t *Type) GetRawSource() any {
 	return t.rawSource
 }
 
-var httpField = docs.FieldObject(fieldHTTP, "Configures the service-wide HTTP server.").WithChildren(api.Spec()...)
+func httpField() docs.FieldSpec {
+	return docs.FieldObject(fieldHTTP, "Configures the service-wide HTTP server.").WithChildren(api.Spec()...)
+}
 
 func observabilityFields() docs.FieldSpecs {
 	defaultMetrics := "none"
@@ -65,7 +67,7 @@ func observabilityFields() docs.FieldSpecs {
 
 // Spec returns a docs.FieldSpec for an entire Benthos configuration.
 func Spec() docs.FieldSpecs {
-	fields := docs.FieldSpecs{httpField}
+	fields := docs.FieldSpecs{httpField()}
 	fields = append(fields, stream.Spec()...)
 	fields = append(fields, manager.Spec()...)
 	fields = append(fields, observabilityFields()...)
