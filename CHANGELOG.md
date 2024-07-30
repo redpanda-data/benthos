@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.34.0 - TBD
+
+### Added
+
+- The `list` subcommand now supports the format `jsonschema`. (@Jeffail)
+
 ## 4.33.0 - 2024-07-19
 
 ### Added
