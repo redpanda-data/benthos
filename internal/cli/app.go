@@ -124,7 +124,7 @@ Either run {{.ProductName}} as a stream processor or choose a command:
   {{.BinaryName}} list inputs
   {{.BinaryName}} create kafka//file > ./config.yaml
   {{.BinaryName}} run ./config.yaml
-  {{.BinaryName}} run -r "./production/*.yaml" -c ./config.yaml`)[1:],
+  {{.BinaryName}} run -r "./production/*.yaml" ./config.yaml`)[1:],
 		Flags: flags,
 		Before: func(c *cli.Context) error {
 			opts.RootCommonFlagsExtract(c)

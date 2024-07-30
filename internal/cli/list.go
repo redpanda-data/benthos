@@ -12,6 +12,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config/schema"
 	"github.com/redpanda-data/benthos/v4/internal/cuegen"
+	"github.com/redpanda-data/benthos/v4/internal/jsonschema"
 )
 
 func listCliCommand(opts *common.CLIOpts) *cli.Command {
@@ -19,7 +20,7 @@ func listCliCommand(opts *common.CLIOpts) *cli.Command {
 		&cli.StringFlag{
 			Name:  "format",
 			Value: "text",
-			Usage: "Print the component list in a specific format. Options are text, json or cue.",
+			Usage: "Print the component list in a specific format. Options are text, json, jsonschema, or cue.",
 		},
 		&cli.StringFlag{
 			Name:  "status",
@@ -125,6 +126,12 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 			panic(err)
 		}
 		fmt.Fprintln(opts.Stdout, string(jsonBytes))
+	case "jsonschema":
+		jsonSchemaBytes, err := jsonschema.Marshal(schema.Config, opts.Environment)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Fprintln(opts.Stdout, string(jsonSchemaBytes))
 	case "cue":
 		source, err := cuegen.GenerateSchema(schema)
 		if err != nil {
