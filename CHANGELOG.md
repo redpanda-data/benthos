@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 
 - The `list` subcommand now supports the format `jsonschema`. (@Jeffail)
 
+### Fixed
+
+- The logger no longer tries to replace Go fmt verbs in log messages. (@mihaitodor)
+
 ## 4.33.0 - 2024-07-19
 
 ### Added
