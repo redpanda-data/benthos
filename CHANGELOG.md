@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.37.0 - TBD
+
+### Fixed
+
+- The logger no longer tries to replace Go fmt verbs in log messages. (@mihaitodor)
+
 ## 4.36.0 - 2024-08-29
 
 ### Fixed
