@@ -114,3 +114,20 @@ func (s *BufferSet) Without(names ...string) *BufferSet {
 	}
 	return newSet
 }
+
+// With creates a clone of the set including a variadic list of components.
+func (s *BufferSet) With(names ...string) *BufferSet {
+	newSet := &BufferSet{
+		specs: map[string]bufferSpec{},
+	}
+	nameMap := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		nameMap[n] = struct{}{}
+	}
+	for k, v := range s.specs {
+		if _, exists := nameMap[k]; exists {
+			newSet.specs[k] = v
+		}
+	}
+	return newSet
+}

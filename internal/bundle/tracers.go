@@ -114,3 +114,20 @@ func (s *TracerSet) Without(names ...string) *TracerSet {
 	}
 	return newSet
 }
+
+// With creates a clone of the set including a variadic list of components.
+func (s *TracerSet) With(names ...string) *TracerSet {
+	newSet := &TracerSet{
+		specs: map[string]tracerSpec{},
+	}
+	nameMap := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		nameMap[n] = struct{}{}
+	}
+	for k, v := range s.specs {
+		if _, exists := nameMap[k]; exists {
+			newSet.specs[k] = v
+		}
+	}
+	return newSet
+}
