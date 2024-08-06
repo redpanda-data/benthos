@@ -3,11 +3,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.34.0 - TBD
+## 4.34.0 - 2024-08-06
 
 ### Added
 
 - The `list` subcommand now supports the format `jsonschema`. (@Jeffail)
+- Go API: New `WithX` methods added to the environment type. (@Jeffail)
+- Go API: New `ConfigWalker` API added to the schema type. (@Jeffail)
 
 ## 4.33.0 - 2024-07-19
 
