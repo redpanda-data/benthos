@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
 - Go API: New `WithX` methods added to the environment type. (@Jeffail)
 - Go API: New `ConfigWalker` API added to the schema type. (@Jeffail)
 
+### Fixed
+
+- The `switch` output metrics now emit the case id as part of their labels. This is a regression introduced in v4.25.0. (@mihaitodor)
+
 ## 4.33.0 - 2024-07-19
 
 ### Added
