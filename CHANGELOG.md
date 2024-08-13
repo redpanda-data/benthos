@@ -3,7 +3,7 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.35.0 - TBD
+## 4.35.0 - 2024-08-13
 
 - The `--set` run flag now supports structured values, e.g. `--set input={}`. (@Jeffail)
 
