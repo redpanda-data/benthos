@@ -3,6 +3,9 @@
 [![godoc for redpanda-data/benthos][godoc-badge]][godoc-url]
 [![Build Status][actions-badge]][actions-url]
 
+> Note: if you are looking for the original benthos repo with connectors, it moved here: https://github.com/redpanda-data/connect
+
+
 Benthos is a framework for creating declarative stream processors where a pipeline of one or more sources, an arbitrary series of processing stages, and one or more sinks can be configured in a single config:
 
 ```yaml
