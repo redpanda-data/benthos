@@ -95,6 +95,15 @@ func NewStringListField(name string) *ConfigField {
 	}
 }
 
+// NewStringListMapField describes a new map type config field consisting of
+// lists of strings.
+func NewStringListMapField(name string) *ConfigField {
+	stringListField := NewStringListField(name)
+	return &ConfigField{
+		field: stringListField.field.Map(),
+	}
+}
+
 // NewStringListOfListsField describes a new config field consisting of a list
 // of lists of strings (a 2D array of strings).
 func NewStringListOfListsField(name string) *ConfigField {
