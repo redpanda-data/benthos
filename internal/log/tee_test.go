@@ -17,7 +17,7 @@ func TestLoggerTee(t *testing.T) {
 	loggerConfig.AddTimeStamp = false
 	loggerConfig.Format = "logfmt"
 	loggerConfig.LogLevel = "WARN"
-	loggerConfig.StaticFields = map[string]string{
+	loggerConfig.StaticFields = map[string]any{
 		"@service": "benthos_service",
 		"@system":  "foo",
 	}
@@ -29,7 +29,7 @@ func TestLoggerTee(t *testing.T) {
 	loggerConfig.AddTimeStamp = false
 	loggerConfig.Format = "logfmt"
 	loggerConfig.LogLevel = "DEBUG"
-	loggerConfig.StaticFields = map[string]string{
+	loggerConfig.StaticFields = map[string]any{
 		"@service": "benthos_service",
 		"@system":  "bar",
 	}
