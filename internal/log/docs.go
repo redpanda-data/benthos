@@ -23,5 +23,19 @@ func Spec() docs.FieldSpecs {
 			docs.FieldBool(fieldFileRotate, "Whether to rotate log files automatically.").HasDefault(false),
 			docs.FieldInt(fieldFileRotateMaxAge, "The maximum number of days to retain old log files based on the timestamp encoded in their filename, after which they are deleted. Setting to zero disables this mechanism.").HasDefault(0),
 		).Advanced(),
+		docs.FieldBloblang(fieldMapping, `Mapping of planned log parameters in Bloblang.
+Message content will be:
+
+{
+  "warn": {
+    "format": "Here be a dragon",
+	"fields": {
+	  "dragon": "Fáfnir"
+	}
+  }
+}
+
+This allows for modifying fields, format of the error message as well as the log level.
+`).HasDefault("root = this"),
 	}
 }
