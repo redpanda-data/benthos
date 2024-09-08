@@ -1,6 +1,13 @@
 package log
 
-import "github.com/redpanda-data/benthos/v4/internal/docs"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/redpanda-data/benthos/v4/internal/bloblang/mapping"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang/parser"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
+)
 
 const (
 	fieldLogLevel         = "level"
@@ -14,6 +21,7 @@ const (
 	fieldFilePath         = "path"
 	fieldFileRotate       = "rotate"
 	fieldFileRotateMaxAge = "rotate_max_age_days"
+	fieldMapping          = "mapping"
 )
 
 // Config holds configuration options for a logger object.
@@ -26,6 +34,7 @@ type Config struct {
 	TimestampName string            `yaml:"timestamp_name"`
 	StaticFields  map[string]string `yaml:"static_fields"`
 	File          File              `yaml:"file"`
+	Mapping       *mapping.Executor `yaml:"mapping,omitempty"`
 }
 
 // File contains configuration for file based logging.
@@ -37,6 +46,10 @@ type File struct {
 
 // NewConfig returns a config struct with the default values for each field.
 func NewConfig() Config {
+	mapping, err := parseBloblangMapping("root = this", fieldMapping)
+	if err != nil {
+		panic(err)
+	}
 	return Config{
 		LogLevel:      "INFO",
 		Format:        "logfmt",
@@ -47,6 +60,7 @@ func NewConfig() Config {
 		StaticFields: map[string]string{
 			"@service": "benthos",
 		},
+		Mapping: mapping,
 	}
 }
 
@@ -58,9 +72,15 @@ func (conf *Config) UnmarshalYAML(unmarshal func(any) error) error {
 
 	defaultFields := aliased.StaticFields
 	aliased.StaticFields = nil
+	defaultMapping := aliased.Mapping
+	aliased.Mapping = nil
 
 	if err := unmarshal(&aliased); err != nil {
 		return err
+	}
+
+	if aliased.Mapping == nil {
+		aliased.Mapping = defaultMapping
 	}
 
 	if aliased.StaticFields == nil {
@@ -95,6 +115,12 @@ func FromParsed(pConf *docs.ParsedConfig) (conf Config, err error) {
 		return
 	}
 
+	if pConf.Contains(fieldMapping) {
+		if conf.Mapping, err = fieldBloblangMapping(pConf, fieldMapping); err != nil {
+			return
+		}
+	}
+
 	if pConf.Contains(fieldFile) {
 		fConf := pConf.Namespace(fieldFile)
 		if conf.File.Path, err = fConf.FieldString(fieldFilePath); err != nil {
@@ -107,5 +133,37 @@ func FromParsed(pConf *docs.ParsedConfig) (conf Config, err error) {
 			return
 		}
 	}
+
 	return
+}
+
+func fieldBloblangMapping(p *docs.ParsedConfig, path ...string) (*mapping.Executor, error) {
+	v, exists := p.Field(path...)
+	if !exists {
+		return nil, fmt.Errorf("field '%v' was not found in the config", strings.Join(path, "."))
+	}
+
+	str, ok := v.(string)
+	if !ok {
+		return nil, fmt.Errorf("expected field '%v' to be a string, got %T", strings.Join(path, "."), v)
+	}
+
+	return parseBloblangMapping(str, path...)
+}
+
+func parseBloblangMapping(str string, path ...string) (*mapping.Executor, error) {
+	if strings.TrimSpace(str) == "root = this" {
+		// noop mapping
+		return nil, nil
+	}
+
+	exec, err := parse(str)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse bloblang mapping '%v': %v", strings.Join(path, "."), err)
+	}
+	return exec, nil
+}
+
+func parse(blobl string) (*mapping.Executor, *parser.Error) {
+	return parser.ParseMapping(parser.GlobalContext(), blobl)
 }

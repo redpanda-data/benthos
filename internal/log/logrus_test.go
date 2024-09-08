@@ -168,3 +168,94 @@ func TestLogLevels(t *testing.T) {
 		}
 	}
 }
+
+func TestLoggerWithMappingSeverity(t *testing.T) {
+	mapping, err := parseBloblangMapping(`root = {
+	"error": this.warn
+}`, fieldMapping)
+	if err != nil {
+		panic(err)
+	}
+
+	loggerConfig := NewConfig()
+	loggerConfig.AddTimeStamp = false
+	loggerConfig.Format = "json"
+	loggerConfig.LogLevel = "WARN"
+	loggerConfig.StaticFields = map[string]string{
+		"@service": "benthos_service",
+		"@system":  "foo",
+	}
+	loggerConfig.LevelName = "severity"
+	loggerConfig.MessageName = "message"
+	loggerConfig.Mapping = mapping
+
+	var buf bytes.Buffer
+
+	logger, err := New(&buf, ifs.OS(), loggerConfig)
+	require.NoError(t, err)
+
+	logger = logger.WithFields(map[string]string{
+		"foo": "bar",
+	})
+	require.NoError(t, err)
+
+	logger.Warn("Warning message foo fields")
+
+	expected := `{"@service":"benthos_service","@system":"foo","foo":"bar","message":"Warning message foo fields","severity":"error"}
+`
+
+	require.JSONEq(t, expected, buf.String())
+}
+
+// TestLoggerWithMappingStaticFields shows off how to enforce Google Cloud picking up
+// errors in their Error Reporting. Note that, for proper integration, you will need to map more
+// fields.
+func TestLoggerWithMappingStaticFields(t *testing.T) {
+	mapping, err := parseBloblangMapping(`
+root = this
+if this.get("error") != nil {
+	root.error.fields = root.error.fields.assign({
+		"@type": "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent"
+	})
+}
+`, fieldMapping)
+	if err != nil {
+		panic(err)
+	}
+
+	loggerConfig := NewConfig()
+	loggerConfig.AddTimeStamp = false
+	loggerConfig.Format = "json"
+	loggerConfig.LogLevel = "WARN"
+	loggerConfig.StaticFields = map[string]string{
+		"@service": "benthos_service",
+		"@system":  "foo",
+	}
+	loggerConfig.LevelName = "severity"
+	loggerConfig.MessageName = "message"
+	loggerConfig.Mapping = mapping
+
+	var buf bytes.Buffer
+
+	logger, err := New(&buf, ifs.OS(), loggerConfig)
+	require.NoError(t, err)
+
+	logger = logger.WithFields(map[string]string{
+		"foo": "bar",
+	})
+	require.NoError(t, err)
+
+	logger.Error("Warning message foo fields")
+
+	expected := `{
+	"@service":"benthos_service",
+	"@system":"foo",
+	"foo":"bar",
+	"@type": "type.googleapis.com/google.devtools.clouderrorreporting.v1beta1.ReportedErrorEvent",
+	"message":"Warning message foo fields",
+	"severity":"error"
+}
+`
+
+	require.JSONEq(t, expected, buf.String())
+}
