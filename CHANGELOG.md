@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - The `switch` output metrics now emit the case id as part of their labels. This is a regression introduced in v4.25.0. (@mihaitodor)
+- Fixed a bug where certain logs used the `%w` verb to print errors resulting in incorrect output. (@mihaitodor)
 
 ## 4.36.0 - 2024-08-29
 
