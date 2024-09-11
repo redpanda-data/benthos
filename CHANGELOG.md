@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.37.0 - TBD
+
+### Fixed
+
+- Fixed a bug where certain logs used the `%w` verb to print errors resulting in incorrect output. (@mihaitodor)
+
 ## 4.36.0 - 2024-08-29
 
 ### Fixed
