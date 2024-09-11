@@ -232,6 +232,7 @@ func switchOutputFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement
 		if err != nil {
 			return nil, err
 		}
+
 		o.outputs[i] = interop.UnwrapOwnedOutput(w)
 
 		oMgr := mgr.IntoPath("switch", strconv.Itoa(i), "output")

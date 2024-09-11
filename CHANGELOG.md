@@ -3,10 +3,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.37.0 - TBD
+## 4.37.0 - 2024-09-11
 
 ### Fixed
 
+- The `switch` output metrics now emit the case id as part of their labels. This is a regression introduced in v4.25.0. (@mihaitodor)
+- Fixed a bug where certain logs used the `%w` verb to print errors resulting in incorrect output. (@mihaitodor)
+- Fields instantiated via `FieldObjectList` and `FieldObjectMap` should now yield correct observability paths. (@Jeffail)
 - The logger no longer tries to replace Go fmt verbs in log messages. (@mihaitodor)
 
 ## 4.36.0 - 2024-08-29
