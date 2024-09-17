@@ -25,8 +25,12 @@ func writeFiles(t *testing.T, dir string, nameToContent map[string]string) {
 	}
 }
 
-func testInput(t testing.TB, confPattern string, args ...any) input.Streamed {
-	iConf, err := testutil.InputFromYAML(fmt.Sprintf(confPattern, args...))
+func testInputf(t testing.TB, confPattern string, args ...any) input.Streamed {
+	return testInput(t, fmt.Sprintf(confPattern, args...))
+}
+
+func testInput(t testing.TB, confStr string) input.Streamed {
+	iConf, err := testutil.InputFromYAML(confStr)
 	require.NoError(t, err)
 
 	i, err := mock.NewManager().NewInput(iConf)
@@ -51,7 +55,7 @@ func TestSequenceHappy(t *testing.T) {
 
 	writeFiles(t, tmpDir, files)
 
-	rdr := testInput(t, `
+	rdr := testInputf(t, `
 sequence:
   inputs:
     - file:
@@ -109,7 +113,7 @@ func TestSequenceJoins(t *testing.T) {
 
 	writeFiles(t, tmpDir, files)
 
-	rdr := testInput(t, `
+	rdr := testInputf(t, `
 sequence:
   sharded_join:
     type: full-outer
@@ -333,7 +337,7 @@ func TestSequenceJoinsBig(t *testing.T) {
 	require.NoError(t, ndjsonFile.Close())
 	require.NoError(t, csvFile.Close())
 
-	rdr := testInput(t, `
+	rdr := testInputf(t, `
 sequence:
   sharded_join:
     type: full-outer

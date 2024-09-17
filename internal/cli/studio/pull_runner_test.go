@@ -59,7 +59,7 @@ func testServerForPullRunner(
 		}
 	}
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NotEmpty(t, len(expectedRequests))
+		require.NotEmpty(t, expectedRequests)
 
 		expReq := expectedRequests[0]
 		expectedRequests = expectedRequests[1:]
