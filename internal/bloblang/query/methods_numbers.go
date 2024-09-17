@@ -145,17 +145,17 @@ var _ = registerSimpleMethod(
 			if len(arr) == 0 {
 				return nil, errors.New("the array was empty")
 			}
-			var max float64
+			var maxV float64
 			for i, n := range arr {
 				f, err := value.IGetNumber(n)
 				if err != nil {
 					return nil, fmt.Errorf("index %v of array: %w", i, err)
 				}
-				if i == 0 || f > max {
-					max = f
+				if i == 0 || f > maxV {
+					maxV = f
 				}
 			}
-			return max, nil
+			return maxV, nil
 		}, nil
 	},
 )
@@ -188,17 +188,17 @@ var _ = registerSimpleMethod(
 			if len(arr) == 0 {
 				return nil, errors.New("the array was empty")
 			}
-			var max float64
+			var maxV float64
 			for i, n := range arr {
 				f, err := value.IGetNumber(n)
 				if err != nil {
 					return nil, fmt.Errorf("index %v of array: %w", i, err)
 				}
-				if i == 0 || f < max {
-					max = f
+				if i == 0 || f < maxV {
+					maxV = f
 				}
 			}
-			return max, nil
+			return maxV, nil
 		}, nil
 	},
 )

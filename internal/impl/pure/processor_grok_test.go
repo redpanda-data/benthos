@@ -2,6 +2,7 @@ package pure_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -20,7 +21,7 @@ func TestGrokAllParts(t *testing.T) {
 	conf, err := testutil.ProcessorFromYAML(`
 grok:
   expressions:
-    - "%%{WORD:first},%%{INT:second:int}"
+    - "%{WORD:first},%{INT:second:int}"
 `)
 	require.NoError(t, err)
 
@@ -91,12 +92,12 @@ func TestGrok(t *testing.T) {
 			if test.definitions == nil {
 				test.definitions = map[string]any{}
 			}
-			conf, err := testutil.ProcessorFromYAML(`
+			conf, err := testutil.ProcessorFromYAML(fmt.Sprintf(`
 grok:
   expressions:
     - '%v'
   pattern_definitions: %v
-`, test.pattern, gabs.Wrap(test.definitions).String())
+`, test.pattern, gabs.Wrap(test.definitions).String()))
 			require.NoError(t, err)
 
 			gSet, err := mock.NewManager().NewProcessor(conf)
@@ -115,12 +116,12 @@ grok:
 			if test.definitions == nil {
 				test.definitions = map[string]any{}
 			}
-			conf, err := testutil.ProcessorFromYAML(`
+			conf, err := testutil.ProcessorFromYAML(fmt.Sprintf(`
 grok:
   expressions:
     - '%v'
   pattern_definitions: %v
-`, test.pattern, gabs.Wrap(test.definitions).String())
+`, test.pattern, gabs.Wrap(test.definitions).String()))
 			require.NoError(t, err)
 
 			gSet, err := mock.NewManager().NewProcessor(conf)
@@ -144,13 +145,13 @@ FOONESTED %{INT:nested.first:int} %{WORD:nested.second} %{WORD:nested.third}
 `), 0o777)
 	require.NoError(t, err)
 
-	conf, err := testutil.ProcessorFromYAML(`
+	conf, err := testutil.ProcessorFromYAML(fmt.Sprintf(`
 grok:
   expressions:
     - "%%{FOONESTED}"
     - "%%{FOOFLAT}"
   pattern_paths: [ %v ]
-`, tmpDir)
+`, tmpDir))
 	require.NoError(t, err)
 
 	gSet, err := mock.NewManager().NewProcessor(conf)

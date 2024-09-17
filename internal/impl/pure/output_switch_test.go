@@ -18,12 +18,12 @@ import (
 	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
-func newSwitch(t testing.TB, mockOutputs []*mock.OutputChanneled, confStr string, args ...any) *switchOutput {
+func newSwitch(t testing.TB, mockOutputs []*mock.OutputChanneled, confStr string) *switchOutput {
 	t.Helper()
 
 	mgr := mock.NewManager()
 
-	pConf, err := switchOutputSpec().ParseYAML(fmt.Sprintf(confStr, args...), nil)
+	pConf, err := switchOutputSpec().ParseYAML(confStr, nil)
 	require.NoError(t, err)
 
 	s, err := switchOutputFromParsed(pConf, mgr)
@@ -172,7 +172,7 @@ func TestSwitchBatchNoRetries(t *testing.T) {
 	confStr := `
 retry_until_success: false
 cases:
-  - check: 'root = this.id %% 2 == 0'
+  - check: 'root = this.id % 2 == 0'
     output:
       drop: {}
   - check: 'root = true'

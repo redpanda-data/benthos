@@ -23,9 +23,13 @@ import (
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
 )
 
-func parseYAMLOutputConf(t testing.TB, formatStr string, args ...any) output.Config {
+func parseYAMLOutputConff(t testing.TB, formatStr string, args ...any) output.Config {
+	return parseYAMLOutputConf(t, fmt.Sprintf(formatStr, args...))
+}
+
+func parseYAMLOutputConf(t testing.TB, confStr string) output.Config {
 	t.Helper()
-	conf, err := testutil.OutputFromYAML(fmt.Sprintf(formatStr, args...))
+	conf, err := testutil.OutputFromYAML(confStr)
 	require.NoError(t, err)
 	return conf
 }
@@ -38,7 +42,7 @@ func TestDropOnNothing(t *testing.T) {
 		ts.Close()
 	})
 
-	dropConf := parseYAMLOutputConf(t, `
+	dropConf := parseYAMLOutputConff(t, `
 drop_on:
   error: false
   output:
@@ -85,7 +89,7 @@ func TestDropOnError(t *testing.T) {
 		ts.Close()
 	})
 
-	dropConf := parseYAMLOutputConf(t, `
+	dropConf := parseYAMLOutputConff(t, `
 drop_on:
   error: true
   output:
@@ -162,7 +166,7 @@ func TestDropOnBackpressureWithErrors(t *testing.T) {
 		ts.Close()
 	})
 
-	dropConf := parseYAMLOutputConf(t, `
+	dropConf := parseYAMLOutputConff(t, `
 drop_on:
   back_pressure: 100ms
   output:
@@ -250,7 +254,7 @@ func TestDropOnDisconnectBackpressureNoErrors(t *testing.T) {
 		ts.Close()
 	})
 
-	dropConf := parseYAMLOutputConf(t, `
+	dropConf := parseYAMLOutputConff(t, `
 drop_on:
   back_pressure: 100ms
   error: true
@@ -320,7 +324,7 @@ func TestDropOnErrorMatches(t *testing.T) {
 		ts.Close()
 	})
 
-	dropConf := parseYAMLOutputConf(t, `
+	dropConf := parseYAMLOutputConff(t, `
 drop_on:
   error_patterns:
     - foobar
