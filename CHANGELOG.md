@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.38.0 - 2024-09-17
+
+### Added
+
+- Go API: Method `Resources` added to the `ParsedConfig` type. (@Jeffail)
+
 ## 4.37.0 - 2024-09-11
 
 ### Fixed
