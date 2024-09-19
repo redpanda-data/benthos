@@ -62,6 +62,7 @@ func New(
 	wholeConf any,
 	log log.Modular,
 	stats metrics.Type,
+	count *int,
 	opts ...OptFunc,
 ) (*Type, error) {
 	gMux := mux.NewRouter()
@@ -146,6 +147,10 @@ func New(
 		}
 	}
 
+	handleConfigAcknowledgement := func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "{\"success_reload_count\":\"%v\"}", *count)
+	}
+
 	if t.conf.DebugEndpoints {
 		t.RegisterEndpoint(
 			"/debug/config/json", "DEBUG: Returns the loaded config as JSON.",
@@ -200,6 +205,7 @@ func New(
 
 	t.RegisterEndpoint("/ping", "Ping me.", handlePing)
 	t.RegisterEndpoint("/version", "Returns the service version.", handleVersion)
+	t.RegisterEndpoint("/config/ack", "Returns the count of success watcher", handleConfigAcknowledgement)
 	t.RegisterEndpoint("/endpoints", "Returns this map of endpoints.", handleEndpoints)
 
 	// If we want to expose a stats endpoint we register the endpoints.

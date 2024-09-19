@@ -54,6 +54,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 	}
 
 	verLogger := logger.With("benthos_version", cliOpts.Version)
+
 	if mainPath == "" {
 		verLogger.Info("Running without a main config file")
 	} else if inferredMainPath {
@@ -73,8 +74,9 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 	if strict && len(lints) > 0 {
 		return errors.New(cliOpts.ExecTemplate("shutting down due to linter errors, to prevent shutdown run {{.ProductName}} with --chilled"))
 	}
-
-	stoppableManager, err := CreateManager(c, cliOpts, logger, streamsMode, conf)
+	//Success Watcher Count Is Used to for to get count of the config which was updated with the watcher flag.
+	success_reload_count := 0
+	stoppableManager, err := CreateManager(c, cliOpts, logger, streamsMode, conf, &success_reload_count)
 	if err != nil {
 		return err
 	}
@@ -90,9 +92,10 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 	watching := cliOpts.RootFlags.GetWatcher(c)
 	if streamsMode {
 		enableStreamsAPI := !c.Bool("no-api")
-		stoppableStream, err = initStreamsMode(cliOpts, strict, watching, enableStreamsAPI, confReader, stoppableManager.Manager())
+		stoppableStream, err = initStreamsMode(cliOpts, strict, watching, enableStreamsAPI, confReader, stoppableManager.Manager(), &success_reload_count)
 	} else {
-		stoppableStream, dataStreamClosedChan, err = initNormalMode(cliOpts, conf, strict, watching, confReader, stoppableManager.Manager())
+		logger.Info("InitMode Get Initiated... strict:%v", strict)
+		stoppableStream, dataStreamClosedChan, err = initNormalMode(cliOpts, conf, strict, watching, confReader, stoppableManager.Manager(), &success_reload_count)
 	}
 	if err != nil {
 		return err
@@ -133,6 +136,7 @@ func initStreamsMode(
 	strict, watching, enableAPI bool,
 	confReader *config.Reader,
 	mgr *manager.Type,
+	success_reload_count *int,
 ) (RunningStream, error) {
 	logger := mgr.Logger()
 	streamMgr := strmmgr.New(mgr, strmmgr.OptAPIEnabled(enableAPI))
@@ -181,7 +185,7 @@ func initStreamsMode(
 	}
 
 	if watching {
-		if err := confReader.BeginFileWatching(mgr, strict); err != nil {
+		if err := confReader.BeginFileWatching(mgr, strict, success_reload_count); err != nil {
 			return nil, fmt.Errorf("failed to create stream config watcher: %w", err)
 		}
 	}
@@ -194,6 +198,7 @@ func initNormalMode(
 	strict, watching bool,
 	confReader *config.Reader,
 	mgr *manager.Type,
+	success_reload_count *int,
 ) (newStream RunningStream, stoppedChan chan struct{}, err error) {
 	logger := mgr.Logger()
 
@@ -231,7 +236,7 @@ func initNormalMode(
 	}
 
 	if watching {
-		if err := confReader.BeginFileWatching(mgr, strict); err != nil {
+		if err := confReader.BeginFileWatching(mgr, strict, success_reload_count); err != nil {
 			return nil, nil, fmt.Errorf("failed to create config file watcher: %w", err)
 		}
 	}

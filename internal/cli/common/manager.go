@@ -30,6 +30,7 @@ func CreateManager(
 	logger log.Modular,
 	streamsMode bool,
 	conf config.Type,
+	count *int,
 	mgrOpts ...manager.OptFunc,
 ) (stoppableMgr *StoppableManager, err error) {
 	var stats *metrics.Namespaced
@@ -88,7 +89,7 @@ func CreateManager(
 	}
 
 	var httpServer *api.Type
-	if httpServer, err = api.New(cliOpts.Version, cliOpts.DateBuilt, conf.HTTP, sanitNode, logger, stats); err != nil {
+	if httpServer, err = api.New(cliOpts.Version, cliOpts.DateBuilt, conf.HTTP, sanitNode, logger, stats, count); err != nil {
 		err = fmt.Errorf("failed to initialise API: %w", err)
 		return
 	}

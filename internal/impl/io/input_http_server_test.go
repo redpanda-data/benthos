@@ -222,7 +222,7 @@ func TestHTTPServerLifecycle(t *testing.T) {
 
 	testURL := fmt.Sprintf("http://localhost:%v/foo/bar", freePort)
 
-	apiImpl, err := api.New("", "", apiConf, nil, log.Noop(), metrics.Noop())
+	apiImpl, err := api.New("", "", apiConf, nil, log.Noop(), metrics.Noop(), nil)
 	require.NoError(t, err)
 
 	go func() {

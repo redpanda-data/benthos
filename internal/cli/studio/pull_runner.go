@@ -297,7 +297,7 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 	tmpTracingSummary.SetEnabled(false)
 
 	stopMgrTmp, err := common.CreateManager(
-		r.cliContext, r.cliOpts, r.logger, false, conf,
+		r.cliContext, r.cliOpts, r.logger, false, conf, nil,
 		manager.OptSetEnvironment(tmpEnv),
 		manager.OptSetBloblangEnvironment(bloblEnv),
 		manager.OptSetFS(sessFS))
@@ -413,13 +413,13 @@ func (r *PullRunner) Sync(ctx context.Context) {
 			}
 		}
 		for _, res := range diff.AddResources {
-			if err := r.confReader.TriggerResourceUpdate(r.mgr, r.strictMode, res.Name); err != nil {
+			if err := r.confReader.TriggerResourceUpdate(r.mgr, r.strictMode, res.Name, nil); err != nil {
 				r.logger.Error("Failed to reflect resource file '%v' update: %v", res.Name, err)
 				runErr = err
 			}
 		}
 		if diff.MainConfig != nil {
-			if err := r.confReader.TriggerMainUpdate(r.mgr, r.strictMode, diff.MainConfig.Name); err != nil {
+			if err := r.confReader.TriggerMainUpdate(r.mgr, r.strictMode, diff.MainConfig.Name, nil); err != nil {
 				r.logger.Error("Failed to reflect main config file '%v' update: %v", diff.MainConfig.Name, err)
 				runErr = err
 			}

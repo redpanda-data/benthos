@@ -184,7 +184,7 @@ func (r *Reader) findStreamPathWalkedDir(streamPath string) (dir string) {
 
 // TriggerStreamUpdate attempts to re-read a stream configuration file, and
 // trigger the provided stream update func.
-func (r *Reader) TriggerStreamUpdate(mgr bundle.NewManagement, strict bool, path string) error {
+func (r *Reader) TriggerStreamUpdate(mgr bundle.NewManagement, strict bool, path string, success_reload_count *int) error {
 	if r.streamUpdateFn == nil {
 		return nil
 	}
@@ -236,5 +236,10 @@ func (r *Reader) TriggerStreamUpdate(mgr bundle.NewManagement, strict bool, path
 		return err
 	}
 	mgr.Logger().Info("Updated stream %v config from file.", info.id)
+
+	if success_reload_count != nil {
+		*success_reload_count = *success_reload_count + 1
+		mgr.Logger().Info("Success Reload Count: %v, For Stream Config", *success_reload_count)
+	}
 	return nil
 }

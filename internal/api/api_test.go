@@ -20,7 +20,7 @@ func TestAPIEnableCORS(t *testing.T) {
 	conf.CORS.Enabled = true
 	conf.CORS.AllowedOrigins = []string{"*"}
 
-	s, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop())
+	s, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop(), nil)
 	require.NoError(t, err)
 
 	handler := s.Handler()
@@ -41,7 +41,7 @@ func TestAPIEnableCORSOrigins(t *testing.T) {
 	conf.CORS.Enabled = true
 	conf.CORS.AllowedOrigins = []string{"foo", "bar"}
 
-	s, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop())
+	s, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop(), nil)
 	require.NoError(t, err)
 
 	handler := s.Handler()
@@ -81,7 +81,7 @@ func TestAPIEnableCORSNoHeaders(t *testing.T) {
 	conf := api.NewConfig()
 	conf.CORS.Enabled = true
 
-	_, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop())
+	_, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must specify at least one allowed origin")
 }
@@ -164,7 +164,7 @@ func TestAPIBasicAuth(t *testing.T) {
 				conf.BasicAuth.PasswordHash = tc.correctPass
 				conf.BasicAuth.Salt = "EzrwNJYw2wkErVVV1P36FQ=="
 
-				s, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop())
+				s, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop(), nil)
 				if ok := tc.expectedErr(t, err); !(ok && err == nil) {
 					return
 				}
