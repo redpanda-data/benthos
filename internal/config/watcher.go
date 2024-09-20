@@ -68,7 +68,7 @@ func (r *Reader) modifiedSinceLastRead(name string) bool {
 // WARNING: Either SubscribeConfigChanges or SubscribeStreamChanges must be
 // called before this, as otherwise it is unsafe to register them during
 // watching.
-func (r *Reader) BeginFileWatching(mgr bundle.NewManagement, strict bool, success_reload_count *int) error {
+func (r *Reader) BeginFileWatching(mgr bundle.NewManagement, strict bool, successReloadCount *int) error {
 	if r.watcher != nil {
 		return errors.New("a file watcher has already been started")
 	}
@@ -175,11 +175,11 @@ func (r *Reader) BeginFileWatching(mgr bundle.NewManagement, strict bool, succes
 					}
 					var succeeded bool
 					if nameClean == r.mainPath {
-						succeeded = !ShouldReread(r.TriggerMainUpdate(mgr, strict, r.mainPath, success_reload_count))
+						succeeded = !ShouldReread(r.TriggerMainUpdate(mgr, strict, r.mainPath, successReloadCount))
 					} else if _, exists := r.streamFileInfo[nameClean]; exists {
-						succeeded = !ShouldReread(r.TriggerStreamUpdate(mgr, strict, nameClean, success_reload_count))
+						succeeded = !ShouldReread(r.TriggerStreamUpdate(mgr, strict, nameClean, successReloadCount))
 					} else {
-						succeeded = !ShouldReread(r.TriggerResourceUpdate(mgr, strict, nameClean, success_reload_count))
+						succeeded = !ShouldReread(r.TriggerResourceUpdate(mgr, strict, nameClean, successReloadCount))
 					}
 					if succeeded {
 						mgr.Logger().Info("This is the collaps changes %v", collapsedChanges)
