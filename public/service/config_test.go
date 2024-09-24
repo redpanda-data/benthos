@@ -338,6 +338,30 @@ b: and this
 	assert.True(t, tConf.InsecureSkipVerify)
 }
 
+func TestServerConfigTLS(t *testing.T) {
+	spec := NewConfigSpec().
+		Field(NewServerTLSField("a")).
+		Field(NewStringField("b"))
+
+	parsedConfig, err := spec.ParseYAML(`
+a:
+  skip_cert_verify: true
+b: and this
+`, nil)
+	require.NoError(t, err)
+
+	_, err = parsedConfig.FieldTLS("b")
+	require.Error(t, err)
+
+	_, err = parsedConfig.FieldTLS("c")
+	require.Error(t, err)
+
+	tConf, err := parsedConfig.FieldTLS("a")
+	require.NoError(t, err)
+
+	assert.True(t, tConf.InsecureSkipVerify)
+}
+
 func TestConfigInterpolatedString(t *testing.T) {
 	spec := NewConfigSpec().
 		Field(NewInterpolatedStringField("a")).
