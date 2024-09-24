@@ -3,6 +3,7 @@ package io
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -54,6 +55,7 @@ type hsoConfig struct {
 	CertFile     string
 	KeyFile      string
 	CORS         httpserver.CORSConfig
+	TLSConfig    *tls.Config
 }
 
 func hsoConfigFromParsed(pConf *service.ParsedConfig) (conf hsoConfig, err error) {
@@ -94,6 +96,14 @@ func hsoConfigFromParsed(pConf *service.ParsedConfig) (conf hsoConfig, err error
 	}
 	if conf.CORS, err = corsConfigFromParsed(pConf.Namespace(hsoFieldCORS)); err != nil {
 		return
+	}
+
+	tlsConf, enabled, err := pConf.FieldTLSToggled(hsiFieldTLS)
+	if err != nil {
+		return
+	}
+	if enabled {
+		conf.TLSConfig = tlsConf
 	}
 	return
 }
@@ -136,14 +146,17 @@ Please note, messages are considered delivered as soon as the data is written to
 				Description("The maximum time to wait before a blocking, inactive connection is dropped (only applies to the `path` endpoint).").
 				Default("5s").
 				Advanced(),
+			service.NewServerTLSToggledField(hsiFieldTLS),
 			service.NewStringField(hsoFieldCertFile).
 				Description("Enable TLS by specifying a certificate and key file. Only valid with a custom `address`.").
 				Advanced().
-				Default(""),
+				Default("").
+				Deprecated(),
 			service.NewStringField(hsoFieldKeyFile).
 				Description("Enable TLS by specifying a certificate and key file. Only valid with a custom `address`.").
 				Advanced().
-				Default(""),
+				Default("").
+				Deprecated(),
 			service.NewInternalField(corsSpec),
 		)
 }
@@ -209,7 +222,10 @@ func newHTTPServerOutput(conf hsoConfig, mgr bundle.NewManagement) (output.Strea
 	var err error
 	if conf.Address != "" {
 		gMux = mux.NewRouter()
-		server = &http.Server{Addr: conf.Address}
+		server = &http.Server{
+			Addr:      conf.Address,
+			TLSConfig: conf.TLSConfig,
+		}
 		if server.Handler, err = conf.CORS.WrapHandler(gMux); err != nil {
 			return nil, fmt.Errorf("bad CORS configuration: %w", err)
 		}
@@ -448,7 +464,7 @@ func (h *httpServerOutput) Consume(ts <-chan message.Transaction) error {
 
 	if h.server != nil {
 		go func() {
-			if h.conf.KeyFile != "" || h.conf.CertFile != "" {
+			if h.conf.TLSConfig != nil || h.conf.KeyFile != "" || h.conf.CertFile != "" {
 				h.log.Info(
 					"Serving messages through HTTPS GET request at: https://%s\n",
 					h.conf.Address+h.conf.Path,
