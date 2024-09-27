@@ -19,8 +19,11 @@ func TestAPIEnableCORS(t *testing.T) {
 	conf := api.NewConfig()
 	conf.CORS.Enabled = true
 	conf.CORS.AllowedOrigins = []string{"*"}
-
-	s, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop(), nil)
+	configMetadata := api.ConfigMetadata{
+		WholeConf:          nil,
+		SuccessReloadCount: nil,
+	}
+	s, err := api.New("", "", conf, configMetadata, log.Noop(), metrics.Noop())
 	require.NoError(t, err)
 
 	handler := s.Handler()
@@ -41,7 +44,11 @@ func TestAPIEnableCORSOrigins(t *testing.T) {
 	conf.CORS.Enabled = true
 	conf.CORS.AllowedOrigins = []string{"foo", "bar"}
 
-	s, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop(), nil)
+	configMetadata := api.ConfigMetadata{
+		WholeConf:          nil,
+		SuccessReloadCount: nil,
+	}
+	s, err := api.New("", "", conf, configMetadata, log.Noop(), metrics.Noop())
 	require.NoError(t, err)
 
 	handler := s.Handler()
@@ -80,8 +87,12 @@ func TestAPIEnableCORSOrigins(t *testing.T) {
 func TestAPIEnableCORSNoHeaders(t *testing.T) {
 	conf := api.NewConfig()
 	conf.CORS.Enabled = true
+	configMetadata := api.ConfigMetadata{
+		WholeConf:          nil,
+		SuccessReloadCount: nil,
+	}
+	_, err := api.New("", "", conf, configMetadata, log.Noop(), metrics.Noop())
 
-	_, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "must specify at least one allowed origin")
 }
@@ -164,7 +175,12 @@ func TestAPIBasicAuth(t *testing.T) {
 				conf.BasicAuth.PasswordHash = tc.correctPass
 				conf.BasicAuth.Salt = "EzrwNJYw2wkErVVV1P36FQ=="
 
-				s, err := api.New("", "", conf, nil, log.Noop(), metrics.Noop(), nil)
+				configMetadata := api.ConfigMetadata{
+					WholeConf:          nil,
+					SuccessReloadCount: nil,
+				}
+				s, err := api.New("", "", conf, configMetadata, log.Noop(), metrics.Noop())
+
 				if ok := tc.expectedErr(t, err); !(ok && err == nil) {
 					return
 				}

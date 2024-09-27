@@ -54,17 +54,23 @@ type Type struct {
 	server *http.Server
 }
 
+// ConfigMetadata manges the config related data.
+type ConfigMetadata struct {
+	WholeConf          any
+	SuccessReloadCount *int
+}
+
 // New creates a new Benthos HTTP API.
 func New(
 	version string,
 	dateBuilt string,
 	conf Config,
-	wholeConf any,
+	ConfigMetadata ConfigMetadata,
 	log log.Modular,
 	stats metrics.Type,
-	count *int,
 	opts ...OptFunc,
 ) (*Type, error) {
+	log.Info("HTTP SERVER HAS BEEN EXECUTED After Create Manager")
 	gMux := mux.NewRouter()
 	server := &http.Server{Addr: conf.Address}
 
@@ -104,15 +110,17 @@ func New(
 	}
 
 	handlePrintJSONConfig := func(w http.ResponseWriter, r *http.Request) {
+		t.log.Info("handlePrintJson executed")
 		var g any
 		var err error
-		if node, ok := wholeConf.(yaml.Node); ok {
+		if node, ok := ConfigMetadata.WholeConf.(yaml.Node); ok {
 			err = node.Decode(&g)
 		} else {
 			g = node
 		}
 		var resBytes []byte
 		if err == nil {
+			t.log.Info("API INOFOOOOOOOO CHEKC\n %+v \n", g)
 			resBytes, err = json.Marshal(g)
 		}
 		if err != nil {
@@ -123,7 +131,7 @@ func New(
 	}
 
 	handlePrintYAMLConfig := func(w http.ResponseWriter, r *http.Request) {
-		resBytes, err := yaml.Marshal(wholeConf)
+		resBytes, err := yaml.Marshal(ConfigMetadata.WholeConf)
 		if err != nil {
 			w.WriteHeader(http.StatusBadGateway)
 			return
@@ -148,7 +156,7 @@ func New(
 	}
 
 	handleConfigAcknowledgement := func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintf(w, "{\"success_reload_count\":\"%v\"}", *count)
+		fmt.Fprintf(w, "{\"success_reload_count\":\"%v\"}", *ConfigMetadata.SuccessReloadCount)
 	}
 
 	if t.conf.DebugEndpoints {

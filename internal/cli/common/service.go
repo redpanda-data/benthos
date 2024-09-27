@@ -38,6 +38,7 @@ func (e *ErrExitCode) Unwrap() error {
 // RunService runs a service command (either the default or the streams
 // subcommand).
 func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
+
 	mainPath, inferredMainPath, confReader := ReadConfig(c, cliOpts, streamsMode)
 
 	conf, pConf, lints, err := confReader.Read()
@@ -49,12 +50,13 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 	}()
 
 	logger, err := CreateLogger(c, cliOpts, conf, streamsMode)
+	logger.Info("RUN SERVICE CALLED Here is the intial conf %+v", conf)
+
 	if err != nil {
 		return fmt.Errorf("failed to create logger: %w", err)
 	}
 
 	verLogger := logger.With("benthos_version", cliOpts.Version)
-
 	if mainPath == "" {
 		verLogger.Info("Running without a main config file")
 	} else if inferredMainPath {
@@ -64,6 +66,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 	}
 
 	strict := !cliOpts.RootFlags.GetChilled(c)
+	logger.Info("This is the Stict Value %v ", strict)
 	for _, lint := range lints {
 		if strict {
 			logger.With("lint", lint).Error("Config lint error")
@@ -201,7 +204,7 @@ func initNormalMode(
 	successReloadCount *int,
 ) (newStream RunningStream, stoppedChan chan struct{}, err error) {
 	logger := mgr.Logger()
-
+	logger.Info("Init Mode Has been started...")
 	stoppedChan = make(chan struct{})
 	var closeOnce sync.Once
 	streamInit := func() (RunningStream, error) {
@@ -224,11 +227,16 @@ func initNormalMode(
 	logger.Info(opts.ExecTemplate("Launching a {{.ProductName}} instance, use CTRL+C to close"))
 
 	if err := confReader.SubscribeConfigChanges(func(newStreamConf *config.Type) error {
+		mgr.Logger().Info("SbscribeConfigChanges is called")
 		ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
 		defer done()
 		// NOTE: We're ignoring observability field changes for now.
 		return stoppableStream.Replace(ctx, func() (RunningStream, error) {
+
 			conf.Config = newStreamConf.Config
+			mgr.Logger().Info("Here is the Final Updated Config")
+			mgr.Logger().Info("%+v", conf.Config)
+			// TODO HERE Starte WITH SanitNode Logic to Encode
 			return streamInit()
 		})
 	}); err != nil {
@@ -236,6 +244,7 @@ func initNormalMode(
 	}
 
 	if watching {
+		logger.Info("Inside the Watching Before Begin FileWatching.....")
 		if err := confReader.BeginFileWatching(mgr, strict, successReloadCount); err != nil {
 			return nil, nil, fmt.Errorf("failed to create config file watcher: %w", err)
 		}
