@@ -59,7 +59,7 @@ processor_resources:
 	// Watch for configuration changes.
 	testMgr, err := manager.New(conf.ResourceConfig)
 	require.NoError(t, err)
-	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
+	require.NoError(t, rdr.BeginFileWatching(testMgr, true, nil))
 
 	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
 	defer done()
@@ -175,7 +175,7 @@ processor_resources:
 	// Watch for configuration changes.
 	testMgr, err := manager.New(conf.ResourceConfig)
 	require.NoError(t, err)
-	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
+	require.NoError(t, rdr.BeginFileWatching(testMgr, true, nil))
 
 	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
 	defer done()

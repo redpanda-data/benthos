@@ -357,7 +357,7 @@ func (r *Reader) readMain(mainPath string) (conf Type, pConf *docs.ParsedConfig,
 // TriggerMainUpdate attempts to re-read the main configuration file, trigger
 // the provided main update func, and apply changes to resources to the provided
 // manager as appropriate.
-func (r *Reader) TriggerMainUpdate(mgr bundle.NewManagement, strict bool, newPath string) error {
+func (r *Reader) TriggerMainUpdate(mgr bundle.NewManagement, strict bool, newPath string, successReloadCount *int) error {
 	conf, _, lints, err := r.readMain(newPath)
 	if errors.Is(err, fs.ErrNotExist) {
 		if r.mainPath != newPath {
@@ -415,6 +415,13 @@ func (r *Reader) TriggerMainUpdate(mgr bundle.NewManagement, strict bool, newPat
 		if err := r.mainUpdateFn(&conf); err != nil {
 			mgr.Logger().Error("Failed to apply updated config: %v", err)
 			return err
+		}
+
+		// Success Watcher Count denotes if the configuration in the benthos gets updated with the watcher
+		// flag then success watcher count gets increased
+		if successReloadCount != nil {
+			*successReloadCount = *successReloadCount + 1
+			mgr.Logger().Info("Success Reload Count: %v, For Normal Config", *successReloadCount)
 		}
 		mgr.Logger().Info("Updated main config")
 	}

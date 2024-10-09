@@ -240,7 +240,7 @@ func (r *Reader) readResource(path string) (conf manager.ResourceConfig, lints [
 
 // TriggerResourceUpdate attempts to re-read a resource configuration file and
 // apply changes to the provided manager as appropriate.
-func (r *Reader) TriggerResourceUpdate(mgr bundle.NewManagement, strict bool, path string) error {
+func (r *Reader) TriggerResourceUpdate(mgr bundle.NewManagement, strict bool, path string, successReloadCount *int) error {
 	newResConf, lints, err := r.readResource(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return r.TriggerResourceDelete(mgr, path)
@@ -273,6 +273,11 @@ func (r *Reader) TriggerResourceUpdate(mgr bundle.NewManagement, strict bool, pa
 	}
 
 	r.resourceFileInfo[path] = newInfo
+
+	if successReloadCount != nil {
+		*successReloadCount = *successReloadCount + 1
+		mgr.Logger().Info("Success Reload Count: %v, For Stream Config", *successReloadCount)
+	}
 	return nil
 }
 

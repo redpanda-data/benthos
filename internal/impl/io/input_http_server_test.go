@@ -221,8 +221,11 @@ func TestHTTPServerLifecycle(t *testing.T) {
 	apiConf.Enabled = true
 
 	testURL := fmt.Sprintf("http://localhost:%v/foo/bar", freePort)
-
-	apiImpl, err := api.New("", "", apiConf, nil, log.Noop(), metrics.Noop())
+	configMetadata := api.ConfigMetadata{
+		WholeConf:          nil,
+		SuccessReloadCount: nil,
+	}
+	apiImpl, err := api.New("", "", apiConf, configMetadata, log.Noop(), metrics.Noop())
 	require.NoError(t, err)
 
 	go func() {
