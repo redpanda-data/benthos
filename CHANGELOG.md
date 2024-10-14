@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.39.0 - 2024-10-14
+
+### Added
+
+- Go API: Method `WalkComponentsAny` added to the stream config walker. (@Jeffail)
+
 ## 4.38.0 - 2024-09-17
 
 ### Added
