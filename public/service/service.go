@@ -13,6 +13,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
+	ucli "github.com/urfave/cli/v2"
 )
 
 // RunCLI executes Benthos as a CLI, allowing users to specify a configuration
@@ -227,5 +228,14 @@ func CLIOptOnStreamStart(fn func(s *RunningStreamSummary) error) CLIOptFunc {
 		c.opts.OnStreamInit = func(s common.RunningStream) error {
 			return fn(&RunningStreamSummary{c: s})
 		}
+	}
+}
+
+// CLIOptCustomRunFlags sets a slice of custom cli flags and a closure to be
+// called once those flags are parsed.
+func CLIOptCustomRunFlags(flags []ucli.Flag, fn func(*ucli.Context) error) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.CustomRunFlags = flags
+		c.opts.CustomRunExtractFn = fn
 	}
 }

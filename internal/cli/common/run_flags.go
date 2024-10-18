@@ -105,7 +105,7 @@ const (
 // RunFlags is the full set of root level flags that have been deprecated and
 // are now documented at each subcommand that requires them.
 func RunFlags(opts *CLIOpts, hidden bool) []cli.Flag {
-	return []cli.Flag{
+	f := []cli.Flag{
 		&cli.StringFlag{
 			Name:   RootFlagLogLevel,
 			Hidden: hidden,
@@ -138,6 +138,12 @@ func RunFlags(opts *CLIOpts, hidden bool) []cli.Flag {
 			Usage:   "EXPERIMENTAL: watch config files for changes and automatically apply them",
 		},
 	}
+	if hidden {
+		return f
+	}
+
+	// Only add custom flags when not hidden
+	return append(f, opts.CustomRunFlags...)
 }
 
 // EnvFileAndTemplateFlags represents env file and template flags that are used

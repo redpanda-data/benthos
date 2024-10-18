@@ -13,6 +13,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
+	"github.com/urfave/cli/v2"
 )
 
 // StreamInitFunc is an optional func to be called when a stream (or streams
@@ -44,6 +45,9 @@ type CLIOpts struct {
 	OnLoggerInit         func(l log.Modular) (log.Modular, error)
 
 	OnStreamInit StreamInitFunc
+
+	CustomRunFlags     []cli.Flag
+	CustomRunExtractFn func(*cli.Context) error
 }
 
 // NewCLIOpts returns a new CLIOpts instance populated with default values.
@@ -78,7 +82,8 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 		OnLoggerInit: func(l log.Modular) (log.Modular, error) {
 			return l, nil
 		},
-		OnStreamInit: func(s RunningStream) error { return nil },
+		OnStreamInit:       func(s RunningStream) error { return nil },
+		CustomRunExtractFn: func(*cli.Context) error { return nil },
 	}
 }
 
