@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Field `follow_redirects` added to the `http` processor. (@ooesili)
+- Go API: Cli opt function added for custom CLI flags. (@Jeffail)
 
 ## 4.39.0 - 2024-10-14
 
