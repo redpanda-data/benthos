@@ -48,7 +48,7 @@ output:
 	// Watch for configuration changes
 	testMgr, err := manager.New(manager.ResourceConfig{})
 	require.NoError(t, err)
-	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
+	require.NoError(t, rdr.BeginFileWatching(testMgr, true, nil))
 
 	// Overwrite original config
 	require.NoError(t, os.WriteFile(confFilePath, dummyConfig, 0o644))
@@ -91,16 +91,19 @@ output:
 
 	changeChan := make(chan struct{})
 	var updatedConf stream.Config
+	var once sync.Once
 	require.NoError(t, rdr.SubscribeConfigChanges(func(conf *Type) error {
 		updatedConf = conf.Config
-		close(changeChan)
+		once.Do(func() {
+			close(changeChan)
+		})
 		return nil
 	}))
 
 	// Watch for configuration changes
 	testMgr, err := manager.New(manager.ResourceConfig{})
 	require.NoError(t, err)
-	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
+	require.NoError(t, rdr.BeginFileWatching(testMgr, true, nil))
 
 	// Create a new config folder and place in it a new copy of the config file
 	newConfDir := filepath.Join(rootDir, "config_new")
@@ -184,7 +187,7 @@ func TestReaderStreamDirectWatching(t *testing.T) {
 	// Watch for configuration changes
 	testMgr, err := manager.New(manager.ResourceConfig{})
 	require.NoError(t, err)
-	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
+	require.NoError(t, rdr.BeginFileWatching(testMgr, true, nil))
 
 	require.NoError(t, os.WriteFile(confAPath, []byte(`output: { label: a2, drop: {} }`), 0o644))
 	require.NoError(t, os.WriteFile(confBPath, []byte(`output: { label: b2, drop: {} }`), 0o644))
@@ -268,7 +271,7 @@ func TestReaderStreamWildcardWatching(t *testing.T) {
 	// Watch for configuration changes
 	testMgr, err := manager.New(manager.ResourceConfig{})
 	require.NoError(t, err)
-	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
+	require.NoError(t, rdr.BeginFileWatching(testMgr, true, nil))
 
 	require.NoError(t, os.WriteFile(confAPath, []byte(`output: { label: a2, drop: {} }`), 0o644))
 	require.NoError(t, os.WriteFile(confBPath, []byte(`output: { label: b2, drop: {} }`), 0o644))
@@ -352,7 +355,7 @@ func TestReaderStreamDirWatching(t *testing.T) {
 	// Watch for configuration changes
 	testMgr, err := manager.New(manager.ResourceConfig{})
 	require.NoError(t, err)
-	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
+	require.NoError(t, rdr.BeginFileWatching(testMgr, true, nil))
 
 	require.NoError(t, os.WriteFile(confAPath, []byte(`output: { label: a2, drop: {} }`), 0o644))
 	require.NoError(t, os.WriteFile(confBPath, []byte(`output: { label: b2, drop: {} }`), 0o644))
@@ -443,7 +446,7 @@ func TestReaderWatcherRace(t *testing.T) {
 	// Watch for configuration changes
 	testMgr, err := manager.New(manager.ResourceConfig{})
 	require.NoError(t, err)
-	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
+	require.NoError(t, rdr.BeginFileWatching(testMgr, true, nil))
 
 	for i := 0; i < 2; i++ {
 		// Wait for the config watcher to reload each config
@@ -523,7 +526,7 @@ processor_resources:
 	// Watch for configuration changes
 	testMgr, err := manager.New(manager.ResourceConfig{})
 	require.NoError(t, err)
-	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
+	require.NoError(t, rdr.BeginFileWatching(testMgr, true, nil))
 
 	require.NoError(t, os.WriteFile(confAPath, procConfig("a", "a2"), 0o644))
 	require.NoError(t, os.WriteFile(confBPath, procConfig("b", "b2"), 0o644))

@@ -880,7 +880,11 @@ func (s *StreamBuilder) buildWithEnv(env *bundle.Environment) (*Stream, error) {
 			sanitConf.DocsProvider = env
 			_ = s.configSpec.SanitiseYAML(&sanitNode, sanitConf)
 		}
-		if apiType, err = api.New("", "", s.http, sanitNode, logger, stats); err != nil {
+		configMetadata := api.ConfigMetadata{
+			WholeConf:          sanitNode,
+			SuccessReloadCount: nil,
+		}
+		if apiType, err = api.New("", "", s.http, configMetadata, logger, stats); err != nil {
 			return nil, fmt.Errorf("unable to create stream HTTP server due to: %w. Tip: you can disable the server with `http.enabled` set to `false`, or override the configured server with SetHTTPMux", err)
 		}
 		apiMut = apiType

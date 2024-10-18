@@ -161,7 +161,7 @@ processor_resources:
 	assert.False(t, testMgr.ProbeProcessor("c"))
 	assert.False(t, testMgr.ProbeProcessor("d"))
 
-	require.NoError(t, rdr.TriggerMainUpdate(testMgr, true, "bar_main.yaml"))
+	require.NoError(t, rdr.TriggerMainUpdate(testMgr, true, "bar_main.yaml", nil))
 
 	// Wait for the config watcher to reload the config
 	select {
@@ -226,10 +226,10 @@ processor_resources:
 		return nil
 	}))
 
-	require.NoError(t, rdr.TriggerResourceUpdate(testMgr, true, "a.yaml"))
-	require.NoError(t, rdr.TriggerResourceUpdate(testMgr, true, "b.yaml"))
+	require.NoError(t, rdr.TriggerResourceUpdate(testMgr, true, "a.yaml", nil))
+	require.NoError(t, rdr.TriggerResourceUpdate(testMgr, true, "b.yaml", nil))
 
-	require.NoError(t, rdr.TriggerMainUpdate(testMgr, true, "foo_main.yaml"))
+	require.NoError(t, rdr.TriggerMainUpdate(testMgr, true, "foo_main.yaml", nil))
 
 	assert.Equal(t, "fooin", conf.Input.Label)
 	assert.Equal(t, "fooout", conf.Output.Label)

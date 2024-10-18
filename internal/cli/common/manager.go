@@ -30,8 +30,10 @@ func CreateManager(
 	logger log.Modular,
 	streamsMode bool,
 	conf config.Type,
+	successReloadCount *int,
 	mgrOpts ...manager.OptFunc,
 ) (stoppableMgr *StoppableManager, err error) {
+	logger.Info("Create Manager Is Executed")
 	var stats *metrics.Namespaced
 	var trac trace.TracerProvider
 	defer func() {
@@ -88,7 +90,13 @@ func CreateManager(
 	}
 
 	var httpServer *api.Type
-	if httpServer, err = api.New(cliOpts.Version, cliOpts.DateBuilt, conf.HTTP, sanitNode, logger, stats); err != nil {
+	logger.Info("New Method is calling which is having /debug endpoint")
+	logger.Info("This is Saint NOde %+v", sanitNode)
+	configMetadata := api.ConfigMetadata{
+		WholeConf:          sanitNode,
+		SuccessReloadCount: successReloadCount,
+	}
+	if httpServer, err = api.New(cliOpts.Version, cliOpts.DateBuilt, conf.HTTP, configMetadata, logger, stats); err != nil {
 		err = fmt.Errorf("failed to initialise API: %w", err)
 		return
 	}
@@ -284,7 +292,7 @@ func (s *StoppableManager) Stop(ctx context.Context) error {
 		return err
 	}
 	if err := s.mgr.CloseObservability(ctx); err != nil {
-		s.mgr.Logger().Error("Failed to cleanly close observability components: %s", err)
+		s.mgr.Logger().Error("Failed to cleanly close observability components: %w", err)
 	}
 	return nil
 }
