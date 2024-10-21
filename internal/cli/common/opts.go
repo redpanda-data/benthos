@@ -8,12 +8,13 @@ import (
 	"path"
 	"text/template"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
-	"github.com/urfave/cli/v2"
 )
 
 // StreamInitFunc is an optional func to be called when a stream (or streams

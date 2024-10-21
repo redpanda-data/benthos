@@ -7,13 +7,14 @@ import (
 	"log/slog"
 	"os"
 
+	ucli "github.com/urfave/cli/v2"
+
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
-	ucli "github.com/urfave/cli/v2"
 )
 
 // RunCLI executes Benthos as a CLI, allowing users to specify a configuration

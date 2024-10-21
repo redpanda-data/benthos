@@ -122,5 +122,5 @@ output:
 			return nil
 		}))
 
-	assert.Equal(t, flagExtracted, "foobar")
+	assert.Equal(t, "foobar", flagExtracted)
 }
