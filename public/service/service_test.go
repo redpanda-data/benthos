@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/urfave/cli/v2"
 
 	_ "github.com/redpanda-data/benthos/v4/public/components/io"
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
@@ -89,4 +90,37 @@ output:
 		"inputa":  true,
 		"outputa": true,
 	}, statusMap)
+}
+
+func TestRunCLICustomFlags(t *testing.T) {
+	tmpDir := t.TempDir()
+	confPath := filepath.Join(tmpDir, "foo.yaml")
+
+	require.NoError(t, os.WriteFile(confPath, []byte(`
+input:
+  label: inputa
+  generate:
+    count: 1
+    mapping: 'root.id = "foobar"'
+    interval: "1ms"
+
+output:
+  label: outputa
+  drop: {}
+`), 0o644))
+
+	var flagExtracted string
+	service.RunCLI(context.Background(),
+		service.CLIOptSetArgs("meow", "run", "--meow", "foobar", confPath),
+		service.CLIOptCustomRunFlags([]cli.Flag{
+			&cli.StringFlag{
+				Name:  "meow",
+				Value: "",
+			},
+		}, func(c *cli.Context) error {
+			flagExtracted = c.String("meow")
+			return nil
+		}))
+
+	assert.Equal(t, "foobar", flagExtracted)
 }

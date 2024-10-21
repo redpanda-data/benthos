@@ -8,6 +8,8 @@ import (
 	"path"
 	"text/template"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/config"
@@ -44,6 +46,9 @@ type CLIOpts struct {
 	OnLoggerInit         func(l log.Modular) (log.Modular, error)
 
 	OnStreamInit StreamInitFunc
+
+	CustomRunFlags     []cli.Flag
+	CustomRunExtractFn func(*cli.Context) error
 }
 
 // NewCLIOpts returns a new CLIOpts instance populated with default values.
@@ -78,7 +83,8 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 		OnLoggerInit: func(l log.Modular) (log.Modular, error) {
 			return l, nil
 		},
-		OnStreamInit: func(s RunningStream) error { return nil },
+		OnStreamInit:       func(s RunningStream) error { return nil },
+		CustomRunExtractFn: func(*cli.Context) error { return nil },
 	}
 }
 

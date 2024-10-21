@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"os"
 
+	ucli "github.com/urfave/cli/v2"
+
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli"
@@ -227,5 +229,14 @@ func CLIOptOnStreamStart(fn func(s *RunningStreamSummary) error) CLIOptFunc {
 		c.opts.OnStreamInit = func(s common.RunningStream) error {
 			return fn(&RunningStreamSummary{c: s})
 		}
+	}
+}
+
+// CLIOptCustomRunFlags sets a slice of custom cli flags and a closure to be
+// called once those flags are parsed.
+func CLIOptCustomRunFlags(flags []ucli.Flag, fn func(*ucli.Context) error) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.CustomRunFlags = flags
+		c.opts.CustomRunExtractFn = fn
 	}
 }
