@@ -11,6 +11,10 @@ All notable changes to this project will be documented in this file.
 - Go API: Cli opt function added for custom CLI flags. (@Jeffail)
 - Go API: Methods `HasStructured` and `HasBytes` added to the message type. (@rockwotj)
 
+### Fixed
+
+- WASM builds work again. (@voutilad)
+
 ### Changed
 
 - CLI `--set` flags can now mutate array values indexed from the end via negative integers. E.g. `--set 'foo.-1=meow'` would set the last index of the array `foo` to the value of `meow`.
