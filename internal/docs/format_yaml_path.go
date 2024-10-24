@@ -72,6 +72,15 @@ func getIndexFromSequence(name string, allowAppend bool, node *yaml.Node) (*yaml
 		if err != nil {
 			return nil, fmt.Errorf("%v: failed to parse path segment as array index: %w", name, err)
 		}
+
+		// Allow negative indexes, which target from the end of the array.
+		if index < 0 {
+			index = len(node.Content) + index
+		}
+		if index < 0 {
+			return nil, fmt.Errorf("%v: target index less than zero", name)
+		}
+
 		if len(node.Content) <= index {
 			return nil, fmt.Errorf("%v: target index greater than array length", name)
 		}
