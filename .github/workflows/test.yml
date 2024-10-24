@@ -31,6 +31,9 @@ jobs:
     - name: Test
       run: make test
 
+    - name: Test WASM build
+      run: make build-wasm
+
   golangci-lint:
     if: ${{ github.repository == 'redpanda-data/benthos' || github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
