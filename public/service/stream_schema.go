@@ -67,6 +67,11 @@ func (s *ConfigSchema) Environment() *Environment {
 	return s.env
 }
 
+// SetEnvironment overrides the environment referenced by this schema.
+func (s *ConfigSchema) SetEnvironment(e *Environment) {
+	s.env = e
+}
+
 // TemplateDataSchema contains schema information ready to inject within a
 // documentation page.
 type TemplateDataSchema struct {
