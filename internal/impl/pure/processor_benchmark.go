@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/redpanda-data/benthos/v4/internal/periodic"
 	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
@@ -39,31 +40,18 @@ func newBenchmarkProcFromConfig(conf *service.ParsedConfig, mgr *service.Resourc
 		return nil, err
 	}
 
-	done := make(chan struct{})
 	b := &benchmarkProc{
 		startTime:       time.Now(),
 		rollingInterval: interval,
 		logger:          mgr.Logger(),
-		done:            done,
 	}
 
 	if interval.String() != "0s" {
-		go func() {
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			defer b.wg.Done()
-
-			for {
-				select {
-				case <-done:
-					break
-
-				case <-ticker.C:
-					stats := b.sampleRolling()
-					b.printStats("rolling", stats, b.rollingInterval)
-				}
-			}
-		}()
+		b.periodic = periodic.New(interval, func() {
+			stats := b.sampleRolling()
+			b.printStats("rolling", stats, b.rollingInterval)
+		})
+		b.periodic.Start()
 	}
 
 	return b, nil
@@ -77,9 +65,9 @@ type benchmarkProc struct {
 	lock         sync.Mutex
 	rollingStats benchmarkStats
 	totalStats   benchmarkStats
+	closed       bool
 
-	wg   sync.WaitGroup
-	done chan<- struct{}
+	periodic *periodic.Periodic
 }
 
 func (b *benchmarkProc) Process(ctx context.Context, msg *service.Message) (service.MessageBatch, error) {
@@ -99,15 +87,19 @@ func (b *benchmarkProc) Process(ctx context.Context, msg *service.Message) (serv
 }
 
 func (b *benchmarkProc) Close(ctx context.Context) error {
-	if b.done == nil {
+	// 2024-11-05: We have to guard against Close being from multiple goroutines
+	// at the same time.
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	if b.closed {
 		return nil
 	}
-
-	close(b.done)
-	b.wg.Wait()
-	b.done = nil
-
+	if b.periodic != nil {
+		b.periodic.Stop()
+	}
 	b.printStats("total", b.totalStats, time.Since(b.startTime))
+	b.closed = true
 	return nil
 }
 
@@ -123,12 +115,19 @@ func (b *benchmarkProc) sampleRolling() benchmarkStats {
 
 func (b *benchmarkProc) printStats(window string, stats benchmarkStats, interval time.Duration) {
 	secs := interval.Seconds()
-	b.logger.Infof(
-		"%s stats: %s msg/sec, %s/sec",
-		window,
-		humanize.Ftoa(stats.msgCount/secs),
-		humanize.Bytes(uint64(stats.msgBytesCount/secs)),
-	)
+	msgsPerSec := stats.msgCount / secs
+	bytesPerSec := stats.msgBytesCount / secs
+	b.logger.
+		With(
+			"msg/sec", msgsPerSec,
+			"bytes/sec", bytesPerSec,
+		).
+		Infof(
+			"%s stats: %s msg/sec, %s/sec",
+			window,
+			humanize.Ftoa(msgsPerSec),
+			humanize.Bytes(uint64(bytesPerSec)),
+		)
 }
 
 type benchmarkStats struct {
