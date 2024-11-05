@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
@@ -133,13 +134,13 @@ func (b *benchmarkProc) sampleRolling() benchmarkStats {
 	return s
 }
 
-func (b *benchmarkProc) printStats(window string, s benchmarkStats, interval time.Duration) {
+func (b *benchmarkProc) printStats(window string, stats benchmarkStats, interval time.Duration) {
 	secs := interval.Seconds()
 	b.logger.Infof(
-		"%s stats: %.2f msgs/sec, %.2f bytes/sec",
+		"%s stats: %s msg/sec, %s/sec",
 		window,
-		s.msgCount/secs,
-		s.msgBytesCount/secs,
+		humanize.Ftoa(stats.msgCount/secs),
+		humanize.Bytes(uint64(stats.msgBytesCount/secs)),
 	)
 }
 
