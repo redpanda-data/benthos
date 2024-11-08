@@ -26,7 +26,7 @@ const (
 func benchmarkSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Categories("Utility").
-		Summary("Logs basic throughput statistics of message that pass through this processor.").
+		Summary("Logs basic throughput statistics of messages that pass through this processor.").
 		Description("Logs messages per second and bytes per second of messages that are processed at a regular interval. A summary of the amount of messages processed over the entire lifetime of the processor will also be printed when the processor shuts down.").
 		Field(service.NewDurationField(bmFieldInterval).
 			Description("How often to emit rolling statistics. If set to 0, only a summary will be logged when the processor shuts down.").
