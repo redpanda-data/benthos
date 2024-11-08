@@ -138,11 +138,6 @@ func RunFlags(opts *CLIOpts, hidden bool) []cli.Flag {
 			Usage:   "EXPERIMENTAL: watch config files for changes and automatically apply them",
 		},
 	}
-	if hidden {
-		return f
-	}
-
-	// Only add custom flags when not hidden
 	return append(f, opts.CustomRunFlags...)
 }
 
