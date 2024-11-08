@@ -30,7 +30,11 @@ import (
 // CheckSkip marks a test to be skipped unless the integration test has been
 // specifically requested using the -run flag.
 func CheckSkip(t testing.TB) {
-	if m := flag.Lookup("test.run").Value.String(); m == "" || regexp.MustCompile(strings.Split(m, "/")[0]).FindString(t.Name()) == "" {
+	runStr := flag.Lookup("test.run").Value.String()
+	if runStr == "" {
+		runStr = flag.Lookup("test.bench").Value.String()
+	}
+	if runStr == "" || regexp.MustCompile(strings.Split(runStr, "/")[0]).FindString(t.Name()) == "" {
 		t.Skip("Skipping as execution was not requested explicitly using go test -run ^Test.*Integration.*$")
 	}
 }
@@ -574,18 +578,20 @@ func messagesInSet(t testing.TB, pop, allowDupes bool, b message.Batch, set map[
 	t.Helper()
 
 	for _, p := range b {
-		metadata, exists := set[string(p.AsBytes())]
+		contents := string(p.AsBytes())
+
+		metadata, exists := set[contents]
 		if allowDupes && !exists {
 			return
 		}
-		require.True(t, exists, "in set: %v, set: %v", string(p.AsBytes()), set)
+		require.True(t, exists, "in set: %v, set: %v", contents, set)
 
 		for i := 0; i < len(metadata); i += 2 {
 			assert.Equal(t, metadata[i+1], p.MetaGetStr(metadata[i]))
 		}
 
 		if pop {
-			delete(set, string(p.AsBytes()))
+			delete(set, contents)
 		}
 	}
 }
