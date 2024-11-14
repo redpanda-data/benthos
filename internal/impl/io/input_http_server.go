@@ -57,6 +57,7 @@ const (
 	hsiFieldResponseStatus          = "status"
 	hsiFieldResponseHeaders         = "headers"
 	hsiFieldResponseExtractMetadata = "metadata_headers"
+	hsiFieldResponseLastMessageOnly = "last_message_only"
 	hsiFieldTLS                     = "tls"
 )
 
@@ -80,6 +81,7 @@ type hsiResponseConfig struct {
 	Status          *service.InterpolatedString
 	Headers         map[string]*service.InterpolatedString
 	ExtractMetadata *service.MetadataFilter
+	LastMessageOnly bool
 }
 
 func hsiConfigFromParsed(pConf *service.ParsedConfig) (conf hsiConfig, err error) {
@@ -160,6 +162,10 @@ func hsiResponseConfigFromParsed(pConf *service.ParsedConfig) (conf hsiResponseC
 	if conf.ExtractMetadata, err = pConf.FieldMetadataFilter(hsiFieldResponseExtractMetadata); err != nil {
 		return
 	}
+	if conf.LastMessageOnly, err = pConf.FieldBool(hsiFieldResponseLastMessageOnly); err != nil {
+		return
+	}
+
 	return
 }
 
@@ -277,6 +283,9 @@ You can access these metadata fields using xref:configuration:interpolation.adoc
 					}),
 				service.NewMetadataFilterField(hsiFieldResponseExtractMetadata).
 					Description("Specify criteria for which metadata values are added to the response as headers."),
+				service.NewBoolField(hsiFieldResponseLastMessageOnly).
+					Description("Only send a synchronous response for the last message in a batch.").
+					Default(false),
 			).
 				Description("Customize messages returned via xref:guides:sync_responses.adoc[synchronous responses].").
 				Advanced(),
@@ -678,6 +687,9 @@ func (h *httpServerInput) postHandler(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadGateway)
 				return
 			}
+		}
+		if h.conf.Response.LastMessageOnly {
+			svcBatch = service.MessageBatch{svcBatch[len(svcBatch)-1]}
 		}
 
 		if plen := len(svcBatch); plen == 1 {
