@@ -12,3 +12,8 @@ import (
 func (r *Reader) BeginFileWatching(mgr bundle.NewManagement, strict bool) error {
 	return errors.New("file watching is disabled in WASM builds")
 }
+
+// noReread is a no-op in WASM builds as the file watcher is not supported.
+func noReread(err error) error {
+	return err
+}

@@ -3,6 +3,29 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.40.0 - 2024-10-25
+
+### Added
+
+- Field `follow_redirects` added to the `http` processor. (@ooesili)
+- Go API: Cli opt function added for custom CLI flags. (@Jeffail)
+- Go API: Methods `HasStructured` and `HasBytes` added to the message type. (@rockwotj)
+- Go API: Method `SetEnvironment` added to the schema type. (@Jeffail)
+
+### Fixed
+
+- WASM builds work again. (@voutilad)
+
+### Changed
+
+- CLI `--set` flags can now mutate array values indexed from the end via negative integers. E.g. `--set 'foo.-1=meow'` would set the last index of the array `foo` to the value of `meow`.
+
+## 4.39.0 - 2024-10-14
+
+### Added
+
+- Go API: Method `WalkComponentsAny` added to the stream config walker. (@Jeffail)
+
 ## 4.38.0 - 2024-09-17
 
 ### Added

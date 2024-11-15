@@ -38,6 +38,10 @@ func (e *ErrExitCode) Unwrap() error {
 // RunService runs a service command (either the default or the streams
 // subcommand).
 func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
+	if err := cliOpts.CustomRunExtractFn(c); err != nil {
+		return err
+	}
+
 	mainPath, inferredMainPath, confReader := ReadConfig(c, cliOpts, streamsMode)
 
 	conf, pConf, lints, err := confReader.Read()
