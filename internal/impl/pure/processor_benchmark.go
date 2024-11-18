@@ -54,17 +54,16 @@ func newBenchmarkProcFromConfig(conf *service.ParsedConfig, reporter benchmarkRe
 	}
 
 	b := &benchmarkProc{
-		startTime:       now(),
-		rollingInterval: interval,
-		countBytes:      countBytes,
-		reporter:        reporter,
-		now:             now,
+		startTime:  now(),
+		countBytes: countBytes,
+		reporter:   reporter,
+		now:        now,
 	}
 
 	if interval.String() != "0s" {
 		b.periodic = periodic.New(interval, func() {
 			stats := b.sampleRolling()
-			b.printStats("rolling", stats, b.rollingInterval)
+			b.printStats("rolling", stats, interval)
 		})
 		b.periodic.Start()
 	}
@@ -73,10 +72,9 @@ func newBenchmarkProcFromConfig(conf *service.ParsedConfig, reporter benchmarkRe
 }
 
 type benchmarkProc struct {
-	startTime       time.Time
-	rollingInterval time.Duration
-	countBytes      bool
-	reporter        benchmarkReporter
+	startTime  time.Time
+	countBytes bool
+	reporter   benchmarkReporter
 
 	lock         sync.Mutex
 	rollingStats benchmarkStats
