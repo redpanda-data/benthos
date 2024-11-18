@@ -12,7 +12,12 @@ import (
 )
 
 func init() {
-	err := service.RegisterProcessor("benchmark", benchmarkSpec(), newBenchmarkProcFromConfig)
+	err := service.RegisterProcessor("benchmark", benchmarkSpec(),
+		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
+			reporter := benchmarkLogReporter{logger: mgr.Logger()}
+			return newBenchmarkProcFromConfig(conf, reporter, time.Now)
+		},
+	)
 	if err != nil {
 		panic(err)
 	}
@@ -38,7 +43,7 @@ func benchmarkSpec() *service.ConfigSpec {
 		)
 }
 
-func newBenchmarkProcFromConfig(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
+func newBenchmarkProcFromConfig(conf *service.ParsedConfig, reporter benchmarkReporter, now func() time.Time) (service.Processor, error) {
 	interval, err := conf.FieldDuration(bmFieldInterval)
 	if err != nil {
 		return nil, err
@@ -49,10 +54,11 @@ func newBenchmarkProcFromConfig(conf *service.ParsedConfig, mgr *service.Resourc
 	}
 
 	b := &benchmarkProc{
-		startTime:       time.Now(),
+		startTime:       now(),
 		rollingInterval: interval,
 		countBytes:      countBytes,
-		logger:          mgr.Logger(),
+		reporter:        reporter,
+		now:             now,
 	}
 
 	if interval.String() != "0s" {
@@ -70,7 +76,7 @@ type benchmarkProc struct {
 	startTime       time.Time
 	rollingInterval time.Duration
 	countBytes      bool
-	logger          *service.Logger
+	reporter        benchmarkReporter
 
 	lock         sync.Mutex
 	rollingStats benchmarkStats
@@ -78,6 +84,7 @@ type benchmarkProc struct {
 	closed       bool
 
 	periodic *periodic.Periodic
+	now      func() time.Time
 }
 
 func (b *benchmarkProc) Process(ctx context.Context, msg *service.Message) (service.MessageBatch, error) {
@@ -114,7 +121,7 @@ func (b *benchmarkProc) Close(ctx context.Context) error {
 	if b.periodic != nil {
 		b.periodic.Stop()
 	}
-	b.printStats("total", b.totalStats, time.Since(b.startTime))
+	b.printStats("total", b.totalStats, b.now().Sub(b.startTime))
 	b.closed = true
 	return nil
 }
@@ -135,29 +142,46 @@ func (b *benchmarkProc) printStats(window string, stats benchmarkStats, interval
 
 	if b.countBytes {
 		bytesPerSec := stats.msgBytesCount / secs
-		b.logger.
-			With(
-				"msg/sec", msgsPerSec,
-				"bytes/sec", bytesPerSec,
-			).
-			Infof(
-				"%s stats: %s msg/sec, %s/sec",
-				window,
-				humanize.Ftoa(msgsPerSec),
-				humanize.Bytes(uint64(bytesPerSec)),
-			)
+		b.reporter.reportStats(window, msgsPerSec, bytesPerSec)
 	} else {
-		b.logger.
-			With("msg/sec", msgsPerSec).
-			Infof(
-				"%s stats: %s msg/sec",
-				window,
-				humanize.Ftoa(msgsPerSec),
-			)
+		b.reporter.reportStatsNoBytes(window, msgsPerSec)
 	}
 }
 
 type benchmarkStats struct {
 	msgCount      float64
 	msgBytesCount float64
+}
+
+type benchmarkReporter interface {
+	reportStats(window string, msgsPerSec, bytesPerSec float64)
+	reportStatsNoBytes(window string, msgsPerSec float64)
+}
+
+type benchmarkLogReporter struct {
+	logger *service.Logger
+}
+
+func (l benchmarkLogReporter) reportStats(window string, msgsPerSec, bytesPerSec float64) {
+	l.logger.
+		With(
+			"msg/sec", msgsPerSec,
+			"bytes/sec", bytesPerSec,
+		).
+		Infof(
+			"%s stats: %s msg/sec, %s/sec",
+			window,
+			humanize.Ftoa(msgsPerSec),
+			humanize.Bytes(uint64(bytesPerSec)),
+		)
+}
+
+func (l benchmarkLogReporter) reportStatsNoBytes(window string, msgsPerSec float64) {
+	l.logger.
+		With("msg/sec", msgsPerSec).
+		Infof(
+			"%s stats: %s msg/sec",
+			window,
+			humanize.Ftoa(msgsPerSec),
+		)
 }
