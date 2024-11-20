@@ -227,7 +227,9 @@ func (m *Type) Delete(ctx context.Context, id string) error {
 	}
 
 	if err := wrapper.strm.Stop(ctx); err != nil {
-		return err
+		if !(errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+			return err
+		}
 	}
 
 	m.lock.Lock()
