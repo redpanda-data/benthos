@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/dustin/go-humanize"
+
 	"github.com/redpanda-data/benthos/v4/internal/periodic"
 	"github.com/redpanda-data/benthos/v4/public/service"
 )
