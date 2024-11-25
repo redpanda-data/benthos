@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.41.1 - 2024-11-25
+
+### Fixed
+
+- Fixed an issue where running a CLI with a custom environment would cause imported templates to be rejected.
+
 ## 4.41.0 - 2024-11-20
 
 ### Added

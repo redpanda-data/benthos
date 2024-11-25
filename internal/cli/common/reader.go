@@ -2,6 +2,7 @@ package common
 
 import (
 	"github.com/redpanda-data/benthos/v4/internal/config"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 
 	"github.com/urfave/cli/v2"
@@ -22,10 +23,14 @@ func ReadConfig(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) (mainPath st
 			}
 		}
 	}
+
+	lintConf := docs.NewLintConfig(cliOpts.Environment)
+
 	opts := []config.OptFunc{
 		config.OptSetFullSpec(cliOpts.MainConfigSpecCtor),
 		config.OptAddOverrides(cliOpts.RootFlags.GetSet(c)...),
 		config.OptTestSuffix("_benthos_test"),
+		config.OptSetLintConfig(lintConf),
 	}
 	if streamsMode {
 		opts = append(opts, config.OptSetStreamPaths(c.Args().Slice()...))

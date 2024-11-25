@@ -124,3 +124,81 @@ output:
 
 	assert.Equal(t, "foobar", flagExtracted)
 }
+
+func TestRunCLITemplate(t *testing.T) {
+	tmpDir := t.TempDir()
+	confPath := filepath.Join(tmpDir, "foo.yaml")
+	tmplPath := filepath.Join(tmpDir, "bar.yaml")
+	outPath := filepath.Join(tmpDir, "out.txt")
+
+	require.NoError(t, os.WriteFile(confPath, fmt.Appendf(nil, `
+input:
+  generate:
+    mapping: 'root.id = "foobar"'
+    interval: "100ms"
+  processors:
+    - bar: {}
+output:
+  file:
+    codec: lines
+    path: %v
+`, outPath), 0o644))
+
+	require.NoError(t, os.WriteFile(tmplPath, []byte(`
+name: bar
+type: processor
+
+mapping: 'root.mapping = "content().uppercase()"'
+`), 0o644))
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
+	defer cancel()
+
+	service.RunCLI(ctx, service.CLIOptSetArgs("benthos", "run", "-t", tmplPath, confPath))
+
+	data, _ := os.ReadFile(outPath)
+	assert.Contains(t, string(data), "FOOBAR")
+}
+
+func TestRunCLITemplateCustomEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	confPath := filepath.Join(tmpDir, "foo.yaml")
+	tmplPath := filepath.Join(tmpDir, "bar.yaml")
+	outPath := filepath.Join(tmpDir, "out.txt")
+
+	env := service.NewEnvironment().Clone()
+
+	require.NoError(t, os.WriteFile(confPath, fmt.Appendf(nil, `
+input:
+  generate:
+    mapping: 'root.id = "foobar"'
+    interval: "100ms"
+  processors:
+    - aaabbbccc: {}
+output:
+  file:
+    codec: lines
+    path: %v
+`, outPath), 0o644))
+
+	require.NoError(t, os.WriteFile(tmplPath, []byte(`
+name: aaabbbccc
+type: processor
+
+mapping: 'root.mapping = "content().uppercase()"'
+`), 0o644))
+
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
+	defer cancel()
+
+	service.RunCLI(ctx,
+		service.CLIOptSetMainSchemaFrom(func() *service.ConfigSchema {
+			return env.FullConfigSchema("", "")
+		}),
+		service.CLIOptSetEnvironment(env),
+		service.CLIOptSetArgs("benthos", "run", "-t", tmplPath, confPath),
+	)
+
+	data, _ := os.ReadFile(outPath)
+	assert.Contains(t, string(data), "FOOBAR")
+}

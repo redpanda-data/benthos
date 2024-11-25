@@ -5,6 +5,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/mapping"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component/cache"
@@ -20,10 +21,10 @@ import (
 
 // InitTemplates parses and registers native templates, as well as templates
 // at paths provided, and returns any linting errors that occur.
-func InitTemplates(templatesPaths ...string) ([]string, error) {
+func InitTemplates(env *bundle.Environment, bloblEnv *bloblang.Environment, templatesPaths ...string) ([]string, error) {
 	var lints []string
 	for _, tPath := range templatesPaths {
-		tmplConf, tLints, err := ReadConfigFile(tPath)
+		tmplConf, tLints, err := ReadConfigFile(env, tPath)
 		if err != nil {
 			return nil, fmt.Errorf("template %v: %w", tPath, err)
 		}
@@ -31,12 +32,13 @@ func InitTemplates(templatesPaths ...string) ([]string, error) {
 			lints = append(lints, fmt.Sprintf("template file %v: %v", tPath, l))
 		}
 
-		tmpl, err := tmplConf.compile()
+		tmpl, err := tmplConf.compile(bloblEnv)
 		if err != nil {
 			return nil, fmt.Errorf("template %v: %w", tPath, err)
 		}
 
-		if err := registerTemplate(bundle.GlobalEnvironment, tmpl); err != nil {
+		fmt.Println("Registering " + tmpl.spec.Name)
+		if err := registerTemplate(env, tmpl); err != nil {
 			return nil, fmt.Errorf("template %v: %w", tPath, err)
 		}
 	}
@@ -86,13 +88,13 @@ func (c *compiled) Render(node any) (any, error) {
 
 // RegisterTemplateYAML attempts to register a new template component to the
 // specified environment.
-func RegisterTemplateYAML(env *bundle.Environment, template []byte) error {
-	tmplConf, _, err := ReadConfigYAML(template)
+func RegisterTemplateYAML(env *bundle.Environment, bloblEnv *bloblang.Environment, template []byte) error {
+	tmplConf, _, err := ReadConfigYAML(env, template)
 	if err != nil {
 		return err
 	}
 
-	tmpl, err := tmplConf.compile()
+	tmpl, err := tmplConf.compile(bloblEnv)
 	if err != nil {
 		return err
 	}
