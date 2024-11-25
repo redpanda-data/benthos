@@ -695,7 +695,7 @@ func (e *Environment) GetScannerConfig(name string) (*ConfigView, bool) {
 // document, to the environment such that it may be used similarly to any other
 // component plugin.
 func (e *Environment) RegisterTemplateYAML(yamlStr string) error {
-	return template.RegisterTemplateYAML(e.internal, []byte(yamlStr))
+	return template.RegisterTemplateYAML(e.internal, e.getBloblangParserEnv(), []byte(yamlStr))
 }
 
 // XFormatConfigJSON returns a byte slice of the Benthos configuration spec

@@ -102,12 +102,12 @@ func (c Config) ComponentSpec() (docs.ComponentSpec, error) {
 	}, nil
 }
 
-func (c Config) compile() (*compiled, error) {
+func (c Config) compile(env *bloblang.Environment) (*compiled, error) {
 	spec, err := c.ComponentSpec()
 	if err != nil {
 		return nil, err
 	}
-	mapping, err := bloblang.GlobalEnvironment().NewMapping(c.Mapping)
+	mapping, err := env.NewMapping(c.Mapping)
 	if err != nil {
 		var perr *parser.Error
 		if errors.As(err, &perr) {
@@ -149,8 +149,8 @@ func diffYAMLNodesAsJSON(expNode *yaml.Node, actNode any) (string, error) {
 
 // Test ensures that the template compiles, and executes any unit test
 // definitions within the config.
-func (c Config) Test() ([]string, error) {
-	compiled, err := c.compile()
+func (c Config) Test(env *bundle.Environment, benv *bloblang.Environment) ([]string, error) {
+	compiled, err := c.compile(benv)
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func (c Config) Test() ([]string, error) {
 
 		var yNode yaml.Node
 		if err := yNode.Encode(outConf); err == nil {
-			for _, lint := range docs.LintYAML(docs.NewLintContext(docs.NewLintConfig(bundle.GlobalEnvironment)), docs.Type(c.Type), &yNode) {
+			for _, lint := range docs.LintYAML(docs.NewLintContext(docs.NewLintConfig(env)), docs.Type(c.Type), &yNode) {
 				failures = append(failures, fmt.Sprintf("test '%v': lint error in resulting config: %v", test.Name, lint.Error()))
 			}
 		} else {
@@ -186,7 +186,7 @@ func (c Config) Test() ([]string, error) {
 
 // ReadConfigYAML attempts to read a YAML byte slice as a template configuration
 // file.
-func ReadConfigYAML(templateBytes []byte) (conf Config, lints []docs.Lint, err error) {
+func ReadConfigYAML(env *bundle.Environment, templateBytes []byte) (conf Config, lints []docs.Lint, err error) {
 	if err = yaml.Unmarshal(templateBytes, &conf); err != nil {
 		return
 	}
@@ -196,17 +196,17 @@ func ReadConfigYAML(templateBytes []byte) (conf Config, lints []docs.Lint, err e
 		return
 	}
 
-	lints = ConfigSpec().LintYAML(docs.NewLintContext(docs.NewLintConfig(bundle.GlobalEnvironment)), &node)
+	lints = ConfigSpec().LintYAML(docs.NewLintContext(docs.NewLintConfig(env)), &node)
 	return
 }
 
 // ReadConfigFile attempts to read a template configuration file.
-func ReadConfigFile(path string) (conf Config, lints []docs.Lint, err error) {
+func ReadConfigFile(env *bundle.Environment, path string) (conf Config, lints []docs.Lint, err error) {
 	var templateBytes []byte
 	if templateBytes, err = ifs.ReadFile(ifs.OS(), path); err != nil {
 		return
 	}
-	return ReadConfigYAML(templateBytes)
+	return ReadConfigYAML(env, templateBytes)
 }
 
 //------------------------------------------------------------------------------

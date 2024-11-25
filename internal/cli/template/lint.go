@@ -7,6 +7,8 @@ import (
 	"github.com/fatih/color"
 	"github.com/urfave/cli/v2"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	ifilepath "github.com/redpanda-data/benthos/v4/internal/filepath"
@@ -74,7 +76,7 @@ type pathLint struct {
 }
 
 func lintFile(path string) (pathLints []pathLint) {
-	conf, lints, err := template.ReadConfigFile(path)
+	conf, lints, err := template.ReadConfigFile(bundle.GlobalEnvironment, path)
 	if err != nil {
 		pathLints = append(pathLints, pathLint{
 			source: path,
@@ -90,7 +92,7 @@ func lintFile(path string) (pathLints []pathLint) {
 		})
 	}
 
-	testErrors, err := conf.Test()
+	testErrors, err := conf.Test(bundle.GlobalEnvironment, bloblang.GlobalEnvironment())
 	if err != nil {
 		pathLints = append(pathLints, pathLint{
 			source: path,

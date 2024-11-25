@@ -189,7 +189,7 @@ func PreApplyEnvFilesAndTemplates(c *cli.Context, opts *CLIOpts) error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve template glob pattern: %w", err)
 	}
-	lints, err := template.InitTemplates(templatesPaths...)
+	lints, err := template.InitTemplates(opts.Environment, opts.BloblEnvironment, templatesPaths...)
 	if err != nil {
 		return fmt.Errorf("template file read error: %w", err)
 	}

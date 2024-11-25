@@ -24,7 +24,7 @@ func TestCacheTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: foo_memory
 type: cache
 
@@ -56,7 +56,7 @@ func TestInputTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: generate_a_foo
 type: input
 
@@ -116,7 +116,7 @@ func TestOutputTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: write_inproc
 type: output
 
@@ -190,7 +190,7 @@ func TestProcessorTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: append_foo
 type: processor
 
@@ -225,7 +225,7 @@ func TestProcessorTemplateOddIndentation(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: meow
 type: processor
 
@@ -267,7 +267,7 @@ func TestRateLimitTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: foo
 type: rate_limit
 
