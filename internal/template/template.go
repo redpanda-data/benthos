@@ -37,7 +37,6 @@ func InitTemplates(env *bundle.Environment, bloblEnv *bloblang.Environment, temp
 			return nil, fmt.Errorf("template %v: %w", tPath, err)
 		}
 
-		fmt.Println("Registering " + tmpl.spec.Name)
 		if err := registerTemplate(env, tmpl); err != nil {
 			return nil, fmt.Errorf("template %v: %w", tPath, err)
 		}
