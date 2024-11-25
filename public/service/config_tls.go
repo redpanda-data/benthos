@@ -15,7 +15,17 @@ import (
 // settings for networked components. It is then possible to extract a
 // *tls.Config from the resulting parsed config with the method FieldTLS.
 func NewTLSField(name string) *ConfigField {
-	tf := btls.FieldSpec()
+	return newTLSField(name, btls.FieldSpec())
+}
+
+// NewServerTLSField defines a new object type config field that describes TLS
+// settings for server side networked components. It is then possible to extract a
+// *tls.Config from the resulting parsed config with the method FieldTLS.
+func NewServerTLSField(name string) *ConfigField {
+	return newTLSField(name, btls.ServerFieldSpec())
+}
+
+func newTLSField(name string, tf docs.FieldSpec) *ConfigField {
 	tf.Name = name
 	var newChildren []docs.FieldSpec
 	for _, f := range tf.Children {
@@ -58,6 +68,19 @@ func (p *ParsedConfig) FieldTLS(path ...string) (*tls.Config, error) {
 // resulting parsed config with the method FieldTLSToggled.
 func NewTLSToggledField(name string) *ConfigField {
 	tf := btls.FieldSpec()
+	tf.Name = name
+	return &ConfigField{field: tf}
+}
+
+// NewServerTLSToggledField defines a new object type config field that describes
+// TLS settings for server side networked components. This field differs from a
+// a standard TLSField as it includes a boolean field `enabled` which allows
+// users to explicitly configure whether TLS should be enabled or not.
+//
+// A *tls.Config as well as an enabled boolean value can be extracted from the
+// resulting parsed config with the method FieldTLSToggled.
+func NewServerTLSToggledField(name string) *ConfigField {
+	tf := btls.ServerFieldSpec()
 	tf.Name = name
 	return &ConfigField{field: tf}
 }

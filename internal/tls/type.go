@@ -29,7 +29,11 @@ type Config struct {
 	RootCAsFile         string             `json:"root_cas_file" yaml:"root_cas_file"`
 	InsecureSkipVerify  bool               `json:"skip_cert_verify" yaml:"skip_cert_verify"`
 	ClientCertificates  []ClientCertConfig `json:"client_certs" yaml:"client_certs"`
+	ServerCertificates  []ClientCertConfig `json:"server_certs" yaml:"server_certs"`
 	EnableRenegotiation bool               `json:"enable_renegotiation" yaml:"enable_renegotiation"`
+	RequireMutualTLS    bool               `json:"require_mutual_tls" yaml:"require_mutual_tls"`
+	ClientRootCAS       string             `json:"client_root_cas" yaml:"client_root_cas"`
+	ClientRootCASFile   string             `json:"client_root_cas_file" yaml:"client_root_cas_file"`
 }
 
 // NewConfig creates a new Config with default values.
@@ -41,6 +45,7 @@ func NewConfig() Config {
 		InsecureSkipVerify:  false,
 		ClientCertificates:  []ClientCertConfig{},
 		EnableRenegotiation: false,
+		RequireMutualTLS:    false,
 	}
 }
 
@@ -67,6 +72,9 @@ func (c *Config) GetNonToggled(f ifs.FS) (*tls.Config, error) {
 	if c.RootCAs != "" && c.RootCAsFile != "" {
 		return nil, errors.New("only one field between root_cas and root_cas_file can be specified")
 	}
+	if c.ClientRootCAS != "" && c.ClientRootCASFile != "" {
+		return nil, errors.New("only one field between client_root_cas and client_root_cas_file can be specified")
+	}
 
 	if c.RootCAsFile != "" {
 		caCert, err := ifs.ReadFile(f, c.RootCAsFile)
@@ -84,7 +92,32 @@ func (c *Config) GetNonToggled(f ifs.FS) (*tls.Config, error) {
 		tlsConf.RootCAs.AppendCertsFromPEM([]byte(c.RootCAs))
 	}
 
+	if c.ClientRootCASFile != "" {
+		caCert, err := ifs.ReadFile(f, c.ClientRootCASFile)
+		if err != nil {
+			return nil, err
+		}
+		initConf()
+		tlsConf.ClientCAs = x509.NewCertPool()
+		tlsConf.ClientCAs.AppendCertsFromPEM(caCert)
+	}
+
+	if c.ClientRootCAS != "" {
+		initConf()
+		tlsConf.ClientCAs = x509.NewCertPool()
+		tlsConf.ClientCAs.AppendCertsFromPEM([]byte(c.ClientRootCAS))
+	}
+
 	for _, conf := range c.ClientCertificates {
+		cert, err := conf.Load(f)
+		if err != nil {
+			return nil, err
+		}
+		initConf()
+		tlsConf.Certificates = append(tlsConf.Certificates, cert)
+	}
+
+	for _, conf := range c.ServerCertificates {
 		cert, err := conf.Load(f)
 		if err != nil {
 			return nil, err
@@ -101,6 +134,11 @@ func (c *Config) GetNonToggled(f ifs.FS) (*tls.Config, error) {
 	if c.InsecureSkipVerify {
 		initConf()
 		tlsConf.InsecureSkipVerify = true
+	}
+
+	if c.RequireMutualTLS {
+		initConf()
+		tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
 	}
 
 	return tlsConf, nil
