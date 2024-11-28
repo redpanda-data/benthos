@@ -55,7 +55,7 @@ func newStream(
 	}
 }
 
-// Resources returns a pointer to the common resources type of the stream.r
+// Resources returns a pointer to the common resources type of the stream.
 func (s *Stream) Resources() *Resources {
 	return newResourcesFromManager(s.mgr)
 }
