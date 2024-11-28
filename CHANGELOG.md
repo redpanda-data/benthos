@@ -3,6 +3,10 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.42.0 - TBD
+
+- New `exists` operator added to the `cache` processor. (@mihaitodor)
+
 ## 4.41.1 - 2024-11-25
 
 ### Fixed
