@@ -13,6 +13,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/component/ratelimit"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
+	"github.com/redpanda-data/benthos/v4/internal/manager"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 )
 
@@ -23,6 +24,18 @@ type Resources struct {
 
 func newResourcesFromManager(nm bundle.NewManagement) *Resources {
 	return &Resources{mgr: nm}
+}
+
+// NewInternalResources returns a resources pointer wrapped around an
+// instantiation of the internal manager package. This function is for internal
+// use only and intended as a scaffold for internal components migrating to the
+// new APIs.
+func NewInternalResources(mgr *manager.Type) *Resources {
+	// NOTE: I've implemented this around an explicit pointer to `manager.Type`
+	// rather than `bundle.NewManagement` just to make it even clearer to
+	// outsiders that you aren't meant to use this function unless you're able
+	// to access internal.
+	return newResourcesFromManager(mgr)
 }
 
 // MockResources returns an instantiation of a resources struct that provides

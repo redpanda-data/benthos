@@ -21,6 +21,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/manager"
 	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/public/service"
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
@@ -90,13 +91,34 @@ type streamTestEnvironment struct {
 	ctx     context.Context
 	log     log.Modular
 	stats   *metrics.Namespaced
-	mgr     bundle.NewManagement
+	mgr     *manager.Type
 
 	allowDuplicateMessages bool
+
+	// On manager init
+	onMgrInit func(m *manager.Type) error
 
 	// Ugly work arounds for slow connectors.
 	sleepAfterInput  time.Duration
 	sleepAfterOutput time.Duration
+}
+
+func (e *streamTestEnvironment) initMgr(t testing.TB, pConf *docs.ParsedConfig) {
+	t.Helper()
+
+	if e.mgr != nil {
+		return
+	}
+
+	mConf, err := manager.FromParsed(bundle.GlobalEnvironment, pConf)
+	require.NoError(t, err)
+
+	e.mgr, err = manager.New(mConf, manager.OptSetLogger(e.log), manager.OptSetMetrics(e.stats))
+	require.NoError(t, err)
+
+	if e.onMgrInit != nil {
+		require.NoError(t, e.onMgrInit(e.mgr))
+	}
 }
 
 func newStreamTestEnvironment(t testing.TB, confTemplate string) streamTestEnvironment {
@@ -162,6 +184,16 @@ func StreamTestOptAllowDupes() StreamTestOptFunc {
 func StreamTestOptMaxInFlight(n int) StreamTestOptFunc {
 	return func(env *streamTestEnvironment) {
 		env.configVars.General["MAX_IN_FLIGHT"] = strconv.Itoa(n)
+	}
+}
+
+// StreamTestOptOnResourcesInit sets a closure to be called once the common
+// resources are initialised for the test components.
+func StreamTestOptOnResourcesInit(fn func(res *service.Resources) error) StreamTestOptFunc {
+	return func(env *streamTestEnvironment) {
+		env.onMgrInit = func(m *manager.Type) error {
+			return fn(service.NewInternalResources(m))
+		}
 	}
 }
 
@@ -368,13 +400,7 @@ func initInput(t testing.TB, env *streamTestEnvironment) input.Streamed {
 	iConf, err := input.FromAny(bundle.GlobalEnvironment, pVal)
 	require.NoError(t, err)
 
-	mConf, err := manager.FromParsed(bundle.GlobalEnvironment, pConf)
-	require.NoError(t, err)
-
-	if env.mgr == nil {
-		env.mgr, err = manager.New(mConf, manager.OptSetLogger(env.log), manager.OptSetMetrics(env.stats))
-		require.NoError(t, err)
-	}
+	env.initMgr(t, pConf)
 
 	input, err := env.mgr.NewInput(iConf)
 	require.NoError(t, err)
@@ -410,13 +436,7 @@ func initOutput(t testing.TB, trans <-chan message.Transaction, env *streamTestE
 	oConf, err := output.FromAny(bundle.GlobalEnvironment, pVal)
 	require.NoError(t, err)
 
-	mConf, err := manager.FromParsed(bundle.GlobalEnvironment, pConf)
-	require.NoError(t, err)
-
-	if env.mgr == nil {
-		env.mgr, err = manager.New(mConf, manager.OptSetLogger(env.log), manager.OptSetMetrics(env.stats))
-		require.NoError(t, err)
-	}
+	env.initMgr(t, pConf)
 
 	output, err := env.mgr.NewOutput(oConf)
 	require.NoError(t, err)
