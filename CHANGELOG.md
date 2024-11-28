@@ -3,6 +3,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.42.0 - 2024-11-29
+
+### Added
+
+- Go API: Method `Resources() *service.Resources` added to the stream builders derived `Stream` type.
+- Go API: Integration stream test opt `StreamTestOptOnResourcesInit` added for accessing the resources of test components.
+
 ## 4.41.1 - 2024-11-25
 
 ### Fixed
