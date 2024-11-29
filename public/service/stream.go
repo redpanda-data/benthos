@@ -55,6 +55,11 @@ func newStream(
 	}
 }
 
+// Resources returns a pointer to the common resources type of the stream.
+func (s *Stream) Resources() *Resources {
+	return newResourcesFromManager(s.mgr)
+}
+
 // Run attempts to start the stream pipeline and blocks until either the stream
 // has gracefully come to a stop, or the provided context is cancelled.
 func (s *Stream) Run(ctx context.Context) (err error) {
