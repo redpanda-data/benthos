@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/OneOfOne/xxhash"
 	"github.com/tilinna/z85"
@@ -1404,6 +1405,43 @@ var _ = registerSimpleMethod(
 					result[len(t)-i-1] = b
 				}
 				return result, nil
+			}
+
+			return nil, value.NewTypeError(v, value.TString)
+		}, nil
+	},
+)
+
+//------------------------------------------------------------------------------
+
+var _ = registerSimpleMethod(
+	NewMethodSpec(
+		"camel_to_snake", "",
+	).InCategory(
+		MethodCategoryStrings,
+		"Converts the target string from CamelCase to snake_case.",
+		NewExampleSpec("",
+			`root.snake_case = this.thing.camel_to_snake()`,
+			`{"thing":"CamelCaseToSnakeCase"}`,
+			`{"snake_case":"camel_case_to_snake_case"}`,
+		),
+	),
+	func(*ParsedParams) (simpleMethod, error) {
+		return func(v any, ctx FunctionContext) (any, error) {
+			switch t := v.(type) {
+			case string:
+				var result []rune
+				for i, r := range t {
+					if unicode.IsUpper(r) {
+						if i > 0 {
+							result = append(result, '_')
+						}
+						result = append(result, unicode.ToLower(r))
+					} else {
+						result = append(result, r)
+					}
+				}
+				return string(result), nil
 			}
 
 			return nil, value.NewTypeError(v, value.TString)
