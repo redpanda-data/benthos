@@ -10,73 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
-	"github.com/redpanda-data/benthos/v4/internal/log"
+	log_testutil "github.com/redpanda-data/benthos/v4/internal/log/testutil"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 )
-
-type mockLog struct {
-	traces        []string
-	debugs        []string
-	infos         []string
-	warns         []string
-	errors        []string
-	fields        []map[string]string
-	mappingFields []any
-}
-
-func (m *mockLog) NewModule(prefix string) log.Modular { return m }
-func (m *mockLog) WithFields(fields map[string]string) log.Modular {
-	m.fields = append(m.fields, fields)
-	return m
-}
-
-func (m *mockLog) With(args ...any) log.Modular {
-	m.mappingFields = append(m.mappingFields, args...)
-	return m
-}
-
-func (m *mockLog) Fatal(format string, v ...any) {}
-func (m *mockLog) Error(format string, v ...any) {
-	m.errors = append(m.errors, fmt.Sprintf(format, v...))
-}
-
-func (m *mockLog) Warn(format string, v ...any) {
-	m.warns = append(m.warns, fmt.Sprintf(format, v...))
-}
-
-func (m *mockLog) Info(format string, v ...any) {
-	m.infos = append(m.infos, fmt.Sprintf(format, v...))
-}
-
-func (m *mockLog) Debug(format string, v ...any) {
-	m.debugs = append(m.debugs, fmt.Sprintf(format, v...))
-}
-
-func (m *mockLog) Trace(format string, v ...any) {
-	m.traces = append(m.traces, fmt.Sprintf(format, v...))
-}
-
-func (m *mockLog) Fatalln(message string) {}
-func (m *mockLog) Errorln(message string) {
-	m.errors = append(m.errors, message)
-}
-
-func (m *mockLog) Warnln(message string) {
-	m.warns = append(m.warns, message)
-}
-
-func (m *mockLog) Infoln(message string) {
-	m.infos = append(m.infos, message)
-}
-
-func (m *mockLog) Debugln(message string) {
-	m.debugs = append(m.debugs, message)
-}
-
-func (m *mockLog) Traceln(message string) {
-	m.traces = append(m.traces, message)
-}
 
 func TestLogBadLevel(t *testing.T) {
 	conf, err := testutil.ProcessorFromYAML(`
@@ -91,7 +28,7 @@ log:
 }
 
 func TestLogLevelTrace(t *testing.T) {
-	logMock := &mockLog{}
+	logMock := &log_testutil.MockLog{}
 
 	levels := []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
 	for _, level := range levels {
@@ -121,19 +58,19 @@ log:
 		}
 	}
 
-	if exp, act := []string{"TRACE"}, logMock.traces; !reflect.DeepEqual(exp, act) {
+	if exp, act := []string{"TRACE"}, logMock.Traces; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong log for trace: %v != %v", act, exp)
 	}
-	if exp, act := []string{"DEBUG"}, logMock.debugs; !reflect.DeepEqual(exp, act) {
+	if exp, act := []string{"DEBUG"}, logMock.Debugs; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong log for debug: %v != %v", act, exp)
 	}
-	if exp, act := []string{"INFO"}, logMock.infos; !reflect.DeepEqual(exp, act) {
+	if exp, act := []string{"INFO"}, logMock.Infos; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong log for info: %v != %v", act, exp)
 	}
-	if exp, act := []string{"WARN"}, logMock.warns; !reflect.DeepEqual(exp, act) {
+	if exp, act := []string{"WARN"}, logMock.Warns; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong log for warn: %v != %v", act, exp)
 	}
-	if exp, act := []string{"ERROR"}, logMock.errors; !reflect.DeepEqual(exp, act) {
+	if exp, act := []string{"ERROR"}, logMock.Errors; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong log for error: %v != %v", act, exp)
 	}
 }
@@ -149,7 +86,7 @@ log:
 `)
 	require.NoError(t, err)
 
-	logMock := &mockLog{}
+	logMock := &log_testutil.MockLog{}
 
 	mgr := mock.NewManager()
 	mgr.L = logMock
@@ -169,14 +106,14 @@ log:
 		t.Errorf("Wrong message passthrough: %v != %v", actMsgs, expMsgs)
 	}
 
-	if exp, act := []string{"info message"}, logMock.infos; !reflect.DeepEqual(exp, act) {
+	if exp, act := []string{"info message"}, logMock.Infos; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong log output: %v != %v", act, exp)
 	}
-	t.Logf("Checking %v\n", logMock.fields)
-	if exp, act := 1, len(logMock.fields); exp != act {
+	t.Logf("Checking %v\n", logMock.Fields)
+	if exp, act := 1, len(logMock.Fields); exp != act {
 		t.Fatalf("Wrong count of fields: %v != %v", act, exp)
 	}
-	if exp, act := map[string]string{"dynamic": "with fields", "static": "foo"}, logMock.fields[0]; !reflect.DeepEqual(exp, act) {
+	if exp, act := map[string]string{"dynamic": "with fields", "static": "foo"}, logMock.Fields[0]; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong field output: %v != %v", act, exp)
 	}
 
@@ -190,17 +127,17 @@ log:
 		t.Errorf("Wrong message passthrough: %v != %v", actMsgs, expMsgs)
 	}
 
-	if exp, act := []string{"info message", "info message 2"}, logMock.infos; !reflect.DeepEqual(exp, act) {
+	if exp, act := []string{"info message", "info message 2"}, logMock.Infos; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong log output: %v != %v", act, exp)
 	}
-	t.Logf("Checking %v\n", logMock.fields)
-	if exp, act := 2, len(logMock.fields); exp != act {
+	t.Logf("Checking %v\n", logMock.Fields)
+	if exp, act := 2, len(logMock.Fields); exp != act {
 		t.Fatalf("Wrong count of fields: %v != %v", act, exp)
 	}
-	if exp, act := map[string]string{"dynamic": "with fields", "static": "foo"}, logMock.fields[0]; !reflect.DeepEqual(exp, act) {
+	if exp, act := map[string]string{"dynamic": "with fields", "static": "foo"}, logMock.Fields[0]; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong field output: %v != %v", act, exp)
 	}
-	if exp, act := map[string]string{"dynamic": "with fields 2", "static": "foo"}, logMock.fields[1]; !reflect.DeepEqual(exp, act) {
+	if exp, act := map[string]string{"dynamic": "with fields 2", "static": "foo"}, logMock.Fields[1]; !reflect.DeepEqual(exp, act) {
 		t.Errorf("Wrong field output: %v != %v", act, exp)
 	}
 }
@@ -217,7 +154,7 @@ log:
 `)
 	require.NoError(t, err)
 
-	logMock := &mockLog{}
+	logMock := &log_testutil.MockLog{}
 
 	mgr := mock.NewManager()
 	mgr.L = logMock
@@ -233,11 +170,11 @@ log:
 	require.NoError(t, res)
 	assert.Equal(t, expMsgs, actMsgs)
 
-	assert.Equal(t, []string{"hello world"}, logMock.infos)
+	assert.Equal(t, []string{"hello world"}, logMock.Infos)
 	assert.Equal(t, []any{
 		"custom_source", true,
 		"age", int64(12),
 		"is_cool", true,
 		"static", "static value",
-	}, logMock.mappingFields)
+	}, logMock.MappingFields)
 }

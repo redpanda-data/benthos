@@ -352,7 +352,7 @@ func newBranchMapError(index int, err error) branchMapError {
 
 // createResult performs reduction and child processors to a payload. The size
 // of the payload will remain unchanged, where reduced indexes are nil. This
-// result can be overlayed onto the original message in order to complete the
+// result can be overlaid onto the original message in order to complete the
 // map.
 func (b *Branch) createResult(ctx context.Context, parts []*message.Part, referenceMsg message.Batch) ([]*message.Part, []branchMapError, error) {
 	originalLen := len(parts)
