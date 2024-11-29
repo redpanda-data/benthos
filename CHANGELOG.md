@@ -7,8 +7,9 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Go API: Method `Resources() *service.Resources` added to the stream builders derived `Stream` type.
-- Go API: Integration stream test opt `StreamTestOptOnResourcesInit` added for accessing the resources of test components.
+- Go API: Method `Resources() *service.Resources` added to the stream builders derived `Stream` type. (@Jeffail)
+- Go API: Integration stream test opt `StreamTestOptOnResourcesInit` added for accessing the resources of test components. (@Jeffail)
+- New `exists` operator added to the `cache` processor. (@mihaitodor)
 
 ## 4.41.1 - 2024-11-25
 
