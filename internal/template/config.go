@@ -31,6 +31,7 @@ type FieldConfig struct {
 // TestConfig defines a unit test for the template.
 type TestConfig struct {
 	Name     string    `yaml:"name"`
+	Label    string    `yaml:"label"`
 	Config   yaml.Node `yaml:"config"`
 	Expected yaml.Node `yaml:"expected,omitempty"`
 }
@@ -157,7 +158,7 @@ func (c Config) Test(env *bundle.Environment, benv *bloblang.Environment) ([]str
 
 	var failures []string
 	for _, test := range c.Tests {
-		outConf, err := compiled.Render(&test.Config)
+		outConf, err := compiled.Render(&test.Config, test.Label)
 		if err != nil {
 			return nil, fmt.Errorf("test '%v': %w", test.Name, err)
 		}
@@ -269,6 +270,7 @@ func ConfigSpec() docs.FieldSpecs {
 			"tests", "Optional unit test definitions for the template that verify certain configurations produce valid configs. These tests are executed with the command `rpk connect template lint`.",
 		).Array().WithChildren(
 			docs.FieldString("name", "A name to identify the test."),
+			docs.FieldString("label", "A label to assign to this template when running the test.").HasDefault(""),
 			docs.FieldObject("config", "A configuration to run this test with, the config resulting from applying the template with this config will be linted."),
 			docs.FieldObject("expected", "An optional configuration describing the expected result of applying the template, when specified the result will be diffed and any mismatching fields will be reported as a test error.").Optional(),
 		).HasDefault([]any{}),

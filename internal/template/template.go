@@ -54,7 +54,7 @@ type compiled struct {
 }
 
 // Render a compiled template by providing a generic config.
-func (c *compiled) Render(node any) (any, error) {
+func (c *compiled) Render(node any, label string) (any, error) {
 	var genericConf any
 	var err error
 	switch t := node.(type) {
@@ -69,6 +69,7 @@ func (c *compiled) Render(node any) (any, error) {
 
 	part := message.NewPart(nil)
 	part.SetStructuredMut(genericConf)
+	part.MetaSetMut("label", label)
 	msg := message.Batch{part}
 
 	newPart, err := c.mapping.MapPart(0, msg)
@@ -130,7 +131,7 @@ func WithMetricsMapping(nm bundle.NewManagement, m *metrics.Mapping) bundle.NewM
 
 func registerCacheTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.CacheAdd(func(c cache.Config, nm bundle.NewManagement) (cache.V1, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}
@@ -151,7 +152,7 @@ func registerCacheTemplate(tmpl *compiled, env *bundle.Environment) error {
 
 func registerInputTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.InputAdd(func(c input.Config, nm bundle.NewManagement) (input.Streamed, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}
@@ -175,7 +176,7 @@ func registerInputTemplate(tmpl *compiled, env *bundle.Environment) error {
 
 func registerOutputTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.OutputAdd(func(c output.Config, nm bundle.NewManagement, pcf ...processor.PipelineConstructorFunc) (output.Streamed, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}
@@ -199,7 +200,7 @@ func registerOutputTemplate(tmpl *compiled, env *bundle.Environment) error {
 
 func registerProcessorTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.ProcessorAdd(func(c processor.Config, nm bundle.NewManagement) (processor.V1, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}
@@ -220,7 +221,7 @@ func registerProcessorTemplate(tmpl *compiled, env *bundle.Environment) error {
 
 func registerRateLimitTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.RateLimitAdd(func(c ratelimit.Config, nm bundle.NewManagement) (ratelimit.V1, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}
