@@ -300,11 +300,11 @@ branch:
 	require.NoError(t, res)
 	assert.Len(t, outMsgs, 1)
 
-	assert.Len(t, log.Debugs, 1)
+	assert.Len(t, log.Debugs, 2)
 	assert.Equal(t, "Processor failed: failed assignment (line 1): kaboom!", log.Debugs[0])
-	assert.Len(t, log.Errors, 2)
+	assert.Equal(t, "Branch error: processors failed: failed assignment (line 1): kaboom!", log.Debugs[1])
+	require.Len(t, log.Errors, 1)
 	assert.Equal(t, "failed assignment (line 1): kaboom!", log.Errors[0])
-	assert.Equal(t, "Branch error: processors failed: failed assignment (line 1): kaboom!", log.Errors[1])
 
 	ctx, done := context.WithTimeout(context.Background(), time.Second*1)
 	defer done()

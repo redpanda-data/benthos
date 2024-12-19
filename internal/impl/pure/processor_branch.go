@@ -318,7 +318,7 @@ func (b *Branch) ProcessBatch(ctx context.Context, batch message.Batch) ([]messa
 
 	for _, e := range mapErrs {
 		batch.Get(e.index).ErrorSet(e.err)
-		b.log.Error("Branch error: %v", e.err)
+		b.log.Debug("Branch error: %v", e.err)
 	}
 
 	if mapErrs, err = b.overlayResult(batch, resultParts); err != nil {
