@@ -299,3 +299,64 @@ mapping: |
 	assert.Greater(t, d, time.Hour-time.Minute)
 	assert.Less(t, d, time.Hour+time.Minute)
 }
+
+func TestProcessorTemplateWithLabel(t *testing.T) {
+	mgr, err := manager.New(manager.NewResourceConfig())
+	require.NoError(t, err)
+
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
+name: append_label
+type: processor
+
+fields:
+  - name: foo
+    type: string
+
+mapping: |
+  root.mapping = """root = [content().string(), "%s", "%s"]""".format(this.foo, @label)
+`)))
+
+	conf, err := processor.FromAny(mgr, map[string]any{
+		"append_label": map[string]any{
+			"foo": "meow",
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		label string
+		msg   string
+		exp   string
+	}{
+		{
+			name:  "with label",
+			label: "quack",
+			msg:   "woof",
+			exp:   `["woof","meow","quack"]`,
+		},
+		{
+			name: "with no label",
+			msg:  "woof",
+			exp:  `["woof","meow",""]`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conf.Label = test.label
+
+			p, err := mgr.NewProcessor(conf)
+			require.NoError(t, err)
+
+			res, err := p.ProcessBatch(context.Background(), message.Batch{
+				message.NewPart([]byte(test.msg)),
+			})
+			require.NoError(t, err)
+			require.Len(t, res, 1)
+			require.Len(t, res[0], 1)
+			require.NoError(t, res[0][0].ErrorGet())
+			assert.Equal(t, test.exp, string(res[0][0].AsBytes()))
+		})
+	}
+}
