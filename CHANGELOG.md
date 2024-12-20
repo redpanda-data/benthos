@@ -12,6 +12,7 @@ All notable changes to this project will be documented in this file.
 - `bloblang` scalar type added to template fields. (@mihaitodor)
 - Go API: Method `SetOutputBrokerPattern` added to the `StreamBuilder` type. (@mihaitodor)
 - New `error_source_name`, `error_source_label` and `error_source_path` bloblang functions. (@mihaitodor)
+- Flag `--verbose` added to the `benthos lint` and `benthos template lint` commands. (@mihaitodor)
 
 ### Changed
 
