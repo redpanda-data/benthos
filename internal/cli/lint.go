@@ -73,6 +73,7 @@ files with the .yaml or .yml extension.`)[1:],
 var (
 	red    = color.New(color.FgRed).SprintFunc()
 	yellow = color.New(color.FgYellow).SprintFunc()
+	green  = color.New(color.FgGreen).SprintFunc()
 )
 
 type pathLint struct {
@@ -202,11 +203,17 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) error {
 	lConf.RejectDeprecated = c.Bool("deprecated")
 	lConf.RequireLabels = c.Bool("labels")
 	skipEnvVarCheck := c.Bool("skip-env-var-check")
+	verbose := c.Bool("verbose")
 
 	spec := opts.MainConfigSpecCtor()
 
 	var pathLintMut sync.Mutex
 	var pathLints []pathLint
+	type result struct {
+		target string
+		ok     bool
+	}
+	var lintResults []result
 	threads := runtime.NumCPU()
 	var wg sync.WaitGroup
 	wg.Add(threads)
@@ -226,15 +233,28 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) error {
 				} else {
 					lints = lintFile(opts, target, skipEnvVarCheck, spec, lConf)
 				}
+				pathLintMut.Lock()
 				if len(lints) > 0 {
-					pathLintMut.Lock()
 					pathLints = append(pathLints, lints...)
-					pathLintMut.Unlock()
+					lintResults = append(lintResults, result{target, false})
+				} else {
+					lintResults = append(lintResults, result{target, true})
 				}
+				pathLintMut.Unlock()
 			}
 		}(i)
 	}
 	wg.Wait()
+
+	if verbose {
+		for _, res := range lintResults {
+			if res.ok {
+				fmt.Fprintf(opts.Stdout, "%v: %v\n", res.target, green("OK"))
+			} else {
+				fmt.Fprintf(opts.Stdout, "%v: %v\n", res.target, red("FAILED"))
+			}
+		}
+	}
 
 	if len(pathLints) == 0 {
 		return nil
