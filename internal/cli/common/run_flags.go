@@ -158,6 +158,12 @@ func EnvFileAndTemplateFlags(opts *CLIOpts, hidden bool) []cli.Flag {
 			Aliases: []string{"t"},
 			Usage:   opts.ExecTemplate("EXPERIMENTAL: import {{.ProductName}} templates, supports glob patterns (requires quotes)"),
 		},
+		&cli.BoolFlag{
+			Name:   "verbose",
+			Hidden: hidden,
+			Value:  false,
+			Usage:  "Print the lint result for each target file.",
+		},
 	}
 }
 
