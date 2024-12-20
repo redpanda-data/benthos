@@ -3,7 +3,6 @@ package pure
 import (
 	"context"
 
-	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
 	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -32,7 +31,7 @@ Please note that most processors already process per message of a batch, and thi
 				childProcs[i] = interop.UnwrapOwnedProcessor(p)
 			}
 
-			tp, err := newForEach(childProcs, mgr)
+			tp, err := newForEach(childProcs)
 			if err != nil {
 				return nil, err
 			}
@@ -49,7 +48,7 @@ type forEachProc struct {
 	children []processor.V1
 }
 
-func newForEach(children []processor.V1, mgr bundle.NewManagement) (*forEachProc, error) {
+func newForEach(children []processor.V1) (*forEachProc, error) {
 	return &forEachProc{children: children}, nil
 }
 
