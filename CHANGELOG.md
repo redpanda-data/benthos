@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 - Field `label` added to the template tests definitions. (@mihaitodor)
 - Metadata field `label` can now be utilized within a template's `mapping` field to access the label that is associated with the template instantiation in a config. (@mihaitodor)
+- `bloblang` scalar type added to template fields. (@mihaitodor)
 
 ### Changed
 

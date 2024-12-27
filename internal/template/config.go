@@ -72,6 +72,9 @@ func (c FieldConfig) FieldSpec() (docs.FieldSpec, error) {
 			return f, fmt.Errorf("unrecognised scalar type: %v", *c.Kind)
 		}
 	}
+	if f.Type == "bloblang" {
+		f = f.HasType(docs.FieldTypeString).IsBloblang()
+	}
 	return f, nil
 }
 
@@ -222,6 +225,7 @@ func FieldConfigSpec() docs.FieldSpecs {
 			"int", "standard integer type",
 			"float", "standard float type",
 			"bool", "a boolean true/false",
+			"bloblang", "a bloblang mapping",
 			"unknown", "allows for nesting arbitrary configuration inside of a field",
 		),
 		docs.FieldString("kind", "The kind of the field.").HasOptions(
