@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Metadata field `label` can now be utilized within a template's `mapping` field to access the label that is associated with the template instantiation in a config. (@mihaitodor)
 - `bloblang` scalar type added to template fields. (@mihaitodor)
 - Go API: Method `SetOutputBrokerPattern` added to the `StreamBuilder` type. (@mihaitodor)
+- New `error_source_name`, `error_source_label` and `error_source_path` bloblang functions. (@mihaitodor)
 
 ### Changed
 
