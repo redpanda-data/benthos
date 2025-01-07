@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - The `branch` processor no longer emits an entry in the log at error level when the child processors throw errors. (@mihaitodor)
+- Streams and the StreamBuilder API now use `reject` by default when no output is specified in the config and `stdout` isn't registered (for example when the `io` components are not imported). (@mihaitodor)
 
 ## 4.42.0 - 2024-11-29
 
