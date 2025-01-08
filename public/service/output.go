@@ -371,3 +371,26 @@ func OutputPerformanceDocs(benefitsFromMaxInFlight, benefitsFromBatching bool) (
 	}
 	return content
 }
+
+//------------------------------------------------------------------------------
+
+// OutputBrokerPatternType describes the brokering pattern type for a broker output.
+type OutputBrokerPatternType string
+
+const (
+	// OutputBrokerPatternFanOut sends each message to all outputs in parallel.
+	OutputBrokerPatternFanOut OutputBrokerPatternType = "fan_out"
+	// OutputBrokerPatternFanOutFailFast sends each message to all outputs in parallel and output failures will not be
+	// automatically retried.
+	OutputBrokerPatternFanOutFailFast OutputBrokerPatternType = "fan_out_fail_fast"
+	// OutputBrokerPatternFanOutSequential sends each message to all outputs sequentially.
+	OutputBrokerPatternFanOutSequential OutputBrokerPatternType = "fan_out_sequential"
+	// OutputBrokerPatternFanOutSequentialFailFast sends each message to all outputs sequentially and output failures
+	// will not be automatically retried.
+	OutputBrokerPatternFanOutSequentialFailFast OutputBrokerPatternType = "fan_out_sequential_fail_fast"
+	// OutputBrokerPatternRoundRobin sends each message to a single output following their order.
+	OutputBrokerPatternRoundRobin OutputBrokerPatternType = "round_robin"
+	// OutputBrokerPatternGreedy sends each message to a single output, which is determined by allowing outputs to claim
+	// messages as soon as they are able to process them.
+	OutputBrokerPatternGreedy OutputBrokerPatternType = "greedy"
+)
