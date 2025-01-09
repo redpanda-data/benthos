@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package test_test
 
 import (

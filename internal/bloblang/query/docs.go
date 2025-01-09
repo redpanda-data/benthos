@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package query
 
 // ExampleSpec provides a mapping example and some input/output results to

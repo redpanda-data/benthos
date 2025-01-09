@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 // Package servicetest provides functions and utilities that might be useful for
 // testing custom Benthos builds.
 package servicetest

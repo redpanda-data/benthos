@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 // NewOutputMaxInFlightField creates a common field for determining the maximum

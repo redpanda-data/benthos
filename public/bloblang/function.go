@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package bloblang
 
 // Function defines a Bloblang function, arguments are provided to the

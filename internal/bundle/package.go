@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 // Package bundle contains singletons referenced throughout the Benthos codebase
 // that allow imported components to add their constructors and documentation to
 // a service.

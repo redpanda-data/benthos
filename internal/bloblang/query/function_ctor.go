@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package query
 
 // Function takes a set of contextual arguments and returns the result of the

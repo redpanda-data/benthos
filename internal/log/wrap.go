@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package log
 
 // PrintFormatter is an interface implemented by standard loggers.

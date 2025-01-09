@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package mapping
 
 // TargetType represents a mapping target type, which is a destination for a
