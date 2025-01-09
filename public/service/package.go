@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 // Package service provides a high level API for registering custom plugin
 // components and executing either a standard Benthos CLI, or programmatically
 // building isolated pipelines with a StreamBuilder API.

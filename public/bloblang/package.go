@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 // Package bloblang provides high level APIs for registering custom Bloblang
 // plugins, as well as for parsing and executing Bloblang mappings.
 //

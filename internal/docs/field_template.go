@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package docs
 
 // DeprecatedFieldsTemplate is an old (now unused) template for generating

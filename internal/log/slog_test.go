@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 //go:build go1.21
 
 package log

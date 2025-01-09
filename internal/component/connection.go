@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package component
 
 // ConnectionStatus represents the current connection status of a given

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package cuegen
 
 import (

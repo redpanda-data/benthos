@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package log
 
 import "github.com/redpanda-data/benthos/v4/internal/docs"
