@@ -92,3 +92,86 @@ input:
 		require.Fail(t, "timeout waiting for ack error")
 	}
 }
+
+type foobarOutput struct {
+	recvChan chan struct{}
+}
+
+func newFoobarOutput() *foobarOutput {
+	return &foobarOutput{
+		recvChan: make(chan struct{}),
+	}
+}
+
+func (i *foobarOutput) Connect(context.Context) error {
+	return nil
+}
+
+func (i *foobarOutput) Write(context.Context, *service.Message) error {
+	// Delay the write to ensure that if this output is utilized in a broker which lacks `pattern: fan_out_sequential`,
+	// the other output will receive the message first.
+	time.Sleep(100 * time.Millisecond)
+
+	close(i.recvChan)
+
+	return nil
+}
+
+func (i *foobarOutput) Close(context.Context) error {
+	return nil
+}
+
+func TestStreamSetOutputBrokerPattern(t *testing.T) {
+	output := newFoobarOutput()
+
+	// This test sits in its own package so it will get a fresh `service.GlobalEnvironment()` that we can alter safely.
+	err := service.RegisterOutput("foobar", service.NewConfigSpec(),
+		func(_ *service.ParsedConfig, mgr *service.Resources) (service.Output, int, error) {
+			return output, 1, nil
+		},
+	)
+	require.NoError(t, err)
+
+	streamBuilder := service.NewStreamBuilder()
+	require.NoError(t, streamBuilder.AddInputYAML(`
+generate:
+  count: 1
+  mapping: root.foo = "bar"
+`))
+	require.NoError(t, streamBuilder.AddOutputYAML(`
+foobar: {}
+`))
+	require.NoError(t, streamBuilder.SetLoggerYAML("level: OFF"))
+
+	consumerRecvChan := make(chan struct{})
+	require.NoError(t, streamBuilder.AddConsumerFunc(func(context.Context, *service.Message) error {
+		close(consumerRecvChan)
+
+		return nil
+	}))
+
+	streamBuilder.SetOutputBrokerPattern(service.OutputBrokerPatternFanOutSequential)
+
+	stream, err := streamBuilder.Build()
+	require.NoError(t, err)
+
+	closeChan := make(chan struct{})
+	go func() {
+		require.NoError(t, stream.Run(context.Background()))
+		close(closeChan)
+	}()
+
+	select {
+	case <-output.recvChan:
+		select {
+		case <-consumerRecvChan:
+			// The foobar output received the message followed by the consumer func as expected.
+		case <-time.After(1 * time.Second):
+			require.Fail(t, "the consumer func did not receive the message")
+		}
+	case <-consumerRecvChan:
+		require.Fail(t, "the foobar output should have received the message first")
+	case <-time.After(1 * time.Second):
+		require.Fail(t, "deadlock detected")
+	}
+}
