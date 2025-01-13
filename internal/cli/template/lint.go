@@ -19,9 +19,18 @@ import (
 )
 
 func lintCliCommand(opts *common.CLIOpts) *cli.Command {
+	flags := []cli.Flag{
+		&cli.BoolFlag{
+			Name:  "verbose",
+			Value: false,
+			Usage: "Print the lint result for each target file.",
+		},
+	}
+	flags = append(flags, common.EnvFileAndTemplateFlags(opts, false)...)
+
 	return &cli.Command{
 		Name:  "lint",
-		Flags: common.EnvFileAndTemplateFlags(opts, false),
+		Flags: flags,
 		Usage: opts.ExecTemplate("Parse {{.ProductName}} templates and report any linting errors"),
 		Description: opts.ExecTemplate(`
 Exits with a status code 1 if any linting errors are detected:
@@ -41,6 +50,11 @@ files with the .yaml or .yml extension.`)[1:],
 			if err != nil {
 				return fmt.Errorf("lint paths error: %w", err)
 			}
+			type result struct {
+				target string
+				ok     bool
+			}
+			var lintResults []result
 			var pathLints []pathLint
 			for _, target := range targets {
 				if target == "" {
@@ -49,6 +63,18 @@ files with the .yaml or .yml extension.`)[1:],
 				lints := lintFile(target)
 				if len(lints) > 0 {
 					pathLints = append(pathLints, lints...)
+					lintResults = append(lintResults, result{target, false})
+				} else {
+					lintResults = append(lintResults, result{target, true})
+				}
+			}
+			if c.Bool("verbose") {
+				for _, res := range lintResults {
+					if res.ok {
+						fmt.Fprintf(opts.Stdout, "%v: %v\n", res.target, green("OK"))
+					} else {
+						fmt.Fprintf(opts.Stdout, "%v: %v\n", res.target, red("FAILED"))
+					}
 				}
 			}
 			if len(pathLints) == 0 {
@@ -70,6 +96,7 @@ files with the .yaml or .yml extension.`)[1:],
 var (
 	red    = color.New(color.FgRed).SprintFunc()
 	yellow = color.New(color.FgYellow).SprintFunc()
+	green  = color.New(color.FgGreen).SprintFunc()
 )
 
 type pathLint struct {
