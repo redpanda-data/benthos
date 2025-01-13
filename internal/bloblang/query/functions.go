@@ -346,9 +346,8 @@ var _ = registerSimpleFunction(
 		),
 	),
 	func(ctx FunctionContext) (any, error) {
-		v := ctx.MsgBatch.Get(ctx.Index).ErrorGet()
-		if v != nil {
-			return v.Error(), nil
+		if err := ctx.MsgBatch.Get(ctx.Index).ErrorGet(); err != nil {
+			return err.Error(), nil
 		}
 		return nil, nil
 	},
@@ -364,6 +363,60 @@ var _ = registerSimpleFunction(
 	),
 	func(ctx FunctionContext) (any, error) {
 		return ctx.MsgBatch.Get(ctx.Index).ErrorGet() != nil, nil
+	},
+)
+
+var _ = registerSimpleFunction(
+	NewFunctionSpec(
+		FunctionCategoryMessage, "error_source_name",
+		"Returns the name of the source component which raised the error during the processing of a message. `null` is returned when the error is null or no source component is associated with it. For more information about error handling patterns read xref:configuration:error_handling.adoc[].",
+		NewExampleSpec("",
+			`root.doc.error_source_name = error_source_name()`,
+		),
+	),
+	func(ctx FunctionContext) (any, error) {
+		if err := ctx.MsgBatch.Get(ctx.Index).ErrorGet(); err != nil {
+			if cErr, ok := err.(*ComponentError); ok {
+				return cErr.Name, nil
+			}
+		}
+		return nil, nil
+	},
+)
+
+var _ = registerSimpleFunction(
+	NewFunctionSpec(
+		FunctionCategoryMessage, "error_source_label",
+		"Returns the label of the source component which raised the error during the processing of a message or an empty string if not set. `null` is returned when the error is null or no source component is associated with it. For more information about error handling patterns read xref:configuration:error_handling.adoc[].",
+		NewExampleSpec("",
+			`root.doc.error_source_label = error_source_label()`,
+		),
+	),
+	func(ctx FunctionContext) (any, error) {
+		if err := ctx.MsgBatch.Get(ctx.Index).ErrorGet(); err != nil {
+			if cErr, ok := err.(*ComponentError); ok {
+				return cErr.Label, nil
+			}
+		}
+		return nil, nil
+	},
+)
+
+var _ = registerSimpleFunction(
+	NewFunctionSpec(
+		FunctionCategoryMessage, "error_source_path",
+		"Returns the path of the source component which raised the error during the processing of a message. `null` is returned when the error is null or no source component is associated with it. For more information about error handling patterns read xref:configuration:error_handling.adoc[].",
+		NewExampleSpec("",
+			`root.doc.error_source_path = error_source_path()`,
+		),
+	),
+	func(ctx FunctionContext) (any, error) {
+		if err := ctx.MsgBatch.Get(ctx.Index).ErrorGet(); err != nil {
+			if cErr, ok := err.(*ComponentError); ok {
+				return SliceToDotPath(cErr.Path...), nil
+			}
+		}
+		return nil, nil
 	},
 )
 
