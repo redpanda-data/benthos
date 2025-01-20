@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## 4.44.0 - TBD
 
+### Added
+
+- Field `level` for the `log` processor now supports `FATAL` levels. (@rockwotj)
+
 ## 4.43.0 - 2025-01-13
 
 ### Added
