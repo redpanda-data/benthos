@@ -31,7 +31,7 @@ func logProcSpec() *service.ConfigSpec {
 		Stable().
 		Summary(`Prints a log event for each message. Messages always remain unchanged. The log message can be set using function interpolations described in  xref:configuration:interpolation.adoc#bloblang-queries[Bloblang queries] which allows you to log the contents and metadata of messages.`).
 		Description(`
-The `+"`level`"+` field determines the log level of the printed events and can be any of the following values: TRACE, DEBUG, INFO, WARN, ERROR.
+The `+"`level`"+` field determines the log level of the printed events and can be any of the following values: TRACE, DEBUG, INFO, WARN, ERROR, FATAL.
 
 == Structured fields
 
@@ -51,7 +51,7 @@ pipeline:
 `+"```"+`
 `).
 		Fields(
-			service.NewStringEnumField(logPFieldLevel, "ERROR", "WARN", "INFO", "DEBUG", "TRACE", "ALL").
+			service.NewStringEnumField(logPFieldLevel, "FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE").
 				Description("The log level to use.").
 				LintRule(``).
 				Default("INFO"),
@@ -164,6 +164,10 @@ func (l *logProcessor) levelToLogFn(level string) (func(logger log.Modular, msg 
 	case "ERROR":
 		return func(logger log.Modular, msg string) {
 			logger.Error(msg)
+		}, nil
+	case "FATAL":
+		return func(logger log.Modular, msg string) {
+			logger.Fatal(msg)
 		}, nil
 	}
 	return nil, fmt.Errorf("log level not recognised: %v", level)
