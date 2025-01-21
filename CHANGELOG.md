@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## 4.44.0 - TBD
 
+### Added
+
+- A `crash` processor for FATAL logging. (@rockwotj)
+
 ## 4.43.0 - 2025-01-13
 
 ### Added
