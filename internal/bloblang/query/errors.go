@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package query
 
 import (
@@ -13,6 +15,8 @@ type ErrNoContext struct {
 	FieldName string
 }
 
+var _ error = &ErrNoContext{}
+
 // Error returns an attempt at a useful error message.
 func (e ErrNoContext) Error() string {
 	if e.FieldName != "" {
@@ -27,6 +31,8 @@ type errFrom struct {
 	from Function
 	err  error
 }
+
+var _ error = &errFrom{}
 
 func (e *errFrom) Error() string {
 	return fmt.Sprintf("%v: %v", e.from.Annotation(), e.err)
@@ -69,6 +75,8 @@ type TypeMismatch struct {
 	Operation string
 }
 
+var _ error = &TypeMismatch{}
+
 // Error implements the standard error interface.
 func (t *TypeMismatch) Error() string {
 	return fmt.Sprintf("cannot %v types %v (from %v) and %v (from %v)", t.Operation, t.Left, t.Lfn.Annotation(), t.Right, t.Rfn.Annotation())
@@ -83,4 +91,27 @@ func NewTypeMismatch(operation string, lfn, rfn Function, left, right any) *Type
 		Right:     value.ITypeOf(right),
 		Operation: operation,
 	}
+}
+
+//------------------------------------------------------------------------------
+
+// ComponentError is an error that could be returned by a component annotated by
+// its label and path.
+type ComponentError struct {
+	Err   error
+	Name  string
+	Label string
+	Path  []string
+}
+
+var _ error = &ComponentError{}
+
+// Error returns a formatted error string.
+func (e *ComponentError) Error() string {
+	return e.Err.Error()
+}
+
+// Unwrap returns the underlying error value.
+func (e *ComponentError) Unwrap() error {
+	return e.Err
 }

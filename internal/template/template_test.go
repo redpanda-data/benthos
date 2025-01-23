@@ -1,7 +1,10 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package template_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -13,6 +16,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/component/ratelimit"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/manager"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 	"github.com/redpanda-data/benthos/v4/internal/template"
@@ -24,7 +28,7 @@ func TestCacheTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: foo_memory
 type: cache
 
@@ -56,7 +60,7 @@ func TestInputTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: generate_a_foo
 type: input
 
@@ -116,7 +120,7 @@ func TestOutputTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: write_inproc
 type: output
 
@@ -190,7 +194,7 @@ func TestProcessorTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: append_foo
 type: processor
 
@@ -225,7 +229,7 @@ func TestProcessorTemplateOddIndentation(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: meow
 type: processor
 
@@ -267,7 +271,7 @@ func TestRateLimitTemplate(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), []byte(`
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
 name: foo
 type: rate_limit
 
@@ -298,4 +302,215 @@ mapping: |
 	require.NoError(t, err)
 	assert.Greater(t, d, time.Hour-time.Minute)
 	assert.Less(t, d, time.Hour+time.Minute)
+}
+
+func TestProcessorTemplateWithLabel(t *testing.T) {
+	mgr, err := manager.New(manager.NewResourceConfig())
+	require.NoError(t, err)
+
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(`
+name: append_label
+type: processor
+
+fields:
+  - name: foo
+    type: string
+
+mapping: |
+  root.mapping = """root = [content().string(), "%s", "%s"]""".format(this.foo, @label)
+`)))
+
+	conf, err := processor.FromAny(mgr, map[string]any{
+		"append_label": map[string]any{
+			"foo": "meow",
+		},
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name  string
+		label string
+		msg   string
+		exp   string
+	}{
+		{
+			name:  "with label",
+			label: "quack",
+			msg:   "woof",
+			exp:   `["woof","meow","quack"]`,
+		},
+		{
+			name: "with no label",
+			msg:  "woof",
+			exp:  `["woof","meow",""]`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			conf.Label = test.label
+
+			p, err := mgr.NewProcessor(conf)
+			require.NoError(t, err)
+
+			res, err := p.ProcessBatch(context.Background(), message.Batch{
+				message.NewPart([]byte(test.msg)),
+			})
+			require.NoError(t, err)
+			require.Len(t, res, 1)
+			require.Len(t, res[0], 1)
+			require.NoError(t, res[0][0].ErrorGet())
+			assert.Equal(t, test.exp, string(res[0][0].AsBytes()))
+		})
+	}
+}
+
+func TestProcessorTemplateFieldLinting(t *testing.T) {
+	tests := []struct {
+		name         string
+		fieldType    string
+		fieldValue   any
+		message      string
+		expected     string
+		errContains  string
+		lintContains string
+	}{
+		{
+			name:       "valid string field",
+			fieldType:  "string",
+			fieldValue: `"foobar"`,
+			message:    "test",
+			expected:   "foobar",
+		},
+		{
+			name:       "valid int field",
+			fieldType:  "int",
+			fieldValue: 42,
+			message:    "test",
+			expected:   "42",
+		},
+		{
+			name:       "invalid int field",
+			fieldType:  "int",
+			fieldValue: "foobar",
+			message:    "test",
+			// TODO: Should this also trigger a lint error?
+			errContains: `expected number value, got string ("foobar")`,
+		},
+		{
+			name:       "valid float field",
+			fieldType:  "float",
+			fieldValue: 3.14,
+			message:    "test",
+			expected:   "3.14",
+		},
+		{
+			name:       "invalid float field",
+			fieldType:  "float",
+			fieldValue: "foobar",
+			message:    "test",
+			// TODO: Should this also trigger a lint error?
+			errContains: `expected number value, got string ("foobar")`,
+		},
+		{
+			name:       "valid bool field",
+			fieldType:  "bool",
+			fieldValue: true,
+			message:    "test",
+			expected:   "true",
+		},
+		{
+			name:       "invalid bool field",
+			fieldType:  "bool",
+			fieldValue: "foobar",
+			message:    "test",
+			// TODO: Should this also trigger a lint error?
+			errContains: `expected bool value, got string ("foobar")`,
+		},
+		{
+			name:       "valid unknown field",
+			fieldType:  "unknown",
+			fieldValue: `"foobar"`,
+			message:    "test",
+			expected:   "foobar",
+		},
+		{
+			name:       "valid bloblang mapping",
+			fieldType:  "bloblang",
+			fieldValue: `root = content().uppercase()`,
+			message:    "kaboom!",
+			expected:   "KABOOM!",
+		},
+		{
+			name:         "invalid bloblang mapping",
+			fieldType:    "bloblang",
+			fieldValue:   `root = # invalid`,
+			message:      "kaboom!",
+			errContains:  "failed to parse bloblang mapping '': expected query, got: # inv",
+			lintContains: "expected whitespace, but reached end of input",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mgr, err := manager.New(manager.NewResourceConfig())
+			require.NoError(t, err)
+
+			var mapping string
+			if test.fieldType != "bloblang" {
+				mapping = fmt.Sprintf(`"""root = %v """`, test.fieldValue)
+			} else {
+				mapping = fmt.Sprintf(`"%s"`, test.fieldValue)
+			}
+			tmpl := fmt.Sprintf(`
+name: foobar
+type: processor
+
+fields:
+  - name: test
+    type: %s
+
+mapping: |
+  root.mapping = %s
+`, test.fieldType, mapping)
+			require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(tmpl)))
+
+			spec, ok := mgr.Environment().GetDocs("foobar", docs.TypeProcessor)
+			require.True(t, ok)
+
+			node, err := docs.UnmarshalYAML([]byte(fmt.Sprintf(`test: %v`, test.fieldValue)))
+			require.NoError(t, err)
+
+			lints := spec.Config.LintYAML(docs.NewLintContext(docs.NewLintConfig(mgr.Environment())), node)
+			if test.lintContains != "" {
+				require.Len(t, lints, 1)
+				assert.Contains(t, lints[0].What, test.lintContains)
+			} else {
+				require.Empty(t, lints)
+			}
+
+			conf, err := processor.FromAny(mgr, map[string]any{
+				"foobar": map[string]any{
+					"test": test.fieldValue,
+				},
+			})
+			require.NoError(t, err)
+
+			p, err := mgr.NewProcessor(conf)
+			if test.errContains != "" {
+				require.ErrorContains(t, err, test.errContains)
+				return
+			}
+			require.NoError(t, err)
+
+			res, err := p.ProcessBatch(context.Background(), message.Batch{
+				message.NewPart([]byte(test.message)),
+			})
+			require.NoError(t, err)
+			require.Len(t, res, 1)
+			require.Len(t, res[0], 1)
+			require.NoError(t, res[0][0].ErrorGet())
+			assert.Equal(t, test.expected, string(res[0][0].AsBytes()))
+		})
+	}
 }

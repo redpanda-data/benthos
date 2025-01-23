@@ -1,12 +1,21 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/benthos/v4/internal/component/processor"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
+	"github.com/redpanda-data/benthos/v4/internal/manager"
+	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/internal/template"
 )
 
 func TestMockWalkableError(t *testing.T) {
@@ -121,4 +130,124 @@ func TestBatchErrorIndexedBy(t *testing.T) {
 		{i: 2, c: "c", e: ""},
 		{i: 1, c: "b", e: "b error"},
 	}, results)
+}
+
+func TestBloblangErrorFuncs(t *testing.T) {
+	resourceProcessorName := "foobar_resource"
+	processorTemplateName := "foobar_template"
+	tests := []struct {
+		name      string
+		label     string
+		processor string
+		expected  string
+	}{
+		{
+			name:      "returns null when no error is set",
+			label:     "foobar_label",
+			processor: `mapping: root = this`,
+			expected:  `{"error": null, "name": null, "label": null, "path": null}`,
+		},
+		{
+			name:      "returns the label when set for a standard processor",
+			label:     "foobar_label",
+			processor: `mapping: root = throw("Kaboom!")`,
+			expected:  `{"error":"failed assignment (line 1): Kaboom!", "name": "mapping", "label": "foobar_label", "path": "processors.0.try.1"}`,
+		},
+		{
+			name:      "returns an empty label when not set for a standard processor",
+			processor: `mapping: root = throw("Kaboom!")`,
+			expected:  `{"error":"failed assignment (line 1): Kaboom!", "name": "mapping", "label": "", "path": "processors.0.try.1"}`,
+		},
+		{
+			name:      "returns the label of a processor resource",
+			label:     "foobar_label",
+			processor: fmt.Sprintf("resource: %s", resourceProcessorName),
+			expected:  `{"error":"failed assignment (line 1): Kaboom!", "name": "mapping", "label": "foobar_label", "path": "processor_resources.processors.1"}`,
+		},
+		{
+			name:      "returns an empty label when not set for a processor resource",
+			label:     "",
+			processor: fmt.Sprintf("resource: %s", resourceProcessorName),
+			expected:  `{"error":"failed assignment (line 1): Kaboom!", "name": "mapping", "label": "", "path": "processor_resources.processors.1"}`,
+		},
+		{
+			name:      "returns the label set on a processor inside a processor template",
+			label:     "foobar_label",
+			processor: fmt.Sprintf(`%s: {}`, processorTemplateName),
+			expected:  `{"error":"failed assignment (line 1): Kaboom!", "name": "mapping", "label": "foobar_label", "path": "processors.0.try.1.processors.1"}`,
+		},
+		{
+			name:      "returns an empty label when not set for a processor template",
+			label:     "",
+			processor: fmt.Sprintf(`%s: {}`, processorTemplateName),
+			expected:  `{"error":"failed assignment (line 1): Kaboom!", "name": "mapping", "label": "", "path": "processors.0.try.1.processors.1"}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mgr, err := manager.New(manager.NewResourceConfig())
+			require.NoError(t, err)
+
+			// Register a resource processor
+			resProcConf, err := docs.UnmarshalYAML([]byte(fmt.Sprintf(`
+processors:
+  - mapping: root.foo = "bar"
+  - label: %s
+    mapping: root = throw("Kaboom!")
+`, test.label)))
+			require.NoError(t, err)
+
+			resProc, err := processor.FromAny(mgr, resProcConf)
+			require.NoError(t, err)
+
+			// TODO: Should `StoreProcessor()` use `resProc.Label` as the name instead of taking an extra parameter?
+			err = mgr.StoreProcessor(context.Background(), resourceProcessorName, resProc)
+			require.NoError(t, err)
+
+			// Register a processor template
+			err = template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(fmt.Sprintf(`
+name: %s
+type: processor
+
+mapping: |
+  root.processors = []
+  root.processors."-".mapping = """root.foo = "bar" """
+  root.processors."-" = {
+      "label": @label,
+      "mapping": """root = throw("Kaboom!")"""
+    }
+`, processorTemplateName)))
+			require.NoError(t, err)
+
+			// Configure a `processors` processor which exercises the `error_source_*` functions
+			conf, err := docs.UnmarshalYAML([]byte(fmt.Sprintf(`
+processors:
+  # Use a try to make the path more interesting
+  - try:
+    - mapping: root.foo = "bar"
+    - label: %s
+      %s
+  # Don't use a catch so we can exercise the functions even when there is no error
+  - mapping: |
+      root.error = error()
+      root.name = error_source_name()
+      root.label = error_source_label()
+      root.path = error_source_path()
+`, test.label, test.processor)))
+			require.NoError(t, err)
+
+			parsedConf, err := processor.FromAny(mgr, conf)
+			require.NoError(t, err)
+
+			proc, err := mgr.NewProcessor(parsedConf)
+			require.NoError(t, err)
+
+			outMsgs, err := proc.ProcessBatch(context.Background(), message.QuickBatch([][]byte{nil}))
+			require.NoError(t, err)
+			require.Len(t, outMsgs, 1)
+			msg := outMsgs[0].Get(0)
+			assert.JSONEq(t, test.expected, string(msg.AsBytes()))
+		})
+	}
 }

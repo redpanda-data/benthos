@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 // Package config contains reusable config definitions and parsers for inputs
 // defined via the public/service package. We could eventually consider moving
 // this out into public/service for others to use.

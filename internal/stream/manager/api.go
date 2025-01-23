@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package manager
 
 import (
@@ -9,6 +11,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/gorilla/mux"
@@ -358,6 +361,17 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 
 	var conf stream.Config
 	var lints []string
+
+	ctx := r.Context()
+	if timeout := r.URL.Query().Get("timeout"); timeout != "" {
+		d, err := time.ParseDuration(timeout)
+		if err == nil { // ignore bad timeout query
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, d)
+			defer cancel()
+		}
+	}
+
 	switch r.Method {
 	case "POST":
 		if conf, lints, requestErr = readConfig(); requestErr != nil {
@@ -410,16 +424,16 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 			_, _ = w.Write(errBytes)
 			return
 		}
-		serverErr = m.Update(r.Context(), id, conf)
+		serverErr = m.Update(ctx, id, conf)
 	case "DELETE":
-		serverErr = m.Delete(r.Context(), id)
+		serverErr = m.Delete(ctx, id)
 	case "PATCH":
 		var info *StreamStatus
 		if info, serverErr = m.Read(id); serverErr == nil {
 			if conf, requestErr = patchConfig(info.Config()); requestErr != nil {
 				return
 			}
-			serverErr = m.Update(r.Context(), id, conf)
+			serverErr = m.Update(ctx, id, conf)
 		}
 	default:
 		requestErr = fmt.Errorf("verb not supported: %v", r.Method)

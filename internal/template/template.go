@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package template
 
 import (
@@ -5,6 +7,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/mapping"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component/cache"
@@ -20,10 +23,10 @@ import (
 
 // InitTemplates parses and registers native templates, as well as templates
 // at paths provided, and returns any linting errors that occur.
-func InitTemplates(templatesPaths ...string) ([]string, error) {
+func InitTemplates(env *bundle.Environment, bloblEnv *bloblang.Environment, templatesPaths ...string) ([]string, error) {
 	var lints []string
 	for _, tPath := range templatesPaths {
-		tmplConf, tLints, err := ReadConfigFile(tPath)
+		tmplConf, tLints, err := ReadConfigFile(env, tPath)
 		if err != nil {
 			return nil, fmt.Errorf("template %v: %w", tPath, err)
 		}
@@ -31,12 +34,12 @@ func InitTemplates(templatesPaths ...string) ([]string, error) {
 			lints = append(lints, fmt.Sprintf("template file %v: %v", tPath, l))
 		}
 
-		tmpl, err := tmplConf.compile()
+		tmpl, err := tmplConf.compile(bloblEnv)
 		if err != nil {
 			return nil, fmt.Errorf("template %v: %w", tPath, err)
 		}
 
-		if err := registerTemplate(bundle.GlobalEnvironment, tmpl); err != nil {
+		if err := registerTemplate(env, tmpl); err != nil {
 			return nil, fmt.Errorf("template %v: %w", tPath, err)
 		}
 	}
@@ -53,7 +56,7 @@ type compiled struct {
 }
 
 // Render a compiled template by providing a generic config.
-func (c *compiled) Render(node any) (any, error) {
+func (c *compiled) Render(node any, label string) (any, error) {
 	var genericConf any
 	var err error
 	switch t := node.(type) {
@@ -68,6 +71,7 @@ func (c *compiled) Render(node any) (any, error) {
 
 	part := message.NewPart(nil)
 	part.SetStructuredMut(genericConf)
+	part.MetaSetMut("label", label)
 	msg := message.Batch{part}
 
 	newPart, err := c.mapping.MapPart(0, msg)
@@ -86,13 +90,13 @@ func (c *compiled) Render(node any) (any, error) {
 
 // RegisterTemplateYAML attempts to register a new template component to the
 // specified environment.
-func RegisterTemplateYAML(env *bundle.Environment, template []byte) error {
-	tmplConf, _, err := ReadConfigYAML(template)
+func RegisterTemplateYAML(env *bundle.Environment, bloblEnv *bloblang.Environment, template []byte) error {
+	tmplConf, _, err := ReadConfigYAML(env, template)
 	if err != nil {
 		return err
 	}
 
-	tmpl, err := tmplConf.compile()
+	tmpl, err := tmplConf.compile(bloblEnv)
 	if err != nil {
 		return err
 	}
@@ -129,7 +133,7 @@ func WithMetricsMapping(nm bundle.NewManagement, m *metrics.Mapping) bundle.NewM
 
 func registerCacheTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.CacheAdd(func(c cache.Config, nm bundle.NewManagement) (cache.V1, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}
@@ -150,7 +154,7 @@ func registerCacheTemplate(tmpl *compiled, env *bundle.Environment) error {
 
 func registerInputTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.InputAdd(func(c input.Config, nm bundle.NewManagement) (input.Streamed, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}
@@ -174,7 +178,7 @@ func registerInputTemplate(tmpl *compiled, env *bundle.Environment) error {
 
 func registerOutputTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.OutputAdd(func(c output.Config, nm bundle.NewManagement, pcf ...processor.PipelineConstructorFunc) (output.Streamed, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}
@@ -198,7 +202,7 @@ func registerOutputTemplate(tmpl *compiled, env *bundle.Environment) error {
 
 func registerProcessorTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.ProcessorAdd(func(c processor.Config, nm bundle.NewManagement) (processor.V1, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}
@@ -219,7 +223,7 @@ func registerProcessorTemplate(tmpl *compiled, env *bundle.Environment) error {
 
 func registerRateLimitTemplate(tmpl *compiled, env *bundle.Environment) error {
 	return env.RateLimitAdd(func(c ratelimit.Config, nm bundle.NewManagement) (ratelimit.V1, error) {
-		newConf, err := tmpl.Render(c.Plugin)
+		newConf, err := tmpl.Render(c.Plugin, nm.Label())
 		if err != nil {
 			return nil, err
 		}

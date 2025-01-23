@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -53,6 +55,11 @@ func newStream(
 		shutSig: shutdown.NewSignaller(),
 		onStart: onStart,
 	}
+}
+
+// Resources returns a pointer to the common resources type of the stream.
+func (s *Stream) Resources() *Resources {
+	return newResourcesFromManager(s.mgr)
 }
 
 // Run attempts to start the stream pipeline and blocks until either the stream

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 // Package extended contains component implementations that have a larger
 // dependency footprint but do not interact with external systems (so an
 // extension of pure components)

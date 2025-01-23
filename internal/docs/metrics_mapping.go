@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package docs
 
 // MetricsMappingFieldSpec is a field spec that describes a Bloblang mapping for

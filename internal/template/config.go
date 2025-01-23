@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package template
 
 import (
@@ -31,6 +33,7 @@ type FieldConfig struct {
 // TestConfig defines a unit test for the template.
 type TestConfig struct {
 	Name     string    `yaml:"name"`
+	Label    string    `yaml:"label"`
 	Config   yaml.Node `yaml:"config"`
 	Expected yaml.Node `yaml:"expected,omitempty"`
 }
@@ -71,6 +74,9 @@ func (c FieldConfig) FieldSpec() (docs.FieldSpec, error) {
 			return f, fmt.Errorf("unrecognised scalar type: %v", *c.Kind)
 		}
 	}
+	if f.Type == "bloblang" {
+		f = f.HasType(docs.FieldTypeString).IsBloblang()
+	}
 	return f, nil
 }
 
@@ -102,12 +108,12 @@ func (c Config) ComponentSpec() (docs.ComponentSpec, error) {
 	}, nil
 }
 
-func (c Config) compile() (*compiled, error) {
+func (c Config) compile(env *bloblang.Environment) (*compiled, error) {
 	spec, err := c.ComponentSpec()
 	if err != nil {
 		return nil, err
 	}
-	mapping, err := bloblang.GlobalEnvironment().NewMapping(c.Mapping)
+	mapping, err := env.NewMapping(c.Mapping)
 	if err != nil {
 		var perr *parser.Error
 		if errors.As(err, &perr) {
@@ -149,22 +155,22 @@ func diffYAMLNodesAsJSON(expNode *yaml.Node, actNode any) (string, error) {
 
 // Test ensures that the template compiles, and executes any unit test
 // definitions within the config.
-func (c Config) Test() ([]string, error) {
-	compiled, err := c.compile()
+func (c Config) Test(env *bundle.Environment, benv *bloblang.Environment) ([]string, error) {
+	compiled, err := c.compile(benv)
 	if err != nil {
 		return nil, err
 	}
 
 	var failures []string
 	for _, test := range c.Tests {
-		outConf, err := compiled.Render(&test.Config)
+		outConf, err := compiled.Render(&test.Config, test.Label)
 		if err != nil {
 			return nil, fmt.Errorf("test '%v': %w", test.Name, err)
 		}
 
 		var yNode yaml.Node
 		if err := yNode.Encode(outConf); err == nil {
-			for _, lint := range docs.LintYAML(docs.NewLintContext(docs.NewLintConfig(bundle.GlobalEnvironment)), docs.Type(c.Type), &yNode) {
+			for _, lint := range docs.LintYAML(docs.NewLintContext(docs.NewLintConfig(env)), docs.Type(c.Type), &yNode) {
 				failures = append(failures, fmt.Sprintf("test '%v': lint error in resulting config: %v", test.Name, lint.Error()))
 			}
 		} else {
@@ -186,7 +192,7 @@ func (c Config) Test() ([]string, error) {
 
 // ReadConfigYAML attempts to read a YAML byte slice as a template configuration
 // file.
-func ReadConfigYAML(templateBytes []byte) (conf Config, lints []docs.Lint, err error) {
+func ReadConfigYAML(env *bundle.Environment, templateBytes []byte) (conf Config, lints []docs.Lint, err error) {
 	if err = yaml.Unmarshal(templateBytes, &conf); err != nil {
 		return
 	}
@@ -196,17 +202,17 @@ func ReadConfigYAML(templateBytes []byte) (conf Config, lints []docs.Lint, err e
 		return
 	}
 
-	lints = ConfigSpec().LintYAML(docs.NewLintContext(docs.NewLintConfig(bundle.GlobalEnvironment)), &node)
+	lints = ConfigSpec().LintYAML(docs.NewLintContext(docs.NewLintConfig(env)), &node)
 	return
 }
 
 // ReadConfigFile attempts to read a template configuration file.
-func ReadConfigFile(path string) (conf Config, lints []docs.Lint, err error) {
+func ReadConfigFile(env *bundle.Environment, path string) (conf Config, lints []docs.Lint, err error) {
 	var templateBytes []byte
 	if templateBytes, err = ifs.ReadFile(ifs.OS(), path); err != nil {
 		return
 	}
-	return ReadConfigYAML(templateBytes)
+	return ReadConfigYAML(env, templateBytes)
 }
 
 //------------------------------------------------------------------------------
@@ -221,6 +227,7 @@ func FieldConfigSpec() docs.FieldSpecs {
 			"int", "standard integer type",
 			"float", "standard float type",
 			"bool", "a boolean true/false",
+			"bloblang", "a bloblang mapping",
 			"unknown", "allows for nesting arbitrary configuration inside of a field",
 		),
 		docs.FieldString("kind", "The kind of the field.").HasOptions(
@@ -269,6 +276,7 @@ func ConfigSpec() docs.FieldSpecs {
 			"tests", "Optional unit test definitions for the template that verify certain configurations produce valid configs. These tests are executed with the command `rpk connect template lint`.",
 		).Array().WithChildren(
 			docs.FieldString("name", "A name to identify the test."),
+			docs.FieldString("label", "A label to assign to this template when running the test.").HasDefault(""),
 			docs.FieldObject("config", "A configuration to run this test with, the config resulting from applying the template with this config will be linted."),
 			docs.FieldObject("expected", "An optional configuration describing the expected result of applying the template, when specified the result will be diffed and any mismatching fields will be reported as a test error.").Optional(),
 		).HasDefault([]any{}),

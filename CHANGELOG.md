@@ -3,6 +3,49 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.44.0 - TBD
+
+### Added
+
+- A `crash` processor for FATAL logging. (@rockwotj)
+
+## 4.43.0 - 2025-01-13
+
+### Added
+
+- Field `label` added to the template tests definitions. (@mihaitodor)
+- Metadata field `label` can now be utilized within a template's `mapping` field to access the label that is associated with the template instantiation in a config. (@mihaitodor)
+- `bloblang` scalar type added to template fields. (@mihaitodor)
+- Go API: Method `SetOutputBrokerPattern` added to the `StreamBuilder` type. (@mihaitodor)
+- New `error_source_name`, `error_source_label` and `error_source_path` bloblang functions. (@mihaitodor)
+- Flag `--verbose` added to the `benthos lint` and `benthos template lint` commands. (@mihaitodor)
+
+### Changed
+
+- The `branch` processor no longer emits an entry in the log at error level when the child processors throw errors. (@mihaitodor)
+- Streams and the StreamBuilder API now use `reject` by default when no output is specified in the config and `stdout` isn't registered (for example when the `io` components are not imported). (@mihaitodor)
+
+## 4.42.0 - 2024-11-29
+
+### Added
+
+- Go API: Method `Resources() *service.Resources` added to the stream builders derived `Stream` type. (@Jeffail)
+- Go API: Integration stream test opt `StreamTestOptOnResourcesInit` added for accessing the resources of test components. (@Jeffail)
+- New `exists` operator added to the `cache` processor. (@mihaitodor)
+
+## 4.41.1 - 2024-11-25
+
+### Fixed
+
+- Fixed an issue where running a CLI with a custom environment would cause imported templates to be rejected.
+
+## 4.41.0 - 2024-11-20
+
+### Added
+
+- New Bloblang method `timestamp`. (@mihaitodor)
+- New `benchmark` processor. (@ooesili)
+
 ## 4.40.0 - 2024-10-25
 
 ### Added

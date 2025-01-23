@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package log
 
 // Modular is a log printer that allows you to branch new modules.

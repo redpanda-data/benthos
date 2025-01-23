@@ -1,9 +1,12 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package processor
 
 import (
 	"context"
 	"time"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang/query"
 	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
 	"github.com/redpanda-data/benthos/v4/internal/log"
@@ -139,6 +142,9 @@ func TestBatchProcContext(ctx context.Context, spans []*tracing.Span, parts []*m
 // accessing processor specific spans.
 type BatchProcContext struct {
 	ctx   context.Context
+	name  string
+	label string
+	path  []string
 	spans []*tracing.Span
 	parts []*message.Part
 
@@ -181,6 +187,15 @@ func (b *BatchProcContext) OnError(err error, index int, p *message.Part) {
 	if p == nil && len(b.parts) > index && index >= 0 {
 		p = b.parts[index]
 	}
+
+	if err != nil {
+		err = &query.ComponentError{
+			Err:   err,
+			Name:  b.name,
+			Label: b.label,
+			Path:  b.path,
+		}
+	}
 	MarkErr(p, span, err)
 }
 
@@ -222,6 +237,9 @@ func (a *v2BatchedToV1Processor) ProcessBatch(ctx context.Context, msg message.B
 
 	outputBatches, err := a.p.ProcessBatch(&BatchProcContext{
 		ctx:    ctx,
+		name:   a.typeStr,
+		label:  a.mgr.Label(),
+		path:   a.mgr.Path(),
 		spans:  spans,
 		parts:  msg,
 		mError: a.mError,

@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -65,10 +67,11 @@ type StreamBuilder struct {
 	apiMut       manager.APIReg
 	customLogger log.Modular
 
-	configSpec      docs.FieldSpecs
-	env             *Environment
-	lintingDisabled bool
-	envVarLookupFn  func(string) (string, bool)
+	configSpec          docs.FieldSpecs
+	env                 *Environment
+	lintingDisabled     bool
+	envVarLookupFn      func(string) (string, bool)
+	outputBrokerPattern OutputBrokerPatternType
 }
 
 // NewStreamBuilder creates a new StreamBuilder.
@@ -143,6 +146,13 @@ func (s *StreamBuilder) SetEnvVarLookupFunc(fn func(string) (string, bool)) {
 // will match the number of logical CPUs on the machine.
 func (s *StreamBuilder) SetThreads(n int) {
 	s.threads = n
+}
+
+// SetOutputBrokerPattern changes the pattern used for brokering messages when
+// multiple outputs are added via AddOutputYAML or when AddConsumerFunc is used.
+// The default pattern is `fan_out`.
+func (s *StreamBuilder) SetOutputBrokerPattern(pattern OutputBrokerPatternType) {
+	s.outputBrokerPattern = pattern
 }
 
 // PrintLogger is a simple Print based interface implemented by custom loggers.
@@ -331,8 +341,8 @@ func (s *StreamBuilder) AddProcessorYAML(conf string) error {
 
 // AddConsumerFunc adds an output to the builder that executes a closure
 // function argument for each message. If more than one output configuration is
-// added they will automatically be composed within a fan out broker when the
-// pipeline is built.
+// added they will automatically be composed within a broker (default `fan_out`)
+// when the pipeline is built.
 //
 // The provided MessageHandlerFunc may be called from any number of goroutines,
 // and therefore it is recommended to implement some form of throttling or mutex
@@ -370,8 +380,8 @@ func (s *StreamBuilder) AddConsumerFunc(fn MessageHandlerFunc) error {
 
 // AddBatchConsumerFunc adds an output to the builder that executes a closure
 // function argument for each message batch. If more than one output
-// configuration is added they will automatically be composed within a fan out
-// broker when the pipeline is built.
+// configuration is added they will automatically be composed within a broker
+// (default `fan_out`) when the pipeline is built.
 //
 // The provided MessageBatchHandlerFunc may be called from any number of
 // goroutines, and therefore it is recommended to implement some form of
@@ -406,7 +416,7 @@ func (s *StreamBuilder) AddBatchConsumerFunc(fn MessageBatchHandlerFunc) error {
 
 // AddOutputYAML parses an output YAML configuration and adds it to the builder.
 // If more than one output configuration is added they will automatically be
-// composed within a fan out broker when the pipeline is built.
+// composed within a broker (default `fan_out`) when the pipeline is built.
 func (s *StreamBuilder) AddOutputYAML(conf string) error {
 	nconf, err := s.getYAMLNode([]byte(conf))
 	if err != nil {
@@ -960,9 +970,13 @@ func (s *StreamBuilder) buildConfig() builderConfig {
 		for i, v := range s.outputs {
 			iSlice[i] = v
 		}
-		conf.Output.Plugin = map[string]any{
+		broker := map[string]any{
 			"outputs": iSlice,
 		}
+		if s.outputBrokerPattern != "" {
+			broker["pattern"] = string(s.outputBrokerPattern)
+		}
+		conf.Output.Plugin = broker
 	} else {
 		// TODO: V5 Prevent default input/output
 		conf.Output = output.NewConfig()

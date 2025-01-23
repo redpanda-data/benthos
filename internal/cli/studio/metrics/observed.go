@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package metrics
 
 // ObservedInput is a subset of input metrics that we're interested in.

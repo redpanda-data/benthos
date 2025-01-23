@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package service
 
 import (
@@ -47,7 +49,7 @@ func (s *StreamTemplateTester) RunYAML(yamlBytes []byte) (lints []Lint, err erro
 		return
 	}
 
-	testErrors, err := conf.Test()
+	testErrors, err := conf.Test(s.env.internal, s.env.getBloblangParserEnv())
 	if err != nil {
 		lints = append(lints, Lint{Line: 1, Type: LintFailedRead, What: err.Error()})
 		return

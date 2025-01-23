@@ -1,3 +1,5 @@
+// Copyright 2025 Redpanda Data, Inc.
+
 package stream
 
 import (
@@ -15,7 +17,7 @@ func Spec() docs.FieldSpecs {
 		}
 	}
 
-	defaultOutput := map[string]any{"inproc": ""}
+	defaultOutput := map[string]any{"reject": "message rejected by default because an output is not configured"}
 	if _, exists := bundle.GlobalEnvironment.GetDocs("stdout", docs.TypeOutput); exists {
 		defaultOutput = map[string]any{
 			"stdout": map[string]any{},
