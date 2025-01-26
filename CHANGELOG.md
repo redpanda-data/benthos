@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - A `crash` processor for FATAL logging. (@rockwotj)
+- A `uuid_v7` bloblang function. (@rockwotj)
 
 ## 4.43.0 - 2025-01-13
 

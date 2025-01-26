@@ -923,6 +923,21 @@ var _ = registerSimpleFunction(
 	},
 )
 
+var _ = registerSimpleFunction(
+	NewFunctionSpec(
+		FunctionCategoryGeneral, "uuid_v7",
+		"Generates a new time ordered UUID each time it is invoked and prints a string representation.",
+		NewExampleSpec("", `root.id = uuid_v7()`),
+	),
+	func(_ FunctionContext) (any, error) {
+		u7, err := uuid.NewV7()
+		if err != nil {
+			panic(err)
+		}
+		return u7.String(), nil
+	},
+)
+
 //------------------------------------------------------------------------------
 
 var _ = registerFunction(
