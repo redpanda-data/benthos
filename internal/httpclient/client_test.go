@@ -828,3 +828,59 @@ extract_headers:
 	require.True(t, ok)
 	require.Equal(t, "https://example.com", location)
 }
+
+func TestHTTPClientDisableHTTP2(t *testing.T) {
+	tests := []struct {
+		name         string
+		disableHTTP2 bool
+		expProtocol  string
+	}{
+		{
+			name:        "http2 enabled",
+			expProtocol: "HTTP/2.0",
+		},
+		{
+			name:         "http2 disabled",
+			disableHTTP2: true,
+			expProtocol:  "HTTP/1.1",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ts := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, test.expProtocol, r.Proto)
+				b, err := io.ReadAll(r.Body)
+				require.NoError(t, err)
+				_, _ = w.Write(b)
+			}))
+			defer ts.Close()
+
+			ts.EnableHTTP2 = true
+
+			ts.StartTLS()
+
+			conf := clientConfig(t, `
+url: %s
+disable_http2: %t
+tls:
+  enabled: true
+  skip_cert_verify: true
+`, ts.URL, test.disableHTTP2)
+
+			h, err := NewClientFromOldConfig(conf, service.MockResources())
+			require.NoError(t, err)
+
+			dummyMsg := "hello world"
+			resBatch, err := h.Send(context.Background(), service.MessageBatch{
+				service.NewMessage([]byte(dummyMsg)),
+			})
+			require.NoError(t, err)
+			require.Len(t, resBatch, 1)
+
+			mBytes, err := resBatch[0].AsBytes()
+			require.NoError(t, err)
+			assert.Equal(t, dummyMsg, string(mBytes))
+		})
+	}
+}

@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 - A `crash` processor for FATAL logging. (@rockwotj)
 - A `uuid_v7` bloblang function. (@rockwotj)
+- Field `disable_http2` added to the `http_client` input and output and to the `http` processor. (@mihaitodor)
 
 ## 4.43.0 - 2025-01-13
 
