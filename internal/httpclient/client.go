@@ -5,6 +5,7 @@ package httpclient
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -118,6 +119,12 @@ func NewClientFromOldConfig(conf OldConfig, mgr *service.Resources, opts ...Requ
 	h.client.Transport, err = newRequestLog(h.client.Transport, h.log, conf.DumpRequestLogLevel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to config logger for request dump: %v", err)
+	}
+
+	if conf.DisableHTTP2 {
+		if c, ok := h.client.Transport.(*http.Transport); ok {
+			c.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+		}
 	}
 
 	h.client = conf.clientCtor(h.clientCtx, h.client)

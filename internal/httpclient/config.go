@@ -30,6 +30,7 @@ const (
 	hcFieldDumpRequestLogLevel = "dump_request_log_level"
 	hcFieldTLS                 = "tls"
 	hcFieldProxyURL            = "proxy_url"
+	hcFieldDisableHTTP2        = "disable_http2"
 )
 
 // ConfigField returns a public API config field spec for an HTTP component,
@@ -108,6 +109,11 @@ func ConfigField(defaultVerb string, forOutput bool, extraChildren ...*service.C
 			Description("An optional HTTP proxy URL.").
 			Advanced().
 			Optional(),
+		service.NewBoolField(hcFieldDisableHTTP2).
+			Description("Whether or not to disable disable HTTP/2").
+			Advanced().
+			Default(false).
+			Version("4.44.0"),
 	)
 
 	innerFields = append(innerFields, extraChildren...)
@@ -167,6 +173,9 @@ func ConfigFromParsed(pConf *service.ParsedConfig) (conf OldConfig, err error) {
 	if conf.authSigner, err = pConf.HTTPRequestAuthSignerFromParsed(); err != nil {
 		return
 	}
+	if conf.DisableHTTP2, err = pConf.FieldBool(hcFieldDisableHTTP2); err != nil {
+		return
+	}
 	if conf.clientCtor, err = oauth2ClientCtorFromParsed(pConf); err != nil {
 		return
 	}
@@ -193,6 +202,7 @@ type OldConfig struct {
 	TLSEnabled          bool
 	TLSConf             *tls.Config
 	ProxyURL            string
+	DisableHTTP2        bool
 	authSigner          func(f fs.FS, req *http.Request) error
 	clientCtor          func(context.Context, *http.Client) *http.Client
 }
