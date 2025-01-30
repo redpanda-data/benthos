@@ -8,7 +8,9 @@ import (
 	"math"
 	"sync"
 	"testing"
+	"time"
 
+	"github.com/gofrs/uuid/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -242,6 +244,33 @@ func TestFunctionTargets(t *testing.T) {
 			assert.Equal(t, test.output, res)
 		})
 	}
+}
+
+func TestUUIDV7Function(t *testing.T) {
+	e, err := InitFunctionHelper("uuid_v7")
+	require.NoError(t, err)
+
+	res, err := e.Exec(FunctionContext{})
+	require.NoError(t, err)
+	require.IsType(t, "", res)
+	u7 := uuid.FromStringOrNil(res.(string))
+	assert.Equal(t, u7.Version(), byte(7))
+}
+
+func TestUUIDV7FunctionAtTime(t *testing.T) {
+	ts := time.Now().Add(-5 * time.Hour)
+	e, err := InitFunctionHelper("uuid_v7", ts)
+	require.NoError(t, err)
+
+	res, err := e.Exec(FunctionContext{})
+	require.NoError(t, err)
+	require.IsType(t, "", res)
+	u7 := uuid.FromStringOrNil(res.(string))
+	u7ts, err := uuid.TimestampFromV7(u7)
+	require.NoError(t, err)
+	actual, err := u7ts.Time()
+	require.NoError(t, err)
+	assert.Equal(t, ts.Truncate(time.Millisecond), actual, "expected: %s, got: %s", ts, actual)
 }
 
 func TestNanoidFunction(t *testing.T) {
