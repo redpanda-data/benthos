@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Jeffail/gabs/v2"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/segmentio/ksuid"
 
