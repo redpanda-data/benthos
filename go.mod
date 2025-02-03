@@ -1,7 +1,7 @@
 module github.com/redpanda-data/benthos/v4
 
 require (
-	cuelang.org/go v0.11.2
+	cuelang.org/go v0.12.0
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/Jeffail/grok v1.1.0
 	github.com/Jeffail/shutdown v1.0.0
