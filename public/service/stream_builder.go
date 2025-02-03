@@ -11,7 +11,7 @@ import (
 	"os"
 
 	"github.com/Jeffail/gabs/v2"
-	"github.com/gofrs/uuid"
+	"github.com/gofrs/uuid/v5"
 	"gopkg.in/yaml.v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/api"
