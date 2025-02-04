@@ -271,6 +271,16 @@ func (c *ConfigField) Version(v string) *ConfigField {
 	return c
 }
 
+// AppendToObjectField adds one or more ConfigField instances to a given ObjectField.
+func (c *ConfigField) AppendToObjectField(fields ...*ConfigField) *ConfigField {
+	children := make([]docs.FieldSpec, len(fields))
+	for i, f := range fields {
+		children[i] = f.field
+	}
+	c.field = c.field.WithChildren(children...)
+	return c
+}
+
 // LintRule adds a custom linting rule to the field in the form of a bloblang
 // mapping. The mapping is provided the value of the field within a config as
 // the context `this`, and if the mapping assigns to `root` an array of one or
