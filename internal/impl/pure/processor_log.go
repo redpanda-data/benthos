@@ -51,7 +51,7 @@ pipeline:
 `+"```"+`
 `).
 		Fields(
-			service.NewStringEnumField(logPFieldLevel, "ERROR", "WARN", "INFO", "DEBUG", "TRACE", "ALL").
+			service.NewStringEnumField(logPFieldLevel, "ERROR", "WARN", "INFO", "DEBUG", "TRACE").
 				Description("The log level to use.").
 				LintRule(``).
 				Default("INFO"),
