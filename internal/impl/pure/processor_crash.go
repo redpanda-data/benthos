@@ -19,7 +19,7 @@ func init() {
 	err := service.RegisterProcessor(
 		"crash", spec,
 		func(conf *service.ParsedConfig, res *service.Resources) (service.Processor, error) {
-			messageStr, err := conf.FieldInterpolatedString("")
+			messageStr, err := conf.FieldInterpolatedString()
 			if err != nil {
 				return nil, err
 			}
