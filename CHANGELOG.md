@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.44.1 - 2025-02-06
+
+### Fixed
+
+- Fixed an bug in configuration lookup for the `crash` processor. (@rockwotj)
+
 ## 4.44.0 - 2025-02-04
 
 ### Added
