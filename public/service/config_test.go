@@ -434,3 +434,82 @@ func TestConfigFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "evalue", e)
 }
+
+func TestConfigObjectAppendFields(t *testing.T) {
+	spec := NewConfigSpec().
+		Fields(
+			NewStringField("a"),
+			NewIntField("b").Default(11),
+			NewObjectField("c",
+				NewBoolField("d").Default(true),
+				NewStringField("e").Default("evalue"),
+			).AppendToObjectField(
+				NewStringField("f"),
+				NewIntField("g").Default(44),
+				NewBoolField("h").Default(true),
+				NewObjectField("i",
+					NewStringField("j"),
+					NewBoolField("k").Default(false),
+					NewIntField("l").Default(10),
+				),
+			),
+		)
+
+	parsed, err := spec.ParseYAML(`
+      a: sample value
+      c:
+        d: false
+        f: example
+        g: 34
+        h: true
+        i:
+          j: test
+          k: true
+          l: 11
+    `, nil)
+	require.NoError(t, err)
+
+	a, err := parsed.FieldString("a")
+	require.NoError(t, err)
+	assert.Equal(t, "sample value", a)
+
+	b, err := parsed.FieldInt("b")
+	require.NoError(t, err)
+	assert.Equal(t, 11, b)
+
+	c := parsed.Namespace("c")
+
+	d, err := c.FieldBool("d")
+	require.NoError(t, err)
+	assert.False(t, d)
+
+	e, err := c.FieldString("e")
+	require.NoError(t, err)
+	assert.Equal(t, "evalue", e)
+
+	f, err := c.FieldString("f")
+	require.NoError(t, err)
+	assert.Equal(t, "example", f)
+
+	g, err := c.FieldInt("g")
+	require.NoError(t, err)
+	assert.Equal(t, 34, g)
+
+	h, err := c.FieldBool("h")
+	require.NoError(t, err)
+	assert.True(t, h)
+
+	i := c.Namespace("i")
+
+	j, err := i.FieldString("j")
+	require.NoError(t, err)
+	assert.Equal(t, "test", j)
+
+	k, err := i.FieldBool("k")
+	require.NoError(t, err)
+	assert.True(t, k)
+
+	l, err := i.FieldInt("l")
+	require.NoError(t, err)
+	assert.Equal(t, 11, l)
+}
