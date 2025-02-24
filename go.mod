@@ -20,7 +20,7 @@ require (
 	github.com/itchyny/gojq v0.12.17
 	github.com/itchyny/timefmt-go v0.1.6
 	github.com/jmespath/go-jmespath v0.4.0
-	github.com/klauspost/compress v1.17.11
+	github.com/klauspost/compress v1.18.0
 	github.com/klauspost/pgzip v1.2.6
 	github.com/linkedin/goavro/v2 v2.13.1
 	github.com/matoous/go-nanoid/v2 v2.1.0
@@ -40,7 +40,7 @@ require (
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/trace v1.34.0
 	go.uber.org/multierr v1.11.0
-	golang.org/x/crypto v0.33.0
+	golang.org/x/crypto v0.34.0
 	golang.org/x/oauth2 v0.26.0
 	golang.org/x/sync v0.11.0
 	golang.org/x/text v0.22.0
@@ -74,5 +74,4 @@ require (
 )
 
 go 1.22.0
-
-toolchain go1.22.10
+toolchain go1.23.6
