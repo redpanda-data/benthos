@@ -40,8 +40,8 @@ require (
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/trace v1.34.0
 	go.uber.org/multierr v1.11.0
-	golang.org/x/crypto v0.33.0
-	golang.org/x/oauth2 v0.26.0
+	golang.org/x/crypto v0.35.0
+	golang.org/x/oauth2 v0.27.0
 	golang.org/x/sync v0.11.0
 	golang.org/x/text v0.22.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
@@ -73,6 +73,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
-go 1.22.0
+go 1.23.0
 
-toolchain go1.22.10
+toolchain go1.23.5
