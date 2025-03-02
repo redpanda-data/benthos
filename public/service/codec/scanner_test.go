@@ -134,3 +134,31 @@ func TestInteropCodecDefault(t *testing.T) {
 	require.NoError(t, strm.Close(context.Background()))
 	assert.True(t, acked)
 }
+
+func TestInteropCodecError(t *testing.T) {
+	// This test asserts that `DeprecatedFallbackCodec.Create` returns a nil `DeprecatedFallbackStream` if the scanner
+	// `Create` method returns an error.
+
+	confSpec := service.NewConfigSpec().Fields(codec.DeprecatedCodecFields("lines")...)
+	pConf, err := confSpec.ParseYAML(`
+scanner:
+  decompress:
+    algorithm: gzip
+    into:
+      lines: {}
+`, nil)
+	require.NoError(t, err)
+
+	rdr, err := codec.DeprecatedCodecFromParsed(pConf)
+	require.NoError(t, err)
+
+	// The `decompress` scanner will error out when trying to parse the `gzip` header from the nil buffer.
+	buf := bytes.NewReader(nil)
+	strm, err := rdr.Create(io.NopCloser(buf), func(ctx context.Context, err error) error {
+		return nil
+	}, service.NewScannerSourceDetails())
+	require.ErrorIs(t, err, io.EOF)
+	if strm != nil {
+		assert.Fail(t, "expected nil stream")
+	}
+}
