@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.45.0 - TBD
+
+### Fixed
+
+- The `studio` `pull` CLI subcommand now triggers the `OnManagerInitialised` API hook. (@mihaitodor)
+
 ## 4.44.1 - 2025-02-06
 
 ### Fixed
