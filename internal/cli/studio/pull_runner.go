@@ -315,6 +315,11 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 	}()
 
 	mgrTmp := stopMgrTmp.Manager().WithAddedMetrics(r.metrics)
+
+	if err := r.cliOpts.OnManagerInitialised(mgrTmp, nil); err != nil {
+		return fmt.Errorf("failed to execute manager initialisation hook: %w", err)
+	}
+
 	if err := r.triggerStreamReset(ctx, &conf, mgrTmp); err != nil {
 		return fmt.Errorf("failed initial stream reset: %w", err)
 	}
