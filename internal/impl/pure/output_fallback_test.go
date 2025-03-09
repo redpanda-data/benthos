@@ -23,6 +23,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
 var _ output.Streamed = &fallbackBroker{}
@@ -439,4 +440,84 @@ func TestFallbackAllFailParallel(t *testing.T) {
 
 	close(readChan)
 	require.NoError(t, oTM.WaitForClose(tCtx))
+}
+
+type foobarInput struct {
+	ackChan chan<- struct{}
+}
+
+func newFoobarInput(ackChan chan struct{}) *foobarInput {
+	return &foobarInput{
+		ackChan: ackChan,
+	}
+}
+
+func (i *foobarInput) Connect(context.Context) error { return nil }
+
+func (i *foobarInput) Read(context.Context) (*service.Message, service.AckFunc, error) {
+	return service.NewMessage([]byte("foobar")), func(_ context.Context, err error) error {
+		i.ackChan <- struct{}{}
+		return nil
+	}, nil
+}
+
+func (i *foobarInput) Close(context.Context) error { return nil }
+
+func TestFallbackFailShutdown(t *testing.T) {
+	ackChan := make(chan struct{})
+
+	err := service.RegisterInput("foobar", service.NewConfigSpec(),
+		func(_ *service.ParsedConfig, mgr *service.Resources) (service.Input, error) {
+			return newFoobarInput(ackChan), nil
+		},
+	)
+	require.NoError(t, err)
+
+	sb := service.NewStreamBuilder()
+	require.NoError(t, sb.AddInputYAML(`
+foobar: {}
+`))
+
+	// Configure a `fallback` with a sluggish DLQ output
+	require.NoError(t, sb.AddOutputYAML(`
+fallback:
+  - reject: "kaboom"
+  - drop: {}
+    processors:
+      - sleep:
+          duration: 1s
+`))
+
+	s, err := sb.Build()
+	require.NoError(t, err)
+
+	stopChan := make(chan struct{})
+	go func() {
+		err = s.Run(context.Background())
+		require.NoError(t, err)
+
+		close(stopChan)
+	}()
+
+	// Explicitly wait for the first ack to ensure the stream is running.
+	// We're not using `AddConsumerFunc` because it will wrap the output in a broker which can make the shutdown logic
+	// behave differently.
+	<-ackChan
+
+	// Ack messages as fast as possible
+	go func() {
+		for {
+			<-ackChan
+		}
+	}()
+
+	err = s.StopWithin(2 * time.Second)
+	require.NoError(t, err)
+
+	// Make sure the stream has stopped
+	select {
+	case <-stopChan:
+	case <-time.After(1 * time.Second):
+		require.Fail(t, "timed out waiting for stream to stop")
+	}
 }

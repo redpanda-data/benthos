@@ -5,6 +5,7 @@ package pure
 import (
 	"context"
 	"errors"
+	"sync"
 
 	"github.com/Jeffail/shutdown"
 
@@ -159,10 +160,15 @@ func (t *fallbackBroker) ConnectionStatus() (s component.ConnectionStatuses) {
 
 // loop is an internal loop that brokers incoming messages to many outputs.
 func (t *fallbackBroker) loop() {
+	var lock sync.RWMutex
 	defer func() {
-		for _, c := range t.outputTSChans {
-			close(c)
+		lock.Lock()
+		for i := range t.outputTSChans {
+			close(t.outputTSChans[i])
+			t.outputTSChans[i] = nil
 		}
+		lock.Unlock()
+
 		_ = closeAllOutputs(context.Background(), t.outputs)
 		t.shutSig.TriggerHasStopped()
 	}()
@@ -229,11 +235,16 @@ func (t *fallbackBroker) loop() {
 				return tran.Ack(ctx, err)
 			}
 
+			lock.RLock()
+			defer lock.RUnlock()
 			select {
+			case <-t.shutSig.SoftStopChan():
+				return nil
 			case t.outputTSChans[i] <- message.NewTransactionFunc(nextBatchFromErr(err), ackFn):
 			case <-ctx.Done():
 				return ctx.Err()
 			}
+
 			return nil
 		}
 

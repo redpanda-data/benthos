@@ -121,7 +121,7 @@ type UnwrapInternalOutput struct {
 	s output.Streamed
 }
 
-// NewUnwrapInternalOutput returns wraps an internal component implementation.
+// NewUnwrapInternalOutput wraps an internal component implementation.
 func NewUnwrapInternalOutput(s output.Streamed) *UnwrapInternalOutput {
 	return &UnwrapInternalOutput{s: s}
 }
