@@ -379,7 +379,7 @@ func TestJSONSchemaInvalidSchema(t *testing.T) {
 		"type": "any"
 	}`
 
-	tmpSchemaFile, err := os.CreateTemp("", "benthos_jsonschema_invalid_schema_test")
+	tmpSchemaFile, err := os.CreateTemp(t.TempDir(), "benthos_jsonschema_invalid_schema_test")
 	if err != nil {
 		t.Fatal(err)
 	}

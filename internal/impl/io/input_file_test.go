@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"testing"
@@ -22,7 +23,8 @@ import (
 func TestFileDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	tmpInnerDir, err := os.MkdirTemp(tmpDir, "benthos_inner")
+	tmpInnerDir := filepath.Join(tmpDir, "benthos_inner")
+	err := os.Mkdir(tmpInnerDir, 0o775)
 	require.NoError(t, err)
 
 	tmpFile, err := os.CreateTemp(tmpDir, "f1*.txt")
@@ -109,7 +111,8 @@ file:
 func TestFileDirectoryDeprecated(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	tmpInnerDir, err := os.MkdirTemp(tmpDir, "benthos_inner")
+	tmpInnerDir := filepath.Join(tmpDir, "benthos_inner")
+	err := os.Mkdir(tmpInnerDir, 0o775)
 	require.NoError(t, err)
 
 	tmpFile, err := os.CreateTemp(tmpDir, "f1*.txt")
