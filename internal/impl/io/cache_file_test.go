@@ -4,7 +4,6 @@ package io
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,15 +13,12 @@ import (
 )
 
 func TestFileCache(t *testing.T) {
-	dir, err := os.MkdirTemp("", "benthos_file_cache_test")
-	require.NoError(t, err)
-
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	tCtx := context.Background()
 	c := newFileCache(dir, service.MockResources())
 
-	_, err = c.Get(tCtx, "foo")
+	_, err := c.Get(tCtx, "foo")
 	assert.Equal(t, service.ErrKeyNotFound, err)
 
 	require.NoError(t, c.Set(tCtx, "foo", []byte("1"), nil))

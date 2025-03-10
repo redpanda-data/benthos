@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.46.0 - TBD
+
+### Fixed
+
+- The `fallback` output no longer panics when shutting down while some acks are still pending. (@mihaitodor)
+
 ## 4.45.0 - 2025-03-06
 
 ### Fixed

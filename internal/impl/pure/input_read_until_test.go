@@ -37,7 +37,7 @@ func TestReadUntilInput(t *testing.T) {
 bar
 baz`)
 
-	tmpfile, err := os.CreateTemp("", "benthos_read_until_test")
+	tmpfile, err := os.CreateTemp(t.TempDir(), "benthos_read_until_test")
 	if err != nil {
 		t.Fatal(err)
 	}
