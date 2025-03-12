@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package benthos.plugin;
+
+option go_package = "public/rpcplugin/go/server";
+
+import "google/protobuf/any.proto";
+
+message Message {
+  bytes content = 1;
+  map<string, google.protobuf.Any> metadata = 2;
+  optional Error error = 3;
+}
+
+message MessageBatch {
+  repeated Message messages = 1;
+}
+
+message Error {
+  string message = 1;
+}
+
+service ProcessorService {
+  rpc Init(ProcessorInitRequest) returns (ProcessorInitResponse) {}
+  rpc ProcessBatch(ProcessBatchRequest) returns (ProcessBatchResponse) {}
+  rpc Close(ProcessorCloseRequest) returns (ProcessorCloseResponse) {}
+}
+
+message ProcessorInitRequest {
+  string label = 1;
+  string path = 2;
+  google.protobuf.Any config = 3;
+}
+
+message ProcessorInitResponse {
+  string instance_id = 1;
+  Error error = 2;
+}
+
+message ProcessBatchRequest {
+  MessageBatch batch = 1;
+}
+
+message ProcessBatchResponse {
+  repeated MessageBatch batches = 1;
+  Error error = 2;
+}
+
+message ProcessorCloseRequest {}
+
+message ProcessorCloseResponse {
+  Error error = 1;
+}
+
