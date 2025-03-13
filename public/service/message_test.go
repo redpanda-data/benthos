@@ -519,3 +519,52 @@ func TestSyncResponse(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "hello world c", string(data))
 }
+
+func TestSyncResponseBatched(t *testing.T) {
+	batchA := MessageBatch{
+		NewMessage([]byte("hello world a 1")),
+		NewMessage([]byte("hello world a 2")),
+		NewMessage([]byte("hello world a 3")),
+	}
+
+	batchB, storeB := batchA.WithSyncResponseStore()
+	batchB[0].SetBytes([]byte("hello world b 1"))
+	batchB[1].SetBytes([]byte("hello world b 2"))
+	batchB[2].SetBytes([]byte("hello world b 3"))
+
+	require.Error(t, batchA.AddSyncResponse())
+	require.NoError(t, batchB.AddSyncResponse())
+
+	batchC := batchB.Copy()
+	batchC[1].SetBytes([]byte("hello world c 2"))
+	require.NoError(t, batchC.AddSyncResponse())
+
+	batchD := batchA.Copy()
+	batchD[1].SetBytes([]byte("hello world d 2"))
+	require.Error(t, batchD.AddSyncResponse())
+
+	resBatches := storeB.Read()
+	require.Len(t, resBatches, 2)
+	require.Len(t, resBatches[0], 3)
+	require.Len(t, resBatches[1], 3)
+
+	for i, c := range []string{
+		"hello world b 1",
+		"hello world b 2",
+		"hello world b 3",
+	} {
+		data, err := resBatches[0][i].AsBytes()
+		require.NoError(t, err)
+		assert.Equal(t, c, string(data))
+	}
+
+	for i, c := range []string{
+		"hello world b 1",
+		"hello world c 2",
+		"hello world b 3",
+	} {
+		data, err := resBatches[1][i].AsBytes()
+		require.NoError(t, err)
+		assert.Equal(t, c, string(data))
+	}
+}
