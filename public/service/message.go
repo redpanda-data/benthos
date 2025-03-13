@@ -690,6 +690,22 @@ func (m *Message) AddSyncResponse() error {
 	return transaction.SetAsResponse(message.Batch{m.part})
 }
 
+// WithSyncResponseStore returns a modified message batch and a response store
+// associated with all messages within it. If any message of the batch is sent
+// through a processing pipeline or output there is the potential for sync
+// response components to add messages to the store, which can be consumed once
+// an acknowledgement is received.
+func (b MessageBatch) WithSyncResponseStore() (MessageBatch, *SyncResponseStore) {
+	resStore := transaction.NewResultStore()
+
+	newB := b.Copy()
+	for i, m := range newB {
+		m.part = transaction.AddResultStoreMsg(b[i].part, resStore)
+	}
+
+	return newB, &SyncResponseStore{s: resStore}
+}
+
 // AddSyncResponse attempts to add this batch of messages, in its exact current
 // condition, to the synchronous response destined for the original source input
 // of this data. Synchronous responses aren't supported by all inputs, and so

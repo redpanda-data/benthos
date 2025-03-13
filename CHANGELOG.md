@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Go API: New batch aware API for capturing synchronous responses from downstream components. (@Jeffail)
+
 ## 4.45.1 - 2025-03-10
 
 ### Fixed
