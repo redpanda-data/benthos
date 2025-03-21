@@ -234,3 +234,64 @@ func (w processorUnwrapper) Unwrap() processor.V1 {
 func (o *OwnedProcessor) XUnwrapper() any {
 	return processorUnwrapper{p: o.p}
 }
+
+//------------------------------------------------------------------------------
+
+// ResourceProcessor provides access to a processor that is a resource.
+type ResourceProcessor struct {
+	p processor.V1
+}
+
+func newResourceProcessor(p processor.V1) *ResourceProcessor {
+	return &ResourceProcessor{p}
+}
+
+// Process a single message, returns either a batch of zero or more resulting
+// messages or an error if the message could not be processed.
+func (r *ResourceProcessor) Process(ctx context.Context, msg *Message) (MessageBatch, error) {
+	outMsg := message.Batch{msg.part}
+
+	iMsgs, res := r.p.ProcessBatch(ctx, outMsg)
+	if res != nil {
+		return nil, res
+	}
+
+	var b MessageBatch
+	for _, iMsg := range iMsgs {
+		_ = iMsg.Iter(func(i int, part *message.Part) error {
+			b = append(b, NewInternalMessage(part))
+			return nil
+		})
+	}
+	return b, nil
+}
+
+// ProcessBatch attempts to process a batch of messages, returns zero or more
+// batches of resulting messages, or an error if the context is cancelled during
+// execution.
+//
+// However, for general processing errors unrelated to context cancellation the
+// error is marked against individual messages with the `SetError` method and a
+// nil error is returned by this method.
+func (r *ResourceProcessor) ProcessBatch(ctx context.Context, batch MessageBatch) ([]MessageBatch, error) {
+	outMsg := make(message.Batch, len(batch))
+	for i, msg := range batch {
+		outMsg[i] = msg.part
+	}
+
+	iMsgs, res := r.p.ProcessBatch(ctx, outMsg)
+	if res != nil {
+		return nil, res
+	}
+
+	var batches []MessageBatch
+	for _, iMsg := range iMsgs {
+		var b MessageBatch
+		_ = iMsg.Iter(func(i int, part *message.Part) error {
+			b = append(b, NewInternalMessage(part))
+			return nil
+		})
+		batches = append(batches, b)
+	}
+	return batches, nil
+}

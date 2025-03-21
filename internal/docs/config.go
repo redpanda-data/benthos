@@ -62,11 +62,14 @@ var labelField = FieldString(
 	return nil
 }).HasDefault("")
 
+var metaField = FieldAnything("meta", "An optional object containing unstructured metadata.").Map().Advanced().Optional()
+
 // ReservedFieldsByType returns a map of fields for a specific type.
 func ReservedFieldsByType(t Type) map[string]FieldSpec {
 	m := map[string]FieldSpec{
 		"type":   FieldString("type", ""),
 		"plugin": FieldObject("plugin", ""),
+		"meta":   metaField,
 	}
 	if t == TypeInput || t == TypeOutput {
 		m["processors"] = FieldProcessor("processors", "").Array().OmitWhen(func(field, _ any) (string, bool) {

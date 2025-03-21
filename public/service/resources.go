@@ -13,6 +13,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component/cache"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
+	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/component/ratelimit"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/internal/manager"
@@ -263,6 +264,21 @@ func (r *Resources) AccessRateLimit(ctx context.Context, name string, fn func(r 
 // initialisation as it is defensive against ordering.
 func (r *Resources) HasRateLimit(name string) bool {
 	return r.mgr.ProbeRateLimit(name)
+}
+
+// AccessProcessor attempts to access a processor resource by name. This action
+// can block if CRUD operations are being actively performed on the resource.
+func (r *Resources) AccessProcessor(ctx context.Context, name string, fn func(*ResourceProcessor)) error {
+	return r.mgr.AccessProcessor(ctx, name, func(p processor.V1) {
+		fn(newResourceProcessor(p))
+	})
+}
+
+// HasProcessor confirms whether a processor with a given name has been
+// registered as a resource. This method is useful during component
+// initialisation as it is defensive against ordering.
+func (r *Resources) HasProcessor(name string) bool {
+	return r.mgr.ProbeProcessor(name)
 }
 
 // GetGeneric queries the resources for a generic key value, potentially set by
