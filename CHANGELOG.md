@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.47.0 - TBD
+
+### Added
+
+- New `ResourcesBuilder` API for creating and managing a suite of resources. (@Jeffail)
+
 ## 4.46.0 - 2025-03-20
 
 ### Added
