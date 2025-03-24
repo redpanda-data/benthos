@@ -347,12 +347,13 @@ input:
 }
 
 // HTTTPInputMiddlewareMeta is a custom middleware type for HTTP server inputs that adds metadata to messages.
-type HTTTPInputMiddlewareMeta func(*http.Request) (map[string]any, error)
+type HTTTPInputMiddlewareMeta func(conf *service.ParsedConfig) (func(*http.Request) (map[string]any, error), error)
 
 // RegisterCustomHTTPServerInput registers a custom HTTP server input with a given name and optional middleware.
-func RegisterCustomHTTPServerInput(name string, middleware HTTTPInputMiddlewareMeta) {
+func RegisterCustomHTTPServerInput(name string, middleware HTTTPInputMiddlewareMeta, extraSpec *service.ConfigField) {
+	spec := hsiSpec().Field(extraSpec)
 	err := service.RegisterBatchInput(
-		name, hsiSpec(),
+		name, spec,
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 			hsiConf, err := hsiConfigFromParsed(conf)
 			if err != nil {
@@ -361,9 +362,12 @@ func RegisterCustomHTTPServerInput(name string, middleware HTTTPInputMiddlewareM
 
 			// TODO: If we refactor this input to implement ReadBatch then we
 			// can return a proper service.BatchInput implementation.
-
+			mdWare, err := middleware(conf)
+			if err != nil {
+				return nil, err
+			}
 			oldMgr := interop.UnwrapManagement(mgr)
-			i, err := newHTTPServerInput(hsiConf, oldMgr, middleware)
+			i, err := newHTTPServerInput(hsiConf, oldMgr, mdWare)
 			if err != nil {
 				return nil, err
 			}
@@ -376,7 +380,7 @@ func RegisterCustomHTTPServerInput(name string, middleware HTTTPInputMiddlewareM
 }
 
 func init() {
-	RegisterCustomHTTPServerInput("http_server", nil)
+	RegisterCustomHTTPServerInput("http_server", nil, nil)
 }
 
 //------------------------------------------------------------------------------
@@ -397,10 +401,10 @@ type httpServerInput struct {
 	mPostRcvd      metrics.StatCounter
 	mWSRcvd        metrics.StatCounter
 	mLatency       metrics.StatTimer
-	middlewareMeta HTTTPInputMiddlewareMeta
+	middlewareMeta func(*http.Request) (map[string]any, error)
 }
 
-func newHTTPServerInput(conf hsiConfig, mgr bundle.NewManagement, middleware HTTTPInputMiddlewareMeta) (input.Streamed, error) {
+func newHTTPServerInput(conf hsiConfig, mgr bundle.NewManagement, middleware func(*http.Request) (map[string]any, error)) (input.Streamed, error) {
 	var gMux *mux.Router
 	var server *http.Server
 
