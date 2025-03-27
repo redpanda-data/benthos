@@ -105,6 +105,13 @@ func CLIOptSetArgs(args ...string) CLIOptFunc {
 	}
 }
 
+// CLIOptAddCommand adds a custom subcommad to the benthos cli.
+func CLIOptAddCommand(command *ucli.Command) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.CustomCommands = append(c.opts.CustomCommands, command)
+	}
+}
+
 // CLIOptSetVersion overrides the default version and date built stamps.
 func CLIOptSetVersion(version, dateBuilt string) CLIOptFunc {
 	return func(c *CLIOptBuilder) {

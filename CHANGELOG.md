@@ -7,7 +7,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- New `ResourcesBuilder` API for creating and managing a suite of resources. (@Jeffail)
+- Go API: New `ResourcesBuilder` API for creating and managing a suite of resources. (@Jeffail)
+- Go API: New cli opt func for adding custom cli subcommands. (@Jeffail)
 
 ## 4.46.0 - 2025-03-20
 
