@@ -11,7 +11,7 @@ import (
 	"github.com/Jeffail/gabs/v2"
 )
 
-const labelExpression = `^[a-z0-9_]+$`
+const labelExpression = `^[a-z0-9_\-]+$`
 
 var (
 	labelRe = regexp.MustCompile(labelExpression)
@@ -23,6 +23,9 @@ var (
 // ValidateLabel attempts to validate the contents of a component label.
 func ValidateLabel(label string) error {
 	if strings.HasPrefix(label, "_") {
+		return ErrBadLabel
+	}
+	if strings.HasPrefix(label, "-") {
 		return ErrBadLabel
 	}
 	if !labelRe.MatchString(label) {
