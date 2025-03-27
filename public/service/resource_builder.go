@@ -13,6 +13,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/component/cache"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
+	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/component/ratelimit"
@@ -20,6 +21,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/manager"
+	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 )
 
 // ResourceBuilder provides methods for building a Benthos stream configuration.
@@ -37,11 +39,11 @@ type ResourceBuilder struct {
 	engineVersion string
 
 	resources manager.ResourceConfig
-	logger    log.Config
+	metrics   metrics.Config
 
+	apiMut       manager.APIReg
 	customLogger log.Modular
 
-	configSpec      docs.FieldSpecs
 	env             *Environment
 	lintingDisabled bool
 	envVarLookupFn  func(context.Context, string) (string, bool)
@@ -49,14 +51,11 @@ type ResourceBuilder struct {
 
 // NewResourceBuilder creates a new ResourceBuilder.
 func NewResourceBuilder() *ResourceBuilder {
-	tmpSpec := config.Spec()
-	tmpSpec.SetDefault(false, "http", "enabled")
-
 	return &ResourceBuilder{
-		resources:  manager.NewResourceConfig(),
-		logger:     log.NewConfig(),
-		configSpec: tmpSpec,
-		env:        globalEnvironment,
+		apiMut:    mock.NewManager(),
+		resources: manager.NewResourceConfig(),
+		metrics:   metrics.NewConfig(),
+		env:       globalEnvironment,
 		envVarLookupFn: func(_ context.Context, k string) (string, bool) {
 			return os.LookupEnv(k)
 		},
@@ -72,25 +71,17 @@ func (r *ResourceBuilder) getLintContext() docs.LintContext {
 
 //------------------------------------------------------------------------------
 
+// SetHTTPMux sets an HTTP multiplexer to be used by resource components when
+// registering endpoints.
+func (r *ResourceBuilder) SetHTTPMux(m HTTPMultiplexer) {
+	r.apiMut = &muxWrapper{m}
+}
+
 // SetEngineVersion sets the version string representing the Benthos engine that
 // components will see. By default a best attempt will be made to determine a
 // version either from the benthos module import or a build-time flag.
 func (r *ResourceBuilder) SetEngineVersion(ev string) {
 	r.engineVersion = ev
-}
-
-// SetSchema overrides the default config schema used when linting and parsing
-// full configs with the SetYAML method. Other XYAML methods will not use this
-// schema as they parse individual component configs rather than a larger
-// configuration.
-//
-// This method is useful as a mechanism for modifying the default top-level
-// settings, such as metrics types and so on.
-func (r *ResourceBuilder) SetSchema(schema *ConfigSchema) {
-	if r.engineVersion == "" {
-		r.engineVersion = schema.version
-	}
-	r.configSpec = schema.fields
 }
 
 // DisableLinting configures the stream builder to no longer lint YAML configs,
@@ -138,6 +129,27 @@ func (r *ResourceBuilder) AddYAML(conf string) error {
 	}
 
 	return r.resources.AddFrom(&rconf)
+}
+
+// SetMetricsYAML parses a metrics YAML configuration and adds it to the builder
+// such that all resource components emit metrics through it.
+func (r *ResourceBuilder) SetMetricsYAML(conf string) error {
+	nconf, err := r.getYAMLNode([]byte(conf))
+	if err != nil {
+		return err
+	}
+
+	if err := r.lintYAMLComponent(nconf, docs.TypeMetrics); err != nil {
+		return err
+	}
+
+	mconf, err := metrics.FromAny(r.env.internal, nconf)
+	if err != nil {
+		return convertDocsLintErr(err)
+	}
+
+	r.metrics = mconf
+	return nil
 }
 
 // AddCacheYAML parses a cache configuration and adds it to the config.
@@ -244,27 +256,49 @@ func (r *ResourceBuilder) AddRateLimitYAML(conf string) error {
 // and also a function that closes and cleans up all resources once they're
 // finished with.
 func (r *ResourceBuilder) Build() (*Resources, func(context.Context) error, error) {
-	logger := r.customLogger
-	if logger == nil {
-		var err error
-		if logger, err = log.New(os.Stdout, r.env.fs, r.logger); err != nil {
-			return nil, nil, err
-		}
-	}
-
 	engVer := r.engineVersion
 	if engVer == "" {
 		engVer = cli.Version
 	}
 
-	mgr, err := manager.New(
-		r.resources,
+	// This temporary manager is a very lazy way of instantiating a manager that
+	// restricts the bloblang and component environments to custom plugins.
+	// Ideally we would break out the constructor for our general purpose
+	// manager to allow for a two-tier initialisation where we can defer
+	// resource constructors until after this metrics exporter is initialised.
+	tmpMgr, err := manager.New(
+		manager.NewResourceConfig(),
 		manager.OptSetEngineVersion(engVer),
-		manager.OptSetLogger(logger),
+		manager.OptSetEnvironment(r.env.internal),
+		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stats, err := r.env.internal.MetricsInit(r.metrics, tmpMgr)
+	if err != nil {
+		return nil, nil, err
+	}
+	if hler := stats.HandlerFunc(); r.apiMut != nil && hler != nil {
+		r.apiMut.RegisterEndpoint("/stats", "Exposes service-wide metrics in the format configured.", hler)
+		r.apiMut.RegisterEndpoint("/metrics", "Exposes service-wide metrics in the format configured.", hler)
+	}
+
+	opts := []manager.OptFunc{
+		manager.OptSetEngineVersion(engVer),
+		manager.OptSetMetrics(stats),
+		manager.OptSetAPIReg(r.apiMut),
 		manager.OptSetEnvironment(r.env.internal),
 		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
 		manager.OptSetFS(r.env.fs),
-	)
+	}
+
+	if r.customLogger != nil {
+		opts = append(opts, manager.OptSetLogger(r.customLogger))
+	}
+
+	mgr, err := manager.New(r.resources, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
