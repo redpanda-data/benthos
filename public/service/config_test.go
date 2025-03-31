@@ -576,6 +576,20 @@ a:
 				),
 			errContains: "field 'a.b' is required and was not present in the config",
 		},
+		{
+			name: "config with empty object field and optional children retains the empty object",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewBoolField("b").Optional(),
+					).Optional(),
+				),
+			config: `
+a: {}
+`,
+			fieldPath:     "a",
+			containsField: true,
+		},
 	}
 
 	for _, test := range tests {
