@@ -827,7 +827,7 @@ func (f FieldSpec) needsDefault() bool {
 	return true
 }
 
-func getDefault(pathName string, field FieldSpec) (any, error) {
+func getDefault(pathName string, field FieldSpec) (val any, optional bool, err error) {
 	if field.Default != nil {
 		if len(field.Children) > 0 && field.Kind == KindScalar {
 			if tmp, ok := value.IClone(*field.Default).(map[string]any); ok {
@@ -835,34 +835,41 @@ func getDefault(pathName string, field FieldSpec) (any, error) {
 					if _, exists := tmp[v.Name]; exists {
 						continue
 					}
-					defV, err := getDefault(pathName+"."+v.Name, v)
+					defV, optional, err := getDefault(pathName+"."+v.Name, v)
 					if err == nil {
-						tmp[v.Name] = defV
+						if !optional {
+							tmp[v.Name] = defV
+						}
 					} else if v.needsDefault() {
-						return nil, err
+						return nil, false, err
 					}
 				}
-				return tmp, nil
+				return tmp, false, nil
 			}
 		}
-		return *field.Default, nil
+		return *field.Default, false, nil
 	} else if field.Kind == KindArray {
-		return []any{}, nil
+		return []any{}, false, nil
 	} else if field.Kind == Kind2DArray {
-		return []any{}, nil
+		return []any{}, false, nil
 	} else if field.Kind == KindMap {
-		return map[string]any{}, nil
+		return map[string]any{}, false, nil
 	} else if len(field.Children) > 0 {
 		m := map[string]any{}
 		for _, v := range field.Children {
-			defV, err := getDefault(pathName+"."+v.Name, v)
+			defV, optional, err := getDefault(pathName+"."+v.Name, v)
 			if err == nil {
-				m[v.Name] = defV
+				if !optional {
+					m[v.Name] = defV
+				}
 			} else if v.needsDefault() {
-				return nil, err
+				return nil, false, err
 			}
 		}
-		return m, nil
+		if len(m) == 0 {
+			return m, true, nil
+		}
+		return m, false, nil
 	}
-	return nil, fmt.Errorf("field '%v' is required and was not present in the config", pathName)
+	return nil, false, fmt.Errorf("field '%v' is required and was not present in the config", pathName)
 }

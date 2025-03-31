@@ -954,11 +954,13 @@ func (f FieldSpecs) YAMLToMap(node *yaml.Node, conf ToValueConfig) (map[string]a
 	}
 
 	for k, v := range pendingFieldsMap {
-		defValue, err := getDefault(k, v)
+		defValue, optional, err := getDefault(k, v)
 		if err != nil {
 			if v.needsDefault() && !conf.Passive {
 				return nil, err
 			}
+			continue
+		} else if optional {
 			continue
 		}
 		resultMap[k] = value.IClone(defValue)

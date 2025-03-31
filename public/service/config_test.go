@@ -4,6 +4,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -433,4 +434,160 @@ func TestConfigFields(t *testing.T) {
 	e, err := c.FieldString("e")
 	require.NoError(t, err)
 	assert.Equal(t, "evalue", e)
+}
+
+func TestOptionalConfigFields(t *testing.T) {
+	tests := []struct {
+		name          string
+		spec          *ConfigSpec
+		config        string
+		errContains   string
+		fieldPath     string
+		containsField bool
+	}{
+		{
+			name: "config doesn't contain optional object field with optional child",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewBoolField("b").Optional(),
+					).Optional(),
+				),
+			fieldPath:     "a",
+			containsField: false,
+		},
+		{
+			name: "config doesn't contain optional object field with optional child hierarchy",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewObjectField("b",
+							NewBoolField("c").Optional(),
+						).Optional(),
+					).Optional(),
+				),
+			fieldPath:     "a",
+			containsField: false,
+		},
+		{
+			name: "config contains optional object field with child which has a default value",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewBoolField("b").Default(false),
+					).Optional(),
+				),
+			fieldPath:     "a",
+			containsField: true,
+		},
+		{
+			name: "config contains optional object field with child hierarchy with default value",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewObjectField("b",
+							NewBoolField("c").Default(false),
+						).Optional(),
+					).Optional(),
+				),
+			fieldPath:     "a",
+			containsField: true,
+		},
+		{
+			name: "config contains optional object field with child hierarchy with default values",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewObjectField("b",
+							NewBoolField("c").Optional(),
+							NewBoolField("d").Default(false),
+						).Optional(),
+					).Optional(),
+				),
+			fieldPath:     "a.b.d",
+			containsField: true,
+		},
+		{
+			name: "config with default value and optional child doesn't contain child",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewBoolField("b").Optional(),
+					).Default(map[string]any{}),
+				),
+			fieldPath:     "a.b",
+			containsField: false,
+		},
+		{
+			name: "config with default value and optional child with default value contains child",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewBoolField("b").Default(false),
+					).Default(map[string]any{}),
+				),
+			fieldPath:     "a.b",
+			containsField: true,
+		},
+		{
+			name: "config retains the field hierarchy when optional child fields are set",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewBoolField("b").Optional(),
+					).Optional(),
+				),
+			config: `
+a:
+  b: true
+`,
+			fieldPath:     "a.b",
+			containsField: true,
+		},
+		{
+			name: "config hierarchy errors out if required child is missing",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewObjectField("b",
+							NewBoolField("c"),
+						)),
+				),
+			errContains: "field 'a.b.c' is required and was not present in the config",
+		},
+		{
+			name: "config with default value retains required child",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewBoolField("b"),
+					).Default(map[string]any{"b": false}),
+				),
+			fieldPath:     "a.b",
+			containsField: true,
+		},
+		{
+			name: "config with default value errors out if it doesn't populate the required child",
+			spec: NewConfigSpec().
+				Fields(
+					NewObjectField("a",
+						NewBoolField("b"),
+					).Default(map[string]any{}),
+				),
+			errContains: "field 'a.b' is required and was not present in the config",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			parsed, err := test.spec.ParseYAML(test.config, nil)
+			if test.errContains != "" {
+				require.ErrorContains(t, err, test.errContains)
+			} else {
+				require.NoError(t, err)
+				ok := parsed.Contains(strings.Split(test.fieldPath, ".")...)
+				assert.Equal(t, test.containsField, ok)
+			}
+		})
+	}
 }
