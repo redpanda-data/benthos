@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.47.0 - TBD
+
+### Fixed
+
+- Fixed a bug where the `Contains()` method of `service.ParsedConfig` was returning `true` when using an optional `service.NewObjectField()` which wasn't set in the config. (@mihaitodor)
+
 ## 4.46.0 - 2025-03-20
 
 ### Added

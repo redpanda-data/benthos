@@ -124,11 +124,13 @@ func (f FieldSpecs) AnyToMap(v any, conf ToValueConfig) (map[string]any, error) 
 	}
 
 	for k, v := range pendingFieldsMap {
-		defValue, err := getDefault(k, v)
+		defValue, optional, err := getDefault(k, v)
 		if err != nil {
 			if v.needsDefault() && !conf.Passive {
 				return nil, err
 			}
+			continue
+		} else if optional {
 			continue
 		}
 		m[k] = value.IClone(defValue)
