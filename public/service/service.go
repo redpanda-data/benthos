@@ -12,6 +12,7 @@ import (
 	ucli "github.com/urfave/cli/v2"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang/parser"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
@@ -102,6 +103,13 @@ type CLIOptFunc func(*CLIOptBuilder)
 func CLIOptSetArgs(args ...string) CLIOptFunc {
 	return func(c *CLIOptBuilder) {
 		c.args = args
+	}
+}
+
+// CLIOptAddCommand adds a custom subcommad to the benthos cli.
+func CLIOptAddCommand(command *ucli.Command) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.CustomCommands = append(c.opts.CustomCommands, command)
 	}
 }
 
@@ -241,4 +249,10 @@ func CLIOptCustomRunFlags(flags []ucli.Flag, fn func(*ucli.Context) error) CLIOp
 		c.opts.CustomRunFlags = flags
 		c.opts.CustomRunExtractFn = fn
 	}
+}
+
+// ParseEnvFile attempts to parse a file containing environment variable
+// assignments, and returns a map of keys to values of those assignments.
+func ParseEnvFile(contents []byte) (map[string]string, error) {
+	return parser.ParseDotEnvFile(contents)
 }
