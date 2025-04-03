@@ -3,7 +3,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.47.0 - TBD
+## 4.47.0 - 2025-04-03
+
+### Added
+
+- Go API: New `ResourcesBuilder` API for creating and managing a suite of resources. (@Jeffail)
+- Go API: New cli opt func for adding custom cli subcommands. (@Jeffail)
+- Go API: New `ParseEnvFile` function added for parsing the same env file syntax as the `--env-file` cli flag. (@Jeffail)
 
 ### Fixed
 
