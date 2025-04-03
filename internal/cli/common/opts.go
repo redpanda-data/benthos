@@ -51,6 +51,8 @@ type CLIOpts struct {
 
 	CustomRunFlags     []cli.Flag
 	CustomRunExtractFn func(*cli.Context) error
+
+	CustomCommands []*cli.Command
 }
 
 // NewCLIOpts returns a new CLIOpts instance populated with default values.

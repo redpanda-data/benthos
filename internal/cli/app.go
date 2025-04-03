@@ -117,6 +117,20 @@ func App(opts *common.CLIOpts) *cli.App {
 	flags = append(flags, common.RunFlags(opts, true)...)
 	flags = append(flags, common.EnvFileAndTemplateFlags(opts, true)...)
 
+	commands := []*cli.Command{
+		echoCliCommand(opts),
+		lintCliCommand(opts),
+		runCliCommand(opts),
+		streamsCliCommand(opts),
+		listCliCommand(opts),
+		createCliCommand(opts),
+		test.CliCommand(opts),
+		clitemplate.CliCommand(opts),
+		blobl.CliCommand(opts),
+		studio.CliCommand(opts),
+	}
+	commands = append(commands, opts.CustomCommands...)
+
 	app := &cli.App{
 		Name:  opts.BinaryName,
 		Usage: opts.ExecTemplate("A stream processor for mundane tasks - {{.DocumentationURL}}"),
@@ -149,18 +163,7 @@ Either run {{.ProductName}} as a stream processor or choose a command:
 
 			return common.RunService(c, opts, false)
 		},
-		Commands: []*cli.Command{
-			echoCliCommand(opts),
-			lintCliCommand(opts),
-			runCliCommand(opts),
-			streamsCliCommand(opts),
-			listCliCommand(opts),
-			createCliCommand(opts),
-			test.CliCommand(opts),
-			clitemplate.CliCommand(opts),
-			blobl.CliCommand(opts),
-			studio.CliCommand(opts),
-		},
+		Commands: commands,
 	}
 
 	app.OnUsageError = func(context *cli.Context, err error, isSubcommand bool) error {
