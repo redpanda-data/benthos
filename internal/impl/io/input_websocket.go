@@ -49,7 +49,7 @@ func websocketInputSpec() *service.ConfigSpec {
 				Description("An optional message to send to the server upon connection.").
 				Advanced().Optional().Deprecated(),
 			service.NewStringListField("open_messages").
-				Description("A list of optional messages to send to the server upon connection.").
+				Description("An optional list of messages to send to the server upon connection.").
 				Advanced().Optional(),
 			service.NewStringField("open_message_sep").
 				Description("An optional separator used to split open_message into multiple messages that are sent to the server upon connection.").
@@ -150,9 +150,7 @@ func newWebsocketReaderFromParsed(conf *service.ParsedConfig, mgr bundle.NewMana
 		for i, msg := range openMsgsStr {
 			ws.openMsg[i] = []byte(msg)
 		}
-	}
-
-	if openMsgStr, _ = conf.FieldString("open_message"); openMsgStr != "" {
+	} else if openMsgStr, _ = conf.FieldString("open_message"); openMsgStr != "" {
 		ws.openMsg = make([][]byte, 1)
 	}
 	return ws, nil
