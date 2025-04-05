@@ -51,9 +51,6 @@ func websocketInputSpec() *service.ConfigSpec {
 			service.NewStringListField("open_messages").
 				Description("An optional list of messages to send to the server upon connection.").
 				Advanced().Optional(),
-			service.NewStringField("open_message_sep").
-				Description("An optional separator used to split open_message into multiple messages that are sent to the server upon connection.").
-				Advanced().Optional(),
 			service.NewStringAnnotatedEnumField("open_message_type", map[string]string{
 				string(wsOpenMsgTypeBinary): "Binary data open_message.",
 				string(wsOpenMsgTypeText):   "Text data open_message. The text message payload is interpreted as UTF-8 encoded text data.",
@@ -152,6 +149,7 @@ func newWebsocketReaderFromParsed(conf *service.ParsedConfig, mgr bundle.NewMana
 		}
 	} else if openMsgStr, _ = conf.FieldString("open_message"); openMsgStr != "" {
 		ws.openMsg = make([][]byte, 1)
+		ws.openMsg[0] = []byte(openMsgStr)
 	}
 	return ws, nil
 }
