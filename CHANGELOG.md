@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.48.0 - TBD
+
+### Added
+
+- Field `client_auth` added to the `socket_server` input. (@filippog)
+
 ## 4.47.0 - 2025-04-03
 
 ### Added
