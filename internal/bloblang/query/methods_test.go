@@ -883,6 +883,48 @@ func TestMethods(t *testing.T) {
 			),
 			output: "1418570095",
 		},
+		"check uuid_v5 dns": {
+			input: methods(
+				literalFn("hello world"),
+				method("uuid_v5", "dns"),
+			),
+			output: "823a2f73-a936-56c3-b8b4-03641bd74f35",
+		},
+		"check uuid_v5 url": {
+			input: methods(
+				literalFn("hello world"),
+				method("uuid_v5", "url"),
+			),
+			output: "7b3d66ac-cb60-5154-8edf-0bcfd0c418b3",
+		},
+		"check uuid_v5 oid": {
+			input: methods(
+				literalFn("hello world"),
+				method("uuid_v5", "oid"),
+			),
+			output: "25024589-1a7c-5625-bdb2-81143473d4d3",
+		},
+		"check uuid_v5 x500": {
+			input: methods(
+				literalFn("hello world"),
+				method("uuid_v5", "x500"),
+			),
+			output: "dbd9b896-6d7c-5852-895c-ecc5735cf874",
+		},
+		"check uuid_v5 nil": {
+			input: methods(
+				literalFn("hello world"),
+				method("uuid_v5"),
+			),
+			output: "191333f6-c83e-5b3b-bdb0-bd483ad1bcb7",
+		},
+		"check uuid_v5 not valid ns": {
+			input: methods(
+				literalFn("hello world"),
+				method("uuid_v5", "not valid"),
+			),
+			err: `string literal: invalid ns uuid: "not valid"`,
+		},
 		"check hex encode": {
 			input: methods(
 				literalFn("hello world"),
