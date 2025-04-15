@@ -184,7 +184,7 @@ func RunManagerUntilStopped(
 	}()
 
 	var deadLineTrigger <-chan time.Time
-	if dl, exists := c.Context.Deadline(); exists {
+	if dl, exists := c.Deadline(); exists {
 		// If a deadline has been set by the cli context then we need to trigger
 		// graceful termination before it's reached, otherwise it'll never
 		// happen as the context will cancel the cleanup.
@@ -220,7 +220,7 @@ func RunManagerUntilStopped(
 		stopMgr.Manager().Logger().Info("Pipeline has terminated. Shutting down the service")
 	case <-deadLineTrigger:
 		stopMgr.Manager().Logger().Info("Run context deadline about to be reached. Shutting down the service")
-	case <-c.Context.Done():
+	case <-c.Done():
 		stopMgr.Manager().Logger().Info("Run context was cancelled. Shutting down the service")
 	}
 	return nil

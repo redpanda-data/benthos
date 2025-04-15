@@ -17,6 +17,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/component/ratelimit"
+	"github.com/redpanda-data/benthos/v4/internal/component/tracer"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
@@ -40,6 +41,7 @@ type ResourceBuilder struct {
 
 	resources manager.ResourceConfig
 	metrics   metrics.Config
+	tracer    tracer.Config
 
 	apiMut       manager.APIReg
 	customLogger log.Modular
@@ -55,6 +57,7 @@ func NewResourceBuilder() *ResourceBuilder {
 		apiMut:    mock.NewManager(),
 		resources: manager.NewResourceConfig(),
 		metrics:   metrics.NewConfig(),
+		tracer:    tracer.NewConfig(),
 		env:       globalEnvironment,
 		envVarLookupFn: func(_ context.Context, k string) (string, bool) {
 			return os.LookupEnv(k)
@@ -152,6 +155,27 @@ func (r *ResourceBuilder) SetMetricsYAML(conf string) error {
 	return nil
 }
 
+// SetTracerYAML parses a tracer YAML configuration and adds it to the builder
+// such that all resource components emit tracing spans through it.
+func (r *ResourceBuilder) SetTracerYAML(conf string) error {
+	nconf, err := r.getYAMLNode([]byte(conf))
+	if err != nil {
+		return err
+	}
+
+	if err := r.lintYAMLComponent(nconf, docs.TypeTracer); err != nil {
+		return err
+	}
+
+	tconf, err := tracer.FromAny(r.env.internal, nconf)
+	if err != nil {
+		return convertDocsLintErr(err)
+	}
+
+	r.tracer = tconf
+	return nil
+}
+
 // AddCacheYAML parses a cache configuration and adds it to the config.
 func (r *ResourceBuilder) AddCacheYAML(conf string) error {
 	nconf, err := r.getYAMLNode([]byte(conf))
@@ -166,6 +190,9 @@ func (r *ResourceBuilder) AddCacheYAML(conf string) error {
 	parsedConf, err := cache.FromAny(r.env.internal, nconf)
 	if err != nil {
 		return convertDocsLintErr(err)
+	}
+	if parsedConf.Label == "" {
+		return errors.New("a label must be specified")
 	}
 
 	r.resources.ResourceCaches = append(r.resources.ResourceCaches, parsedConf)
@@ -187,6 +214,9 @@ func (r *ResourceBuilder) AddInputYAML(conf string) error {
 	if err != nil {
 		return convertDocsLintErr(err)
 	}
+	if parsedConf.Label == "" {
+		return errors.New("a label must be specified")
+	}
 
 	r.resources.ResourceInputs = append(r.resources.ResourceInputs, parsedConf)
 	return nil
@@ -206,6 +236,9 @@ func (r *ResourceBuilder) AddOutputYAML(conf string) error {
 	parsedConf, err := output.FromAny(r.env.internal, nconf)
 	if err != nil {
 		return convertDocsLintErr(err)
+	}
+	if parsedConf.Label == "" {
+		return errors.New("a label must be specified")
 	}
 
 	r.resources.ResourceOutputs = append(r.resources.ResourceOutputs, parsedConf)
@@ -227,6 +260,9 @@ func (r *ResourceBuilder) AddProcessorYAML(conf string) error {
 	if err != nil {
 		return convertDocsLintErr(err)
 	}
+	if parsedConf.Label == "" {
+		return errors.New("a label must be specified")
+	}
 
 	r.resources.ResourceProcessors = append(r.resources.ResourceProcessors, parsedConf)
 	return nil
@@ -246,6 +282,9 @@ func (r *ResourceBuilder) AddRateLimitYAML(conf string) error {
 	parsedConf, err := ratelimit.FromAny(r.env.internal, nconf)
 	if err != nil {
 		return convertDocsLintErr(err)
+	}
+	if parsedConf.Label == "" {
+		return errors.New("a label must be specified")
 	}
 
 	r.resources.ResourceRateLimits = append(r.resources.ResourceRateLimits, parsedConf)
@@ -276,6 +315,11 @@ func (r *ResourceBuilder) Build() (*Resources, func(context.Context) error, erro
 		return nil, nil, err
 	}
 
+	tracer, err := r.env.internal.TracersInit(r.tracer, tmpMgr)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	stats, err := r.env.internal.MetricsInit(r.metrics, tmpMgr)
 	if err != nil {
 		return nil, nil, err
@@ -288,6 +332,7 @@ func (r *ResourceBuilder) Build() (*Resources, func(context.Context) error, erro
 	opts := []manager.OptFunc{
 		manager.OptSetEngineVersion(engVer),
 		manager.OptSetMetrics(stats),
+		manager.OptSetTracer(tracer),
 		manager.OptSetAPIReg(r.apiMut),
 		manager.OptSetEnvironment(r.env.internal),
 		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
