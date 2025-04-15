@@ -229,7 +229,7 @@ func (m *Type) Delete(ctx context.Context, id string) error {
 	}
 
 	if err := wrapper.strm.Stop(ctx); err != nil {
-		if !(errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)) {
+		if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
 			return err
 		}
 	}

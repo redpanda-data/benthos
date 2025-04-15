@@ -338,7 +338,7 @@ url: %v
 		assert.Equal(t, testStr+"PART-A", string(mBytes))
 
 		v, _ := resMsg[0].MetaGet("foo-bar")
-		assert.Equal(t, "", v)
+		assert.Empty(t, v)
 		v, _ = resMsg[0].MetaGet("http_status_code")
 		assert.Equal(t, "201", v)
 	}
@@ -522,13 +522,13 @@ url: %v
 		assert.Equal(t, testStr+"PART-B", string(mBytes))
 
 		v, _ := resMsg[0].MetaGet("foo-bar")
-		assert.Equal(t, "", v)
+		assert.Empty(t, v)
 
 		v, _ = resMsg[0].MetaGet("http_status_code")
 		assert.Equal(t, "201", v)
 
 		v, _ = resMsg[1].MetaGet("foo-bar")
-		assert.Equal(t, "", v)
+		assert.Empty(t, v)
 
 		v, _ = resMsg[1].MetaGet("http_status_code")
 		assert.Equal(t, "201", v)

@@ -59,7 +59,9 @@ file:
 
 	res, stop, err := b.Build()
 	require.NoError(t, err)
-	defer stop(ctx)
+	defer func() {
+		_ = stop(ctx)
+	}()
 
 	require.NoError(t, res.AccessInput(ctx, "fooinput", func(i *service.ResourceInput) {
 		for _, exp := range []string{"first", "second", "third"} {
@@ -70,7 +72,7 @@ file:
 			bBytes, err := b[0].AsBytes()
 			require.NoError(t, err)
 
-			assert.Equal(t, string(bBytes), exp)
+			assert.Equal(t, exp, string(bBytes))
 
 			require.NoError(t, aFn(ctx, nil))
 		}
