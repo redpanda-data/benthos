@@ -23,8 +23,7 @@ deps:
 	@go mod tidy
 
 fmt:
-	@go list -f {{.Dir}} ./... | xargs -I{} gofmt -w -s {}
-	@go list -f {{.Dir}} ./... | xargs -I{} goimports -w -local github.com/redpanda-data/benthos/v4 {}
+	@golangci-lint fmt cmd/... internal/... public/...
 	@go mod tidy
 
 lint:
