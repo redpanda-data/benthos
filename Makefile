@@ -11,8 +11,10 @@ build-wasm:
 export GOBIN ?= $(CURDIR)/bin
 export PATH  := $(GOBIN):$(PATH)
 
+include .versions
+
 install-tools:
-	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.0.2
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION)
 
 install:
 	@go install ./cmd/benthos

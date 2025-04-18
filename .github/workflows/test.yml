@@ -55,8 +55,12 @@ jobs:
         go-version: 1.23.x
         check-latest: true
 
+    - name: Set version env variables
+      run: |
+        cat .versions >> $GITHUB_ENV
+
     - name: Lint
       uses: golangci/golangci-lint-action@v7
       with:
-        version: v2.0.2
+        version: "v${{env.GOLANGCI_LINT_VERSION}}"
         args: --timeout 30m cmd/... internal/... public/...
