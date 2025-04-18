@@ -63,4 +63,4 @@ jobs:
       uses: golangci/golangci-lint-action@v7
       with:
         version: "v${{env.GOLANGCI_LINT_VERSION}}"
-        args: --timeout 30m cmd/... internal/... public/...
+        args: "cmd/... internal/... public/..."
