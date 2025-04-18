@@ -8,6 +8,12 @@ build:
 build-wasm:
 	@GOOS=js GOARCH=wasm go build -o benthos.wasm ./cmd/benthos
 
+export GOBIN ?= $(CURDIR)/bin
+export PATH  := $(GOBIN):$(PATH)
+
+install-tools:
+	@go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.0.2
+
 install:
 	@go install ./cmd/benthos
 
