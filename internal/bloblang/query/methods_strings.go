@@ -919,6 +919,10 @@ Available predefined namespaces: `+"`dns`, `url`, `oid`, `x500`"+`.`,
 		}
 
 		return func(v any, ctx FunctionContext) (any, error) {
+			if v == nil {
+				return nil, nil
+			}
+
 			var uns uuid.UUID
 			if ns == nil {
 				uns = uuid.Nil

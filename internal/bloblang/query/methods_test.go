@@ -911,7 +911,7 @@ func TestMethods(t *testing.T) {
 			),
 			output: "dbd9b896-6d7c-5852-895c-ecc5735cf874",
 		},
-		"check uuid_v5 nil": {
+		"check uuid_v5 omit ns": {
 			input: methods(
 				literalFn("hello world"),
 				method("uuid_v5"),
@@ -924,6 +924,13 @@ func TestMethods(t *testing.T) {
 				method("uuid_v5", "not valid"),
 			),
 			err: `string literal: invalid ns uuid: "not valid"`,
+		},
+		"check uuid_v5 null input": {
+			input: methods(
+				literalFn(nil),
+				method("uuid_v5"),
+			),
+			output: nil,
 		},
 		"check hex encode": {
 			input: methods(
