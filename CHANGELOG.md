@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Field `client_auth` added to the `socket_server` input. (@filippog)
+- New Bloblang string method `uuid_v5`. (@artemklevtsov)
 
 ## 4.47.0 - 2025-04-03
 
