@@ -221,7 +221,15 @@ func (h *Client) ResponseToBatch(res *http.Response) (service.MessageBatch, erro
 			for k, values := range res.Header {
 				normalisedHeader := strings.ToLower(k)
 				if len(values) > 0 && h.metaExtractFilter.Match(normalisedHeader) {
-					p.MetaSetMut(normalisedHeader, values[0])
+					if len(values) == 1 {
+						p.MetaSetMut(normalisedHeader, values[0])
+					} else {
+						metaVal := make([]any, 0, len(values))
+						for _, v := range values {
+							metaVal = append(metaVal, v)
+						}
+						p.MetaSetMut(normalisedHeader, metaVal)
+					}
 				}
 			}
 		}

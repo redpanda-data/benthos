@@ -5,6 +5,7 @@ package httpclient
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
@@ -395,6 +396,10 @@ bar_b:
 
 func TestHTTPClientReceiveHeadersWithMetadataFiltering(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Has("cookies") {
+			w.Header().Add("Set-Cookie", "foo=bar")
+			w.Header().Add("Set-Cookie", "fizz=buzz")
+		}
 		w.Header().Set("foobar", "baz")
 		w.Header().Set("extra", "val")
 		w.WriteHeader(http.StatusCreated)
@@ -404,6 +409,7 @@ func TestHTTPClientReceiveHeadersWithMetadataFiltering(t *testing.T) {
 	for _, tt := range []struct {
 		name            string
 		noExtraMetadata bool
+		setCookies      bool
 		includePrefixes []string
 		includePatterns []string
 	}{
@@ -419,6 +425,11 @@ func TestHTTPClientReceiveHeadersWithMetadataFiltering(t *testing.T) {
 			name:            "include_patterns only",
 			includePatterns: []string{".*bar"},
 		},
+		{
+			name:            "multi-value headers",
+			setCookies:      true,
+			includePatterns: []string{".*"},
+		},
 	} {
 		if tt.includePrefixes == nil {
 			tt.includePrefixes = []string{}
@@ -426,12 +437,17 @@ func TestHTTPClientReceiveHeadersWithMetadataFiltering(t *testing.T) {
 		if tt.includePatterns == nil {
 			tt.includePatterns = []string{}
 		}
+
+		url := ts.URL
+		if tt.setCookies {
+			url += "?cookies=true"
+		}
 		conf := clientConfig(t, `
 url: %v
 extract_headers:
   include_prefixes: %v
   include_patterns: %v
-`, ts.URL, gabs.Wrap(tt.includePrefixes).String(), gabs.Wrap(tt.includePatterns).String())
+`, url, gabs.Wrap(tt.includePrefixes).String(), gabs.Wrap(tt.includePatterns).String())
 
 		h, err := NewClientFromOldConfig(conf, service.MockResources())
 		if err != nil {
@@ -458,6 +474,15 @@ extract_headers:
 			v, _ := resMsg[0].MetaGet("foobar")
 			if exp, act := "baz", v; exp != act {
 				t.Errorf("%s: wrong metadata value: %v != %v", tt.name, act, exp)
+			}
+			if tt.setCookies {
+				v, _ := resMsg[0].MetaGetMut("set-cookie")
+				assert.IsType(t, []any{}, v)
+				act, err := json.Marshal(v)
+				require.NoError(t, err)
+				if exp := `["foo=bar","fizz=buzz"]`; exp != string(act) {
+					t.Errorf("%s: wrong metadata value: %v != %v", tt.name, act, exp)
+				}
 			}
 		}
 	}
