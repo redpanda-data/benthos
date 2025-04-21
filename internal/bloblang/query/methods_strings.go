@@ -906,12 +906,11 @@ var _ = registerSimpleMethod(
 	).InCategory(
 		MethodCategoryEncoding,
 		`
-Retruns UUID version 5 for the given string.
-Available predefined namespaces: `+"`dns`, `url`, `oid`, `x500`"+`.`,
+Returns UUID version 5 for the given string.`,
 		NewExampleSpec("", `root.id = "example".uuid_v5()`, `{"id": "feb54431-301b-52bb-a6dd-e1e93e81bb9e"}`),
 		NewExampleSpec("", `root.id = "example".uuid_v5("x500")`, `{"id": "0cbd148f-768f-52fe-a1cd-0c4e6c65de91"}`),
 		NewExampleSpec("", `root.id = "example".uuid_v5("77f836b7-9f61-46c0-851e-9b6ca3535e69")`, `{"id": "a0d220eb-18f1-50ca-b888-86aa5b604edf"}`),
-	).Param(ParamString("ns", "An optional namespace name or UUID. If empty nil UUID will be used.").Optional()),
+	).Param(ParamString("ns", "An optional namespace name or UUID. It supports the `dns`, `url`, `oid` and `x500` predefined namespaces and any valid RFC-9562 UUID. If empty, the nil UUID will be used.").Optional()),
 	func(args *ParsedParams) (simpleMethod, error) {
 		ns, err := args.FieldOptionalString("ns")
 		if err != nil {
