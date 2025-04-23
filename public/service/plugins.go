@@ -26,6 +26,13 @@ func RegisterBatchBuffer(name string, spec *ConfigSpec, ctor BatchBufferConstruc
 	return globalEnvironment.RegisterBatchBuffer(name, spec, ctor)
 }
 
+// MustRegisterBatchBuffer is the same as RegisterBatchBuffer but panics on error.
+func MustRegisterBatchBuffer(name string, spec *ConfigSpec, ctor BatchBufferConstructor) {
+	if err := RegisterBatchBuffer(name, spec, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // CacheConstructor is a func that's provided a configuration type and access to
 // a service manager and must return an instantiation of a cache based on the
 // config, or an error.
@@ -37,6 +44,13 @@ type CacheConstructor func(conf *ParsedConfig, mgr *Resources) (Cache, error)
 // the component within a config.
 func RegisterCache(name string, spec *ConfigSpec, ctor CacheConstructor) error {
 	return globalEnvironment.RegisterCache(name, spec, ctor)
+}
+
+// MustRegisterCache is the same as RegisterCache but panics on error.
+func MustRegisterCache(name string, spec *ConfigSpec, ctor CacheConstructor) {
+	if err := RegisterCache(name, spec, ctor); err != nil {
+		panic(err)
+	}
 }
 
 // InputConstructor is a func that's provided a configuration type and access to
@@ -54,6 +68,13 @@ type InputConstructor func(conf *ParsedConfig, mgr *Resources) (Input, error)
 // wrap your input implementation with AutoRetryNacks to get automatic retries.
 func RegisterInput(name string, spec *ConfigSpec, ctor InputConstructor) error {
 	return globalEnvironment.RegisterInput(name, spec, ctor)
+}
+
+// MustRegisterInput is the same as RegisterInput but panics on error.
+func MustRegisterInput(name string, spec *ConfigSpec, ctor InputConstructor) {
+	if err := RegisterInput(name, spec, ctor); err != nil {
+		panic(err)
+	}
 }
 
 // BatchInputConstructor is a func that's provided a configuration type and
@@ -74,6 +95,13 @@ func RegisterBatchInput(name string, spec *ConfigSpec, ctor BatchInputConstructo
 	return globalEnvironment.RegisterBatchInput(name, spec, ctor)
 }
 
+// MustRegisterBatchInput is the same as RegisterBatchInput but panics on error.
+func MustRegisterBatchInput(name string, spec *ConfigSpec, ctor BatchInputConstructor) {
+	if err := RegisterBatchInput(name, spec, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // OutputConstructor is a func that's provided a configuration type and access
 // to a service manager, and must return an instantiation of a writer based on
 // the config and a maximum number of in-flight messages to allow, or an error.
@@ -85,6 +113,13 @@ type OutputConstructor func(conf *ParsedConfig, mgr *Resources) (out Output, max
 // the component within a config.
 func RegisterOutput(name string, spec *ConfigSpec, ctor OutputConstructor) error {
 	return globalEnvironment.RegisterOutput(name, spec, ctor)
+}
+
+// MustRegisterOutput is the same as RegisterOutput but panics on error.
+func MustRegisterOutput(name string, spec *ConfigSpec, ctor OutputConstructor) {
+	if err := RegisterOutput(name, spec, ctor); err != nil {
+		panic(err)
+	}
 }
 
 // BatchOutputConstructor is a func that's provided a configuration type and
@@ -109,6 +144,13 @@ func RegisterBatchOutput(name string, spec *ConfigSpec, ctor BatchOutputConstruc
 	return globalEnvironment.RegisterBatchOutput(name, spec, ctor)
 }
 
+// MustRegisterBatchOutput is the same as RegisterBatchOutput but panics on error.
+func MustRegisterBatchOutput(name string, spec *ConfigSpec, ctor BatchOutputConstructor) {
+	if err := RegisterBatchOutput(name, spec, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // ProcessorConstructor is a func that's provided a configuration type and
 // access to a service manager and must return an instantiation of a processor
 // based on the config, or an error.
@@ -123,6 +165,13 @@ type ProcessorConstructor func(conf *ParsedConfig, mgr *Resources) (Processor, e
 // instead.
 func RegisterProcessor(name string, spec *ConfigSpec, ctor ProcessorConstructor) error {
 	return globalEnvironment.RegisterProcessor(name, spec, ctor)
+}
+
+// MustRegisterProcessor is the same as RegisterProcessor but panics on error.
+func MustRegisterProcessor(name string, spec *ConfigSpec, ctor ProcessorConstructor) {
+	if err := RegisterProcessor(name, spec, ctor); err != nil {
+		panic(err)
+	}
 }
 
 // BatchProcessorConstructor is a func that's provided a configuration type and
@@ -142,6 +191,13 @@ func RegisterBatchProcessor(name string, spec *ConfigSpec, ctor BatchProcessorCo
 	return globalEnvironment.RegisterBatchProcessor(name, spec, ctor)
 }
 
+// MustRegisterBatchProcessor is the same as RegisterBatchProcessor but panics on error.
+func MustRegisterBatchProcessor(name string, spec *ConfigSpec, ctor BatchProcessorConstructor) {
+	if err := RegisterBatchProcessor(name, spec, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // RateLimitConstructor is a func that's provided a configuration type and
 // access to a service manager and must return an instantiation of a rate limit
 // based on the config, or an error.
@@ -155,6 +211,13 @@ func RegisterRateLimit(name string, spec *ConfigSpec, ctor RateLimitConstructor)
 	return globalEnvironment.RegisterRateLimit(name, spec, ctor)
 }
 
+// MustRegisterRateLimit is the same as RegisterRateLimit but panics on error.
+func MustRegisterRateLimit(name string, spec *ConfigSpec, ctor RateLimitConstructor) {
+	if err := RegisterRateLimit(name, spec, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // MetricsExporterConstructor is a func that's provided a configuration type and
 // access to a service manager and must return an instantiation of a metrics
 // exporter based on the config, or an error.
@@ -166,6 +229,13 @@ type MetricsExporterConstructor func(conf *ParsedConfig, log *Logger) (MetricsEx
 // for each instantiation of the component within a config.
 func RegisterMetricsExporter(name string, spec *ConfigSpec, ctor MetricsExporterConstructor) error {
 	return globalEnvironment.RegisterMetricsExporter(name, spec, ctor)
+}
+
+// MustRegisterMetricsExporter is the same as RegisterMetricsExporter but panics on error.
+func MustRegisterMetricsExporter(name string, spec *ConfigSpec, ctor MetricsExporterConstructor) {
+	if err := RegisterMetricsExporter(name, spec, ctor); err != nil {
+		panic(err)
+	}
 }
 
 // OtelTracerProviderConstructor is a func that's provided a configuration type
@@ -188,6 +258,13 @@ func RegisterOtelTracerProvider(name string, spec *ConfigSpec, ctor OtelTracerPr
 	return globalEnvironment.RegisterOtelTracerProvider(name, spec, ctor)
 }
 
+// MustRegisterOtelTracerProvider is the same as RegisterOtelTracerProvider but panics on error.
+func MustRegisterOtelTracerProvider(name string, spec *ConfigSpec, ctor OtelTracerProviderConstructor) {
+	if err := RegisterOtelTracerProvider(name, spec, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // BatchScannerCreatorConstructor is a func that's provided a configuration type
 // and access to a service manager and must return an instantiation of a batch
 // scanner creator.
@@ -201,9 +278,23 @@ func RegisterBatchScannerCreator(name string, spec *ConfigSpec, ctor BatchScanne
 	return globalEnvironment.RegisterBatchScannerCreator(name, spec, ctor)
 }
 
+// MustRegisterBatchScannerCreator is the same as RegisterBatchScannerCreator but panics on error.
+func MustRegisterBatchScannerCreator(name string, spec *ConfigSpec, ctor BatchScannerCreatorConstructor) {
+	if err := RegisterBatchScannerCreator(name, spec, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // RegisterTemplateYAML attempts to register a template to the global
 // environment, defined as a YAML document, to the environment such that it may
 // be used similarly to any other component plugin.
 func RegisterTemplateYAML(yamlStr string) error {
 	return globalEnvironment.RegisterTemplateYAML(yamlStr)
+}
+
+// MustRegisterTemplateYAML is the same as RegisterTemplateYAML but panics on error.
+func MustRegisterTemplateYAML(yamlStr string) {
+	if err := RegisterTemplateYAML(yamlStr); err != nil {
+		panic(err)
+	}
 }
