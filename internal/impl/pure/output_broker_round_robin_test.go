@@ -33,7 +33,7 @@ func TestRoundRobinDoubleClose(t *testing.T) {
 //------------------------------------------------------------------------------
 
 func TestBasicRoundRobin(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	nMsgs := 1000
@@ -109,7 +109,7 @@ func TestBasicRoundRobin(t *testing.T) {
 //------------------------------------------------------------------------------
 
 func BenchmarkBasicRoundRobin(b *testing.B) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(b.Context(), time.Second*5)
 	defer done()
 
 	nOutputs, nMsgs := 3, b.N

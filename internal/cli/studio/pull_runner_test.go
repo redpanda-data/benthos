@@ -175,7 +175,7 @@ func replacePaths(tmpDir, conf string) string {
 func TestPullRunnerHappyPath(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	mgrInitHookExecuted := false
@@ -283,7 +283,7 @@ output_resources:
 func TestPullRunnerBadConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	pr, waitFn := testServerForPullRunner(t, nil,
@@ -371,7 +371,7 @@ output:
 func TestPullRunnerBlockedShutdown(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	pr, waitFn := testServerForPullRunner(t, nil,
@@ -453,7 +453,7 @@ output:
 func TestPullRunnerSetOverride(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	pr, waitFn := testServerForPullRunner(t, nil,
@@ -504,7 +504,7 @@ output:
 func TestPullRunnerReassignment(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	pr, waitFn := testServerForPullRunner(t, nil,
@@ -601,7 +601,7 @@ output:
 func TestPullRunnerBaseConfig(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "diskmain.yaml"), []byte(replacePaths(tmpDir, `
@@ -655,7 +655,7 @@ input:
 func TestPullRunnerBaseConfigAndSet(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	require.NoError(t, os.WriteFile(filepath.Join(tmpDir, "diskmain.yaml"), []byte(replacePaths(tmpDir, `
@@ -709,7 +709,7 @@ input:
 func TestPullRunnerMetrics(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	tNow := time.Unix(1, 0)
@@ -866,7 +866,7 @@ func TestPullRunnerRateLimit(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	tNow := time.Unix(1, 0)
@@ -948,7 +948,7 @@ output:
 func TestPullRunnerTracesDisabled(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	pr, waitFn := testServerForPullRunner(t, nil,
@@ -1060,7 +1060,7 @@ func TestPullRunnerTracesEnabled(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	pr, waitFn := testServerForPullRunner(t, nil,
@@ -1205,7 +1205,7 @@ map a {
 }
 `), 0o755))
 
-	ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 30*time.Second)
 	defer done()
 
 	pr, waitFn := testServerForPullRunner(t, nil,

@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"strconv"
 	"testing"
 	"time"
@@ -32,7 +31,7 @@ jq:
 		[]byte(`{"foo":{"bar":1}}`),
 		[]byte(`{"foo":{"bar":2}}`),
 	})
-	msgs, res := jSet.ProcessBatch(context.Background(), msgIn)
+	msgs, res := jSet.ProcessBatch(t.Context(), msgIn)
 	require.NoError(t, res)
 	require.Len(t, msgs, 1)
 	for i, part := range message.GetAllBytes(msgs[0]) {
@@ -51,7 +50,7 @@ jq:
 	require.NoError(t, err)
 
 	msgIn := message.QuickBatch([][]byte{[]byte("this is bad json")})
-	msgs, res := jSet.ProcessBatch(context.Background(), msgIn)
+	msgs, res := jSet.ProcessBatch(t.Context(), msgIn)
 
 	require.NoError(t, res)
 	require.Len(t, msgs, 1)
@@ -76,7 +75,7 @@ jq:
 
 	msgIn := message.QuickBatch(make([][]byte, 1))
 	msgIn.Get(0).SetStructured(ogObj.Data())
-	msgs, res := jSet.ProcessBatch(context.Background(), msgIn)
+	msgs, res := jSet.ProcessBatch(t.Context(), msgIn)
 	require.NoError(t, res)
 	require.Len(t, msgs, 1)
 
@@ -185,7 +184,7 @@ jq:
 				inMsg = append(inMsg, part)
 			}
 
-			msgs, _ := jSet.ProcessBatch(context.Background(), inMsg)
+			msgs, _ := jSet.ProcessBatch(t.Context(), inMsg)
 			require.Len(t, msgs, 1)
 			if test.err == "" {
 				assert.Equal(t, test.output, string(message.GetAllBytes(msgs[0])[0]))
@@ -285,7 +284,7 @@ jq:
 					[]byte(test.input),
 				},
 			)
-			msgs, _ := jSet.ProcessBatch(context.Background(), inMsg)
+			msgs, _ := jSet.ProcessBatch(t.Context(), inMsg)
 			require.Len(t, msgs, 1)
 			assert.Equal(t, test.output, string(message.GetAllBytes(msgs[0])[0]))
 		})

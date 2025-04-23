@@ -22,7 +22,7 @@ import (
 func readMsg(t *testing.T, tranChan <-chan message.Transaction) message.Batch {
 	t.Helper()
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*10)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
 	select {
@@ -86,7 +86,7 @@ subprocess:
 }
 
 func TestSubprocessRestarted(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	filePath := testProgram(t, `package main
@@ -138,7 +138,7 @@ subprocess:
 }
 
 func TestSubprocessCloseInBetween(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	filePath := testProgram(t, `package main

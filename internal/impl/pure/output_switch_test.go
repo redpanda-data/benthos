@@ -41,7 +41,7 @@ func newSwitch(t testing.TB, mockOutputs []*mock.OutputChanneled, confStr string
 }
 
 func TestSwitchNoConditions(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nOutputs, nMsgs := 10, 1000
@@ -101,7 +101,7 @@ cases:`
 }
 
 func TestSwitchNoRetries(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nOutputs, nMsgs := 10, 1000
@@ -168,7 +168,7 @@ cases:`
 }
 
 func TestSwitchBatchNoRetries(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	confStr := `
@@ -236,7 +236,7 @@ cases:
 }
 
 func TestSwitchBatchNoRetriesBatchErr(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	confStr := `
@@ -327,7 +327,7 @@ cases:
 }
 
 func TestSwitchWithConditions(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nMsgs := 100
@@ -429,7 +429,7 @@ cases:
 }
 
 func TestSwitchError(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutputs := []*mock.OutputChanneled{{}, {}, {}}
@@ -499,7 +499,7 @@ cases:
 }
 
 func TestSwitchBatchSplit(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutputs := []*mock.OutputChanneled{{}, {}, {}}
@@ -566,7 +566,7 @@ cases:
 }
 
 func TestSwitchBatchGroup(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutputs := []*mock.OutputChanneled{{}, {}, {}}
@@ -638,7 +638,7 @@ cases:
 }
 
 func TestSwitchNoMatch(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutputs := []*mock.OutputChanneled{{}, {}, {}}
@@ -680,7 +680,7 @@ cases:
 }
 
 func TestSwitchNoMatchStrict(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutputs := []*mock.OutputChanneled{{}, {}, {}}
@@ -723,7 +723,7 @@ cases:
 }
 
 func TestSwitchWithConditionsNoFallthrough(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nMsgs := 100
@@ -825,7 +825,7 @@ cases:
 }
 
 func TestSwitchShutDownFromErrorResponse(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutputs := []*mock.OutputChanneled{{}, {}}
@@ -879,7 +879,7 @@ cases:
 }
 
 func TestSwitchShutDownFromReceive(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutputs := []*mock.OutputChanneled{{}, {}}
@@ -924,7 +924,7 @@ cases:
 }
 
 func TestSwitchShutDownFromSend(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutputs := []*mock.OutputChanneled{{}, {}}
@@ -962,7 +962,7 @@ cases:
 }
 
 func TestSwitchBackPressure(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	t.Parallel()
@@ -1120,7 +1120,7 @@ metrics:
 	strm, err := builder.Build()
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, done := context.WithTimeout(t.Context(), 1*time.Second)
 	defer done()
 
 	require.NoError(t, strm.Run(ctx))

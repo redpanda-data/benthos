@@ -50,7 +50,7 @@ mapping: |
 	c, err := mgr.NewCache(conf)
 	require.NoError(t, err)
 
-	res, err := c.Get(context.Background(), "foo")
+	res, err := c.Get(t.Context(), "foo")
 	require.NoError(t, err)
 
 	assert.Equal(t, "meow", string(res))
@@ -106,7 +106,7 @@ mapping: |
 	require.Len(t, tran.Payload, 1)
 	assert.Equal(t, `{"bar":"AND THIS TOO","foo":"meow"}`, string(tran.Payload[0].AsBytes()))
 
-	require.NoError(t, tran.Ack(context.Background(), nil))
+	require.NoError(t, tran.Ack(t.Context(), nil))
 
 	select {
 	case _, open = <-strm.TransactionChan():
@@ -180,12 +180,12 @@ mapping: |
 	require.Len(t, tran.Payload, 1)
 	assert.Equal(t, `MEOW WOOF`, string(tran.Payload[0].AsBytes()))
 
-	require.NoError(t, tran.Ack(context.Background(), nil))
+	require.NoError(t, tran.Ack(t.Context(), nil))
 
 	close(tInChan)
 	strm.TriggerCloseNow()
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second)
+	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	require.NoError(t, strm.WaitForClose(ctx))
 }
@@ -216,7 +216,7 @@ mapping: |
 	p, err := mgr.NewProcessor(conf)
 	require.NoError(t, err)
 
-	res, err := p.ProcessBatch(context.Background(), message.Batch{
+	res, err := p.ProcessBatch(t.Context(), message.Batch{
 		message.NewPart([]byte("woof")),
 	})
 	require.NoError(t, err)
@@ -258,7 +258,7 @@ mapping: |
 	p, err := mgr.NewProcessor(conf)
 	require.NoError(t, err)
 
-	res, err := p.ProcessBatch(context.Background(), message.Batch{
+	res, err := p.ProcessBatch(t.Context(), message.Batch{
 		message.NewPart([]byte(`{"go":true,"id":"aaa"}`)),
 	})
 	require.NoError(t, err)
@@ -294,11 +294,11 @@ mapping: |
 	r, err := mgr.NewRateLimit(conf)
 	require.NoError(t, err)
 
-	d, err := r.Access(context.Background())
+	d, err := r.Access(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, d, time.Duration(0))
 
-	d, err = r.Access(context.Background())
+	d, err = r.Access(t.Context())
 	require.NoError(t, err)
 	assert.Greater(t, d, time.Hour-time.Minute)
 	assert.Less(t, d, time.Hour+time.Minute)
@@ -353,7 +353,7 @@ mapping: |
 			p, err := mgr.NewProcessor(conf)
 			require.NoError(t, err)
 
-			res, err := p.ProcessBatch(context.Background(), message.Batch{
+			res, err := p.ProcessBatch(t.Context(), message.Batch{
 				message.NewPart([]byte(test.msg)),
 			})
 			require.NoError(t, err)
@@ -503,7 +503,7 @@ mapping: |
 			}
 			require.NoError(t, err)
 
-			res, err := p.ProcessBatch(context.Background(), message.Batch{
+			res, err := p.ProcessBatch(t.Context(), message.Batch{
 				message.NewPart([]byte(test.message)),
 			})
 			require.NoError(t, err)

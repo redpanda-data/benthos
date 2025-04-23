@@ -29,7 +29,7 @@ func TestRateLimitAirGapShutdown(t *testing.T) {
 	rl := &closableRateLimit{}
 	agrl := MetricsForRateLimit(rl, metrics.Noop())
 
-	err := agrl.Close(context.Background())
+	err := agrl.Close(t.Context())
 	assert.NoError(t, err)
 	assert.True(t, rl.closed)
 }

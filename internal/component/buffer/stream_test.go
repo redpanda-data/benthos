@@ -16,7 +16,7 @@ import (
 )
 
 func TestStreamMemoryBuffer(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	var incr, total uint8 = 100, 50
@@ -149,7 +149,7 @@ func TestStreamMemoryBuffer(t *testing.T) {
 }
 
 func TestStreamBufferClosing(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	var incr, total uint8 = 100, 5
@@ -236,7 +236,7 @@ func (r *readErrorBuffer) Close(ctx context.Context) error {
 }
 
 func TestStreamReadErrors(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	tChan := make(chan message.Transaction)

@@ -54,7 +54,7 @@ broker:
 	defer func() {
 		s.TriggerCloseNow()
 
-		ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 		assert.NoError(t, s.WaitForClose(ctx))
 		done()
 	}()
@@ -134,6 +134,7 @@ broker:
 	t.Cleanup(func() {
 		s.TriggerCloseNow()
 
+		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*10)
 		assert.NoError(t, s.WaitForClose(ctx))
 		done()
@@ -217,7 +218,7 @@ broker:
 		close(sendChan)
 		s.TriggerCloseNow()
 
-		ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 		assert.NoError(t, s.WaitForClose(ctx))
 		done()
 	}()
@@ -386,7 +387,7 @@ broker:
 			strm, err := builder.Build()
 			require.NoError(t, err)
 
-			tCtx, done := context.WithTimeout(context.Background(), time.Minute)
+			tCtx, done := context.WithTimeout(t.Context(), time.Minute)
 			defer done()
 
 			require.NoError(t, strm.Run(tCtx))

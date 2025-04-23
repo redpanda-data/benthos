@@ -93,7 +93,7 @@ logger:
 	s, err := strmBuilder.Build()
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	require.NoError(t, s.Run(tCtx))
 }
@@ -124,7 +124,7 @@ func TestMultilevelCacheGetting(t *testing.T) {
 	c, err := newMultilevelCache([]string{"foo", "bar"}, p, nil)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	_, err = c.Get(ctx, "not_exist")
 	assert.Equal(t, err, service.ErrKeyNotFound)
@@ -162,7 +162,7 @@ func TestMultilevelCacheSet(t *testing.T) {
 	c, err := newMultilevelCache([]string{"foo", "bar"}, p, nil)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	require.NoError(t, c.Set(ctx, "foo", []byte("test value 1"), nil))
 
@@ -200,7 +200,7 @@ func TestMultilevelCacheDelete(t *testing.T) {
 	c, err := newMultilevelCache([]string{"foo", "bar"}, p, nil)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	require.NoError(t, memCache2.Set(ctx, "foo", []byte("test value 1"), nil))
 
@@ -238,7 +238,7 @@ func TestMultilevelCacheAdd(t *testing.T) {
 	c, err := newMultilevelCache([]string{"foo", "bar"}, p, nil)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	err = c.Add(ctx, "foo", []byte("test value 1"), nil)
 	require.NoError(t, err)
@@ -304,7 +304,7 @@ func TestMultilevelCacheAddMoreCaches(t *testing.T) {
 	c, err := newMultilevelCache([]string{"foo", "bar", "baz"}, p, nil)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	err = c.Add(ctx, "foo", []byte("test value 1"), nil)
 	require.NoError(t, err)

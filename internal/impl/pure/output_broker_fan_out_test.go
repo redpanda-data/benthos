@@ -41,7 +41,7 @@ func TestBasicFanOut(t *testing.T) {
 
 	assert.True(t, oTM.ConnectionStatus().AllActive())
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*10)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
 	for i := 0; i < nMsgs; i++ {
@@ -99,7 +99,7 @@ func TestBasicFanOutMutations(t *testing.T) {
 
 	assert.True(t, oTM.ConnectionStatus().AllActive())
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*10)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
 	inMsg := message.NewPart(nil)
@@ -171,7 +171,7 @@ func TestFanOutBackPressure(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
 	wg := sync.WaitGroup{}
@@ -234,7 +234,7 @@ func TestFanOutShutDownFromReceive(t *testing.T) {
 		t.Fatal("Timed out waiting for msg rcv")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	oTM.TriggerCloseNow()
@@ -265,7 +265,7 @@ func TestFanOutShutDownFromSend(t *testing.T) {
 		t.Fatal("Timed out waiting for msg send")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	oTM.TriggerCloseNow()
@@ -282,7 +282,7 @@ func TestFanOutShutDownFromSend(t *testing.T) {
 //------------------------------------------------------------------------------
 
 func BenchmarkBasicFanOut(b *testing.B) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(b.Context(), time.Second*5)
 	defer done()
 
 	nOutputs, nMsgs := 3, b.N

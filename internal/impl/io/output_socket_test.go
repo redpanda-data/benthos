@@ -30,7 +30,7 @@ func socketWriterFromConf(t testing.TB, confStr string, bits ...any) *socketWrit
 }
 
 func TestSocketBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -53,7 +53,7 @@ address: %v
 	}()
 
 	go func() {
-		if cerr := wtr.Connect(context.Background()); cerr != nil {
+		if cerr := wtr.Connect(t.Context()); cerr != nil {
 			t.Error(cerr)
 		}
 	}()
@@ -73,13 +73,13 @@ address: %v
 		wg.Done()
 	}()
 
-	if err = wtr.Write(context.Background(), service.NewMessage([]byte("foo"))); err != nil {
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("foo"))); err != nil {
 		t.Error(err)
 	}
-	if err = wtr.Write(context.Background(), service.NewMessage([]byte("bar\n"))); err != nil {
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("bar\n"))); err != nil {
 		t.Error(err)
 	}
-	if err = wtr.Write(context.Background(), service.NewMessage([]byte("baz"))); err != nil {
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("baz"))); err != nil {
 		t.Error(err)
 	}
 
@@ -104,7 +104,7 @@ func (w *testOutputWrapPacketConn) Read(p []byte) (n int, err error) {
 }
 
 func TestUDPSocketBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	conn, err := net.ListenPacket("udp", "127.0.0.1:0")
@@ -126,7 +126,7 @@ address: %v
 		}
 	}()
 
-	if cerr := wtr.Connect(context.Background()); cerr != nil {
+	if cerr := wtr.Connect(t.Context()); cerr != nil {
 		t.Fatal(cerr)
 	}
 
@@ -140,13 +140,13 @@ address: %v
 		wg.Done()
 	}()
 
-	if err = wtr.Write(context.Background(), service.NewMessage([]byte("foo"))); err != nil {
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("foo"))); err != nil {
 		t.Error(err)
 	}
-	if err = wtr.Write(context.Background(), service.NewMessage([]byte("bar\n"))); err != nil {
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("bar\n"))); err != nil {
 		t.Error(err)
 	}
-	if err = wtr.Write(context.Background(), service.NewMessage([]byte("baz"))); err != nil {
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("baz"))); err != nil {
 		t.Error(err)
 	}
 
@@ -162,7 +162,7 @@ address: %v
 }
 
 func TestTCPSocketBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -185,7 +185,7 @@ address: %v
 	}()
 
 	go func() {
-		if cerr := wtr.Connect(context.Background()); cerr != nil {
+		if cerr := wtr.Connect(t.Context()); cerr != nil {
 			t.Error(cerr)
 		}
 	}()
@@ -205,13 +205,13 @@ address: %v
 		wg.Done()
 	}()
 
-	if err = wtr.Write(context.Background(), service.NewMessage([]byte("foo"))); err != nil {
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("foo"))); err != nil {
 		t.Error(err)
 	}
-	if err = wtr.Write(context.Background(), service.NewMessage([]byte("bar\n"))); err != nil {
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("bar\n"))); err != nil {
 		t.Error(err)
 	}
-	if err = wtr.Write(context.Background(), service.NewMessage([]byte("baz"))); err != nil {
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("baz"))); err != nil {
 		t.Error(err)
 	}
 

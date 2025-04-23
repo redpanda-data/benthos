@@ -74,7 +74,7 @@ input:
 
 	closeChan := make(chan struct{})
 	go func() {
-		require.NoError(t, stream.Run(context.Background()))
+		require.NoError(t, stream.Run(t.Context()))
 		close(closeChan)
 	}()
 
@@ -157,7 +157,7 @@ foobar: {}
 
 	closeChan := make(chan struct{})
 	go func() {
-		require.NoError(t, stream.Run(context.Background()))
+		require.NoError(t, stream.Run(t.Context()))
 		close(closeChan)
 	}()
 

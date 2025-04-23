@@ -50,7 +50,7 @@ func TestPolicyBasic(t *testing.T) {
 	pol, err := policy.New(conf, mock.NewManager())
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(func() {
 		require.NoError(t, pol.Close(tCtx))
 		done()
@@ -101,7 +101,7 @@ func TestPolicyPeriod(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(func() {
 		require.NoError(t, pol.Close(tCtx))
 		done()
@@ -138,7 +138,7 @@ func TestPolicySize(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(func() {
 		require.NoError(t, pol.Close(tCtx))
 		done()
@@ -170,7 +170,7 @@ func TestPolicyCheck(t *testing.T) {
 	pol, err := policy.New(conf, mock.NewManager())
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(func() {
 		require.NoError(t, pol.Close(tCtx))
 		done()
@@ -202,7 +202,7 @@ func TestPolicyCheckAdvanced(t *testing.T) {
 	pol, err := policy.New(conf, mock.NewManager())
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(func() {
 		require.NoError(t, pol.Close(tCtx))
 		done()
@@ -246,7 +246,7 @@ archive:
 	pol, err := policy.New(conf, mock.NewManager())
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(func() {
 		require.NoError(t, pol.Close(tCtx))
 		done()
@@ -281,7 +281,7 @@ func TestPolicySplit(t *testing.T) {
 	pol, err := policy.New(conf, mock.NewManager())
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	t.Cleanup(func() {
 		require.NoError(t, pol.Close(tCtx))
 		done()

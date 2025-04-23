@@ -87,9 +87,9 @@ func TestSpanBatchReader(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			assert.NoError(t, r.Connect(context.Background()))
+			assert.NoError(t, r.Connect(t.Context()))
 
-			res, _, err := r.ReadBatch(context.Background())
+			res, _, err := r.ReadBatch(t.Context())
 			require.NoError(t, err)
 			assert.Len(t, res, 1)
 
@@ -97,7 +97,7 @@ func TestSpanBatchReader(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, test.contents, string(rBytes))
 
-			assert.NoError(t, r.Close(context.Background()))
+			assert.NoError(t, r.Close(t.Context()))
 
 			assert.True(t, connCalled)
 			assert.True(t, closeCalled)
@@ -180,16 +180,16 @@ func TestSpanReader(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			assert.NoError(t, r.Connect(context.Background()))
+			assert.NoError(t, r.Connect(t.Context()))
 
-			msg, _, err := r.Read(context.Background())
+			msg, _, err := r.Read(t.Context())
 			require.NoError(t, err)
 
 			rBytes, err := msg.AsBytes()
 			require.NoError(t, err)
 			assert.Equal(t, test.contents, string(rBytes))
 
-			assert.NoError(t, r.Close(context.Background()))
+			assert.NoError(t, r.Close(t.Context()))
 
 			assert.True(t, connCalled)
 			assert.True(t, closeCalled)

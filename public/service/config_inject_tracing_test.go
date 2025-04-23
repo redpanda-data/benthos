@@ -81,11 +81,11 @@ func TestSpanBatchWriter(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			assert.NoError(t, r.Connect(context.Background()))
+			assert.NoError(t, r.Connect(t.Context()))
 
-			require.NoError(t, r.WriteBatch(context.Background(), MessageBatch{NewMessage([]byte(`{}`))}))
+			require.NoError(t, r.WriteBatch(t.Context(), MessageBatch{NewMessage([]byte(`{}`))}))
 
-			assert.NoError(t, r.Close(context.Background()))
+			assert.NoError(t, r.Close(t.Context()))
 
 			assert.True(t, connCalled)
 			assert.True(t, closeCalled)
@@ -163,11 +163,11 @@ func TestSpanWriter(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			assert.NoError(t, r.Connect(context.Background()))
+			assert.NoError(t, r.Connect(t.Context()))
 
-			require.NoError(t, r.Write(context.Background(), NewMessage([]byte(`{}`))))
+			require.NoError(t, r.Write(t.Context(), NewMessage([]byte(`{}`))))
 
-			assert.NoError(t, r.Close(context.Background()))
+			assert.NoError(t, r.Close(t.Context()))
 
 			assert.True(t, connCalled)
 			assert.True(t, closeCalled)

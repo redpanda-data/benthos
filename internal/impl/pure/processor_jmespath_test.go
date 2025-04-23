@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"strconv"
 	"testing"
 
@@ -32,7 +31,7 @@ jmespath:
 		[]byte(`{"foo":{"bar":1}}`),
 		[]byte(`{"foo":{"bar":2}}`),
 	})
-	msgs, res := jSet.ProcessBatch(context.Background(), msgIn)
+	msgs, res := jSet.ProcessBatch(t.Context(), msgIn)
 	if len(msgs) != 1 {
 		t.Fatal("Wrong count of messages")
 	}
@@ -59,7 +58,7 @@ jmespath:
 	}
 
 	msgIn := message.QuickBatch([][]byte{[]byte("this is bad json")})
-	msgs, res := jSet.ProcessBatch(context.Background(), msgIn)
+	msgs, res := jSet.ProcessBatch(t.Context(), msgIn)
 	if len(msgs) != 1 {
 		t.Fatal("No passthrough for bad input data")
 	}
@@ -89,7 +88,7 @@ jmespath:
 
 	msgIn := message.QuickBatch(make([][]byte, 1))
 	msgIn.Get(0).SetStructured(ogObj.Data())
-	msgs, res := jSet.ProcessBatch(context.Background(), msgIn)
+	msgs, res := jSet.ProcessBatch(t.Context(), msgIn)
 	if len(msgs) != 1 {
 		t.Fatal("No passthrough for bad input data")
 	}
@@ -181,7 +180,7 @@ jmespath:
 				[]byte(test.input),
 			},
 		)
-		msgs, _ := jSet.ProcessBatch(context.Background(), inMsg)
+		msgs, _ := jSet.ProcessBatch(t.Context(), inMsg)
 		if len(msgs) != 1 {
 			t.Fatalf("Test '%v' did not succeed", test.name)
 		}

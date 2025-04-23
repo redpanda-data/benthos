@@ -439,7 +439,7 @@ output:
 				strm, err := builder.Build()
 				require.NoError(b, err)
 
-				ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+				ctx, done := context.WithTimeout(b.Context(), time.Second*30)
 				defer done()
 
 				b.ReportAllocs()

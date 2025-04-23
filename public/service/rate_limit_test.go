@@ -29,7 +29,7 @@ func (c *closableRateLimit) Close(ctx context.Context) error {
 }
 
 func TestRateLimitAirGapShutdown(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableRateLimit{
 		next: time.Second,
 	}
@@ -74,17 +74,17 @@ func TestRateLimitReverseAirGapShutdown(t *testing.T) {
 	}
 	agrl := newReverseAirGapRateLimit(rl)
 
-	tout, err := agrl.Access(context.Background())
+	tout, err := agrl.Access(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, time.Second, tout)
 
 	rl.next = time.Millisecond
 	rl.err = errors.New("test error")
 
-	tout, err = agrl.Access(context.Background())
+	tout, err = agrl.Access(t.Context())
 	assert.EqualError(t, err, "test error")
 	assert.Equal(t, time.Millisecond, tout)
 
-	assert.NoError(t, agrl.Close(context.Background()))
+	assert.NoError(t, agrl.Close(t.Context()))
 	assert.True(t, rl.closed)
 }

@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -61,7 +60,7 @@ json_schema:
 	c, err := mock.NewManager().NewProcessor(conf)
 	require.NoError(t, err)
 
-	msgs, _ := c.ProcessBatch(context.Background(), message.Batch{
+	msgs, _ := c.ProcessBatch(t.Context(), message.Batch{
 		message.NewPart([]byte(`{"firstName":"John","lastName":"Doe","age":21}`)),
 	})
 	require.Len(t, msgs, 1)
@@ -143,7 +142,7 @@ json_schema:
 				t.Error(err)
 				return
 			}
-			msgs, _ := c.ProcessBatch(context.Background(), message.QuickBatch(tt.arg))
+			msgs, _ := c.ProcessBatch(t.Context(), message.QuickBatch(tt.arg))
 
 			if len(msgs) != 1 {
 				t.Fatalf("Test '%v' did not succeed", tt.name)
@@ -235,7 +234,7 @@ json_schema:
 				t.Error(err)
 				return
 			}
-			msgs, _ := c.ProcessBatch(context.Background(), message.QuickBatch(tt.arg))
+			msgs, _ := c.ProcessBatch(t.Context(), message.QuickBatch(tt.arg))
 
 			if len(msgs) != 1 {
 				t.Fatalf("Test '%v' did not succeed", tt.name)
@@ -340,7 +339,7 @@ json_schema:
 				t.Error(err)
 				return
 			}
-			msgs, _ := c.ProcessBatch(context.Background(), message.QuickBatch(tt.arg))
+			msgs, _ := c.ProcessBatch(t.Context(), message.QuickBatch(tt.arg))
 
 			if len(msgs) != 1 {
 				t.Fatalf("Test '%v' did not succeed", tt.name)

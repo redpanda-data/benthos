@@ -45,7 +45,7 @@ subprocess:
 		[]byte(`hello baz world`),
 		[]byte(`foo`),
 	})
-	msgs, res := proc.ProcessBatch(context.Background(), msgIn)
+	msgs, res := proc.ProcessBatch(t.Context(), msgIn)
 	if len(msgs) != 1 {
 		t.Fatal("Wrong count of messages")
 	}
@@ -57,7 +57,7 @@ subprocess:
 		t.Errorf("Wrong results: %s != %s", act, exp)
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 	require.NoError(t, proc.Close(ctx))
 }
@@ -86,7 +86,7 @@ subprocess:
 		[]byte(`hello baz world`),
 		[]byte(`bar`),
 	})
-	msgs, res := proc.ProcessBatch(context.Background(), msgIn)
+	msgs, res := proc.ProcessBatch(t.Context(), msgIn)
 	if len(msgs) != 1 {
 		t.Fatal("Wrong count of messages")
 	}
@@ -98,7 +98,7 @@ subprocess:
 		t.Errorf("Wrong results: %s != %s", act, exp)
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 	require.NoError(t, proc.Close(ctx))
 }
@@ -132,7 +132,7 @@ subprocess:
 		[]byte(""),
 		[]byte("hello foo\n\nfoo world\n"),
 	})
-	msgs, res := proc.ProcessBatch(context.Background(), msgIn)
+	msgs, res := proc.ProcessBatch(t.Context(), msgIn)
 	if len(msgs) != 1 {
 		t.Fatalf("Wrong count of messages %d", len(msgs))
 	}
@@ -144,7 +144,7 @@ subprocess:
 		t.Errorf("Wrong results: %s != %s", act, exp)
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 	require.NoError(t, proc.Close(ctx))
 }
@@ -166,11 +166,11 @@ subprocess:
 		[]byte(`hello bar world`),
 	})
 
-	msgs, _ := proc.ProcessBatch(context.Background(), msgIn)
+	msgs, _ := proc.ProcessBatch(t.Context(), msgIn)
 
 	assert.Error(t, msgs[0].Get(0).ErrorGet())
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 	require.NoError(t, proc.Close(ctx))
 }
@@ -286,7 +286,7 @@ subprocess:
 			msgIn = append(msgIn, message.NewPart([]byte(``)), message.NewPart([]byte("|{o\n\r\no}|")))
 		}
 
-		msgs, res := proc.ProcessBatch(context.Background(), msgIn)
+		msgs, res := proc.ProcessBatch(t.Context(), msgIn)
 		require.Len(t, msgs, 1)
 		require.NoError(t, res)
 
@@ -295,7 +295,7 @@ subprocess:
 		}
 		assert.Equal(t, exp, message.GetAllBytes(msgs[0]))
 
-		ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*5)
 		defer done()
 		require.NoError(t, proc.Close(ctx))
 	}

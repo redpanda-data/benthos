@@ -4,7 +4,6 @@ package httpclient
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -54,9 +53,9 @@ retries: 3
 
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
-	defer h.Close(context.Background())
+	defer h.Close(t.Context())
 
-	_, err = h.Send(context.Background(), service.MessageBatch{service.NewMessage([]byte("test"))})
+	_, err = h.Send(t.Context(), service.MessageBatch{service.NewMessage([]byte("test"))})
 	assert.Error(t, err)
 	assert.Equal(t, uint32(4), atomic.LoadUint32(&reqCount))
 }
@@ -72,7 +71,7 @@ retries: 3
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	_, err = h.Send(context.Background(), service.MessageBatch{service.NewMessage([]byte("test"))})
+	_, err = h.Send(t.Context(), service.MessageBatch{service.NewMessage([]byte("test"))})
 	assert.Error(t, err)
 }
 
@@ -106,7 +105,7 @@ url: %v
 			service.NewMessage([]byte(testStr)),
 		}
 
-		_, err = h.Send(context.Background(), testMsg)
+		_, err = h.Send(t.Context(), testMsg)
 		require.NoError(t, err)
 
 		select {
@@ -137,7 +136,7 @@ url: %v
 
 	testMsg := service.MessageBatch{service.NewMessage([]byte("hello world"))}
 
-	res, err := h.Send(context.Background(), testMsg)
+	res, err := h.Send(t.Context(), testMsg)
 	require.NoError(t, err)
 
 	require.Len(t, res, 1)
@@ -164,7 +163,7 @@ drop_on: [ 400 ]
 
 	testMsg := service.MessageBatch{service.NewMessage([]byte(`{"bar":"baz"}`))}
 
-	_, err = h.Send(context.Background(), testMsg)
+	_, err = h.Send(t.Context(), testMsg)
 	require.Error(t, err)
 }
 
@@ -186,7 +185,7 @@ successful_on: [ 400 ]
 	require.NoError(t, err)
 
 	testMsg := service.MessageBatch{service.NewMessage([]byte(`{"bar":"baz"}`))}
-	resMsg, err := h.Send(context.Background(), testMsg)
+	resMsg, err := h.Send(t.Context(), testMsg)
 	require.NoError(t, err)
 
 	mBytes, err := resMsg[0].AsBytes()
@@ -231,7 +230,7 @@ headers:
 		testStr := fmt.Sprintf(`{"test":%v,"foo":{"bar":"firstvar","baz":"secondvar"}}`, i)
 		testMsg := service.MessageBatch{service.NewMessage([]byte(testStr))}
 
-		_, err = h.Send(context.Background(), testMsg)
+		_, err = h.Send(t.Context(), testMsg)
 		require.NoError(t, err)
 
 		select {
@@ -293,7 +292,7 @@ url: %v
 			service.NewMessage([]byte(testStr + "PART-B")),
 		}
 
-		_, err = h.Send(context.Background(), testMsg)
+		_, err = h.Send(t.Context(), testMsg)
 		require.NoError(t, err)
 
 		select {
@@ -329,7 +328,7 @@ url: %v
 
 	for i := 0; i < nTestLoops; i++ {
 		testStr := fmt.Sprintf("test%v", j)
-		resMsg, err := h.Send(context.Background(), nil)
+		resMsg, err := h.Send(t.Context(), nil)
 		require.NoError(t, err)
 
 		assert.Len(t, resMsg, 1)
@@ -378,7 +377,7 @@ metadata:
 	part.MetaSetMut("bar_a", "bar a value")
 	part.MetaSetMut("bar_b", "bar b value")
 
-	resMsg, err := h.Send(context.Background(), sendMsg)
+	resMsg, err := h.Send(t.Context(), sendMsg)
 	require.NoError(t, err)
 
 	assert.Len(t, resMsg, 1)
@@ -454,7 +453,7 @@ extract_headers:
 			t.Fatalf("%s: %s", tt.name, err)
 		}
 
-		resMsg, err := h.Send(context.Background(), nil)
+		resMsg, err := h.Send(t.Context(), nil)
 		if err != nil {
 			t.Fatalf("%s: %s", tt.name, err)
 		}
@@ -533,7 +532,7 @@ url: %v
 
 	for i := 0; i < nTestLoops; i++ {
 		testStr := fmt.Sprintf("test%v", j)
-		resMsg, err := h.Send(context.Background(), nil)
+		resMsg, err := h.Send(t.Context(), nil)
 		require.NoError(t, err)
 
 		assert.Len(t, resMsg, 2)
@@ -576,7 +575,7 @@ retries: 0
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	_, err = h.Send(context.Background(), service.MessageBatch{
+	_, err = h.Send(t.Context(), service.MessageBatch{
 		service.NewMessage([]byte("hello world")),
 	})
 	require.Error(t, err)
@@ -604,7 +603,7 @@ proxy_url: %v
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	resBatch, err := h.Send(context.Background(), service.MessageBatch{
+	resBatch, err := h.Send(t.Context(), service.MessageBatch{
 		service.NewMessage([]byte("hello world")),
 	})
 	require.NoError(t, err)
@@ -640,7 +639,7 @@ proxy_url: %v
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	resBatch, err := h.Send(context.Background(), service.MessageBatch{
+	resBatch, err := h.Send(t.Context(), service.MessageBatch{
 		service.NewMessage([]byte("hello world")),
 	})
 	require.NoError(t, err)
@@ -681,7 +680,7 @@ oauth2:
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	resBatch, err := h.Send(context.Background(), service.MessageBatch{
+	resBatch, err := h.Send(t.Context(), service.MessageBatch{
 		service.NewMessage([]byte("hello world")),
 	})
 	require.NoError(t, err)
@@ -727,7 +726,7 @@ oauth2:
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	resBatch, err := h.Send(context.Background(), service.MessageBatch{
+	resBatch, err := h.Send(t.Context(), service.MessageBatch{
 		service.NewMessage([]byte("hello world")),
 	})
 	require.NoError(t, err)
@@ -772,7 +771,7 @@ oauth2:
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	_, err = h.Send(context.Background(), service.MessageBatch{
+	_, err = h.Send(t.Context(), service.MessageBatch{
 		service.NewMessage([]byte("hello world")),
 	})
 	require.Error(t, err)
@@ -811,7 +810,7 @@ tls:
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	resBatch, err := h.Send(context.Background(), service.MessageBatch{
+	resBatch, err := h.Send(t.Context(), service.MessageBatch{
 		service.NewMessage([]byte("hello world")),
 	})
 	require.NoError(t, err)
@@ -839,7 +838,7 @@ extract_headers:
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	resBatch, err := h.Send(context.Background(), service.MessageBatch{
+	resBatch, err := h.Send(t.Context(), service.MessageBatch{
 		service.NewMessage([]byte("hello world")),
 	})
 	require.NoError(t, err)
@@ -897,7 +896,7 @@ tls:
 			require.NoError(t, err)
 
 			dummyMsg := "hello world"
-			resBatch, err := h.Send(context.Background(), service.MessageBatch{
+			resBatch, err := h.Send(t.Context(), service.MessageBatch{
 				service.NewMessage([]byte(dummyMsg)),
 			})
 			require.NoError(t, err)

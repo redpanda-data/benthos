@@ -24,7 +24,7 @@ import (
 var _ input.Streamed = &dynamicFanInInput{}
 
 func TestStaticBasicDynamicFanIn(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	nInputs, nMsgs := 10, 1000
@@ -82,7 +82,7 @@ func TestStaticBasicDynamicFanIn(t *testing.T) {
 }
 
 func TestBasicDynamicFanIn(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	nMsgs := 1000
@@ -100,7 +100,7 @@ func TestBasicDynamicFanIn(t *testing.T) {
 		return
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second)
+	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 
 	if err = fanIn.SetInput(ctx, "foo", inputOne); err != nil {
@@ -233,7 +233,7 @@ func TestStaticDynamicFanInShutdown(t *testing.T) {
 		}
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second)
+	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	require.NoError(t, fanIn.WaitForClose(ctx))
 	done()
 
@@ -255,7 +255,7 @@ func TestStaticDynamicFanInShutdown(t *testing.T) {
 }
 
 func TestStaticDynamicFanInAsync(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	nInputs, nMsgs := 10, 1000

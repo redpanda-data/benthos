@@ -291,7 +291,7 @@ read_until:
 	require.True(t, open)
 	require.Len(t, tran.Payload, 1)
 	assert.Equal(t, `{"id":1}`, string(tran.Payload[0].AsBytes()))
-	require.NoError(t, tran.Ack(context.Background(), nil))
+	require.NoError(t, tran.Ack(t.Context(), nil))
 
 	_, open = <-strm.TransactionChan()
 	require.False(t, open)

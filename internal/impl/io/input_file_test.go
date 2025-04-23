@@ -3,7 +3,6 @@
 package io_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -92,7 +91,7 @@ file:
 		assertValidMetaData(t, res, expFiles[resStr])
 		act[resStr] = struct{}{}
 
-		require.NoError(t, tran.Ack(context.Background(), nil))
+		require.NoError(t, tran.Ack(t.Context(), nil))
 	}
 
 	var open bool
@@ -179,7 +178,7 @@ file:
 		assertValidMetaData(t, res, expFiles[resStr])
 		act[resStr] = struct{}{}
 
-		require.NoError(t, tran.Ack(context.Background(), nil))
+		require.NoError(t, tran.Ack(t.Context(), nil))
 	}
 
 	var open bool

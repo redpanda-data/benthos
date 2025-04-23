@@ -98,7 +98,7 @@ func TestAutoRetryConfig(t *testing.T) {
 func TestAutoRetryClose(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockInput()
@@ -136,7 +136,7 @@ func TestAutoRetryClose(t *testing.T) {
 func TestAutoRetryHappy(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockInput()
@@ -171,7 +171,7 @@ func TestAutoRetryHappy(t *testing.T) {
 func TestAutoRetryErrorProp(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockInput()
@@ -238,7 +238,7 @@ func TestAutoRetryErrorBackoff(t *testing.T) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*500)
 	defer cancel()
 
 	require.NoError(t, pres.Connect(ctx))
@@ -258,13 +258,13 @@ func TestAutoRetryErrorBackoff(t *testing.T) {
 		}
 	}
 
-	require.NoError(t, pres.Close(context.Background()))
+	require.NoError(t, pres.Close(t.Context()))
 }
 
 func TestAutoRetryBuffer(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockInput()
@@ -364,7 +364,7 @@ func TestAutoRetryBuffer(t *testing.T) {
 func TestAutoRetryReadAfterClose(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 
 	readerImpl := newMockInput()

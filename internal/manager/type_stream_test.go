@@ -76,7 +76,7 @@ output_resources:
 			strm, err := builder.Build()
 			require.NoError(t, err)
 
-			cancelledCtx, done := context.WithCancel(context.Background())
+			cancelledCtx, done := context.WithCancel(t.Context())
 			done()
 
 			assert.Equal(t, cancelledCtx.Err(), strm.Run(cancelledCtx))

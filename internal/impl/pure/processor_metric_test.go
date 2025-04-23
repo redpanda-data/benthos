@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -76,7 +75,7 @@ metric:
 	}
 
 	for _, i := range inputs {
-		msg, res := proc.ProcessBatch(context.Background(), message.QuickBatch(i))
+		msg, res := proc.ProcessBatch(t.Context(), message.QuickBatch(i))
 		assert.Len(t, msg, 1)
 		assert.NoError(t, res)
 	}
@@ -128,7 +127,7 @@ metric:
 	}
 
 	for _, i := range inputs {
-		msg, res := proc.ProcessBatch(context.Background(), message.QuickBatch(i))
+		msg, res := proc.ProcessBatch(t.Context(), message.QuickBatch(i))
 		assert.Len(t, msg, 1)
 		assert.NoError(t, res)
 	}
@@ -180,7 +179,7 @@ metric:
 	}
 
 	for _, i := range inputs {
-		msg, res := proc.ProcessBatch(context.Background(), message.QuickBatch(i))
+		msg, res := proc.ProcessBatch(t.Context(), message.QuickBatch(i))
 		assert.Len(t, msg, 1)
 		assert.NoError(t, res)
 	}
@@ -228,7 +227,7 @@ metric:
 	}
 
 	for _, i := range inputs {
-		msg, res := proc.ProcessBatch(context.Background(), message.QuickBatch(i))
+		msg, res := proc.ProcessBatch(t.Context(), message.QuickBatch(i))
 		assert.Len(t, msg, 1)
 		assert.NoError(t, res)
 	}

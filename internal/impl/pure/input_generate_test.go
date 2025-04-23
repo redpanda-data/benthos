@@ -25,7 +25,7 @@ func testGenReader(t testing.TB, confStr string, args ...any) *generateReader {
 }
 
 func TestBloblangInterval(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Millisecond*80)
+	ctx, done := context.WithTimeout(t.Context(), time.Millisecond*80)
 	defer done()
 
 	b := testGenReader(t, `
@@ -52,7 +52,7 @@ interval: 50ms
 	_, _, err = b.ReadBatch(ctx)
 	assert.EqualError(t, err, "action timed out")
 
-	require.NoError(t, b.Close(context.Background()))
+	require.NoError(t, b.Close(t.Context()))
 }
 
 func TestBloblangZeroInterval(t *testing.T) {
@@ -65,7 +65,7 @@ interval: 0s
 func TestBloblangCron(t *testing.T) {
 	t.Skip()
 
-	ctx, done := context.WithTimeout(context.Background(), time.Millisecond*1100)
+	ctx, done := context.WithTimeout(t.Context(), time.Millisecond*1100)
 	defer done()
 
 	b := testGenReader(t, `
@@ -88,11 +88,11 @@ interval: '@every 1s'
 	_, _, err = b.ReadBatch(ctx)
 	assert.EqualError(t, err, "action timed out")
 
-	require.NoError(t, b.Close(context.Background()))
+	require.NoError(t, b.Close(t.Context()))
 }
 
 func TestBloblangMapping(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, done := context.WithTimeout(t.Context(), time.Millisecond*100)
 	defer done()
 
 	b := testGenReader(t, `
@@ -115,7 +115,7 @@ interval: 1ms
 }
 
 func TestBloblangRemaining(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, done := context.WithTimeout(t.Context(), time.Millisecond*100)
 	defer done()
 
 	b := testGenReader(t, `
@@ -145,7 +145,7 @@ count: 10
 }
 
 func TestBloblangRemainingBatched(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, done := context.WithTimeout(t.Context(), time.Millisecond*100)
 	defer done()
 
 	b := testGenReader(t, `
@@ -181,7 +181,7 @@ batch_size: 2
 }
 
 func TestBloblangUnbounded(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, done := context.WithTimeout(t.Context(), time.Millisecond*100)
 	defer done()
 
 	b := testGenReader(t, `
@@ -199,11 +199,11 @@ interval: 0s
 		assert.Equal(t, "foobar", string(m.Get(0).AsBytes()))
 	}
 
-	require.NoError(t, b.Close(context.Background()))
+	require.NoError(t, b.Close(t.Context()))
 }
 
 func TestBloblangUnboundedEmpty(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, done := context.WithTimeout(t.Context(), time.Millisecond*100)
 	defer done()
 
 	b := testGenReader(t, `
@@ -221,5 +221,5 @@ interval: ""
 		assert.Equal(t, "foobar", string(m.Get(0).AsBytes()))
 	}
 
-	require.NoError(t, b.Close(context.Background()))
+	require.NoError(t, b.Close(t.Context()))
 }

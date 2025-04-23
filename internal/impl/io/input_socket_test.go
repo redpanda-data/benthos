@@ -34,7 +34,7 @@ func inputFromConf(t testing.TB, confStr string, bits ...any) input.Streamed {
 }
 
 func TestSocketInputBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -121,7 +121,7 @@ socket:
 }
 
 func TestSocketInputReconnect(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -213,7 +213,7 @@ socket:
 }
 
 func TestSocketInputMultipart(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -296,7 +296,7 @@ socket:
 }
 
 func TestSocketMultipartCustomDelim(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -379,7 +379,7 @@ socket:
 }
 
 func TestSocketMultipartShutdown(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -462,7 +462,7 @@ socket:
 }
 
 func TestTCPSocketInputBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -549,7 +549,7 @@ socket:
 }
 
 func TestTCPSocketReconnect(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -642,7 +642,7 @@ socket:
 }
 
 func TestTCPSocketInputMultipart(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -725,7 +725,7 @@ socket:
 }
 
 func TestTCPSocketMultipartCustomDelim(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -808,7 +808,7 @@ socket:
 }
 
 func TestTCPSocketMultipartShutdown(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -891,7 +891,7 @@ socket:
 }
 
 func BenchmarkTCPSocketWithCutOff(b *testing.B) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(b.Context(), time.Second*20)
 	defer done()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -957,7 +957,7 @@ socket:
 }
 
 func BenchmarkTCPSocketNoCutOff(b *testing.B) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(b.Context(), time.Second*20)
 	defer done()
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

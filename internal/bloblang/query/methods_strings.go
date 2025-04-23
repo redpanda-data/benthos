@@ -349,6 +349,7 @@ root.encrypted = this.value.encrypt_aes("ctr", $key, $vector).encode("hex")`,
 		case "ofb":
 			schemeFn = func(b []byte) (string, error) {
 				ciphertext := make([]byte, len(b))
+				//nolint:staticcheck // SA1019: cipher.NewOFB has been deprecated since Go 1.24
 				stream := cipher.NewOFB(block, iv)
 				stream.XORKeyStream(ciphertext, b)
 				return string(ciphertext), nil
@@ -458,6 +459,7 @@ root.decrypted = this.value.decode("hex").decrypt_aes("ctr", $key, $vector).stri
 		case "ofb":
 			schemeFn = func(b []byte) ([]byte, error) {
 				plaintext := make([]byte, len(b))
+				//nolint:staticcheck // SA1019: cipher.NewOFB has been deprecated since Go 1.24
 				stream := cipher.NewOFB(block, iv)
 				stream.XORKeyStream(plaintext, b)
 				return plaintext, nil

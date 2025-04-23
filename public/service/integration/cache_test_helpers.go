@@ -67,7 +67,7 @@ func newCacheTestEnvironment(t *testing.T, confTemplate string) cacheTestEnviron
 			General: map[string]string{},
 		},
 		timeout: time.Second * 90,
-		ctx:     context.Background(),
+		ctx:     t.Context(),
 		log:     log.Noop(),
 		stats:   metrics.Noop(),
 	}
@@ -216,5 +216,5 @@ func initCache(t *testing.T, env *cacheTestEnvironment) cache.V1 {
 }
 
 func closeCache(t *testing.T, cache cache.V1) {
-	require.NoError(t, cache.Close(context.Background()))
+	require.NoError(t, cache.Close(t.Context()))
 }

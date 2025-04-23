@@ -19,7 +19,7 @@ import (
 )
 
 func TestInproc(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mgr, err := manager.New(manager.NewResourceConfig())

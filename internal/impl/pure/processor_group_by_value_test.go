@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -64,7 +63,7 @@ group_by_value:
 		[]byte(`{"foo":0,"bar":7}`),
 		[]byte(`{"foo":1,"bar":8}`),
 	})
-	msgs, res := proc.ProcessBatch(context.Background(), input)
+	msgs, res := proc.ProcessBatch(t.Context(), input)
 	if res != nil {
 		t.Fatal(res)
 	}

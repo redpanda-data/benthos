@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -61,7 +60,7 @@ group_by:
 		[]byte(` hello foo bar world 2 `),
 		[]byte(` hello bar world 2 `),
 	})
-	msgs, res := proc.ProcessBatch(context.Background(), input)
+	msgs, res := proc.ProcessBatch(t.Context(), input)
 	require.NoError(t, res)
 
 	for _, msg := range msgs {

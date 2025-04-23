@@ -48,7 +48,7 @@ while:
 		[]byte(`bar`),
 	}
 
-	msg, res := c.ProcessBatch(context.Background(), message.QuickBatch([][]byte{[]byte("bar")}))
+	msg, res := c.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte("bar")}))
 	require.NoError(t, res)
 
 	assert.Equal(t, exp, message.GetAllBytes(msg[0]))
@@ -77,7 +77,7 @@ while:
 		[]byte(`bar`),
 	}
 
-	msg, res := c.ProcessBatch(context.Background(), message.QuickBatch([][]byte{[]byte("bar")}))
+	msg, res := c.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte("bar")}))
 	if res != nil {
 		t.Error(res)
 	}
@@ -110,7 +110,7 @@ while:
 		[]byte(`bar`),
 	}
 
-	msg, res := c.ProcessBatch(context.Background(), message.QuickBatch([][]byte{[]byte("bar")}))
+	msg, res := c.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte("bar")}))
 	if res != nil {
 		t.Error(res)
 	}
@@ -143,7 +143,7 @@ while:
 		[]byte(`bar`),
 	}
 
-	msg, res := c.ProcessBatch(context.Background(), message.QuickBatch([][]byte{[]byte("bar")}))
+	msg, res := c.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte("bar")}))
 	if res != nil {
 		t.Error(res)
 	}
@@ -170,7 +170,7 @@ while:
 		t.Fatal(err)
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	go func() {

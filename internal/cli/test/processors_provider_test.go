@@ -81,7 +81,7 @@ pipeline:
 }
 
 func TestProcessorsProvider(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	files := map[string]string{
@@ -141,7 +141,7 @@ pipeline:
 }
 
 func TestProcessorsProviderLabel(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	files := map[string]string{
@@ -171,7 +171,7 @@ pipeline:
 }
 
 func TestProcessorsProviderMocks(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	files := map[string]string{
@@ -219,7 +219,7 @@ pipeline:
 }
 
 func TestProcessorsProviderMocksFromLabel(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	files := map[string]string{
@@ -269,7 +269,7 @@ pipeline:
 }
 
 func TestProcessorsProviderMocksMixed(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	files := map[string]string{

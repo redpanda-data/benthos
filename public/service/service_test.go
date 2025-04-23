@@ -36,7 +36,7 @@ output:
     path: %v
 `, outPath), 0o644))
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(time.Second))
 	defer cancel()
 
 	service.RunCLI(ctx, service.CLIOptSetArgs("benthos", "-c", confPath))
@@ -62,7 +62,7 @@ output:
 `), 0o644))
 
 	var summary atomic.Pointer[service.RunningStreamSummary]
-	go service.RunCLI(context.Background(),
+	go service.RunCLI(t.Context(),
 		service.CLIOptSetArgs("meow", "-c", confPath),
 		service.CLIOptOnStreamStart(func(s *service.RunningStreamSummary) error {
 			summary.Store(s)
@@ -112,7 +112,7 @@ output:
 `), 0o644))
 
 	var flagExtracted string
-	service.RunCLI(context.Background(),
+	service.RunCLI(t.Context(),
 		service.CLIOptSetArgs("meow", "run", "--meow", "foobar", confPath),
 		service.CLIOptCustomRunFlags([]cli.Flag{
 			&cli.StringFlag{
@@ -153,7 +153,7 @@ type: processor
 mapping: 'root.mapping = "content().uppercase()"'
 `), 0o644))
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(time.Second))
 	defer cancel()
 
 	service.RunCLI(ctx, service.CLIOptSetArgs("benthos", "run", "-t", tmplPath, confPath))
@@ -190,7 +190,7 @@ type: processor
 mapping: 'root.mapping = "content().uppercase()"'
 `), 0o644))
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(time.Second))
 	defer cancel()
 
 	service.RunCLI(ctx,

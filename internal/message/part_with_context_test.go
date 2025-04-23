@@ -9,13 +9,14 @@ import (
 
 func TestPartWithContext(t *testing.T) {
 	p1 := NewPart([]byte(`foobar`))
+	//nolint:usetesting // context.Background() could be replaced by t.Context()
 	if exp, act := context.Background(), GetContext(p1); exp != act {
 		t.Errorf("Wrong context returned: %v != %v", act, exp)
 	}
 
 	type testKey string
 
-	ctx := context.WithValue(context.Background(), testKey("foo"), "bar")
+	ctx := context.WithValue(t.Context(), testKey("foo"), "bar")
 	p2 := WithContext(ctx, p1)
 
 	if exp, act := false, p2.IsEmpty(); exp != act {

@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -41,7 +40,7 @@ cache:
 		[]byte(`{"key":"1","value":"foo 3"}`),
 	})
 
-	output, res := proc.ProcessBatch(context.Background(), input)
+	output, res := proc.ProcessBatch(t.Context(), input)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -87,7 +86,7 @@ cache:
 		[]byte(`{"key":"1","value":"foo 3"}`),
 	})
 
-	output, res := proc.ProcessBatch(context.Background(), input)
+	output, res := proc.ProcessBatch(t.Context(), input)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -144,7 +143,7 @@ cache:
 		[]byte(`{"key":"3"}`),
 	}
 
-	output, res := proc.ProcessBatch(context.Background(), input)
+	output, res := proc.ProcessBatch(t.Context(), input)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -189,7 +188,7 @@ cache:
 		[]byte(`{"key":"4"}`),
 	})
 
-	output, res := proc.ProcessBatch(context.Background(), input)
+	output, res := proc.ProcessBatch(t.Context(), input)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -245,7 +244,7 @@ cache:
 		[]byte(`false`),
 	}
 
-	output, res := proc.ProcessBatch(context.Background(), input)
+	output, res := proc.ProcessBatch(t.Context(), input)
 	if res != nil {
 		t.Fatal(res)
 	}

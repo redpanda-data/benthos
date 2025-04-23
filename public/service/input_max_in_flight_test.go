@@ -23,7 +23,7 @@ func TestMaxInFlightPassThrough(t *testing.T) {
 func TestMaxInFlightLimit(t *testing.T) {
 	getCtx := func() context.Context {
 		t.Helper()
-		ctx, done := context.WithTimeout(context.Background(), time.Millisecond*50)
+		ctx, done := context.WithTimeout(t.Context(), time.Millisecond*50)
 		t.Cleanup(done)
 		return ctx
 	}
@@ -82,7 +82,7 @@ func TestMaxInFlightLimit(t *testing.T) {
 	assert.Equal(t, "foo3", string(mBytes))
 
 	// Message 4 of 3 never comes.
-	tmpCtx, done := context.WithTimeout(context.Background(), time.Millisecond*50)
+	tmpCtx, done := context.WithTimeout(t.Context(), time.Millisecond*50)
 	defer done()
 
 	_, _, err = wrapped.Read(tmpCtx)
@@ -119,7 +119,7 @@ func TestMaxInFlightLimit(t *testing.T) {
 func TestMaxInFlightLimitBatched(t *testing.T) {
 	getCtx := func() context.Context {
 		t.Helper()
-		ctx, done := context.WithTimeout(context.Background(), time.Millisecond*50)
+		ctx, done := context.WithTimeout(t.Context(), time.Millisecond*50)
 		t.Cleanup(done)
 		return ctx
 	}
@@ -181,7 +181,7 @@ func TestMaxInFlightLimitBatched(t *testing.T) {
 	assert.Equal(t, "foo3", string(mBytes))
 
 	// Message 4 of 3 never comes.
-	tmpCtx, done := context.WithTimeout(context.Background(), time.Millisecond*50)
+	tmpCtx, done := context.WithTimeout(t.Context(), time.Millisecond*50)
 	defer done()
 
 	_, _, err = wrapped.ReadBatch(tmpCtx)

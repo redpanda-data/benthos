@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -62,7 +61,7 @@ parse_log:
 			t.Fatal(err)
 		}
 		t.Run(test.name, func(tt *testing.T) {
-			msgsOut, res := proc.ProcessBatch(context.Background(), message.QuickBatch([][]byte{[]byte(test.input)}))
+			msgsOut, res := proc.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte(test.input)}))
 			if res != nil {
 				tt.Fatal(res)
 			}
@@ -109,7 +108,7 @@ parse_log:
 
 	for _, test := range tests {
 		t.Run(test.name, func(tt *testing.T) {
-			msgsOut, res := proc.ProcessBatch(context.Background(), message.QuickBatch([][]byte{[]byte(test.input)}))
+			msgsOut, res := proc.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte(test.input)}))
 			if res != nil {
 				tt.Fatal(res)
 			}

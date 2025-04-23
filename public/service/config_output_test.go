@@ -3,7 +3,6 @@
 package service
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -32,13 +31,13 @@ a:
 	output, err := parsedConfig.FieldOutput("a")
 	require.NoError(t, err)
 
-	require.NoError(t, output.Write(context.Background(), NewMessage([]byte("first line"))))
-	require.NoError(t, output.WriteBatch(context.Background(), MessageBatch{
+	require.NoError(t, output.Write(t.Context(), NewMessage([]byte("first line"))))
+	require.NoError(t, output.WriteBatch(t.Context(), MessageBatch{
 		NewMessage([]byte("second line")),
 		NewMessage([]byte("third line")),
 	}))
 
-	require.NoError(t, output.Close(context.Background()))
+	require.NoError(t, output.Close(t.Context()))
 
 	resultBytes, err := os.ReadFile(testFile)
 	require.NoError(t, err)
@@ -69,11 +68,11 @@ a:
 	require.NoError(t, err)
 	require.Len(t, outputs, 2)
 
-	require.NoError(t, outputs[0].Write(context.Background(), NewMessage([]byte("first line"))))
-	require.NoError(t, outputs[1].Write(context.Background(), NewMessage([]byte("second line"))))
+	require.NoError(t, outputs[0].Write(t.Context(), NewMessage([]byte("first line"))))
+	require.NoError(t, outputs[1].Write(t.Context(), NewMessage([]byte("second line"))))
 
-	require.NoError(t, outputs[0].Close(context.Background()))
-	require.NoError(t, outputs[1].Close(context.Background()))
+	require.NoError(t, outputs[0].Close(t.Context()))
+	require.NoError(t, outputs[1].Close(t.Context()))
 
 	resultBytes, err := os.ReadFile(firstFile)
 	require.NoError(t, err)

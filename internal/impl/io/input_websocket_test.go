@@ -59,7 +59,7 @@ url: %v
 	m, err := newWebsocketReaderFromParsed(pConf, mock.NewManager())
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err = m.Connect(ctx); err != nil {
 		t.Fatal(err)
@@ -167,7 +167,7 @@ open_message_type: %v
 			m, err := newWebsocketReaderFromParsed(pConf, mock.NewManager())
 			require.NoError(t, err)
 
-			ctx, done := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			ctx, done := context.WithTimeout(t.Context(), 100*time.Millisecond)
 			t.Cleanup(func() { require.NoError(t, m.Close(ctx)) })
 			t.Cleanup(done)
 
@@ -222,7 +222,7 @@ url: %v
 	m, err := newWebsocketReaderFromParsed(pConf, mock.NewManager())
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	if err = m.Connect(ctx); err != nil {
 		t.Fatal(err)
