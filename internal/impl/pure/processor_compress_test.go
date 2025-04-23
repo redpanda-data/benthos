@@ -4,7 +4,6 @@ package pure_test
 
 import (
 	"bytes"
-	"context"
 	"reflect"
 	"testing"
 
@@ -70,7 +69,7 @@ compress:
 		t.Fatal(err)
 	}
 
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(input))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(input))
 	if len(msgs) != 1 {
 		t.Error("Compress failed")
 	} else if res != nil {
@@ -117,7 +116,7 @@ compress:
 		t.Fatal(err)
 	}
 
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(input))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(input))
 	if len(msgs) != 1 {
 		t.Error("Compress failed")
 	} else if res != nil {
@@ -164,7 +163,7 @@ compress:
 		t.Fatal(err)
 	}
 
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(input))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(input))
 	if len(msgs) != 1 {
 		t.Error("Compress failed")
 	} else if res != nil {
@@ -214,7 +213,7 @@ compress:
 		t.Fatal(err)
 	}
 
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(input))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(input))
 	if len(msgs) != 1 {
 		t.Error("Compress failed")
 	} else if res != nil {
@@ -256,7 +255,7 @@ compress:
 		t.Fatal(err)
 	}
 
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(input))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(input))
 	if len(msgs) != 1 {
 		t.Error("Compress failed")
 	} else if res != nil {
@@ -306,7 +305,7 @@ compress:
 		t.Fatal(err)
 	}
 
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(input))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(input))
 	if len(msgs) != 1 {
 		t.Error("Compress failed")
 	} else if res != nil {

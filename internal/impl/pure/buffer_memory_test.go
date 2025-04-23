@@ -43,7 +43,7 @@ func memBufFromConf(t *testing.T, conf string) *memoryBuffer {
 func TestMemoryBasic(t *testing.T) {
 	n := 100
 
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 100000
 `)
@@ -70,7 +70,7 @@ limit: 100000
 }
 
 func TestMemoryOwnership(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 100000
 `)
@@ -113,7 +113,7 @@ limit: 100000
 }
 
 func TestMemoryNearLimit(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 2285
 `)
@@ -144,7 +144,7 @@ limit: 2285
 }
 
 func TestMemoryLoopingRandom(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 8000
 `)
@@ -177,7 +177,7 @@ limit: 8000
 }
 
 func TestMemoryLockStep(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 1000
 `)
@@ -216,7 +216,7 @@ limit: 1000
 }
 
 func TestMemoryAck(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 1000
 `)
@@ -263,7 +263,7 @@ limit: 1000
 }
 
 func TestMemoryCloseWithPending(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 1000
 `)
@@ -302,7 +302,7 @@ limit: 1000
 }
 
 func TestMemoryRejectLargeMessage(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 10
 `)
@@ -318,7 +318,7 @@ limit: 10
 }
 
 func TestMemoryBatched(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 100000
 batch_policy:
@@ -370,7 +370,7 @@ batch_policy:
 }
 
 func TestMemoryBatchedNack(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 100000
 batch_policy:
@@ -416,7 +416,7 @@ batch_policy:
 }
 
 func TestMemoryBatchedEarlyTerm(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 100000
 batch_policy:
@@ -453,7 +453,7 @@ batch_policy:
 }
 
 func TestMemoryBatchedTimed(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	block := memBufFromConf(t, `
 limit: 100000
 batch_policy:

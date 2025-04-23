@@ -17,7 +17,7 @@ import (
 )
 
 func TestInputWrapperSwap(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	conf, err := testutil.InputFromYAML(`

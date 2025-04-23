@@ -14,7 +14,7 @@ import (
 )
 
 func TestCommand(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	tests := []struct {

@@ -87,13 +87,13 @@ func TestCacheAirGapShutdown(t *testing.T) {
 	rl := &closableCache{}
 	agrl := MetricsForCache(rl, metrics.Noop())
 
-	err := agrl.Close(context.Background())
+	err := agrl.Close(t.Context())
 	assert.NoError(t, err)
 	assert.True(t, rl.closed)
 }
 
 func TestCacheAirGapGet(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{
 			"foo": {
@@ -113,7 +113,7 @@ func TestCacheAirGapGet(t *testing.T) {
 }
 
 func TestCacheAirGapSet(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
@@ -142,7 +142,7 @@ func TestCacheAirGapSetMultiWithTTL(t *testing.T) {
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
-	ctx := context.Background()
+	ctx := t.Context()
 	agrl := MetricsForCache(rl, metrics.Noop())
 
 	ttl1, ttl2 := time.Second, time.Millisecond
@@ -171,7 +171,7 @@ func TestCacheAirGapSetMultiWithTTL(t *testing.T) {
 }
 
 func TestCacheAirGapSetWithTTL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
@@ -198,7 +198,7 @@ func TestCacheAirGapSetWithTTL(t *testing.T) {
 }
 
 func TestCacheAirGapAdd(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
@@ -219,7 +219,7 @@ func TestCacheAirGapAdd(t *testing.T) {
 }
 
 func TestCacheAirGapAddWithTTL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
@@ -241,7 +241,7 @@ func TestCacheAirGapAddWithTTL(t *testing.T) {
 }
 
 func TestCacheAirGapDelete(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{
 			"foo": {

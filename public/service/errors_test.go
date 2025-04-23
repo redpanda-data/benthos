@@ -3,7 +3,6 @@
 package service
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -202,7 +201,7 @@ processors:
 			require.NoError(t, err)
 
 			// TODO: Should `StoreProcessor()` use `resProc.Label` as the name instead of taking an extra parameter?
-			err = mgr.StoreProcessor(context.Background(), resourceProcessorName, resProc)
+			err = mgr.StoreProcessor(t.Context(), resourceProcessorName, resProc)
 			require.NoError(t, err)
 
 			// Register a processor template
@@ -243,7 +242,7 @@ processors:
 			proc, err := mgr.NewProcessor(parsedConf)
 			require.NoError(t, err)
 
-			outMsgs, err := proc.ProcessBatch(context.Background(), message.QuickBatch([][]byte{nil}))
+			outMsgs, err := proc.ProcessBatch(t.Context(), message.QuickBatch([][]byte{nil}))
 			require.NoError(t, err)
 			require.Len(t, outMsgs, 1)
 			msg := outMsgs[0].Get(0)

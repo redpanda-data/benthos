@@ -30,28 +30,28 @@ func TestCombinedAckFunc(t *testing.T) {
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 0, ackCalled)
 
-	assert.NoError(t, first(context.Background(), nil))
+	assert.NoError(t, first(t.Context(), nil))
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 0, ackCalled)
 
-	assert.NoError(t, second(context.Background(), nil))
+	assert.NoError(t, second(t.Context(), nil))
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 0, ackCalled)
 
-	assert.NoError(t, third(context.Background(), nil))
+	assert.NoError(t, third(t.Context(), nil))
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 1, ackCalled)
 
 	// Call multiple times
-	assert.NoError(t, first(context.Background(), nil))
+	assert.NoError(t, first(t.Context(), nil))
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 1, ackCalled)
 
-	assert.NoError(t, second(context.Background(), nil))
+	assert.NoError(t, second(t.Context(), nil))
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 1, ackCalled)
 
-	assert.NoError(t, third(context.Background(), nil))
+	assert.NoError(t, third(t.Context(), nil))
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 1, ackCalled)
 }
@@ -77,28 +77,28 @@ func TestCombinedAckError(t *testing.T) {
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 0, ackCalled)
 
-	assert.NoError(t, first(context.Background(), nil))
+	assert.NoError(t, first(t.Context(), nil))
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 0, ackCalled)
 
-	assert.NoError(t, second(context.Background(), testErr))
+	assert.NoError(t, second(t.Context(), testErr))
 	assert.NoError(t, ackErr)
 	assert.Equal(t, 0, ackCalled)
 
-	assert.NoError(t, third(context.Background(), nil))
+	assert.NoError(t, third(t.Context(), nil))
 	assert.Equal(t, testErr, ackErr)
 	assert.Equal(t, 1, ackCalled)
 
 	// Call multiple times
-	assert.NoError(t, first(context.Background(), nil))
+	assert.NoError(t, first(t.Context(), nil))
 	assert.Equal(t, testErr, ackErr)
 	assert.Equal(t, 1, ackCalled)
 
-	assert.NoError(t, second(context.Background(), nil))
+	assert.NoError(t, second(t.Context(), nil))
 	assert.Equal(t, testErr, ackErr)
 	assert.Equal(t, 1, ackCalled)
 
-	assert.NoError(t, third(context.Background(), nil))
+	assert.NoError(t, third(t.Context(), nil))
 	assert.Equal(t, testErr, ackErr)
 	assert.Equal(t, 1, ackCalled)
 }
@@ -125,7 +125,7 @@ func TestCombinedAckErrorSync(t *testing.T) {
 			<-startChan
 
 			for j := 0; j < 100; j++ {
-				assert.NoError(t, derivedFuncs[(i*100)+j](context.Background(), nil))
+				assert.NoError(t, derivedFuncs[(i*100)+j](t.Context(), nil))
 			}
 		}()
 	}

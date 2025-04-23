@@ -42,7 +42,7 @@ func testInput(t testing.TB, confStr string) input.Streamed {
 }
 
 func TestSequenceHappy(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	t.Parallel()
@@ -98,7 +98,7 @@ consumeLoop:
 }
 
 func TestSequenceJoins(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	t.Parallel()
@@ -163,7 +163,7 @@ consumeLoop:
 }
 
 func TestSequenceJoinsMergeStrategies(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	t.Parallel()
@@ -303,7 +303,7 @@ func TestSequenceJoinsBig(t *testing.T) {
 	t.Skip()
 	t.Parallel()
 
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -378,7 +378,7 @@ consumeLoop:
 }
 
 func TestSequenceSad(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	t.Parallel()
@@ -459,7 +459,7 @@ sequence:
 }
 
 func TestSequenceEarlyTermination(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	t.Parallel()

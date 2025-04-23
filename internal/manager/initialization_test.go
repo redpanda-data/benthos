@@ -3,7 +3,6 @@
 package manager
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -112,7 +111,7 @@ func TestInitializationOrdering(t *testing.T) {
 	require.NoError(t, env.InputAdd(func(c input.Config, mgr bundle.NewManagement) (input.Streamed, error) {
 		go func() {
 			defer wg.Done()
-			err := mgr.AccessRateLimit(context.Background(), "testratelimit", func(rl ratelimit.V1) {})
+			err := mgr.AccessRateLimit(t.Context(), "testratelimit", func(rl ratelimit.V1) {})
 			_ = assert.Error(t, err) && assert.Contains(t, err.Error(), "unable to locate")
 		}()
 		return nil, nil
@@ -123,7 +122,7 @@ func TestInitializationOrdering(t *testing.T) {
 	require.NoError(t, env.ProcessorAdd(func(c processor.Config, mgr bundle.NewManagement) (processor.V1, error) {
 		go func() {
 			defer wg.Done()
-			err := mgr.AccessRateLimit(context.Background(), "fooratelimit", func(rl ratelimit.V1) {})
+			err := mgr.AccessRateLimit(t.Context(), "fooratelimit", func(rl ratelimit.V1) {})
 			_ = assert.Error(t, err) && assert.Contains(t, err.Error(), "unable to locate")
 		}()
 		return nil, nil

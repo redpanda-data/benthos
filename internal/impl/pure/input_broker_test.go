@@ -117,7 +117,7 @@ processors:
 			strm, err := builder.Build()
 			require.NoError(t, err)
 
-			tCtx, done := context.WithTimeout(context.Background(), time.Minute)
+			tCtx, done := context.WithTimeout(t.Context(), time.Minute)
 			defer done()
 
 			require.NoError(t, strm.Run(tCtx))

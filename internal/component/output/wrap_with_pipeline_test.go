@@ -116,7 +116,7 @@ func TestBasicWrapPipeline(t *testing.T) {
 		t.Error("Wrong messages chan in mock pipe")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	close(dudMsgChan)
@@ -126,7 +126,7 @@ func TestBasicWrapPipeline(t *testing.T) {
 }
 
 func TestBasicWrapPipelinesOrdering(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOut := &mockOutput{}

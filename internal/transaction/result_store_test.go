@@ -11,7 +11,7 @@ import (
 
 func TestResultStore(t *testing.T) {
 	impl := &resultStoreImpl{}
-	ctx := context.WithValue(context.Background(), ResultStoreKey, impl)
+	ctx := context.WithValue(t.Context(), ResultStoreKey, impl)
 	msg := message.Batch{
 		message.WithContext(ctx, message.NewPart([]byte("foo"))),
 		message.NewPart([]byte("bar")),

@@ -18,7 +18,7 @@ import (
 )
 
 func TestResourceOutput(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	var outLock sync.Mutex

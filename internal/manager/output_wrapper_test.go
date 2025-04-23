@@ -16,7 +16,7 @@ import (
 )
 
 func TestOutputWrapperShutdown(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mOutput := &mock.OutputChanneled{

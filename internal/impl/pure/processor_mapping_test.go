@@ -17,7 +17,7 @@ import (
 )
 
 func TestMappingCreateCrossfire(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	inMsg := message.NewPart(nil)
 	inMsg.SetStructuredMut(map[string]any{
@@ -89,7 +89,7 @@ meta baz = "new meta"
 }
 
 func TestMappingCreateCustomObject(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	part := message.NewPart(nil)
 
@@ -119,7 +119,7 @@ func TestMappingCreateCustomObject(t *testing.T) {
 }
 
 func TestMappingCreateFiltering(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	inBatch := message.Batch{
 		message.NewPart([]byte(`{"foo":{"delete":true}}`)),
@@ -153,7 +153,7 @@ root = match {
 }
 
 func TestMappingCreateFilterAll(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	inBatch := message.Batch{
 		message.NewPart([]byte(`{"foo":{"delete":true}}`)),
@@ -173,7 +173,7 @@ func TestMappingCreateFilterAll(t *testing.T) {
 }
 
 func TestMappingCreateJSONError(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	msg := message.Batch{
 		message.NewPart([]byte(`this is not valid json`)),
@@ -206,7 +206,7 @@ root.sum = this.a + this.b
 
 	proc := newMapping(blobl, nil)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(b.Context(), time.Second*30)
 	defer done()
 
 	tmpMsg := message.NewPart(nil)

@@ -4,7 +4,6 @@ package config_test
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -276,7 +275,7 @@ func TestDefaultBasedOverridesWithYAML(t *testing.T) {
 		return bytes.Contains(fBytes, []byte(`{"foo":"bar"}`))
 	}, time.Second, time.Millisecond*10)
 
-	require.NoError(t, s.Stop(context.Background()))
+	require.NoError(t, s.Stop(t.Context()))
 }
 
 func TestDefaultBasedOverridesWithAny(t *testing.T) {
@@ -313,7 +312,7 @@ input:
 		return bytes.Contains(fBytes, []byte(`{"foo":"bar"}`))
 	}, time.Second, time.Millisecond*10)
 
-	require.NoError(t, s.Stop(context.Background()))
+	require.NoError(t, s.Stop(t.Context()))
 }
 
 func TestDefaultBasedOverridesWithExplicit(t *testing.T) {
@@ -353,7 +352,7 @@ input:
 		return bytes.Contains(fBytes, []byte(`{"foo":"bar"}`))
 	}, time.Second, time.Millisecond*10)
 
-	require.NoError(t, s.Stop(context.Background()))
+	require.NoError(t, s.Stop(t.Context()))
 }
 
 func TestSetOverridesStructured(t *testing.T) {

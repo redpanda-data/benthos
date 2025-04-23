@@ -3,7 +3,6 @@
 package service
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -68,7 +67,7 @@ a:
 	assert.True(t, ok)
 	assert.InDelta(t, int(time.Millisecond*300), int(v), float64(time.Millisecond*50))
 
-	batch, err := pol.Flush(context.Background())
+	batch, err := pol.Flush(t.Context())
 	require.NoError(t, err)
 	require.Len(t, batch, 2)
 
@@ -80,11 +79,11 @@ a:
 	require.NoError(t, err)
 	assert.Equal(t, "BAR", string(bTwo))
 
-	batch, err = pol.Flush(context.Background())
+	batch, err = pol.Flush(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, batch)
 
-	require.NoError(t, pol.Close(context.Background()))
+	require.NoError(t, pol.Close(t.Context()))
 }
 
 func TestBatcherSize(t *testing.T) {
@@ -118,7 +117,7 @@ a:
 	_, ok = pol.UntilNext()
 	assert.False(t, ok)
 
-	batch, err := pol.Flush(context.Background())
+	batch, err := pol.Flush(t.Context())
 	require.NoError(t, err)
 	require.Len(t, batch, 3)
 
@@ -134,9 +133,9 @@ a:
 	require.NoError(t, err)
 	assert.Equal(t, "baz", string(bRes))
 
-	batch, err = pol.Flush(context.Background())
+	batch, err = pol.Flush(t.Context())
 	require.NoError(t, err)
 	require.Empty(t, batch)
 
-	require.NoError(t, pol.Close(context.Background()))
+	require.NoError(t, pol.Close(t.Context()))
 }

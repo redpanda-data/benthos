@@ -53,7 +53,7 @@ func assertEqualMsg(t testing.TB, left, right message.Batch) {
 }
 
 func TestRetryBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	conf := parseYAMLOutputConf(t, `
@@ -115,7 +115,7 @@ retry:
 }
 
 func TestRetrySadPath(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	conf := parseYAMLOutputConf(t, `
@@ -268,7 +268,7 @@ func ackForRetry(
 }
 
 func TestRetryParallel(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	conf := parseYAMLOutputConf(t, `
@@ -351,7 +351,7 @@ retry:
 	readChan := make(chan message.Transaction)
 	require.NoError(t, ret.Consume(readChan))
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*10)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
 	inMsg := message.NewPart(nil)

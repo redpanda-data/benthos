@@ -147,10 +147,10 @@ logger:
 	require.NoError(t, err)
 
 	go func() {
-		require.NoError(t, strm.Run(context.Background()))
+		require.NoError(t, strm.Run(t.Context()))
 	}()
 
-	require.NoError(t, pFn(context.Background(), service.NewMessage([]byte("hello world"))))
+	require.NoError(t, pFn(t.Context(), service.NewMessage([]byte("hello world"))))
 
 	require.NoError(t, strm.StopWithin(time.Second))
 	assert.Equal(t, []string{"meow"}, received)
@@ -213,7 +213,7 @@ output:
 	strm, err := b.Build()
 	require.NoError(t, err)
 
-	require.NoError(t, strm.Run(context.Background()))
+	require.NoError(t, strm.Run(t.Context()))
 
 	outBytes, err := os.ReadFile(outFilePath)
 	require.NoError(t, err)

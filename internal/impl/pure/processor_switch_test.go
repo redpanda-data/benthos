@@ -38,7 +38,7 @@ switch:
 	require.NoError(t, err)
 
 	defer func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		defer done()
 		assert.NoError(t, c.Close(ctx))
 	}()
@@ -105,7 +105,7 @@ switch:
 			for _, s := range test.input {
 				msg = append(msg, message.NewPart([]byte(s)))
 			}
-			msgs, res := c.ProcessBatch(context.Background(), msg)
+			msgs, res := c.ProcessBatch(t.Context(), msg)
 			require.NoError(t, res)
 
 			resStrs := []string{}
@@ -133,7 +133,7 @@ switch:
 	require.NoError(t, err)
 
 	defer func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		defer done()
 		assert.NoError(t, c.Close(ctx))
 	}()
@@ -144,7 +144,7 @@ switch:
 		message.NewPart([]byte(`{"id":"buz","content":"a real foobar"}`)),
 	}
 
-	msgs, res := c.ProcessBatch(context.Background(), msg)
+	msgs, res := c.ProcessBatch(t.Context(), msg)
 	require.NoError(t, res)
 
 	assert.Len(t, msgs, 1)
@@ -185,7 +185,7 @@ switch:
 	c, err := mock.NewManager().NewProcessor(conf)
 	require.NoError(b, err)
 	defer func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(b.Context(), time.Second*30)
 		defer done()
 		assert.NoError(b, c.Close(ctx))
 	}()
@@ -219,7 +219,7 @@ switch:
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		msgs, res := c.ProcessBatch(context.Background(), msg)
+		msgs, res := c.ProcessBatch(b.Context(), msg)
 		require.NoError(b, res)
 		assert.Equal(b, exp, message.GetAllBytes(msgs[0]))
 	}
@@ -244,7 +244,7 @@ switch:
 	c, err := mock.NewManager().NewProcessor(conf)
 	require.NoError(b, err)
 	defer func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(b.Context(), time.Second*30)
 		defer done()
 		assert.NoError(b, c.Close(ctx))
 	}()
@@ -278,7 +278,7 @@ switch:
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		resMsgs, res := c.ProcessBatch(context.Background(), msgs[i%len(msgs)])
+		resMsgs, res := c.ProcessBatch(b.Context(), msgs[i%len(msgs)])
 		require.NoError(b, res)
 		assert.Equal(b, [][]byte{exp[i%len(exp)]}, message.GetAllBytes(resMsgs[0]))
 	}

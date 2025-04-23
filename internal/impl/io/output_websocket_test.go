@@ -18,7 +18,7 @@ import (
 )
 
 func TestWebsocketOutputBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	expMsgs := []string{
@@ -73,7 +73,7 @@ websocket:
 }
 
 func TestWebsocketOutputClose(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

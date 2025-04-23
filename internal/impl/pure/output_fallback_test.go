@@ -66,6 +66,7 @@ fallback:
 	require.NoError(t, s.Consume(sendChan))
 
 	t.Cleanup(func() {
+		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		s.TriggerCloseNow()
 		require.NoError(t, s.WaitForClose(ctx))
@@ -127,7 +128,7 @@ func TestFallbackDoubleClose(t *testing.T) {
 //------------------------------------------------------------------------------
 
 func TestFallbackHappyPath(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	outputs := []output.Streamed{}
@@ -199,7 +200,7 @@ func TestFallbackHappyPath(t *testing.T) {
 }
 
 func TestFallbackHappyishPath(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	outputs := []output.Streamed{}
@@ -286,7 +287,7 @@ func TestFallbackHappyishPath(t *testing.T) {
 }
 
 func TestFallbackAllFail(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	outputs := []output.Streamed{}
@@ -359,7 +360,7 @@ func TestFallbackAllFail(t *testing.T) {
 }
 
 func TestFallbackAllFailParallel(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	outputs := []output.Streamed{}
@@ -493,7 +494,7 @@ fallback:
 
 	stopChan := make(chan struct{})
 	go func() {
-		err = s.Run(context.Background())
+		err = s.Run(t.Context())
 		require.NoError(t, err)
 
 		close(stopChan)

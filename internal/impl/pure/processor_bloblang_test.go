@@ -46,7 +46,7 @@ func TestBloblangCrossfire(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	outMsgs, res := proc.ProcessBatch(context.Background(), msg.ShallowCopy())
+	outMsgs, res := proc.ProcessBatch(t.Context(), msg.ShallowCopy())
 	require.NoError(t, res)
 	require.Len(t, outMsgs, 1)
 
@@ -88,7 +88,7 @@ func TestBloblangContext(t *testing.T) {
 	part.MetaSetMut("bar", "orig2")
 
 	key, val := testFooKey, "bar"
-	msg = append(msg, message.WithContext(context.WithValue(context.Background(), key, val), part))
+	msg = append(msg, message.WithContext(context.WithValue(t.Context(), key, val), part))
 
 	conf := processor.NewConfig()
 	conf.Type = "bloblang"
@@ -98,7 +98,7 @@ func TestBloblangContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	outMsgs, res := proc.ProcessBatch(context.Background(), msg)
+	outMsgs, res := proc.ProcessBatch(t.Context(), msg)
 	require.NoError(t, res)
 	require.Len(t, outMsgs, 1)
 
@@ -133,7 +133,7 @@ func TestBloblangCustomObject(t *testing.T) {
 	proc, err := mock.NewManager().NewProcessor(conf)
 	require.NoError(t, err)
 
-	outMsgs, res := proc.ProcessBatch(context.Background(), msg)
+	outMsgs, res := proc.ProcessBatch(t.Context(), msg)
 	require.NoError(t, res)
 	require.Len(t, outMsgs, 1)
 
@@ -162,7 +162,7 @@ func TestBloblangFiltering(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	outMsgs, res := proc.ProcessBatch(context.Background(), msg)
+	outMsgs, res := proc.ProcessBatch(t.Context(), msg)
 	require.NoError(t, res)
 	require.Len(t, outMsgs, 1)
 	require.Equal(t, 2, outMsgs[0].Len())
@@ -188,7 +188,7 @@ func TestBloblangFilterAll(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	outMsgs, res := proc.ProcessBatch(context.Background(), msg)
+	outMsgs, res := proc.ProcessBatch(t.Context(), msg)
 	assert.Empty(t, outMsgs)
 	assert.NoError(t, res)
 }
@@ -208,7 +208,7 @@ func TestBloblangJSONError(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	outMsgs, res := proc.ProcessBatch(context.Background(), msg)
+	outMsgs, res := proc.ProcessBatch(t.Context(), msg)
 	require.NoError(t, res)
 	require.Len(t, outMsgs, 1)
 

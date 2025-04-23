@@ -53,7 +53,7 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 		}, details)
 		require.NoError(t, err)
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.EqualError(t, ack, "service shutting down")
 	})
 
@@ -71,9 +71,9 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 		allReads := map[string][]byte{}
 
 		for _, exp := range expected {
-			p, ackFn, err := r.NextBatch(context.Background())
+			p, ackFn, err := r.NextBatch(t.Context())
 			require.NoError(t, err)
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 			require.Len(t, p, 1)
 
 			mBytes, err := p[0].AsBytes()
@@ -82,10 +82,10 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 			allReads[string(mBytes)] = mBytes
 		}
 
-		_, _, err = r.NextBatch(context.Background())
+		_, _, err = r.NextBatch(t.Context())
 		assert.EqualError(t, err, "EOF")
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.NoError(t, ack)
 
 		for k, v := range allReads {
@@ -107,9 +107,9 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 		allReads := map[string][]byte{}
 
 		for _, exp := range expected {
-			p, ackFn, err := r.NextBatch(context.Background())
+			p, ackFn, err := r.NextBatch(t.Context())
 			require.NoError(t, err)
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 			require.Len(t, p, 1)
 
 			mBytes, err := p[0].AsBytes()
@@ -118,10 +118,10 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 			allReads[string(mBytes)] = mBytes
 		}
 
-		_, _, err = r.NextBatch(context.Background())
+		_, _, err = r.NextBatch(t.Context())
 		assert.EqualError(t, err, "EOF")
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.NoError(t, ack)
 
 		for k, v := range allReads {
@@ -144,7 +144,7 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 
 		var ackFns []service.AckFunc
 		for _, exp := range expected {
-			p, ackFn, err := r.NextBatch(context.Background())
+			p, ackFn, err := r.NextBatch(t.Context())
 			require.NoError(t, err)
 			require.Len(t, p, 1)
 			ackFns = append(ackFns, ackFn)
@@ -155,12 +155,12 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 			allReads[string(mBytes)] = mBytes
 		}
 
-		_, _, err = r.NextBatch(context.Background())
+		_, _, err = r.NextBatch(t.Context())
 		assert.EqualError(t, err, "EOF")
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 
 		for _, ackFn := range ackFns {
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 		}
 
 		assert.NoError(t, ack)
@@ -188,7 +188,7 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 
 		for _, exp := range expected {
 			exp := exp
-			p, ackFn, err := r.NextBatch(context.Background())
+			p, ackFn, err := r.NextBatch(t.Context())
 			require.NoError(t, err)
 			require.Len(t, p, 1)
 
@@ -199,15 +199,15 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 
 			go func() {
 				defer wg.Done()
-				require.NoError(t, ackFn(context.Background(), nil))
+				require.NoError(t, ackFn(t.Context(), nil))
 			}()
 		}
 
-		_, _, err = r.NextBatch(context.Background())
+		_, _, err = r.NextBatch(t.Context())
 		assert.EqualError(t, err, "EOF")
 
 		wg.Wait()
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 
 		assert.NoError(t, ack)
 
@@ -233,7 +233,7 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 
 			var ackFns []service.AckFunc
 			for _, exp := range expected {
-				p, ackFn, err := r.NextBatch(context.Background())
+				p, ackFn, err := r.NextBatch(t.Context())
 				require.NoError(t, err)
 				require.Len(t, p, 1)
 				ackFns = append(ackFns, ackFn)
@@ -244,15 +244,15 @@ func ScannerTestSuite(t *testing.T, codec *service.OwnedScannerCreator, details 
 				allReads[string(mBytes)] = mBytes
 			}
 
-			_, _, err = r.NextBatch(context.Background())
+			_, _, err = r.NextBatch(t.Context())
 			assert.EqualError(t, err, "EOF")
-			assert.NoError(t, r.Close(context.Background()))
+			assert.NoError(t, r.Close(t.Context()))
 
 			for i, ackFn := range ackFns {
 				if i == 0 {
-					require.NoError(t, ackFn(context.Background(), exp))
+					require.NoError(t, ackFn(t.Context(), exp))
 				} else {
-					require.NoError(t, ackFn(context.Background(), nil))
+					require.NoError(t, ackFn(t.Context(), nil))
 				}
 			}
 

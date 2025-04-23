@@ -38,7 +38,7 @@ func TestInputAirGapShutdown(t *testing.T) {
 	i := &fnInput{}
 	agi := newAirGapReader(i)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	require.NoError(t, agi.Close(ctx))
@@ -56,24 +56,24 @@ func TestInputAirGapSad(t *testing.T) {
 	}
 	agi := newAirGapReader(i)
 
-	err := agi.Connect(context.Background())
+	err := agi.Connect(t.Context())
 	assert.EqualError(t, err, "bad connect")
 
-	_, _, err = agi.ReadBatch(context.Background())
+	_, _, err = agi.ReadBatch(t.Context())
 	assert.EqualError(t, err, "bad read")
 
 	i.read = func() (*Message, AckFunc, error) {
 		return nil, nil, ErrNotConnected
 	}
 
-	_, _, err = agi.ReadBatch(context.Background())
+	_, _, err = agi.ReadBatch(t.Context())
 	assert.Equal(t, component.ErrNotConnected, err)
 
 	i.read = func() (*Message, AckFunc, error) {
 		return nil, nil, ErrEndOfInput
 	}
 
-	_, _, err = agi.ReadBatch(context.Background())
+	_, _, err = agi.ReadBatch(t.Context())
 	assert.Equal(t, component.ErrTypeClosed, err)
 }
 
@@ -96,15 +96,15 @@ func TestInputAirGapHappy(t *testing.T) {
 	}
 	agi := newAirGapReader(i)
 
-	err := agi.Connect(context.Background())
+	err := agi.Connect(t.Context())
 	assert.NoError(t, err)
 
-	outMsg, outAckFn, err := agi.ReadBatch(context.Background())
+	outMsg, outAckFn, err := agi.ReadBatch(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, 1, outMsg.Len())
 	assert.Equal(t, "hello world", string(outMsg.Get(0).AsBytes()))
 
-	assert.NoError(t, outAckFn(context.Background(), errors.New("foobar")))
+	assert.NoError(t, outAckFn(t.Context(), errors.New("foobar")))
 	assert.EqualError(t, ackErr, "foobar")
 }
 
@@ -131,7 +131,7 @@ func TestBatchInputAirGapShutdown(t *testing.T) {
 	i := &fnBatchInput{}
 	agi := newAirGapBatchReader(i)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	require.NoError(t, agi.Close(ctx))
@@ -149,24 +149,24 @@ func TestBatchInputAirGapSad(t *testing.T) {
 	}
 	agi := newAirGapBatchReader(i)
 
-	err := agi.Connect(context.Background())
+	err := agi.Connect(t.Context())
 	assert.EqualError(t, err, "bad connect")
 
-	_, _, err = agi.ReadBatch(context.Background())
+	_, _, err = agi.ReadBatch(t.Context())
 	assert.EqualError(t, err, "bad read")
 
 	i.read = func() (MessageBatch, AckFunc, error) {
 		return nil, nil, ErrNotConnected
 	}
 
-	_, _, err = agi.ReadBatch(context.Background())
+	_, _, err = agi.ReadBatch(t.Context())
 	assert.Equal(t, component.ErrNotConnected, err)
 
 	i.read = func() (MessageBatch, AckFunc, error) {
 		return nil, nil, ErrEndOfInput
 	}
 
-	_, _, err = agi.ReadBatch(context.Background())
+	_, _, err = agi.ReadBatch(t.Context())
 	assert.Equal(t, component.ErrTypeClosed, err)
 }
 
@@ -181,7 +181,7 @@ func TestBatchInputAirGapSadWithBackOff(t *testing.T) {
 	}
 	agi := newAirGapBatchReader(i)
 
-	err := agi.Connect(context.Background())
+	err := agi.Connect(t.Context())
 	assert.EqualError(t, err, "bad connect")
 
 	var e *component.ErrBackOff
@@ -190,7 +190,7 @@ func TestBatchInputAirGapSadWithBackOff(t *testing.T) {
 	assert.EqualError(t, e.Err, "bad connect")
 	assert.Equal(t, "bad connect", e.Error())
 
-	_, _, err = agi.ReadBatch(context.Background())
+	_, _, err = agi.ReadBatch(t.Context())
 	assert.EqualError(t, err, "bad read")
 
 	assert.ErrorAs(t, err, &e)
@@ -202,7 +202,7 @@ func TestBatchInputAirGapSadWithBackOff(t *testing.T) {
 		return nil, nil, NewErrBackOff(ErrNotConnected, time.Second*2)
 	}
 
-	_, _, err = agi.ReadBatch(context.Background())
+	_, _, err = agi.ReadBatch(t.Context())
 
 	assert.ErrorAs(t, err, &e)
 	assert.Equal(t, time.Second*2, e.Wait)
@@ -212,7 +212,7 @@ func TestBatchInputAirGapSadWithBackOff(t *testing.T) {
 		return nil, nil, ErrEndOfInput
 	}
 
-	_, _, err = agi.ReadBatch(context.Background())
+	_, _, err = agi.ReadBatch(t.Context())
 	assert.Equal(t, component.ErrTypeClosed, err)
 }
 
@@ -237,16 +237,16 @@ func TestBatchInputAirGapHappy(t *testing.T) {
 	}
 	agi := newAirGapBatchReader(i)
 
-	err := agi.Connect(context.Background())
+	err := agi.Connect(t.Context())
 	assert.NoError(t, err)
 
-	outMsg, outAckFn, err := agi.ReadBatch(context.Background())
+	outMsg, outAckFn, err := agi.ReadBatch(t.Context())
 	assert.NoError(t, err)
 	assert.Equal(t, 3, outMsg.Len())
 	assert.Equal(t, "hello world", string(outMsg.Get(0).AsBytes()))
 	assert.Equal(t, "this is a test message", string(outMsg.Get(1).AsBytes()))
 	assert.Equal(t, "and it will work", string(outMsg.Get(2).AsBytes()))
 
-	assert.NoError(t, outAckFn(context.Background(), errors.New("foobar")))
+	assert.NoError(t, outAckFn(t.Context(), errors.New("foobar")))
 	assert.EqualError(t, ackErr, "foobar")
 }

@@ -90,7 +90,7 @@ func TestNotBatchedSingleMessages(t *testing.T) {
 		}
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nbOut.TriggerCloseNow()
@@ -129,7 +129,7 @@ func TestShutdown(t *testing.T) {
 		t.Fatal("timed out")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	done()
 
 	nbOut.TriggerCloseNow()
@@ -141,7 +141,7 @@ func TestShutdown(t *testing.T) {
 		t.Error("timed out")
 	}
 
-	ctx, done = context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done = context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	assert.NoError(t, nbOut.WaitForClose(ctx))
@@ -184,7 +184,7 @@ func TestNotBatchedBreakOutMessages(t *testing.T) {
 		t.Fatal("timed out")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nbOut.TriggerCloseNow()
@@ -244,7 +244,7 @@ func TestNotBatchedBreakOutMessagesErrors(t *testing.T) {
 		t.Fatal("timed out")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nbOut.TriggerCloseNow()
@@ -304,7 +304,7 @@ func TestNotBatchedBreakOutMessagesErrorsAsync(t *testing.T) {
 		t.Fatal("timed out")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nbOut.TriggerCloseNow()

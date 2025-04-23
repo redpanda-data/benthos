@@ -21,7 +21,7 @@ import (
 )
 
 func TestPoolBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockProc := &mockMsgProcessor{dropChan: make(chan bool)}
@@ -117,7 +117,7 @@ func TestPoolBasic(t *testing.T) {
 }
 
 func TestPoolMultiMsgs(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockProc := &mockSplitProcessor{}
@@ -193,7 +193,7 @@ func TestPoolMultiMsgs(t *testing.T) {
 }
 
 func TestPoolMultiThreads(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	conf := pipeline.NewConfig()
@@ -278,5 +278,5 @@ func TestPoolMultiNaturalClose(t *testing.T) {
 	}
 
 	close(tChan)
-	require.NoError(t, proc.WaitForClose(context.Background()))
+	require.NoError(t, proc.WaitForClose(t.Context()))
 }

@@ -37,7 +37,7 @@ func TestBasicFanOutSequential(t *testing.T) {
 
 	assert.True(t, oTM.ConnectionStatus().AllActive())
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	for i := 0; i < nMsgs; i++ {
@@ -68,7 +68,7 @@ func TestBasicFanOutSequential(t *testing.T) {
 		}
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	oTM.TriggerCloseNow()
@@ -76,7 +76,7 @@ func TestBasicFanOutSequential(t *testing.T) {
 }
 
 func TestFanOutSequentialBlock(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*10)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
 	mockOne := mock.OutputChanneled{}
@@ -123,7 +123,7 @@ func TestFanOutSequentialBlock(t *testing.T) {
 
 	close(readChan)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 	require.NoError(t, oTM.WaitForClose(ctx))
 }

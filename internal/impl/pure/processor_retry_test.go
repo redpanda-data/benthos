@@ -3,7 +3,6 @@
 package pure
 
 import (
-	"context"
 	"errors"
 	"sync/atomic"
 	"testing"
@@ -36,7 +35,7 @@ retry:
 	p, err := mockMgr.NewProcessor(conf)
 	require.NoError(t, err)
 
-	resBatches, err := p.ProcessBatch(context.Background(), message.Batch{
+	resBatches, err := p.ProcessBatch(t.Context(), message.Batch{
 		message.NewPart([]byte("hello world a")),
 		message.NewPart([]byte("hello world b")),
 		message.NewPart([]byte("hello world c")),
@@ -63,7 +62,7 @@ retry:
 		"hello world c updated",
 	}, resMsgs)
 
-	require.NoError(t, p.Close(context.Background()))
+	require.NoError(t, p.Close(t.Context()))
 }
 
 func TestRetryVerySad(t *testing.T) {
@@ -93,7 +92,7 @@ retry:
 	p, err := mockMgr.NewProcessor(conf)
 	require.NoError(t, err)
 
-	resBatches, err := p.ProcessBatch(context.Background(), message.Batch{
+	resBatches, err := p.ProcessBatch(t.Context(), message.Batch{
 		message.NewPart([]byte("hello world a")),
 		message.NewPart([]byte("hello world b")),
 		message.NewPart([]byte("hello world c")),
@@ -114,7 +113,7 @@ retry:
 
 	assert.Greater(t, fooCalls, uint32(6))
 
-	require.NoError(t, p.Close(context.Background()))
+	require.NoError(t, p.Close(t.Context()))
 }
 
 func TestRetryOneFailure(t *testing.T) {
@@ -144,7 +143,7 @@ retry:
 	p, err := mockMgr.NewProcessor(conf)
 	require.NoError(t, err)
 
-	resBatches, err := p.ProcessBatch(context.Background(), message.Batch{
+	resBatches, err := p.ProcessBatch(t.Context(), message.Batch{
 		message.NewPart([]byte("hello world a")),
 	})
 	require.NoError(t, err)
@@ -161,7 +160,7 @@ retry:
 
 	assert.Greater(t, fooCalls, uint32(1))
 
-	require.NoError(t, p.Close(context.Background()))
+	require.NoError(t, p.Close(t.Context()))
 }
 
 func TestRetryMaxRetriesFailure(t *testing.T) {
@@ -188,7 +187,7 @@ retry:
 	p, err := mockMgr.NewProcessor(conf)
 	require.NoError(t, err)
 
-	resBatches, err := p.ProcessBatch(context.Background(), message.Batch{
+	resBatches, err := p.ProcessBatch(t.Context(), message.Batch{
 		message.NewPart([]byte("hello world a")),
 	})
 	require.NoError(t, err)
@@ -213,7 +212,7 @@ retry:
 
 	assert.Equal(t, uint32(2), fooCalls)
 
-	require.NoError(t, p.Close(context.Background()))
+	require.NoError(t, p.Close(t.Context()))
 }
 
 func TestRetryParallelErrors(t *testing.T) {
@@ -256,7 +255,7 @@ retry:
 	require.NoError(t, err)
 
 	tBefore := time.Now()
-	resBatches, err := p.ProcessBatch(context.Background(), message.Batch{
+	resBatches, err := p.ProcessBatch(t.Context(), message.Batch{
 		message.NewPart([]byte("foo")),
 		message.NewPart([]byte("bar")),
 		message.NewPart([]byte("baz")),
@@ -282,5 +281,5 @@ retry:
 	assert.Equal(t, uint32(2), barCalls)
 	assert.Equal(t, uint32(2), bazCalls)
 
-	require.NoError(t, p.Close(context.Background()))
+	require.NoError(t, p.Close(t.Context()))
 }

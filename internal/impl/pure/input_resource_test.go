@@ -16,7 +16,7 @@ import (
 )
 
 func TestResourceInput(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mgr := mock.NewManager()
@@ -70,7 +70,7 @@ func TestResourceInput(t *testing.T) {
 }
 
 func TestResourceInputEarlyTermination(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mgr := mock.NewManager()

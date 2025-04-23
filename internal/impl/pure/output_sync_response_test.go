@@ -13,7 +13,7 @@ import (
 )
 
 func TestSyncResponseWriter(t *testing.T) {
-	wctx := context.Background()
+	wctx := t.Context()
 
 	impl := transaction.NewResultStore()
 	w := SyncResponseWriter{}
@@ -21,7 +21,7 @@ func TestSyncResponseWriter(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx := context.WithValue(context.Background(), transaction.ResultStoreKey, impl)
+	ctx := context.WithValue(t.Context(), transaction.ResultStoreKey, impl)
 
 	msg := message.QuickBatch(nil)
 	p := message.NewPart([]byte("foo"))

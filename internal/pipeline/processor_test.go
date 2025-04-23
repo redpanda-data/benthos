@@ -49,7 +49,7 @@ func (m *mockMsgProcessor) Close(ctx context.Context) error {
 }
 
 func TestProcessorPipeline(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockProc := &mockMsgProcessor{dropChan: make(chan bool)}
@@ -188,7 +188,7 @@ func (m *mockSplitProcessor) Close(ctx context.Context) error {
 }
 
 func TestProcessorMultiMsgs(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockProc := &mockSplitProcessor{}
@@ -266,7 +266,7 @@ func TestProcessorMultiMsgs(t *testing.T) {
 }
 
 func TestProcessorMultiMsgsBatchError(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockProc := &mockSplitProcessor{}
@@ -383,7 +383,7 @@ func (m *mockPhantomProcessor) Close(ctx context.Context) error {
 }
 
 func TestProcessorMultiMsgsBatchUnknownError(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockProc := &mockPhantomProcessor{}

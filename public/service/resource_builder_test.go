@@ -54,7 +54,7 @@ file:
 
 `))
 
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	res, stop, err := b.Build()

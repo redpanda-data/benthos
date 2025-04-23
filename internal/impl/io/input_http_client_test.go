@@ -36,7 +36,7 @@ func parseYAMLInputConf(t testing.TB, formatStr string, args ...any) (conf input
 }
 
 func TestHTTPClientGET(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	inputs := []string{
@@ -104,7 +104,7 @@ http_client:
 }
 
 func TestHTTPClientPagination(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	var paths []string
@@ -186,7 +186,7 @@ http_client:
 		}
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	h.TriggerStopConsuming()
@@ -207,7 +207,7 @@ http_client:
 
 	<-time.After(time.Millisecond * 500)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	h.TriggerStopConsuming()
@@ -230,7 +230,7 @@ http_client:
 
 	<-time.After(time.Millisecond * 500)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	h.TriggerStopConsuming()
@@ -267,7 +267,7 @@ http_client:
 		t.Error("Timed out")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	h.TriggerStopConsuming()
@@ -275,7 +275,7 @@ http_client:
 }
 
 func TestHTTPClientPOST(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	var reqCount uint32
@@ -350,7 +350,7 @@ http_client:
 }
 
 func TestHTTPClientGETMultipart(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	var reqCount uint32
@@ -428,7 +428,7 @@ http_client:
 }
 
 func TestHTTPClientGETMultipartLoop(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	tests := [][]string{
@@ -538,7 +538,7 @@ http_client:
 }
 
 func TestHTTPClientStreamGETMultipartLoop(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	tests := [][]string{
@@ -623,7 +623,7 @@ http_client:
 }
 
 func TestHTTPClientStreamGETMultiRecover(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	msgs := [][]string{
@@ -693,7 +693,7 @@ http_client:
 }
 
 func TestHTTPClientStreamGETRecover(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	msgs := []string{"foo", "bar"}
@@ -754,7 +754,7 @@ http_client:
 }
 
 func TestHTTPClientStreamGETTokenization(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	msgs := []string{`{"token":"foo"}`, `{"token":"bar"}`}
@@ -827,7 +827,7 @@ http_client:
 }
 
 func BenchmarkHTTPClientGETMultipart(b *testing.B) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(b.Context(), time.Second*5)
 	defer done()
 
 	parts := []string{

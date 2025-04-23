@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,17 +32,17 @@ dedupe:
 	require.NoError(t, err)
 
 	msgIn := message.QuickBatch([][]byte{doc1})
-	msgOut, err := proc.ProcessBatch(context.Background(), msgIn)
+	msgOut, err := proc.ProcessBatch(t.Context(), msgIn)
 	require.NoError(t, err)
 	require.Len(t, msgOut, 1)
 
 	msgIn = message.QuickBatch([][]byte{doc2})
-	msgOut, err = proc.ProcessBatch(context.Background(), msgIn)
+	msgOut, err = proc.ProcessBatch(t.Context(), msgIn)
 	require.NoError(t, err)
 	require.Empty(t, msgOut)
 
 	msgIn = message.QuickBatch([][]byte{doc3})
-	msgOut, err = proc.ProcessBatch(context.Background(), msgIn)
+	msgOut, err = proc.ProcessBatch(t.Context(), msgIn)
 	require.NoError(t, err)
 	require.Len(t, msgOut, 1)
 
@@ -53,7 +52,7 @@ dedupe:
 	require.NoError(t, err)
 
 	msgIn = message.QuickBatch([][]byte{doc1, doc2, doc3})
-	msgOut, err = proc.ProcessBatch(context.Background(), msgIn)
+	msgOut, err = proc.ProcessBatch(t.Context(), msgIn)
 	require.NoError(t, err)
 	require.Len(t, msgOut, 1)
 	assert.Equal(t, 2, msgOut[0].Len())
@@ -87,7 +86,7 @@ dedupe:
 
 	delete(mgr.Caches, "foocache")
 
-	msgs, err := proc.ProcessBatch(context.Background(), message.QuickBatch([][]byte{[]byte("foo"), []byte("bar")}))
+	msgs, err := proc.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte("foo"), []byte("bar")}))
 	require.NoError(t, err)
 	assert.Empty(t, msgs)
 
@@ -105,7 +104,7 @@ dedupe:
 
 	delete(mgr.Caches, "foocache")
 
-	msgs, err = proc.ProcessBatch(context.Background(), message.QuickBatch([][]byte{[]byte("foo"), []byte("bar")}))
+	msgs, err = proc.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte("foo"), []byte("bar")}))
 	require.NoError(t, err)
 	assert.Len(t, msgs, 1)
 }

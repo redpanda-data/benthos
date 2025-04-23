@@ -78,7 +78,7 @@ output:
 	strm, err := b.Build()
 	require.NoError(t, err)
 
-	require.NoError(t, strm.Run(context.Background()))
+	require.NoError(t, strm.Run(t.Context()))
 	assert.Equal(t, []string{
 		`{"id":1,"purpose":"test resource inputs"}`,
 		`{"id":2,"purpose":"test resource inputs"}`,
@@ -142,7 +142,7 @@ output:
 	strm, err := b.Build()
 	require.NoError(t, err)
 
-	require.NoError(t, strm.Run(context.Background()))
+	require.NoError(t, strm.Run(t.Context()))
 
 	outBytes, err := os.ReadFile(outFilePath)
 	require.NoError(t, err)

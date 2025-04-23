@@ -59,7 +59,7 @@ func TestEnvSwapping(t *testing.T) {
 		r := NewReader("", nil, OptUseEnvLookupFunc(func(ctx context.Context, s string) (string, bool) {
 			return envFn(s)
 		}))
-		out, err := r.ReplaceEnvVariables(context.Background(), []byte(in))
+		out, err := r.ReplaceEnvVariables(t.Context(), []byte(in))
 		if exp.errContains != "" {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), exp.errContains)
