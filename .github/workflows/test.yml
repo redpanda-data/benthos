@@ -22,8 +22,7 @@ jobs:
     - name: Install Go
       uses: actions/setup-go@v5
       with:
-        go-version: 1.22.x
-        check-latest: true
+        go-version: stable
 
     - name: Deps
       run: make deps && git diff-index --quiet HEAD || { >&2 echo "Stale go.{mod,sum} detected. This can be fixed with 'make deps'."; exit 1; }
@@ -47,8 +46,7 @@ jobs:
     - name: Install Go
       uses: actions/setup-go@v5
       with:
-        go-version: 1.23.x
-        check-latest: true
+        go-version: stable
 
     - name: Set version env variables
       run: |
