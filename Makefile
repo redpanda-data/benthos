@@ -29,6 +29,10 @@ fmt:
 lint:
 	@golangci-lint run cmd/... internal/... public/...
 
+run: CONF ?= ./config/dev.yaml
+run:
+	go run ./cmd/redpanda-connect --config $(CONF)
+
 test:
 	@go test -timeout 3m ./...
 	@go run ./cmd/benthos template lint $(TEMPLATE_FILES)
