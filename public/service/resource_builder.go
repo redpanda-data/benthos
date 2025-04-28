@@ -49,6 +49,8 @@ type ResourceBuilder struct {
 	env             *Environment
 	lintingDisabled bool
 	envVarLookupFn  func(context.Context, string) (string, bool)
+
+	onMgrInit []func(*Resources) error
 }
 
 // NewResourceBuilder creates a new ResourceBuilder.
@@ -105,6 +107,17 @@ func (r *ResourceBuilder) SetEnvVarLookupFunc(fn func(context.Context, string) (
 // allowing you to replace the default Benthos logger with your own.
 func (r *ResourceBuilder) SetLogger(l *slog.Logger) {
 	r.customLogger = log.NewBenthosLogAdapter(l)
+}
+
+// OnResourceInit adds a closure function to be called on built Resources once
+// initialized but before any resources have been added, this allows you to
+// access the Resources before any configured plugins have been added.
+//
+// WARNING: This is only for advanced use cases, and a provided closure can be
+// called for multiple instances of a *Resources type during a single Build call
+// due to internal mechanisms.
+func (r *ResourceBuilder) OnResourceInit(fn func(*Resources) error) {
+	r.onMgrInit = append(r.onMgrInit, fn)
 }
 
 //------------------------------------------------------------------------------
@@ -315,6 +328,12 @@ func (r *ResourceBuilder) Build() (*Resources, func(context.Context) error, erro
 		return nil, nil, err
 	}
 
+	for _, f := range r.onMgrInit {
+		if err := f(newResourcesFromManager(tmpMgr)); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	tracer, err := r.env.internal.TracersInit(r.tracer, tmpMgr)
 	if err != nil {
 		return nil, nil, err
@@ -348,7 +367,14 @@ func (r *ResourceBuilder) Build() (*Resources, func(context.Context) error, erro
 		return nil, nil, err
 	}
 
-	return newResourcesFromManager(mgr), func(ctx context.Context) error {
+	res := newResourcesFromManager(mgr)
+	for _, f := range r.onMgrInit {
+		if err := f(res); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return res, func(ctx context.Context) error {
 		mgr.TriggerStopConsuming()
 		if err := mgr.WaitForClose(ctx); err != nil {
 			mgr.TriggerCloseNow()
