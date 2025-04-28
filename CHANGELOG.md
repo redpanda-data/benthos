@@ -3,6 +3,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.49.0 - 2025-04-28
+
+### Added
+
+- Go API: Builds can now customize the standard set of CLI subcommands (`lint`, `generate`, and so on). (@Jeffail)
+- Go API: Method added to the ResourceBuilder for injecting initialization routines. (@Jeffail)
+
 ## 4.48.0 - 2025-04-23
 
 ### Added
