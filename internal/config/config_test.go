@@ -4,6 +4,7 @@ package config_test
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -388,4 +389,103 @@ input:
 	assert.Len(t, oMap, 2)
 	assert.Contains(t, oMap, "drop")
 	assert.Contains(t, oMap, "label")
+}
+
+func TestEnvVarInterpolation(t *testing.T) {
+	dir := t.TempDir()
+
+	countVar := "COUNT"
+	foobarVar := "FOOBAR"
+	intervalVar := "INTERVAL"
+	ttlVar := "TTL"
+	envVars := map[string]struct {
+		val       any
+		base64Val string
+	}{
+		countVar: {
+			val:       1234567,
+			base64Val: "MTIzNDU2Nw==",
+		},
+		foobarVar: {
+			val:       "meow",
+			base64Val: "bWVvdw==",
+		},
+		intervalVar: {
+			val:       "1337s",
+			base64Val: "MTMzN3M=",
+		},
+		ttlVar: {
+			val:       "42s",
+			base64Val: "NDJz",
+		},
+	}
+
+	fullPath := filepath.Join(dir, "main.yaml")
+	require.NoError(t, os.WriteFile(fullPath, []byte(`
+input:
+  generate:
+    count: ${COUNT|base64decode}
+    interval: ${INTERVAL:MTMzN3M=|base64decode}
+    mapping: 'root = "${FOOBAR:bWVvdw==|base64decode}"'
+
+output:
+  drop: {}
+`), 0o644))
+
+	resourcePath := filepath.Join(dir, "res.yaml")
+	require.NoError(t, os.WriteFile(resourcePath, []byte(`
+cache_resources:
+  - label: ${FOOBAR:bWVvdw==|base64decode}
+    memory:
+      default_ttl: ${TTL:NDJz|base64decode}
+`), 0o644))
+
+	tests := []struct {
+		name       string
+		envVarsSet bool
+	}{
+		{
+			name:       "env vars are set",
+			envVarsSet: true,
+		},
+		{
+			name: "env vars use their default values if any",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if test.envVarsSet {
+				for k, v := range envVars {
+					t.Setenv(k, v.base64Val)
+				}
+			}
+
+			rdr := config.NewReader(fullPath, []string{resourcePath})
+
+			conf, _, lints, err := rdr.Read()
+			require.NoError(t, err)
+
+			if test.envVarsSet {
+				require.Empty(t, lints)
+			} else {
+				require.Len(t, lints, 1)
+				assert.Contains(t, lints[0], "(1,1) required environment variables were not set: [COUNT]")
+			}
+
+			v := gabs.Wrap(testConfToAny(t, conf))
+
+			if test.envVarsSet {
+				assert.Equal(t, envVars[countVar].val, v.S("input", "generate", "count").Data())
+			} else {
+				assert.Nil(t, v.S("input", "generate", "count").Data())
+			}
+			assert.Equal(t, envVars[intervalVar].val, v.S("input", "generate", "interval").Data())
+			assert.Equal(t, fmt.Sprintf(`root = "%s"`, envVars[foobarVar].val), v.S("input", "generate", "mapping").Data())
+
+			require.Len(t, v.S("cache_resources").Data(), 1)
+			assert.Equal(t, envVars[foobarVar].val, v.S("cache_resources", "0", "label").Data())
+			assert.Equal(t, "42s", v.S("cache_resources", "0", "memory", "default_ttl").Data())
+		})
+	}
 }

@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## 4.50.0 - 2025-04-29
 
+### Added
+
+- Config: Environment variable interpolation now supports `base64decode` as an optional transform function. (@mihaitodor)
+
 ### Changed
 
 - Resources are now initialized lazily upon first usage. This means that resources which establish connections will only do so if they are being actively utilized. One consequence of this behaviour is that beyond linting errors your resource configs will only report errors if and when they are used. (@Jeffail)
