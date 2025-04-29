@@ -218,9 +218,10 @@ func TestManagerBadCache(t *testing.T) {
 	badConf.Type = "notexist"
 	conf.ResourceCaches = append(conf.ResourceCaches, badConf)
 
-	if _, err := manager.New(conf); err == nil {
-		t.Fatal("Expected error from bad cache")
-	}
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	require.Error(t, mgr.AccessCache(t.Context(), "bad", nil))
 }
 
 func TestManagerRateLimit(t *testing.T) {
@@ -295,9 +296,10 @@ func TestManagerBadRateLimit(t *testing.T) {
 	badConf.Label = "bad"
 	conf.ResourceRateLimits = append(conf.ResourceRateLimits, badConf)
 
-	if _, err := manager.New(conf); err == nil {
-		t.Fatal("Expected error from bad rate limit")
-	}
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	require.Error(t, mgr.AccessCache(t.Context(), "bad", nil))
 }
 
 func TestManagerProcessor(t *testing.T) {
