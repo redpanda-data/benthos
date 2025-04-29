@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## 4.50.0 - 2025-04-29
 
+### Added
+
+- Config: Environment variable interpolation now supports `base64decode` as an optional transform function. (@mihaitodor)
+
 ### Changed
 
 - Resources are now initialized lazily upon first usage. This means that resources which establish connections will only do so if they are being actively utilized. One consequence of this behaviour is that beyond linting errors your resource configs will only report errors if and when they are used. (@Jeffail)
@@ -15,7 +19,6 @@ All notable changes to this project will be documented in this file.
 
 - Go API: Builds can now customize the standard set of CLI subcommands (`lint`, `generate`, and so on). (@Jeffail)
 - Go API: Method added to the ResourceBuilder for injecting initialization routines. (@Jeffail)
-- Config: Environment variable interpolation now supports `base64decode` as an optional transform function. (@mihaitodor)
 
 ## 4.48.0 - 2025-04-23
 
