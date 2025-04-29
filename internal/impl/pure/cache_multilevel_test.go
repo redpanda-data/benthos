@@ -15,87 +15,44 @@ import (
 )
 
 func TestMultilevelCacheErrors(t *testing.T) {
-	strmBuilder := service.NewStreamBuilder()
-	require.NoError(t, strmBuilder.SetYAML(`
-input:
-  generate:
-    interval: 1ns
-    count: 1
-    mapping: 'root = "hello world"'
-
-output:
-  cache:
-    target: testing
-
-cache_resources:
-  - label: testing
-    multilevel: []
-
-logger:
-  level: NONE
+	resBuilder := service.NewResourceBuilder()
+	require.NoError(t, resBuilder.AddCacheYAML(`
+label: testing
+multilevel: []
 `))
 
-	_, err := strmBuilder.Build()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "expected at least two cache levels")
-
-	strmBuilder = service.NewStreamBuilder()
-	require.NoError(t, strmBuilder.SetYAML(`
-input:
-  generate:
-    interval: 1ns
-    count: 1
-    mapping: 'root = "hello world"'
-
-output:
-  cache:
-    target: test
-
-cache_resources:
-  - label: test
-    multilevel:
-      - foo
-
-logger:
-  level: NONE
-`))
-
-	_, err = strmBuilder.Build()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "expected at least two cache levels")
-
-	strmBuilder = service.NewStreamBuilder()
-	require.NoError(t, strmBuilder.SetYAML(`
-input:
-  generate:
-    interval: 1ns
-    count: 1
-    mapping: 'root = "hello world"'
-
-output:
-  cache:
-    target: test
-
-cache_resources:
-  - label: test
-    multilevel: [ foo, bar ]
-
-  - label: foo
-    memory: {}
-
-  - label: bar
-    memory: {}
-
-logger:
-  level: NONE
-`))
-
-	s, err := strmBuilder.Build()
+	res, closeFn, err := resBuilder.Build()
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(t.Context(), time.Second)
-	defer done()
-	require.NoError(t, s.Run(tCtx))
+	err = res.AccessCache(t.Context(), "testing", func(c service.Cache) {
+		t.Error("unexpected access of bad cache")
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected at least two cache levels")
+
+	require.NoError(t, closeFn(t.Context()))
+
+	resBuilder = service.NewResourceBuilder()
+	require.NoError(t, resBuilder.AddCacheYAML(`
+label: foo
+memory: {}
+`))
+	require.NoError(t, resBuilder.AddCacheYAML(`
+label: testing
+multilevel:
+  - foo
+`))
+
+	res, closeFn, err = resBuilder.Build()
+	require.NoError(t, err)
+
+	err = res.AccessCache(t.Context(), "testing", func(c service.Cache) {
+		t.Error("unexpected access of bad cache")
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected at least two cache levels")
+
+	require.NoError(t, closeFn(t.Context()))
 }
 
 type mockCacheProv struct {
