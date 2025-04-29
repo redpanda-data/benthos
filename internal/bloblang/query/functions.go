@@ -15,6 +15,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 	"github.com/segmentio/ksuid"
+	"go.jetify.com/typeid"
 
 	"github.com/redpanda-data/benthos/v4/internal/tracing"
 	"github.com/redpanda-data/benthos/v4/internal/value"
@@ -948,6 +949,35 @@ var _ = registerFunction(
 				return nil, fmt.Errorf("unable to generate uuid v7 at time %s: %w", *time, err)
 			}
 			return u7.String(), nil
+		}, nil), nil
+	},
+)
+
+//------------------------------------------------------------------------------
+
+var _ = registerFunction(
+	NewFunctionSpec(
+		FunctionCategoryGeneral, "typeid",
+		"Generates a new typeid each time it is invoked and prints a string representation.",
+		NewExampleSpec("", `root.id = typeid()`),
+		NewExampleSpec("It is also possible to specify a prefix for the typeid", `root.id = typeid("prefix")`),
+	).Param(ParamString("prefix", "An optional prefix to use for the typeid.").Optional()),
+	func(args *ParsedParams) (Function, error) {
+		prefixArg, err := args.FieldOptionalString("prefix")
+		if err != nil {
+			return nil, err
+		}
+		return ClosureFunction("function typeid", func(_ FunctionContext) (any, error) {
+			var prefix string
+			if prefixArg != nil {
+				prefix = *prefixArg
+			}
+
+			tid, err := typeid.WithPrefix(prefix)
+			if err != nil {
+				return nil, fmt.Errorf("unable to generate typeid: %w", err)
+			}
+			return tid, nil
 		}, nil), nil
 	},
 )
