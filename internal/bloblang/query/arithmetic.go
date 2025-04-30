@@ -32,6 +32,7 @@ const (
 	ArithmeticAnd
 	ArithmeticOr
 	ArithmeticPipe
+	ArithmeticXor
 )
 
 func (o ArithmeticOperator) String() string {
@@ -54,6 +55,8 @@ func (o ArithmeticOperator) String() string {
 		return "boolean or"
 	case ArithmeticPipe:
 		return "coalesce"
+	case ArithmeticXor:
+		return "xor"
 	}
 	return ""
 }
@@ -253,6 +256,22 @@ func sumOp(op ArithmeticOperator) (arithmeticOpFunc[any], bool) {
 				return lhs - rhs, nil
 			},
 		), true
+	case ArithmeticXor:
+		// Only executes on unsigned integer values.
+		return func(lFn, rFn Function, left, right any) (any, error) {
+			lhs, err := value.IGetUInt(left)
+			if err != nil {
+				return nil, NewTypeMismatch(op.String(), lFn, rFn, left, right)
+			}
+			rhs, err := value.IGetUInt(right)
+			if err != nil {
+				return nil, NewTypeMismatch(op.String(), lFn, rFn, left, right)
+			}
+			if rhs == 0 {
+				return nil, ErrFrom(ErrDivideByZero, rFn)
+			}
+			return lhs ^ rhs, nil
+		}, true
 	}
 	return nil, false
 }

@@ -803,6 +803,42 @@ func TestArithmetic(t *testing.T) {
 			),
 			output: false,
 		},
+		"xor two unsigned integers": {
+			input: arithmetic(
+				[]Function{
+					opaqueLit(uint64(16)),
+					opaqueLit(uint64(24)),
+				},
+				[]ArithmeticOperator{
+					ArithmeticXor,
+				},
+			),
+			output: uint64(8),
+		},
+		"xor with coerced float": {
+			input: arithmetic(
+				[]Function{
+					opaqueLit(uint64(16)),
+					opaqueLit(float64(24)),
+				},
+				[]ArithmeticOperator{
+					ArithmeticXor,
+				},
+			),
+			output: uint64(8),
+		},
+		"cant xor with negative input": {
+			input: arithmetic(
+				[]Function{
+					opaqueLit(uint64(16)),
+					opaqueLit(float64(-24.0)),
+				},
+				[]ArithmeticOperator{
+					ArithmeticXor,
+				},
+			),
+			err: errors.New("cannot xor types number (from foobar) and number (from foobar)"),
+		},
 	}
 
 	for name, test := range tests {

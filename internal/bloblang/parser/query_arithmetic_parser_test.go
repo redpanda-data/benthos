@@ -56,6 +56,10 @@ func TestArithmeticParser(t *testing.T) {
 			input:  `5 % 2`,
 			output: `1`,
 		},
+		"xor two ints": {
+			input:  `17 ^ 5`,
+			output: `20`,
+		},
 		"mod two strings": {
 			input:  `"7".number() % "4".number()`,
 			output: `3`,

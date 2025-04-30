@@ -23,6 +23,7 @@ var arithmeticOpPattern = OneOf(
 	Char('>'),
 	Char('<'),
 	Char('|'),
+	Char('^'),
 )
 
 func arithmeticOpParser(input []rune) Result[query.ArithmeticOperator] {
@@ -61,6 +62,8 @@ func arithmeticOpParser(input []rune) Result[query.ArithmeticOperator] {
 		outRes.Payload = query.ArithmeticLte
 	case "|":
 		outRes.Payload = query.ArithmeticPipe
+	case "^":
+		outRes.Payload = query.ArithmeticXor
 	default:
 		return Fail[query.ArithmeticOperator](
 			NewFatalError(input, fmt.Errorf("operator not recognized: %v", res.Payload)),
