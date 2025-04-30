@@ -3,6 +3,7 @@
 package io
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -1016,6 +1017,103 @@ socket:
 		act, err := readNextMsg()
 		assert.NoError(b, err)
 		assert.Equal(b, exp, act)
+	}
+
+	wg.Wait()
+	conn.Close()
+}
+
+func TestSocketOpenMessage(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
+	defer done()
+
+	tmpDir := t.TempDir()
+
+	ln, err := net.Listen("unix", filepath.Join(tmpDir, "benthos.sock"))
+	if err != nil {
+		t.Fatalf("failed to listen on a address: %v", err)
+	}
+	defer ln.Close()
+
+	rdr := inputFromConf(t, `
+socket:
+  network: %v
+  address: %v
+  open_message_mapping: root = (1 + 2).string() + "\n"
+`, ln.Addr().Network(), ln.Addr().String())
+
+	defer func() {
+		rdr.TriggerStopConsuming()
+		if err := rdr.WaitForClose(ctx); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	conn, err := ln.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	reader := bufio.NewReader(conn)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		t.Fatal(err)
+	}
+	if line != "3\n" {
+		t.Fatalf("Expected 3, got %s", line)
+	}
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
+		if _, cerr := conn.Write([]byte("foo\n")); cerr != nil {
+			t.Error(cerr)
+		}
+		if _, cerr := conn.Write([]byte("bar\n")); cerr != nil {
+			t.Error(cerr)
+		}
+		if _, cerr := conn.Write([]byte("baz\n")); cerr != nil {
+			t.Error(cerr)
+		}
+		wg.Done()
+	}()
+
+	readNextMsg := func() (message.Batch, error) {
+		var msg message.Batch
+		select {
+		case tran := <-rdr.TransactionChan():
+			msg = tran.Payload.DeepCopy()
+			require.NoError(t, tran.Ack(ctx, nil))
+		case <-time.After(time.Second):
+			return nil, errors.New("timed out")
+		}
+		return msg, nil
+	}
+
+	exp := [][]byte{[]byte("foo")}
+	msg, err := readNextMsg()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if act := message.GetAllBytes(msg); !reflect.DeepEqual(exp, act) {
+		t.Errorf("Wrong message contents: %s != %s", act, exp)
+	}
+
+	exp = [][]byte{[]byte("bar")}
+	if msg, err = readNextMsg(); err != nil {
+		t.Fatal(err)
+	}
+	if act := message.GetAllBytes(msg); !reflect.DeepEqual(exp, act) {
+		t.Errorf("Wrong message contents: %s != %s", act, exp)
+	}
+
+	exp = [][]byte{[]byte("baz")}
+	if msg, err = readNextMsg(); err != nil {
+		t.Fatal(err)
+	}
+	if act := message.GetAllBytes(msg); !reflect.DeepEqual(exp, act) {
+		t.Errorf("Wrong message contents: %s != %s", act, exp)
 	}
 
 	wg.Wait()
