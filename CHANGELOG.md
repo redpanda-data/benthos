@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.51.0 - TBD
+
+### Added
+
+- CLI flag `--api-path-prefix` added to the `studio pull` and `studio sync-schema` subcommands. (@mihaitodor)
+
 ## 4.50.0 - 2025-04-29
 
 ### Added
