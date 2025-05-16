@@ -627,5 +627,4 @@ func TestErrorFunctions(t *testing.T) {
 			assert.Equal(t, test.exp, str)
 		})
 	}
-
 }

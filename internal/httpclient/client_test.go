@@ -735,7 +735,6 @@ oauth2:
 	mBytes, err := resBatch[0].AsBytes()
 	require.NoError(t, err)
 	assert.Equal(t, "HELLO WORLD", string(mBytes))
-
 }
 
 func TestHTTPClientOAuth2ConfWithMissingRefreshToken(t *testing.T) {

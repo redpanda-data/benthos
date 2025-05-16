@@ -12,10 +12,11 @@ import (
 	"slices"
 	"testing"
 
-	icli "github.com/redpanda-data/benthos/v4/internal/cli"
-	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	icli "github.com/redpanda-data/benthos/v4/internal/cli"
+	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 )
 
 func TestSyncSchema(t *testing.T) {
@@ -75,5 +76,4 @@ func TestSyncSchema(t *testing.T) {
 			require.NoError(t, cliApp.Run([]string{"benthos", "studio", "--endpoint", testServer.URL, "sync-schema", "--session", "foosession", "--token", "footoken", "--api-path-prefix", test.apiPathPrefix}))
 		})
 	}
-
 }

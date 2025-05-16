@@ -544,11 +544,15 @@ func TestManagerPipeGetSet(t *testing.T) {
 	}
 }
 
-type testKeyTypeA int
-type testKeyTypeB int
+type (
+	testKeyTypeA int
+	testKeyTypeB int
+)
 
-const testKeyA testKeyTypeA = iota
-const testKeyB testKeyTypeB = iota
+const (
+	testKeyA testKeyTypeA = iota
+	testKeyB testKeyTypeB = iota
+)
 
 func TestManagerGenericResources(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())
