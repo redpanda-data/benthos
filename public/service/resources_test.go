@@ -153,11 +153,15 @@ output:
 `, string(outBytes))
 }
 
-type testKeyTypeA int
-type testKeyTypeB int
+type (
+	testKeyTypeA int
+	testKeyTypeB int
+)
 
-const testKeyA testKeyTypeA = iota
-const testKeyB testKeyTypeB = iota
+const (
+	testKeyA testKeyTypeA = iota
+	testKeyB testKeyTypeB = iota
+)
 
 func TestResourcesGenericValues(t *testing.T) {
 	res := service.MockResources()

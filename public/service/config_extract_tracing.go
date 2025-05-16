@@ -32,7 +32,8 @@ func NewExtractTracingSpanMappingField() *ConfigField {
 // WrapBatchInputExtractTracingSpanMapping wraps a BatchInput with a mechanism
 // for extracting tracing spans using a bloblang mapping.
 func (p *ParsedConfig) WrapBatchInputExtractTracingSpanMapping(inputName string, i BatchInput) (
-	BatchInput, error) {
+	BatchInput, error,
+) {
 	if str, _ := p.FieldString(etsField); str == "" {
 		return i, nil
 	}

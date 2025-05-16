@@ -239,8 +239,10 @@ func newCache(conf cacheProcConfig, mgr bundle.NewManagement) (*cacheProc, error
 
 //------------------------------------------------------------------------------
 
-type operatorResultApplier func(part *message.Part)
-type cacheOperator func(ctx context.Context, cache cache.V1, key string, value []byte, ttl *time.Duration) (operatorResultApplier, error)
+type (
+	operatorResultApplier func(part *message.Part)
+	cacheOperator         func(ctx context.Context, cache cache.V1, key string, value []byte, ttl *time.Duration) (operatorResultApplier, error)
+)
 
 func newCacheSetOperator() cacheOperator {
 	return func(ctx context.Context, cache cache.V1, key string, value []byte, ttl *time.Duration) (operatorResultApplier, error) {
