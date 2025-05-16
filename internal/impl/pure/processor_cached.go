@@ -89,14 +89,12 @@ cache_resources:
 }
 
 func init() {
-	err := service.RegisterProcessor(
+	service.MustRegisterProcessor(
 		"cached", newCachedProcessorConfigSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
 			return newCachedProcessorFromParsedConf(mgr, conf)
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type cachedProcessor struct {

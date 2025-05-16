@@ -79,7 +79,7 @@ These values can be overridden during execution.`).
 }
 
 func init() {
-	err := service.RegisterCache(
+	service.MustRegisterCache(
 		"ttlru", ttlruCacheConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Cache, error) {
 			logger := mgr.Logger().With("component", "ttlru")
@@ -89,9 +89,7 @@ func init() {
 			}
 			return f, nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 func ttlruMemCacheFromConfig(conf *service.ParsedConfig, logger *service.Logger) (*ttlruCacheAdapter, error) {

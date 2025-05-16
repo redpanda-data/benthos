@@ -39,7 +39,7 @@ func websocketOutputSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"websocket", websocketOutputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			maxInFlight = 1
@@ -55,9 +55,7 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(o)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type websocketWriter struct {

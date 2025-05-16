@@ -66,7 +66,7 @@ pipeline:
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"jmespath", jmpProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			queryStr, err := conf.FieldString(jmpFieldQuery)
@@ -82,9 +82,7 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("jmespath", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type jmespathProc struct {

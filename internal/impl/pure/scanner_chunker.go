@@ -24,13 +24,11 @@ func chunkerScannerSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("chunker", chunkerScannerSpec(),
+	service.MustRegisterBatchScannerCreator("chunker", chunkerScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return chunkerScannerFromParsed(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 func chunkerScannerFromParsed(conf *service.ParsedConfig) (l *chunkerScannerCreator, err error) {

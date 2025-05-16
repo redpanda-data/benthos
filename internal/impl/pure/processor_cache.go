@@ -154,7 +154,7 @@ type cacheProcConfig struct {
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"cache", cacheProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			var cConf cacheProcConfig
@@ -179,9 +179,7 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("cache", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 //------------------------------------------------------------------------------

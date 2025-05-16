@@ -19,7 +19,7 @@ func getStdinReader() io.ReadCloser {
 }
 
 func init() {
-	err := service.RegisterBatchInput(
+	service.MustRegisterBatchInput(
 		"stdin", service.NewConfigSpec().
 			Stable().
 			Categories("Local").
@@ -32,9 +32,7 @@ func init() {
 			}
 			return service.AutoRetryNacksBatchedToggled(conf, rdr)
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type stdinConsumer struct {

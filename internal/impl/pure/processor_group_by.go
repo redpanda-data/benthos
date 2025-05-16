@@ -74,7 +74,7 @@ output:
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"group_by", groupByProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			groupConfs, err := conf.FieldObjectList()
@@ -93,9 +93,7 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("group_by", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type group struct {

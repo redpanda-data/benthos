@@ -54,7 +54,7 @@ It's possible to propagate the response from each HTTP request back to the input
 }
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"http_client", httpClientOutputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (bo service.BatchOutput, b service.BatchPolicy, mIF int, err error) {
 			if mIF, err = conf.FieldInt("max_in_flight"); err != nil {
@@ -68,9 +68,7 @@ func init() {
 			bo, err = newHTTPClientOutputFromParsed(conf, mgr)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type httpClientWriter struct {

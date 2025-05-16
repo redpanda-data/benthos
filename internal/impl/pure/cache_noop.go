@@ -22,16 +22,14 @@ func noopCacheConfig() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterCache(
+	service.MustRegisterCache(
 		"noop", noopCacheConfig(),
 		func(_ *service.ParsedConfig, mgr *service.Resources) (service.Cache, error) {
 			f := noopMemCache(mgr.Label(), mgr.Logger())
 
 			return f, nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 func noopMemCache(label string, logger *service.Logger) *noopCacheAdapter {

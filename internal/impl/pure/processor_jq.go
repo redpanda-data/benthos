@@ -92,7 +92,7 @@ pipeline:
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"jq", jqProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			query, err := conf.FieldString(jqpFieldQuery)
@@ -116,9 +116,7 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("jq", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 var jqCompileOptions = []gojq.CompilerOption{
