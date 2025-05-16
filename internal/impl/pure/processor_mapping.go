@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"mapping",
 		service.NewConfigSpec().
 			Stable().
@@ -124,9 +124,7 @@ pipeline:
 			v1Proc := processor.NewAutoObservedBatchedProcessor("mapping", newMapping(mapping, mgr.Logger()), interop.UnwrapManagement(mgr))
 			return interop.NewUnwrapInternalBatchProcessor(v1Proc), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type mappingProc struct {

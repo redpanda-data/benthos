@@ -26,14 +26,12 @@ func localRatelimitConfig() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterRateLimit(
+	service.MustRegisterRateLimit(
 		"local", localRatelimitConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.RateLimit, error) {
 			return newLocalRatelimitFromConfig(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 func newLocalRatelimitFromConfig(conf *service.ParsedConfig) (*localRatelimit, error) {

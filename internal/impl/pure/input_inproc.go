@@ -29,7 +29,7 @@ It is possible to connect multiple inputs to the same inproc ID, resulting in me
 }
 
 func init() {
-	err := service.RegisterBatchInput("inproc", inprocInputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
+	service.MustRegisterBatchInput("inproc", inprocInputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 		name, err := conf.FieldString()
 		if err != nil {
 			return nil, err
@@ -46,9 +46,7 @@ func init() {
 		go inprocRdr.loop()
 		return interop.NewUnwrapInternalInput(inprocRdr), nil
 	})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 //------------------------------------------------------------------------------

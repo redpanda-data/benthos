@@ -87,7 +87,7 @@ input:
 }
 
 func init() {
-	err := service.RegisterBatchInput("generate", genInputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
+	service.MustRegisterBatchInput("generate", genInputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 		nm := interop.UnwrapManagement(mgr)
 
 		var b input.Async
@@ -106,9 +106,7 @@ func init() {
 		}
 		return interop.NewUnwrapInternalInput(i), nil
 	})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 //------------------------------------------------------------------------------

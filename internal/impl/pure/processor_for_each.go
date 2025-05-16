@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor("for_each", service.NewConfigSpec().
+	service.MustRegisterBatchProcessor("for_each", service.NewConfigSpec().
 		Stable().
 		Categories("Composition").
 		Summary("A processor that applies a list of child processors to messages of a batch as though they were each a batch of one message.").
@@ -41,9 +41,7 @@ Please note that most processors already process per message of a batch, and thi
 			p := processor.NewAutoObservedBatchedProcessor("for_each", tp, mgr)
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type forEachProc struct {

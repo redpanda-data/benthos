@@ -143,7 +143,7 @@ metrics:
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"metric", metProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			procTypeStr, err := conf.FieldString(metProcFieldType)
@@ -176,9 +176,7 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type metricProcessor struct {

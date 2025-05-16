@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"drop", service.NewConfigSpec().
 			Stable().
 			Categories("Utility").
@@ -28,9 +28,7 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(o)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type dropWriter struct {

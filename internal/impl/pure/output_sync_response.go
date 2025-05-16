@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"sync_response", service.NewConfigSpec().
 			Categories("Utility").
 			Stable().
@@ -51,9 +51,7 @@ For more information please read xref:guides:sync_responses.adoc[synchronous res
 			out = interop.NewUnwrapInternalOutput(s)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 // SyncResponseWriter is a writer implementation that adds messages to a

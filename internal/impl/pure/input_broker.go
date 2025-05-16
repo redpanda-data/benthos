@@ -77,7 +77,7 @@ It is possible to configure xref:components:processors/about.adoc[processors] at
 }
 
 func init() {
-	err := service.RegisterBatchInput("broker", brokerInputSpec(),
+	service.MustRegisterBatchInput("broker", brokerInputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 			i, err := newBrokerInputFromParsed(conf, mgr)
 			if err != nil {
@@ -85,9 +85,7 @@ func init() {
 			}
 			return interop.NewUnwrapInternalInput(i), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 func newBrokerInputFromParsed(conf *service.ParsedConfig, mgr *service.Resources) (input.Streamed, error) {

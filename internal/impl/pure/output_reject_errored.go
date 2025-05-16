@@ -18,7 +18,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"reject_errored", service.NewConfigSpec().
 			Stable().
 			Categories("Utility").
@@ -78,9 +78,7 @@ output:
 			out = interop.NewUnwrapInternalOutput(w)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 //------------------------------------------------------------------------------

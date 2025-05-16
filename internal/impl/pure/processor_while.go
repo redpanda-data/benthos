@@ -59,7 +59,7 @@ The conditions of this processor are applied across entire message batches. You 
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"while", whileProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			maxLoops, err := conf.FieldInt(wpFieldMaxLoops)
@@ -94,9 +94,7 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("while", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type whileProc struct {

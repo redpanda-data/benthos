@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"mutation",
 		service.NewConfigSpec().
 			Stable().
@@ -128,9 +128,7 @@ pipeline:
 			v1Proc := processor.NewAutoObservedBatchedProcessor("mutation", newMutation(mapping, mgr.Logger()), interop.UnwrapManagement(mgr))
 			return interop.NewUnwrapInternalBatchProcessor(v1Proc), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type mutationProc struct {

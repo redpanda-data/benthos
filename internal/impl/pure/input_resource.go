@@ -67,7 +67,7 @@ You can find out more about resources in xref:configuration:resources.adoc[].`).
 }
 
 func init() {
-	err := service.RegisterBatchInput("resource", resourceInputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
+	service.MustRegisterBatchInput("resource", resourceInputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 		name, err := conf.FieldString()
 		if err != nil {
 			return nil, err
@@ -86,9 +86,7 @@ func init() {
 		go ri.loop()
 		return interop.NewUnwrapInternalInput(ri), nil
 	})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 //------------------------------------------------------------------------------
