@@ -28,7 +28,7 @@ root.d = this.d.$NAME().catch(0)
 		exampleOneIO[1] = `{"a":12,"b":12,"c":12,"d":0}`
 	}
 
-	if err := bloblang.RegisterMethodV2(name,
+	bloblang.MustRegisterMethodV2(name,
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
 			Description(replacer.Replace(`
@@ -43,9 +43,7 @@ root = this.$NAME()
 			),
 		func(args *bloblang.ParsedParams) (bloblang.Method, error) {
 			return method, nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 }
 
 func init() {
@@ -105,7 +103,7 @@ func init() {
 			return value.IToUint8(input)
 		})
 
-	if err := bloblang.RegisterMethodV2("float64",
+	bloblang.MustRegisterMethodV2("float64",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
 			Description(`
@@ -121,11 +119,9 @@ root.out = this.in.float64()
 			return func(input any) (any, error) {
 				return value.IToFloat64(input)
 			}, nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("float32",
+	bloblang.MustRegisterMethodV2("float32",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
 			Description(`
@@ -141,11 +137,9 @@ root.out = this.in.float32()
 			return func(input any) (any, error) {
 				return value.IToFloat32(input)
 			}, nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("abs",
+	bloblang.MustRegisterMethodV2("abs",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
 			Description(`Returns the absolute value of an int64 or float64 number. As a special case, when an integer is provided that is the minimum value it is converted to the maximum value.`).
@@ -172,11 +166,9 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 				}
 				return nil, value.NewTypeError(input, value.TNumber, value.TInt)
 			}, nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("pow",
+	bloblang.MustRegisterMethodV2("pow",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
 			Description(`Returns the number raised to the specified exponent.`).
@@ -194,11 +186,9 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 				}
 				return math.Pow(input, exp), nil
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("sin",
+	bloblang.MustRegisterMethodV2("sin",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
 			Description(`Calculates the sine of a given angle specified in radians.`).
@@ -210,11 +200,9 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 			return bloblang.Float64Method(func(input float64) (any, error) {
 				return math.Sin(input), nil
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("cos",
+	bloblang.MustRegisterMethodV2("cos",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
 			Description(`Calculates the cosine of a given angle specified in radians.`).
@@ -226,11 +214,9 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 			return bloblang.Float64Method(func(input float64) (any, error) {
 				return math.Cos(input), nil
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("tan",
+	bloblang.MustRegisterMethodV2("tan",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
 			Description(`Calculates the tangent of a given angle specified in radians.`).
@@ -242,13 +228,11 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 			return bloblang.Float64Method(func(input float64) (any, error) {
 				return math.Tan(input), nil
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
 	//------------------------------------------------------------------------------
 
-	if err := bloblang.RegisterFunctionV2("pi",
+	bloblang.MustRegisterFunctionV2("pi",
 		bloblang.NewPluginSpec().
 			Category(query.FunctionCategoryGeneral).
 			Description(`Returns the value of the mathematical constant Pi.`).
@@ -260,7 +244,5 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 			return func() (any, error) {
 				return math.Pi, nil
 			}, nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 }

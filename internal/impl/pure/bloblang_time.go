@@ -49,9 +49,7 @@ func init() {
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_round", tsRoundSpec, tsRoundCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_round", tsRoundSpec, tsRoundCtor)
 
 	tsTZSpec := bloblang.NewPluginSpec().
 		Beta().
@@ -81,9 +79,7 @@ func init() {
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_tz", tsTZSpec, tsTZCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_tz", tsTZSpec, tsTZCtor)
 
 	tsAddISOSpec := bloblang.NewPluginSpec().
 		Category(query.MethodCategoryTime).
@@ -115,21 +111,17 @@ func init() {
 		}
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_add_iso8601", tsAddISOSpec,
+	bloblang.MustRegisterMethodV2("ts_add_iso8601", tsAddISOSpec,
 		tsModifyISOCtor(func(d period.Period, t time.Time) time.Time {
 			r, _ := d.AddTo(t)
 			return r
-		})); err != nil {
-		panic(err)
-	}
+		}))
 
-	if err := bloblang.RegisterMethodV2("ts_sub_iso8601", tsSubISOSpec,
+	bloblang.MustRegisterMethodV2("ts_sub_iso8601", tsSubISOSpec,
 		tsModifyISOCtor(func(d period.Period, t time.Time) time.Time {
 			r, _ := d.Negate().AddTo(t)
 			return r
-		})); err != nil {
-		panic(err)
-	}
+		}))
 
 	//--------------------------------------------------------------------------
 
@@ -162,9 +154,7 @@ func init() {
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("parse_duration", parseDurSpec, parseDurCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("parse_duration", parseDurSpec, parseDurCtor)
 
 	parseDurISOSpec := bloblang.NewPluginSpec().
 		Category(query.MethodCategoryTime).
@@ -205,9 +195,7 @@ func init() {
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("parse_duration_iso8601", parseDurISOSpec, parseDurISOCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("parse_duration_iso8601", parseDurISOSpec, parseDurISOCtor)
 
 	//--------------------------------------------------------------------------
 
@@ -250,13 +238,9 @@ The input format is defined by showing how the reference time, defined to be Mon
 		}
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_parse", parseTSSpec, parseTSCtor(false)); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_parse", parseTSSpec, parseTSCtor(false))
 
-	if err := bloblang.RegisterMethodV2("parse_timestamp", parseTSSpecDep, parseTSCtor(true)); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("parse_timestamp", parseTSSpecDep, parseTSCtor(true))
 
 	parseTSStrptimeSpec := bloblang.NewPluginSpec().
 		Category(query.MethodCategoryTime).
@@ -304,13 +288,9 @@ The input format is defined by showing how the reference time, defined to be Mon
 		}
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_strptime", parseTSStrptimeSpec, parseTSStrptimeCtor(false)); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_strptime", parseTSStrptimeSpec, parseTSStrptimeCtor(false))
 
-	if err := bloblang.RegisterMethodV2("parse_timestamp_strptime", parseTSStrptimeSpecDep, parseTSStrptimeCtor(true)); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("parse_timestamp_strptime", parseTSStrptimeSpecDep, parseTSStrptimeCtor(true))
 
 	//--------------------------------------------------------------------------
 
@@ -386,13 +366,9 @@ The output format is defined by showing how the reference time, defined to be Mo
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_format", formatTSSpec, formatTSCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_format", formatTSSpec, formatTSCtor)
 
-	if err := bloblang.RegisterMethodV2("format_timestamp", formatTSSpecDep, formatTSCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("format_timestamp", formatTSSpecDep, formatTSCtor)
 
 	formatTSStrftimeSpec := bloblang.NewPluginSpec().
 		Category(query.MethodCategoryTime).
@@ -459,13 +435,9 @@ The output format is defined by showing how the reference time, defined to be Mo
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_strftime", formatTSStrftimeSpec, formatTSStrftimeCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_strftime", formatTSStrftimeSpec, formatTSStrftimeCtor)
 
-	if err := bloblang.RegisterMethodV2("format_timestamp_strftime", formatTSStrftimeSpecDep, formatTSStrftimeCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("format_timestamp_strftime", formatTSStrftimeSpecDep, formatTSStrftimeCtor)
 
 	formatTSUnixSpec := bloblang.NewPluginSpec().
 		Category(query.MethodCategoryTime).
@@ -490,13 +462,9 @@ The output format is defined by showing how the reference time, defined to be Mo
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_unix", formatTSUnixSpec, formatTSUnixCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_unix", formatTSUnixSpec, formatTSUnixCtor)
 
-	if err := bloblang.RegisterMethodV2("format_timestamp_unix", formatTSUnixSpecDep, formatTSUnixCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("format_timestamp_unix", formatTSUnixSpecDep, formatTSUnixCtor)
 
 	formatTSUnixMilliSpec := bloblang.NewPluginSpec().
 		Category(query.MethodCategoryTime).
@@ -521,13 +489,9 @@ The output format is defined by showing how the reference time, defined to be Mo
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_unix_milli", formatTSUnixMilliSpec, formatTSUnixMilliCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_unix_milli", formatTSUnixMilliSpec, formatTSUnixMilliCtor)
 
-	if err := bloblang.RegisterMethodV2("format_timestamp_unix_milli", formatTSUnixMilliSpecDep, formatTSUnixMilliCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("format_timestamp_unix_milli", formatTSUnixMilliSpecDep, formatTSUnixMilliCtor)
 
 	formatTSUnixMicroSpec := bloblang.NewPluginSpec().
 		Category(query.MethodCategoryTime).
@@ -552,13 +516,9 @@ The output format is defined by showing how the reference time, defined to be Mo
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_unix_micro", formatTSUnixMicroSpec, formatTSUnixMicroCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_unix_micro", formatTSUnixMicroSpec, formatTSUnixMicroCtor)
 
-	if err := bloblang.RegisterMethodV2("format_timestamp_unix_micro", formatTSUnixMicroSpecDep, formatTSUnixMicroCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("format_timestamp_unix_micro", formatTSUnixMicroSpecDep, formatTSUnixMicroCtor)
 
 	formatTSUnixNanoSpec := bloblang.NewPluginSpec().
 		Category(query.MethodCategoryTime).
@@ -583,13 +543,9 @@ The output format is defined by showing how the reference time, defined to be Mo
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_unix_nano", formatTSUnixNanoSpec, formatTSUnixNanoCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_unix_nano", formatTSUnixNanoSpec, formatTSUnixNanoCtor)
 
-	if err := bloblang.RegisterMethodV2("format_timestamp_unix_nano", formatTSUnixNanoSpecDep, formatTSUnixNanoCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("format_timestamp_unix_nano", formatTSUnixNanoSpecDep, formatTSUnixNanoCtor)
 
 	tsSubSpec := bloblang.NewPluginSpec().
 		Beta().
@@ -615,7 +571,5 @@ The output format is defined by showing how the reference time, defined to be Mo
 		}), nil
 	}
 
-	if err := bloblang.RegisterMethodV2("ts_sub", tsSubSpec, tsSubCtor); err != nil {
-		panic(err)
-	}
+	bloblang.MustRegisterMethodV2("ts_sub", tsSubSpec, tsSubCtor)
 }
