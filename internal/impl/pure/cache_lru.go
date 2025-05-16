@@ -96,7 +96,7 @@ These values can be overridden during execution.`).
 }
 
 func init() {
-	err := service.RegisterCache(
+	service.MustRegisterCache(
 		"lru", lruCacheConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Cache, error) {
 			f, err := lruMemCacheFromConfig(conf)
@@ -105,9 +105,7 @@ func init() {
 			}
 			return f, nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 func lruMemCacheFromConfig(conf *service.ParsedConfig) (*lruCacheAdapter, error) {

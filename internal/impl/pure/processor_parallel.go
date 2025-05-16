@@ -18,7 +18,7 @@ const (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"parallel", service.NewConfigSpec().
 			Categories("Composition").
 			Stable().
@@ -53,9 +53,7 @@ The functionality of this processor depends on being applied across messages tha
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("parallel", &p, interop.UnwrapManagement(mgr))), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type parallelProc struct {

@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterOtelTracerProvider(
+	service.MustRegisterOtelTracerProvider(
 		"none", service.NewConfigSpec().
 			Stable().
 			Summary(`Do not send tracing events anywhere.`).
@@ -20,7 +20,5 @@ func init() {
 		func(conf *service.ParsedConfig) (trace.TracerProvider, error) {
 			return noop.NewTracerProvider(), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }

@@ -56,7 +56,7 @@ func fileOutputConfigFromParsed(pConf *service.ParsedConfig) (conf fileOutputCon
 }
 
 func init() {
-	err := service.RegisterOutput("file", fileOutputSpec(),
+	service.MustRegisterOutput("file", fileOutputSpec(),
 		func(pConf *service.ParsedConfig, res *service.Resources) (out service.Output, mif int, err error) {
 			var conf fileOutputConfig
 			if conf, err = fileOutputConfigFromParsed(pConf); err != nil {
@@ -67,9 +67,7 @@ func init() {
 			out, err = newFileWriter(conf.Path, conf.Codec, res)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 //------------------------------------------------------------------------------

@@ -178,7 +178,7 @@ input:
 }
 
 func init() {
-	err := service.RegisterBatchInput("sequence", sequenceInputSpec(),
+	service.MustRegisterBatchInput("sequence", sequenceInputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 			i, err := newSequenceInputFromParsed(conf, mgr)
 			if err != nil {
@@ -186,9 +186,7 @@ func init() {
 			}
 			return interop.NewUnwrapInternalInput(i), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 //------------------------------------------------------------------------------

@@ -18,7 +18,7 @@ const (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"split", service.NewConfigSpec().
 			Categories("Utility").
 			Stable().
@@ -48,9 +48,7 @@ If there is a remainder of messages after splitting a batch the remainder is als
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("split", s, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type splitProc struct {

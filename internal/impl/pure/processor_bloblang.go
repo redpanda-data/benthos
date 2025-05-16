@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor("bloblang", service.NewConfigSpec().
+	service.MustRegisterBatchProcessor("bloblang", service.NewConfigSpec().
 		Stable().
 		Categories("Mapping", "Parsing").
 		Summary("Executes a xref:guides:bloblang/about.adoc[Bloblang] mapping on messages.").
@@ -119,9 +119,7 @@ pipeline:
 				processor.NewAutoObservedBatchedProcessor("bloblang", p, mgr),
 			), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type bloblangProc struct {

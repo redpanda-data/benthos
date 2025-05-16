@@ -72,7 +72,7 @@ In order to create a unique `+"`key`"+` value per item you should use function i
 }
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"cache", CacheOutputSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			if maxInFlight, err = conf.FieldMaxInFlight(); err != nil {
@@ -93,9 +93,7 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(s)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 // CacheWriter is a writer implementation for the cache output plugin.

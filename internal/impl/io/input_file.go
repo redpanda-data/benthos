@@ -64,7 +64,7 @@ input:
 }
 
 func init() {
-	err := service.RegisterBatchInput("file", fileInputSpec(),
+	service.MustRegisterBatchInput("file", fileInputSpec(),
 		func(pConf *service.ParsedConfig, res *service.Resources) (service.BatchInput, error) {
 			r, err := fileConsumerFromParsed(pConf, res)
 			if err != nil {
@@ -72,9 +72,7 @@ func init() {
 			}
 			return service.AutoRetryNacksBatchedToggled(pConf, r)
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 //------------------------------------------------------------------------------

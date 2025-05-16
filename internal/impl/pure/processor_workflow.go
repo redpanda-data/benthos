@@ -241,7 +241,7 @@ processor_resources:
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"workflow", workflowProcSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchProcessor, error) {
 			w, err := NewWorkflow(conf, interop.UnwrapManagement(mgr))
@@ -250,9 +250,7 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(w), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 //------------------------------------------------------------------------------

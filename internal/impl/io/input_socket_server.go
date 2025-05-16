@@ -86,16 +86,14 @@ func socketServerInputSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchInput("socket_server", socketServerInputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
+	service.MustRegisterBatchInput("socket_server", socketServerInputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 		i, err := newSocketServerInputFromParsed(conf, mgr)
 		if err != nil {
 			return nil, err
 		}
 		return service.AutoRetryNacksBatchedToggled(conf, i)
 	})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type wrapPacketConn struct {

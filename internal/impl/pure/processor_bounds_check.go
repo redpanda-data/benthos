@@ -45,7 +45,7 @@ func bcProcSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"bounds_check", bcProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			maxParts, err := conf.FieldInt(bcpFieldMaxParts)
@@ -76,9 +76,7 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("bounds_check", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type boundsCheck struct {

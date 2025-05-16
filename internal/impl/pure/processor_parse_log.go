@@ -104,7 +104,7 @@ type parseLogConfig struct {
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 
 		"parse_log", parseLogSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
@@ -134,9 +134,7 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("parse_log", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type parserFormat func(body []byte) (map[string]any, error)

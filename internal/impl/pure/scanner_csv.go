@@ -47,13 +47,11 @@ This scanner adds the following metadata to each message:
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("csv", csvScannerSpec(),
+	service.MustRegisterBatchScannerCreator("csv", csvScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return csvScannerFromParsed(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 func csvScannerFromParsed(conf *service.ParsedConfig) (l *csvScannerCreator, err error) {

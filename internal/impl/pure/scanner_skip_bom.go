@@ -26,13 +26,11 @@ func ssbScannerSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("skip_bom", ssbScannerSpec(),
+	service.MustRegisterBatchScannerCreator("skip_bom", ssbScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return ssbScannerFromParsed(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 func ssbScannerFromParsed(conf *service.ParsedConfig) (l *ssbScannerCreator, err error) {

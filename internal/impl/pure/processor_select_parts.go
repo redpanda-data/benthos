@@ -16,7 +16,7 @@ const (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"select_parts", service.NewConfigSpec().
 			Categories("Utility").
 			Stable().
@@ -45,9 +45,7 @@ This processor is only applicable to xref:configuration:batching.adoc[batched me
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("select_parts", proc, interop.UnwrapManagement(mgr))), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type selectPartsProc struct {

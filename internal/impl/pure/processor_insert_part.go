@@ -42,7 +42,7 @@ This processor will interpolate functions within the 'content' field, you can fi
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"insert_part", insertPartSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			index, err := conf.FieldInt(ippFieldIndex)
@@ -62,9 +62,7 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("insert_part", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type insertPart struct {

@@ -20,13 +20,11 @@ func jsonDocumentScannerSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("json_documents", jsonDocumentScannerSpec(),
+	service.MustRegisterBatchScannerCreator("json_documents", jsonDocumentScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return &jsonDocumentScannerCreator{}, nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type jsonDocumentScannerCreator struct{}

@@ -35,13 +35,11 @@ func linesScannerSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("lines", linesScannerSpec(),
+	service.MustRegisterBatchScannerCreator("lines", linesScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return linesScannerFromParsed(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 func linesScannerFromParsed(conf *service.ParsedConfig) (l *linesScanner, err error) {

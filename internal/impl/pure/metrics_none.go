@@ -9,16 +9,14 @@ import (
 )
 
 func init() {
-	err := service.RegisterMetricsExporter("none", service.NewConfigSpec().
+	service.MustRegisterMetricsExporter("none", service.NewConfigSpec().
 		Stable().
 		Summary(`Disable metrics entirely.`).
 		Field(service.NewObjectField("").Default(map[string]any{})),
 		func(conf *service.ParsedConfig, log *service.Logger) (service.MetricsExporter, error) {
 			return noopMetrics{}, nil
 		})
-	if err != nil {
-		panic(err)
-	}
+
 }
 
 type noopMetrics struct{}
