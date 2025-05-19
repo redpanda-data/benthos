@@ -57,3 +57,6 @@ jobs:
       with:
         version: "v${{env.GOLANGCI_LINT_VERSION}}"
         args: "cmd/... internal/... public/..."
+        skip-cache: true
+        skip-save-cache: true
+
