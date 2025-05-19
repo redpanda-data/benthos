@@ -39,7 +39,6 @@ func init() {
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return linesScannerFromParsed(conf)
 		})
-
 }
 
 func linesScannerFromParsed(conf *service.ParsedConfig) (l *linesScanner, err error) {

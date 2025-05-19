@@ -235,7 +235,6 @@ func init() {
 
 			return service.AutoRetryNacksBatchedToggled(conf, rdr)
 		})
-
 }
 
 //------------------------------------------------------------------------------

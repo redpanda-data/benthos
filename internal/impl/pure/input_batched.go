@@ -42,5 +42,4 @@ func init() {
 			sChild := interop.UnwrapOwnedInput(child)
 			return interop.NewUnwrapInternalInput(sChild), nil
 		})
-
 }

@@ -95,7 +95,6 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("switch", p, mgr)), nil
 		})
-
 }
 
 // switchCase contains a condition, processors and other fields for an

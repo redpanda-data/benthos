@@ -172,7 +172,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(outStrm)
 			return
 		})
-
 }
 
 //------------------------------------------------------------------------------

@@ -21,7 +21,6 @@ func init() {
 			return newBenchmarkProcFromConfig(conf, reporter, time.Now)
 		},
 	)
-
 }
 
 const (

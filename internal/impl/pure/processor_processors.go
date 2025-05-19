@@ -60,7 +60,6 @@ func init() {
 			p := processor.NewAutoObservedBatchedProcessor("processors", pp, mgr)
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-
 }
 
 func newProcessorProc(children []processor.V1, mgr bundle.NewManagement) (*processorProc, error) {

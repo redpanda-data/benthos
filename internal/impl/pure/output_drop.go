@@ -28,7 +28,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(o)
 			return
 		})
-
 }
 
 type dropWriter struct {

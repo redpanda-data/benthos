@@ -64,7 +64,6 @@ output:
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("group_by_value", p, mgr)), nil
 		})
-
 }
 
 type groupByValueProc struct {

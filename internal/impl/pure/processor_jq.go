@@ -116,7 +116,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("jq", p, mgr)), nil
 		})
-
 }
 
 var jqCompileOptions = []gojq.CompilerOption{

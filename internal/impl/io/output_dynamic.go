@@ -74,7 +74,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(o)
 			return
 		})
-
 }
 
 func newDynamicOutputFromParsed(conf *service.ParsedConfig, res *service.Resources) (output.Streamed, error) {

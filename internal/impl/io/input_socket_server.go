@@ -93,7 +93,6 @@ func init() {
 		}
 		return service.AutoRetryNacksBatchedToggled(conf, i)
 	})
-
 }
 
 type wrapPacketConn struct {

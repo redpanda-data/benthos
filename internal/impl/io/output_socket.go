@@ -39,7 +39,6 @@ func init() {
 		out, err = newSocketWriterFromParsed(conf, mgr)
 		return
 	})
-
 }
 
 type socketWriter struct {

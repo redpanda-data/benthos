@@ -62,7 +62,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("insert_part", p, mgr)), nil
 		})
-
 }
 
 type insertPart struct {

@@ -59,7 +59,6 @@ You can find out more about resources in xref:configuration:resources.adoc[]`).
 			}
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-
 }
 
 type resourceProcessor struct {

@@ -51,7 +51,6 @@ For more information please read xref:guides:sync_responses.adoc[synchronous res
 			out = interop.NewUnwrapInternalOutput(s)
 			return
 		})
-
 }
 
 // SyncResponseWriter is a writer implementation that adds messages to a

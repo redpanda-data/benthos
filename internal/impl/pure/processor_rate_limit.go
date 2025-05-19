@@ -46,7 +46,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("rate_limit", r, mgr)), nil
 		})
-
 }
 
 type rateLimitProc struct {

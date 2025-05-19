@@ -80,7 +80,6 @@ However, depending on the output and the error returned it is sometimes not poss
 			out = interop.NewUnwrapInternalOutput(w)
 			return
 		})
-
 }
 
 //------------------------------------------------------------------------------

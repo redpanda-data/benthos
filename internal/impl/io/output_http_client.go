@@ -68,7 +68,6 @@ func init() {
 			bo, err = newHTTPClientOutputFromParsed(conf, mgr)
 			return
 		})
-
 }
 
 type httpClientWriter struct {

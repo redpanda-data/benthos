@@ -26,7 +26,6 @@ func init() {
 			mgr := interop.UnwrapManagement(res)
 			return &crashProcessor{mgr.Logger(), messageStr}, nil
 		})
-
 }
 
 type crashProcessor struct {

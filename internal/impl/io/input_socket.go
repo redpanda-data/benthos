@@ -44,7 +44,6 @@ func init() {
 		// TODO: Inject async cut off?
 		return service.AutoRetryNacksBatchedToggled(conf, i)
 	})
-
 }
 
 type socketReader struct {

@@ -176,7 +176,6 @@ func init() {
 				return time.Now().UTC()
 			}, size, slide, offset, allowedLateness, mgr.Logger())
 		})
-
 }
 
 //------------------------------------------------------------------------------

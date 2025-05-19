@@ -53,7 +53,6 @@ The functionality of this processor depends on being applied across messages tha
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("parallel", &p, interop.UnwrapManagement(mgr))), nil
 		})
-
 }
 
 type parallelProc struct {

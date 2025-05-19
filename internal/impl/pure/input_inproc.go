@@ -46,7 +46,6 @@ func init() {
 		go inprocRdr.loop()
 		return interop.NewUnwrapInternalInput(inprocRdr), nil
 	})
-
 }
 
 //------------------------------------------------------------------------------

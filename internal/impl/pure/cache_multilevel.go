@@ -57,7 +57,6 @@ func init() {
 			}
 			return newMultilevelCache(levels, mgr, mgr.Logger())
 		})
-
 }
 
 //------------------------------------------------------------------------------

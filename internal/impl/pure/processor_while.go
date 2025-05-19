@@ -94,7 +94,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("while", p, mgr)), nil
 		})
-
 }
 
 type whileProc struct {

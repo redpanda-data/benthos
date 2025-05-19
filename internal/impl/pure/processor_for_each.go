@@ -41,7 +41,6 @@ Please note that most processors already process per message of a batch, and thi
 			p := processor.NewAutoObservedBatchedProcessor("for_each", tp, mgr)
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-
 }
 
 type forEachProc struct {

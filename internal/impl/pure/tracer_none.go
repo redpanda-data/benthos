@@ -20,5 +20,4 @@ func init() {
 		func(conf *service.ParsedConfig) (trace.TracerProvider, error) {
 			return noop.NewTracerProvider(), nil
 		})
-
 }

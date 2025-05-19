@@ -29,7 +29,6 @@ func init() {
 
 			return f, nil
 		})
-
 }
 
 func noopMemCache(label string, logger *service.Logger) *noopCacheAdapter {

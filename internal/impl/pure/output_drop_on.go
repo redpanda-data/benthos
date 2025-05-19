@@ -96,7 +96,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(s)
 			return
 		})
-
 }
 
 //------------------------------------------------------------------------------

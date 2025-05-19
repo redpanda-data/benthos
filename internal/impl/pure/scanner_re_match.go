@@ -35,7 +35,6 @@ func init() {
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return reMatchScannerFromParsed(conf)
 		})
-
 }
 
 func reMatchScannerFromParsed(conf *service.ParsedConfig) (l *reMatchScanner, err error) {

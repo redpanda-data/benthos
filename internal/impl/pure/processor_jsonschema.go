@@ -104,7 +104,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("json_schema", p, mgr)), nil
 		})
-
 }
 
 type jsonSchemaProc struct {

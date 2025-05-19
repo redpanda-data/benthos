@@ -68,7 +68,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalInput(i), nil
 		})
-
 }
 
 func dynInputAnyToYAMLConf(v any) []byte {

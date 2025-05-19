@@ -119,7 +119,6 @@ pipeline:
 				processor.NewAutoObservedBatchedProcessor("bloblang", p, mgr),
 			), nil
 		})
-
 }
 
 type bloblangProc struct {

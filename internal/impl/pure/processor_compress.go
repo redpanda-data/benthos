@@ -53,7 +53,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("compress", p, mgr)), nil
 		})
-
 }
 
 type compressProc struct {

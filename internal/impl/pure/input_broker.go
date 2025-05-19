@@ -85,7 +85,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalInput(i), nil
 		})
-
 }
 
 func newBrokerInputFromParsed(conf *service.ParsedConfig, mgr *service.Resources) (input.Streamed, error) {
