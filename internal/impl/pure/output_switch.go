@@ -175,7 +175,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(s)
 			return
 		})
-
 }
 
 type switchOutput struct {

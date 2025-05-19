@@ -28,7 +28,6 @@ func init() {
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return chunkerScannerFromParsed(conf)
 		})
-
 }
 
 func chunkerScannerFromParsed(conf *service.ParsedConfig) (l *chunkerScannerCreator, err error) {

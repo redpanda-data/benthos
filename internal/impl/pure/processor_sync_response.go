@@ -26,7 +26,6 @@ For more information please read xref:guides:sync_responses.adoc[synchronous res
 			p := &syncResponseProc{log: interop.UnwrapManagement(mgr).Logger()}
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-
 }
 
 type syncResponseProc struct {

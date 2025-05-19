@@ -55,7 +55,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(o)
 			return
 		})
-
 }
 
 type websocketWriter struct {

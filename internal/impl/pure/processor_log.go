@@ -99,7 +99,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("log", p, mgr)), nil
 		})
-
 }
 
 type logProcessor struct {

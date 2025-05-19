@@ -35,7 +35,6 @@ func init() {
 			}
 			return f, nil
 		})
-
 }
 
 func newFileCacheFromConfig(conf *service.ParsedConfig, mgr *service.Resources) (*fileCache, error) {

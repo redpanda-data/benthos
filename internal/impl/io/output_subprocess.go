@@ -50,7 +50,6 @@ func init() {
 			out, err = newSubprocessWriterFromParsed(conf, mgr.Logger())
 			return
 		})
-
 }
 
 //------------------------------------------------------------------------------

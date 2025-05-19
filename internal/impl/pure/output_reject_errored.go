@@ -78,7 +78,6 @@ output:
 			out = interop.NewUnwrapInternalOutput(w)
 			return
 		})
-
 }
 
 //------------------------------------------------------------------------------

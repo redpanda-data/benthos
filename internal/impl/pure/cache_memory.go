@@ -63,7 +63,6 @@ func init() {
 			}
 			return f, nil
 		})
-
 }
 
 func newMemCacheFromConfig(conf *service.ParsedConfig) (*memoryCache, error) {

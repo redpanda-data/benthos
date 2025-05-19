@@ -43,7 +43,6 @@ func init() {
 		func(conf *service.ParsedConfig, log *service.Logger) (service.MetricsExporter, error) {
 			return newLoggerFromParsed(conf, log)
 		})
-
 }
 
 //------------------------------------------------------------------------------

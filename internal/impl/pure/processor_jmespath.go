@@ -82,7 +82,6 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("jmespath", p, mgr)), nil
 		})
-
 }
 
 type jmespathProc struct {

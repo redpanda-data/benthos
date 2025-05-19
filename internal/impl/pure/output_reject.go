@@ -66,7 +66,6 @@ output:
 			out = interop.NewUnwrapInternalOutput(s)
 			return
 		})
-
 }
 
 type rejectWriter struct {

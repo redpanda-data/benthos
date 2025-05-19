@@ -102,7 +102,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalInput(i), nil
 		})
-
 }
 
 type readUntilInput struct {

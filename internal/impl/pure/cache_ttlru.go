@@ -89,7 +89,6 @@ func init() {
 			}
 			return f, nil
 		})
-
 }
 
 func ttlruMemCacheFromConfig(conf *service.ParsedConfig, logger *service.Logger) (*ttlruCacheAdapter, error) {

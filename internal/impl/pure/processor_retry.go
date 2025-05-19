@@ -151,7 +151,6 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("retry", p, mgr)), nil
 		})
-
 }
 
 type retryProc struct {

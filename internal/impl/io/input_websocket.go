@@ -86,7 +86,6 @@ func init() {
 			in = interop.NewUnwrapInternalInput(i)
 			return
 		})
-
 }
 
 type websocketReader struct {

@@ -86,7 +86,6 @@ func init() {
 		go ri.loop()
 		return interop.NewUnwrapInternalInput(ri), nil
 	})
-
 }
 
 //------------------------------------------------------------------------------

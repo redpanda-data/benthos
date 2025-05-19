@@ -93,7 +93,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(s)
 			return
 		})
-
 }
 
 // CacheWriter is a writer implementation for the cache output plugin.

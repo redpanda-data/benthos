@@ -19,7 +19,6 @@ func init() {
 			p := &noopProcessor{}
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-
 }
 
 type noopProcessor struct{}

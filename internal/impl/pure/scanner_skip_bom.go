@@ -30,7 +30,6 @@ func init() {
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return ssbScannerFromParsed(conf)
 		})
-
 }
 
 func ssbScannerFromParsed(conf *service.ParsedConfig) (l *ssbScannerCreator, err error) {

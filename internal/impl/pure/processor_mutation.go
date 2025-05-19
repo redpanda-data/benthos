@@ -128,7 +128,6 @@ pipeline:
 			v1Proc := processor.NewAutoObservedBatchedProcessor("mutation", newMutation(mapping, mgr.Logger()), interop.UnwrapManagement(mgr))
 			return interop.NewUnwrapInternalBatchProcessor(v1Proc), nil
 		})
-
 }
 
 type mutationProc struct {

@@ -51,7 +51,6 @@ func init() {
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return csvScannerFromParsed(conf)
 		})
-
 }
 
 func csvScannerFromParsed(conf *service.ParsedConfig) (l *csvScannerCreator, err error) {

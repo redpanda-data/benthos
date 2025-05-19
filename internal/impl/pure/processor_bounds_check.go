@@ -76,7 +76,6 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("bounds_check", p, mgr)), nil
 		})
-
 }
 
 type boundsCheck struct {

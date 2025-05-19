@@ -160,7 +160,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(b), nil
 		})
-
 }
 
 // Branch contains conditions and maps for transforming a batch of messages into

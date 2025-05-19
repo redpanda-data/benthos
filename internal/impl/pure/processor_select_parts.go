@@ -45,7 +45,6 @@ This processor is only applicable to xref:configuration:batching.adoc[batched me
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("select_parts", proc, interop.UnwrapManagement(mgr))), nil
 		})
-
 }
 
 type selectPartsProc struct {

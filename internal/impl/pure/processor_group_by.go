@@ -93,7 +93,6 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("group_by", p, mgr)), nil
 		})
-
 }
 
 type group struct {

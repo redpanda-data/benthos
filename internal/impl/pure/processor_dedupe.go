@@ -97,7 +97,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("dedupe", p, mgr)), nil
 		})
-
 }
 
 type dedupeProc struct {

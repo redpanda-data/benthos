@@ -105,7 +105,6 @@ func init() {
 			}
 			return f, nil
 		})
-
 }
 
 func lruMemCacheFromConfig(conf *service.ParsedConfig) (*lruCacheAdapter, error) {

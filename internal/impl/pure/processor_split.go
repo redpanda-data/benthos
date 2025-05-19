@@ -48,7 +48,6 @@ If there is a remainder of messages after splitting a batch the remainder is als
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("split", s, mgr)), nil
 		})
-
 }
 
 type splitProc struct {

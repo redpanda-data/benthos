@@ -67,7 +67,6 @@ func init() {
 			out, err = newFileWriter(conf.Path, conf.Codec, res)
 			return
 		})
-
 }
 
 //------------------------------------------------------------------------------

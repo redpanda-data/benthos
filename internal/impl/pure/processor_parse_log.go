@@ -134,7 +134,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("parse_log", p, mgr)), nil
 		})
-
 }
 
 type parserFormat func(body []byte) (map[string]any, error)

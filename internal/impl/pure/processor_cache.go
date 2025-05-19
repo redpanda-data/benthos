@@ -179,7 +179,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("cache", p, mgr)), nil
 		})
-
 }
 
 //------------------------------------------------------------------------------

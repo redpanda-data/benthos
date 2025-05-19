@@ -136,7 +136,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("grok", p, mgr)), nil
 		})
-
 }
 
 type grokProc struct {

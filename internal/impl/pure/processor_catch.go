@@ -59,7 +59,6 @@ More information about error handling can be found in xref:configuration:error_h
 			p := processor.NewAutoObservedBatchedProcessor("catch", tp, mgr)
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-
 }
 
 //------------------------------------------------------------------------------

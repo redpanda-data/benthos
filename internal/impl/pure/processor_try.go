@@ -79,7 +79,6 @@ pipeline:
 			p := processor.NewAutoObservedBatchedProcessor("try", tp, mgr)
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-
 }
 
 type tryProc struct {

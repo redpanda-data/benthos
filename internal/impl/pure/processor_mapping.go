@@ -124,7 +124,6 @@ pipeline:
 			v1Proc := processor.NewAutoObservedBatchedProcessor("mapping", newMapping(mapping, mgr.Logger()), interop.UnwrapManagement(mgr))
 			return interop.NewUnwrapInternalBatchProcessor(v1Proc), nil
 		})
-
 }
 
 type mappingProc struct {

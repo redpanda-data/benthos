@@ -176,7 +176,6 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-
 }
 
 type metricProcessor struct {

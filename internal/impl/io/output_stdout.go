@@ -25,7 +25,6 @@ func init() {
 			}
 			return w, 1, nil
 		})
-
 }
 
 type stdoutWriter struct {

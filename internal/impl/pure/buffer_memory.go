@@ -59,7 +59,6 @@ func init() {
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchBuffer, error) {
 			return newMemoryBufferFromConfig(conf, mgr)
 		})
-
 }
 
 func newMemoryBufferFromConfig(conf *service.ParsedConfig, res *service.Resources) (*memoryBuffer, error) {

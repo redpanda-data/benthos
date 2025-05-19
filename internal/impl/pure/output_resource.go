@@ -82,7 +82,6 @@ You can find out more about resources in xref:configuration:resources.adoc[]`).
 			})
 			return
 		})
-
 }
 
 type resourceOutput struct {

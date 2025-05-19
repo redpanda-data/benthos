@@ -250,7 +250,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(w), nil
 		})
-
 }
 
 //------------------------------------------------------------------------------

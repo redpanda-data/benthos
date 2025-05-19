@@ -122,7 +122,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("subprocess", p, mgr)), nil
 		})
-
 }
 
 type subprocessProc struct {

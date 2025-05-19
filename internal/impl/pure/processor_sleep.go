@@ -42,7 +42,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("sleep", p, mgr)), nil
 		})
-
 }
 
 type sleepProc struct {

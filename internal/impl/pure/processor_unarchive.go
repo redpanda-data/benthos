@@ -49,7 +49,6 @@ func init() {
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
 			return newUnarchiveFromParsed(conf, mgr)
 		})
-
 }
 
 type unarchiveFunc func(part *service.Message) (service.MessageBatch, error)
