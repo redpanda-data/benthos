@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## 4.52.0 - TBD
 
+### Added
+
+- CLI flag `--env-file` added to the `blobl` command. (@mihaitodor)
+
 ### Fixed
 
 - Fixed a regression bug where the `echo` and `lint` commands no longer loaded environment variables. (@mihaitodor)
