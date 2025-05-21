@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.52.0 - TBD
+
+### Fixed
+
+- Fixed a regression bug where the `echo` and `lint` commands no longer loaded environment variables. (@mihaitodor)
+
 ## 4.51.0 - 2025-05-15
 
 ### Added

@@ -196,6 +196,10 @@ func lintMDSnippets(path string, spec docs.FieldSpecs, lConf docs.LintConfig) (p
 // LintAction performs the benthos lint subcommand and returns the appropriate
 // exit code. This function is exported for testing purposes only.
 func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) error {
+	if err := opts.CustomRunExtractFn(c); err != nil {
+		return err
+	}
+
 	targets, err := ifilepath.GlobsAndSuperPaths(ifs.OS(), c.Args().Slice(), "yaml", "yml")
 	if err != nil {
 		return fmt.Errorf("lint paths error: %w", err)

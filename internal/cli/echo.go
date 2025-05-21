@@ -39,12 +39,16 @@ variables have been resolved:
 
   {{.BinaryName}} echo ./config.yaml | less
   {{.BinaryName}} echo --set 'input.generate.mapping=root.id = uuid_v4()'
-  
+
   `)[1:],
 		Before: func(c *cli.Context) error {
 			return common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
 		Action: func(c *cli.Context) error {
+			if err := opts.CustomRunExtractFn(c); err != nil {
+				return err
+			}
+
 			if c.Args().Len() > 0 {
 				if c.Args().Len() > 1 {
 					return errors.New("a maximum of one config must be specified with the echo command")
