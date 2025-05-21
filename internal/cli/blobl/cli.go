@@ -4,6 +4,7 @@ package blobl
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/parser"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/query"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
+	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 	"github.com/redpanda-data/benthos/v4/internal/value"
@@ -65,6 +67,15 @@ Find out more about Bloblang at: {{.DocumentationURL}}/guides/bloblang/about`)[1
 				Usage: "Set the buffer size for document lines.",
 				Value: bufio.MaxScanTokenSize,
 			},
+			&cli.StringSliceFlag{
+				Name:    common.RootFlagEnvFile,
+				Aliases: []string{"e"},
+				Value:   cli.NewStringSlice(),
+				Usage:   "import environment variables from a dotenv file",
+			},
+		},
+		Before: func(c *cli.Context) error {
+			return common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
 		Action: func(ctx *cli.Context) error {
 			return run(ctx, opts)
@@ -222,6 +233,10 @@ func (e *execCache) executeMapping(exec *mapping.Executor, rawInput, prettyOutpu
 }
 
 func run(c *cli.Context, opts *common.CLIOpts) error {
+	if err := opts.CustomRunExtractFn(c); err != nil {
+		return err
+	}
+
 	t := c.Int("threads")
 	if t < 1 {
 		t = 1
@@ -229,24 +244,32 @@ func run(c *cli.Context, opts *common.CLIOpts) error {
 	raw := c.Bool("raw")
 	pretty := c.Bool("pretty")
 	file := c.String("file")
-	m := c.Args().First()
+	mb := []byte(c.Args().First())
 
 	if file != "" {
-		if m != "" {
+		if len(mb) > 0 {
 			return errors.New("invalid flags, unable to execute both a file mapping and an inline mapping")
 		}
 		mappingBytes, err := ifs.ReadFile(ifs.OS(), file)
 		if err != nil {
 			return fmt.Errorf("failed to read mapping file: %w", err)
 		}
-		m = string(mappingBytes)
+		mb = mappingBytes
 	}
 
+	mb, err := config.NewReader("", nil, config.OptUseEnvLookupFunc(opts.SecretAccessFn)).
+		ReplaceEnvVariables(context.TODO(), mb)
+	if err != nil {
+		return fmt.Errorf("failed to replace env vars: %s", err)
+	}
+
+	mapping := string(mb)
+
 	bEnv := bloblang.NewEnvironment().WithImporterRelativeToFile(file)
-	exec, err := bEnv.NewMapping(m)
+	exec, err := bEnv.NewMapping(mapping)
 	if err != nil {
 		if perr, ok := err.(*parser.Error); ok {
-			return fmt.Errorf("failed to parse mapping: %v", perr.ErrorAtPositionStructured("", []rune(m)))
+			return fmt.Errorf("failed to parse mapping: %v", perr.ErrorAtPositionStructured("", []rune(mapping)))
 		}
 		return errors.New(err.Error())
 	}
