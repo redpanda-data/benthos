@@ -386,11 +386,25 @@ func RegisterMethod(name string, ctor MethodConstructor) error {
 	return GlobalEnvironment().RegisterMethod(name, ctor)
 }
 
+// MustRegisterMethod is the same as RegisterMethod but panics on error.
+func MustRegisterMethod(name string, ctor MethodConstructor) {
+	if err := RegisterMethod(name, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // RegisterMethodV2 adds a new Bloblang method to the global environment. All
 // method names must match the regular expression /^[a-z0-9]+(_[a-z0-9]+)*$/
 // (snake case).
 func RegisterMethodV2(name string, spec *PluginSpec, ctor MethodConstructorV2) error {
 	return GlobalEnvironment().RegisterMethodV2(name, spec, ctor)
+}
+
+// MustRegisterMethodV2 is the same as RegisterMethodV2 but panics on error.
+func MustRegisterMethodV2(name string, spec *PluginSpec, ctor MethodConstructorV2) {
+	if err := RegisterMethodV2(name, spec, ctor); err != nil {
+		panic(err)
+	}
 }
 
 // RegisterAdvancedMethod adds a new advanced Bloblang method to the global
@@ -400,11 +414,25 @@ func RegisterAdvancedMethod(name string, spec *PluginSpec, ctor AdvancedMethodCo
 	return GlobalEnvironment().RegisterAdvancedMethod(name, spec, ctor)
 }
 
+// MustRegisterAdvancedMethod is the same as RegisterAdvancedMethod but panics on error.
+func MustRegisterAdvancedMethod(name string, spec *PluginSpec, ctor AdvancedMethodConstructor) {
+	if err := RegisterAdvancedMethod(name, spec, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // RegisterFunction adds a new Bloblang function to the global environment. All
 // function names must match the regular expression /^[a-z0-9]+(_[a-z0-9]+)*$/
 // (snake case).
 func RegisterFunction(name string, ctor FunctionConstructor) error {
 	return GlobalEnvironment().RegisterFunction(name, ctor)
+}
+
+// MustRegisterFunction is the same as RegisterFunction but panics on error.
+func MustRegisterFunction(name string, ctor FunctionConstructor) {
+	if err := RegisterFunction(name, ctor); err != nil {
+		panic(err)
+	}
 }
 
 // RegisterFunctionV2 adds a new Bloblang function to the global environment.
@@ -414,11 +442,25 @@ func RegisterFunctionV2(name string, spec *PluginSpec, ctor FunctionConstructorV
 	return GlobalEnvironment().RegisterFunctionV2(name, spec, ctor)
 }
 
+// MustRegisterFunctionV2 is the same as RegisterFunctionV2 but panics on error.
+func MustRegisterFunctionV2(name string, spec *PluginSpec, ctor FunctionConstructorV2) {
+	if err := RegisterFunctionV2(name, spec, ctor); err != nil {
+		panic(err)
+	}
+}
+
 // RegisterAdvancedFunction adds a new advanced Bloblang function to the global
 // environment. All function names must match the regular expression
 // /^[a-z0-9]+(_[a-z0-9]+)*$/ (snake case).
 func RegisterAdvancedFunction(name string, spec *PluginSpec, ctor AdvancedFunctionConstructor) error {
 	return GlobalEnvironment().RegisterAdvancedFunction(name, spec, ctor)
+}
+
+// MustRegisterAdvancedFunction is the same as RegisterAdvancedFunction but panics on error.
+func MustRegisterAdvancedFunction(name string, spec *PluginSpec, ctor AdvancedFunctionConstructor) {
+	if err := RegisterAdvancedFunction(name, spec, ctor); err != nil {
+		panic(err)
+	}
 }
 
 // WalkFunctions executes a provided function argument for every function that

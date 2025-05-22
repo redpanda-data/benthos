@@ -15,7 +15,7 @@ func init() {
 	maxUint := ^uint64(0)
 	maxInt := maxUint >> 1
 
-	if err := bloblang.RegisterAdvancedFunction("counter",
+	bloblang.MustRegisterAdvancedFunction("counter",
 		bloblang.NewPluginSpec().
 			Category(query.FunctionCategoryGeneral).
 			Experimental().
@@ -158,7 +158,5 @@ root.woof_id = null.apply("foos")
 				}
 				return v, nil
 			}, nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 }

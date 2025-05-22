@@ -10,10 +10,8 @@ import (
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
-// var compressAlgorithms = map[string]
-
 func init() {
-	if err := bloblang.RegisterMethodV2("parse_form_url_encoded",
+	bloblang.MustRegisterMethodV2("parse_form_url_encoded",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryParsing).
 			Description(`Attempts to parse a url-encoded query string (from an x-www-form-urlencoded request body) and returns a structured result.`).
@@ -31,9 +29,7 @@ func init() {
 				}
 				return urlValuesToMap(values), nil
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 }
 
 func urlValuesToMap(values url.Values) map[string]any {

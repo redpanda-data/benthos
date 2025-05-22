@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	if err := bloblang.RegisterMethodV2("compress",
+	bloblang.MustRegisterMethodV2("compress",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryEncoding).
 			Description(`Compresses a string or byte array value according to a specified algorithm.`).
@@ -45,11 +45,9 @@ root.b_len = $long_content.compress("gzip").length()
 			return bloblang.BytesMethod(func(data []byte) (any, error) {
 				return algFn(int(level), data)
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("decompress",
+	bloblang.MustRegisterMethodV2("decompress",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryEncoding).
 			Description(`Decompresses a string or byte array value according to a specified algorithm. The result of decompression `).
@@ -80,7 +78,5 @@ root.b_len = $long_content.compress("gzip").length()
 			return bloblang.BytesMethod(func(data []byte) (any, error) {
 				return algFn(data)
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 }

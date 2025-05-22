@@ -10,7 +10,7 @@ import (
 )
 
 func init() {
-	if err := bloblang.RegisterFunctionV2("hostname",
+	bloblang.MustRegisterFunctionV2("hostname",
 		bloblang.NewPluginSpec().
 			Impure().
 			Category(query.FunctionCategoryEnvironment).
@@ -25,11 +25,9 @@ func init() {
 				return hn, err
 			}, nil
 		},
-	); err != nil {
-		panic(err)
-	}
+	)
 
-	if err := bloblang.RegisterFunctionV2("env",
+	bloblang.MustRegisterFunctionV2("env",
 		bloblang.NewPluginSpec().
 			Impure().
 			StaticWithFunc(func(args *bloblang.ParsedParams) bool {
@@ -77,11 +75,9 @@ func init() {
 				return cachedValue, nil
 			}, nil
 		},
-	); err != nil {
-		panic(err)
-	}
+	)
 
-	if err := bloblang.RegisterFunctionV2("file",
+	bloblang.MustRegisterFunctionV2("file",
 		bloblang.NewPluginSpec().
 			Impure().
 			StaticWithFunc(func(args *bloblang.ParsedParams) bool {
@@ -130,11 +126,9 @@ func init() {
 				return cachedPathBytes, nil
 			}, nil
 		},
-	); err != nil {
-		panic(err)
-	}
+	)
 
-	if err := bloblang.RegisterFunctionV2("file_rel",
+	bloblang.MustRegisterFunctionV2("file_rel",
 		bloblang.NewPluginSpec().
 			Impure().
 			StaticWithFunc(func(args *bloblang.ParsedParams) bool {
@@ -182,7 +176,5 @@ func init() {
 				return cachedPathBytes, nil
 			}, nil
 		},
-	); err != nil {
-		panic(err)
-	}
+	)
 }
