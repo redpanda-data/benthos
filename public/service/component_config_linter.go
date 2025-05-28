@@ -96,8 +96,11 @@ func (c *ComponentConfigLinter) readYAML(yamlBytes []byte) (cNode *yaml.Node, li
 }
 
 // LintYAML attempts to parse a component config in YAML format and, if
-// successful, returns a slice of linting errors, or an error is the parsing
+// successful, returns a slice of linting errors, or an error if the parsing
 // failed.
+//
+// Component type options are:
+// buffer, cache, input, metrics, output, processor, rate_limit, tracer, scanner
 func (c *ComponentConfigLinter) LintYAML(componentType string, yamlBytes []byte) (lints []Lint, err error) {
 	var cNode *yaml.Node
 	if cNode, lints, err = c.readYAML(yamlBytes); err != nil {
@@ -113,4 +116,67 @@ func (c *ComponentConfigLinter) LintYAML(componentType string, yamlBytes []byte)
 		})
 	}
 	return
+}
+
+// LintBufferYAML attempts to parse a buffer config in YAML format and, if
+// successful, returns a slice of linting errors, or an error if the parsing
+// failed.
+func (c *ComponentConfigLinter) LintBufferYAML(yamlBytes []byte) (lints []Lint, err error) {
+	return c.LintYAML("buffer", yamlBytes)
+}
+
+// LintCacheYAML attempts to parse a cache config in YAML format and, if
+// successful, returns a slice of linting errors, or an error if the parsing
+// failed.
+func (c *ComponentConfigLinter) LintCacheYAML(yamlBytes []byte) (lints []Lint, err error) {
+	return c.LintYAML("cache", yamlBytes)
+}
+
+// LintInputYAML attempts to parse an input config in YAML format and, if
+// successful, returns a slice of linting errors, or an error if the parsing
+// failed.
+func (c *ComponentConfigLinter) LintInputYAML(yamlBytes []byte) (lints []Lint, err error) {
+	return c.LintYAML("input", yamlBytes)
+}
+
+// LintMetricsYAML attempts to parse a metrics config in YAML format and, if
+// successful, returns a slice of linting errors, or an error if the parsing
+// failed.
+func (c *ComponentConfigLinter) LintMetricsYAML(yamlBytes []byte) (lints []Lint, err error) {
+	return c.LintYAML("metrics", yamlBytes)
+}
+
+// LintOutputYAML attempts to parse an output config in YAML format and, if
+// successful, returns a slice of linting errors, or an error if the parsing
+// failed.
+func (c *ComponentConfigLinter) LintOutputYAML(yamlBytes []byte) (lints []Lint, err error) {
+	return c.LintYAML("output", yamlBytes)
+}
+
+// LintProcessorYAML attempts to parse a processor config in YAML format and, if
+// successful, returns a slice of linting errors, or an error if the parsing
+// failed.
+func (c *ComponentConfigLinter) LintProcessorYAML(yamlBytes []byte) (lints []Lint, err error) {
+	return c.LintYAML("processor", yamlBytes)
+}
+
+// LintRateLimitYAML attempts to parse a rate limit config in YAML format and,
+// if successful, returns a slice of linting errors, or an error if the parsing
+// failed.
+func (c *ComponentConfigLinter) LintRateLimitYAML(yamlBytes []byte) (lints []Lint, err error) {
+	return c.LintYAML("rate_limit", yamlBytes)
+}
+
+// LintTracerYAML attempts to parse a tracer config in YAML format and, if
+// successful, returns a slice of linting errors, or an error if the parsing
+// failed.
+func (c *ComponentConfigLinter) LintTracerYAML(yamlBytes []byte) (lints []Lint, err error) {
+	return c.LintYAML("tracer", yamlBytes)
+}
+
+// LintScannerYAML attempts to parse a scanner config in YAML format and, if
+// successful, returns a slice of linting errors, or an error if the parsing
+// failed.
+func (c *ComponentConfigLinter) LintScannerYAML(yamlBytes []byte) (lints []Lint, err error) {
+	return c.LintYAML("scanner", yamlBytes)
 }
