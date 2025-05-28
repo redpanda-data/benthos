@@ -151,7 +151,7 @@ meta = metadata().filter(v -> @.get(v.key) != null)`).
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"branch", branchProcSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchProcessor, error) {
 			b, err := newBranchFromParsed(conf, interop.UnwrapManagement(mgr))
@@ -160,9 +160,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(b), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 // Branch contains conditions and maps for transforming a batch of messages into

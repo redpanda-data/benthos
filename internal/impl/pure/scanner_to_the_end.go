@@ -23,13 +23,10 @@ Some sources of data may not have a logical end, therefore caution should be mad
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("to_the_end", toTheEndScannerSpec(),
+	service.MustRegisterBatchScannerCreator("to_the_end", toTheEndScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return toTheEndScannerCreatorFromParsed(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func toTheEndScannerCreatorFromParsed(conf *service.ParsedConfig) (s *toTheEndScannerCreator, err error) {

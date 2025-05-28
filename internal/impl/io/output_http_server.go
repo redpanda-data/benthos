@@ -151,7 +151,7 @@ Please note, messages are considered delivered as soon as the data is written to
 }
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"http_server", hsoSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (out service.BatchOutput, pol service.BatchPolicy, mif int, err error) {
 			var hsoConf hsoConfig
@@ -172,9 +172,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(outStrm)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

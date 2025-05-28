@@ -118,7 +118,7 @@ output:
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"retry", retryProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			mgr := interop.UnwrapManagement(res)
@@ -151,9 +151,6 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("retry", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type retryProc struct {

@@ -96,13 +96,13 @@ func TestCacheAirGapShutdown(t *testing.T) {
 	rl := &closableCache{}
 	agrl := newAirGapCache(rl, metrics.Noop())
 
-	err := agrl.Close(context.Background())
+	err := agrl.Close(t.Context())
 	assert.NoError(t, err)
 	assert.True(t, rl.closed)
 }
 
 func TestCacheAirGapGet(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{
 			"foo": {
@@ -122,7 +122,7 @@ func TestCacheAirGapGet(t *testing.T) {
 }
 
 func TestCacheAirGapSet(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
@@ -148,7 +148,7 @@ func TestCacheAirGapSet(t *testing.T) {
 }
 
 func TestCacheAirGapSetMultiWithTTL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
@@ -180,7 +180,7 @@ func TestCacheAirGapSetMultiWithTTL(t *testing.T) {
 }
 
 func TestCacheAirGapSetMultiWithTTLPassthrough(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCacheMulti{
 		closableCache: &closableCache{
 			m: map[string]testCacheItem{},
@@ -216,7 +216,7 @@ func TestCacheAirGapSetMultiWithTTLPassthrough(t *testing.T) {
 }
 
 func TestCacheAirGapSetWithTTL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
@@ -243,7 +243,7 @@ func TestCacheAirGapSetWithTTL(t *testing.T) {
 }
 
 func TestCacheAirGapAdd(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
@@ -264,7 +264,7 @@ func TestCacheAirGapAdd(t *testing.T) {
 }
 
 func TestCacheAirGapAddWithTTL(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{},
 	}
@@ -286,7 +286,7 @@ func TestCacheAirGapAddWithTTL(t *testing.T) {
 }
 
 func TestCacheAirGapDelete(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	rl := &closableCache{
 		m: map[string]testCacheItem{
 			"foo": {
@@ -362,7 +362,7 @@ func TestCacheReverseAirGapShutdown(t *testing.T) {
 	rl := &closableCacheType{}
 	agrl := newReverseAirGapCache(rl)
 
-	err := agrl.Close(context.Background())
+	err := agrl.Close(t.Context())
 	assert.NoError(t, err)
 	assert.True(t, rl.closed)
 }
@@ -377,11 +377,11 @@ func TestCacheReverseAirGapGet(t *testing.T) {
 	}
 	agrl := newReverseAirGapCache(rl)
 
-	b, err := agrl.Get(context.Background(), "foo")
+	b, err := agrl.Get(t.Context(), "foo")
 	assert.NoError(t, err)
 	assert.Equal(t, "bar", string(b))
 
-	_, err = agrl.Get(context.Background(), "not exist")
+	_, err = agrl.Get(t.Context(), "not exist")
 	assert.Equal(t, err, ErrKeyNotFound)
 	assert.EqualError(t, err, "key does not exist")
 }
@@ -392,7 +392,7 @@ func TestCacheReverseAirGapSet(t *testing.T) {
 	}
 	agrl := newReverseAirGapCache(rl)
 
-	err := agrl.Set(context.Background(), "foo", []byte("bar"), nil)
+	err := agrl.Set(t.Context(), "foo", []byte("bar"), nil)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]testCacheItem{
 		"foo": {
@@ -401,7 +401,7 @@ func TestCacheReverseAirGapSet(t *testing.T) {
 		},
 	}, rl.m)
 
-	err = agrl.Set(context.Background(), "foo", []byte("baz"), nil)
+	err = agrl.Set(t.Context(), "foo", []byte("baz"), nil)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]testCacheItem{
 		"foo": {
@@ -418,7 +418,7 @@ func TestCacheReverseAirGapSetWithTTL(t *testing.T) {
 	agrl := newReverseAirGapCache(rl)
 
 	ttl1, ttl2 := time.Second, time.Millisecond
-	err := agrl.Set(context.Background(), "foo", []byte("bar"), &ttl1)
+	err := agrl.Set(t.Context(), "foo", []byte("bar"), &ttl1)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]testCacheItem{
 		"foo": {
@@ -427,7 +427,7 @@ func TestCacheReverseAirGapSetWithTTL(t *testing.T) {
 		},
 	}, rl.m)
 
-	err = agrl.Set(context.Background(), "foo", []byte("baz"), &ttl2)
+	err = agrl.Set(t.Context(), "foo", []byte("baz"), &ttl2)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]testCacheItem{
 		"foo": {
@@ -443,7 +443,7 @@ func TestCacheReverseAirGapAdd(t *testing.T) {
 	}
 	agrl := newReverseAirGapCache(rl)
 
-	err := agrl.Add(context.Background(), "foo", []byte("bar"), nil)
+	err := agrl.Add(t.Context(), "foo", []byte("bar"), nil)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]testCacheItem{
 		"foo": {
@@ -452,7 +452,7 @@ func TestCacheReverseAirGapAdd(t *testing.T) {
 		},
 	}, rl.m)
 
-	err = agrl.Add(context.Background(), "foo", []byte("baz"), nil)
+	err = agrl.Add(t.Context(), "foo", []byte("baz"), nil)
 	assert.Equal(t, err, ErrKeyAlreadyExists)
 	assert.EqualError(t, err, "key already exists")
 }
@@ -464,7 +464,7 @@ func TestCacheReverseAirGapAddWithTTL(t *testing.T) {
 	agrl := newReverseAirGapCache(rl)
 
 	ttl := time.Second
-	err := agrl.Add(context.Background(), "foo", []byte("bar"), &ttl)
+	err := agrl.Add(t.Context(), "foo", []byte("bar"), &ttl)
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]testCacheItem{
 		"foo": {
@@ -473,7 +473,7 @@ func TestCacheReverseAirGapAddWithTTL(t *testing.T) {
 		},
 	}, rl.m)
 
-	err = agrl.Add(context.Background(), "foo", []byte("baz"), nil)
+	err = agrl.Add(t.Context(), "foo", []byte("baz"), nil)
 	assert.Equal(t, err, ErrKeyAlreadyExists)
 	assert.EqualError(t, err, "key already exists")
 }
@@ -488,7 +488,7 @@ func TestCacheReverseAirGapDelete(t *testing.T) {
 	}
 	agrl := newReverseAirGapCache(rl)
 
-	err := agrl.Delete(context.Background(), "foo")
+	err := agrl.Delete(t.Context(), "foo")
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]testCacheItem{}, rl.m)
 }

@@ -44,14 +44,11 @@ The metadata found on the messages handled by this processor will be copied into
 }
 
 func init() {
-	err := service.RegisterProcessor(
+	service.MustRegisterProcessor(
 		"unarchive", unarchiveProcConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
 			return newUnarchiveFromParsed(conf, mgr)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type unarchiveFunc func(part *service.Message) (service.MessageBatch, error)

@@ -233,7 +233,7 @@ branch:
 				msg = append(msg, part)
 			}
 
-			outMsgs, res := proc.ProcessBatch(context.Background(), msg.ShallowCopy())
+			outMsgs, res := proc.ProcessBatch(t.Context(), msg.ShallowCopy())
 
 			require.NoError(t, res)
 			require.Len(t, outMsgs, 1)
@@ -270,7 +270,7 @@ branch:
 				assert.Equal(t, m.content, string(msg.Get(i).AsBytes()))
 			}
 
-			ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+			ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 			defer done()
 			assert.NoError(t, proc.Close(ctx))
 		})
@@ -298,7 +298,7 @@ branch:
 	part := message.NewPart([]byte(""))
 	msg = append(msg, part)
 
-	outMsgs, res := proc.ProcessBatch(context.Background(), msg.ShallowCopy())
+	outMsgs, res := proc.ProcessBatch(t.Context(), msg.ShallowCopy())
 	require.NoError(t, res)
 	assert.Len(t, outMsgs, 1)
 
@@ -308,7 +308,7 @@ branch:
 	require.Len(t, log.Errors, 1)
 	assert.Equal(t, "failed assignment (line 1): kaboom!", log.Errors[0])
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*1)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*1)
 	defer done()
 	assert.NoError(t, proc.Close(ctx))
 }

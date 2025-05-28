@@ -22,7 +22,7 @@ import (
 )
 
 func TestDynamicOutputAPI(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
 	gMux := mux.NewRouter()

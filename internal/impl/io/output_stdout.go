@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterOutput(
+	service.MustRegisterOutput(
 		"stdout", service.NewConfigSpec().
 			Stable().
 			Categories("Local").
@@ -25,9 +25,6 @@ func init() {
 			}
 			return w, 1, nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type stdoutWriter struct {

@@ -24,7 +24,7 @@ import (
 var _ output.Streamed = &dynamicFanOutOutputBroker{}
 
 func TestBasicDynamicFanOut(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	nOutputs, nMsgs := 10, 1000
@@ -82,7 +82,7 @@ func TestBasicDynamicFanOut(t *testing.T) {
 }
 
 func TestDynamicFanOutChangeOutputs(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	nOutputs := 10
@@ -102,7 +102,7 @@ func TestDynamicFanOutChangeOutputs(t *testing.T) {
 		newOutputName := fmt.Sprintf("output-%v", i)
 
 		outputs[newOutputName] = newOutput
-		require.NoError(t, oTM.SetOutput(context.Background(), newOutputName, newOutput))
+		require.NoError(t, oTM.SetOutput(t.Context(), newOutputName, newOutput))
 
 		wg := sync.WaitGroup{}
 		wg.Add(len(outputs))
@@ -177,7 +177,7 @@ func TestDynamicFanOutChangeOutputs(t *testing.T) {
 		}
 
 		oldOutputName := fmt.Sprintf("output-%v", i)
-		require.NoError(t, oTM.SetOutput(context.Background(), oldOutputName, nil))
+		require.NoError(t, oTM.SetOutput(t.Context(), oldOutputName, nil))
 		delete(outputs, oldOutputName)
 	}
 
@@ -186,7 +186,7 @@ func TestDynamicFanOutChangeOutputs(t *testing.T) {
 }
 
 func TestDynamicFanOutAtLeastOnce(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mockOne := mock.OutputChanneled{}
@@ -250,7 +250,7 @@ func TestDynamicFanOutAtLeastOnce(t *testing.T) {
 }
 
 func TestDynamicFanOutStartEmpty(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mockOne := mock.OutputChanneled{}
@@ -279,7 +279,7 @@ func TestDynamicFanOutStartEmpty(t *testing.T) {
 		}
 	}()
 
-	require.NoError(t, oTM.SetOutput(context.Background(), "first", &mockOne))
+	require.NoError(t, oTM.SetOutput(t.Context(), "first", &mockOne))
 
 	go func() {
 		defer wg.Done()
@@ -307,7 +307,7 @@ func TestDynamicFanOutStartEmpty(t *testing.T) {
 }
 
 func TestDynamicFanOutShutDownFromErrorResponse(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mockOutput := &mock.OutputChanneled{}
@@ -368,7 +368,7 @@ func TestDynamicFanOutShutDownFromErrorResponse(t *testing.T) {
 }
 
 func TestDynamicFanOutShutDownFromReceive(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutput := &mock.OutputChanneled{}
@@ -407,7 +407,7 @@ func TestDynamicFanOutShutDownFromReceive(t *testing.T) {
 }
 
 func TestDynamicFanOutShutDownFromSend(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	mockOutput := &mock.OutputChanneled{}

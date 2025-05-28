@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,7 +45,7 @@ func TestSplitToSingleParts(t *testing.T) {
 			p.MetaSetMut("foo", "bar")
 			return nil
 		})
-		msgs, _ := proc.ProcessBatch(context.Background(), inMsg)
+		msgs, _ := proc.ProcessBatch(t.Context(), inMsg)
 		if exp, act := len(tIn), len(msgs); exp != act {
 			t.Errorf("Wrong count of messages: %v != %v", act, exp)
 			continue
@@ -80,7 +79,7 @@ split:
 		[]byte("bar"),
 		[]byte("baz"),
 	})
-	msgs, _ := proc.ProcessBatch(context.Background(), inMsg)
+	msgs, _ := proc.ProcessBatch(t.Context(), inMsg)
 	if exp, act := 2, len(msgs); exp != act {
 		t.Fatalf("Wrong message count: %v != %v", act, exp)
 	}
@@ -119,7 +118,7 @@ split:
 		[]byte("bar"),
 		[]byte("baz"),
 	})
-	msgs, _ := proc.ProcessBatch(context.Background(), inMsg)
+	msgs, _ := proc.ProcessBatch(t.Context(), inMsg)
 	if exp, act := 2, len(msgs); exp != act {
 		t.Fatalf("Wrong batch count: %v != %v", act, exp)
 	}
@@ -158,7 +157,7 @@ split:
 		[]byte("bar"),
 		[]byte("baz"),
 	})
-	msgs, _ := proc.ProcessBatch(context.Background(), inMsg)
+	msgs, _ := proc.ProcessBatch(t.Context(), inMsg)
 	if exp, act := 3, len(msgs); exp != act {
 		t.Fatalf("Wrong batch count: %v != %v", act, exp)
 	}

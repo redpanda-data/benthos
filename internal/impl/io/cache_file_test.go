@@ -3,7 +3,6 @@
 package io
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,7 +14,7 @@ import (
 func TestFileCache(t *testing.T) {
 	dir := t.TempDir()
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 	c := newFileCache(dir, service.MockResources())
 
 	_, err := c.Get(tCtx, "foo")

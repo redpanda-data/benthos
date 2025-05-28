@@ -19,7 +19,7 @@ func TestSTDINClose(t *testing.T) {
 	s, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	s.TriggerStopConsuming()

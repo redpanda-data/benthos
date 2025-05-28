@@ -34,7 +34,7 @@ output:
     path: %v
 `, outPath), 0o644))
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second))
+	ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(time.Second))
 	defer cancel()
 
 	servicetest.RunCLIWithArgs(ctx, "benthos", "-c", confPath)

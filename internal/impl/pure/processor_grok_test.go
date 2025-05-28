@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -37,7 +36,7 @@ grok:
 		[]byte(`foo,1`),
 		[]byte(`foo,2`),
 	})
-	msgs, res := gSet.ProcessBatch(context.Background(), msgIn)
+	msgs, res := gSet.ProcessBatch(t.Context(), msgIn)
 	if len(msgs) != 1 {
 		t.Fatal("Wrong count of messages")
 	}
@@ -106,7 +105,7 @@ grok:
 			require.NoError(t, err)
 
 			inMsg := message.QuickBatch([][]byte{[]byte(test.input)})
-			msgs, _ := gSet.ProcessBatch(context.Background(), inMsg)
+			msgs, _ := gSet.ProcessBatch(t.Context(), inMsg)
 			require.Len(t, msgs, 1)
 
 			assert.Equal(t, test.output, string(msgs[0].Get(0).AsBytes()))
@@ -130,7 +129,7 @@ grok:
 			require.NoError(t, err)
 
 			inMsg := message.QuickBatch([][]byte{[]byte(test.input)})
-			msgs, _ := gSet.ProcessBatch(context.Background(), inMsg)
+			msgs, _ := gSet.ProcessBatch(t.Context(), inMsg)
 			require.Len(t, msgs, 1)
 
 			assert.Equal(t, test.output, string(msgs[0].Get(0).AsBytes()))
@@ -160,12 +159,12 @@ grok:
 	require.NoError(t, err)
 
 	inMsg := message.QuickBatch([][]byte{[]byte(`hello foo bar`)})
-	msgs, _ := gSet.ProcessBatch(context.Background(), inMsg)
+	msgs, _ := gSet.ProcessBatch(t.Context(), inMsg)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, `{"first":"hello","second":"foo","third":"bar"}`, string(msgs[0].Get(0).AsBytes()))
 
 	inMsg = message.QuickBatch([][]byte{[]byte(`10 foo bar`)})
-	msgs, _ = gSet.ProcessBatch(context.Background(), inMsg)
+	msgs, _ = gSet.ProcessBatch(t.Context(), inMsg)
 	require.Len(t, msgs, 1)
 	assert.Equal(t, `{"nested":{"first":10,"second":"foo","third":"bar"}}`, string(msgs[0].Get(0).AsBytes()))
 }

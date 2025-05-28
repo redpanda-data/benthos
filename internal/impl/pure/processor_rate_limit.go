@@ -31,7 +31,7 @@ func rlimitProcSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"rate_limit", rlimitProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			resStr, err := conf.FieldString(rlimitFieldResource)
@@ -46,9 +46,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("rate_limit", r, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type rateLimitProc struct {

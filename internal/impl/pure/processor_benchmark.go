@@ -15,15 +15,12 @@ import (
 )
 
 func init() {
-	err := service.RegisterProcessor("benchmark", benchmarkSpec(),
+	service.MustRegisterProcessor("benchmark", benchmarkSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
 			reporter := benchmarkLogReporter{logger: mgr.Logger()}
 			return newBenchmarkProcFromConfig(conf, reporter, time.Now)
 		},
 	)
-	if err != nil {
-		panic(err)
-	}
 }
 
 const (

@@ -94,7 +94,7 @@ If a message contains line breaks each line of the message is piped to the subpr
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"subprocess", subProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			var sConf subprocConfig
@@ -122,9 +122,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("subprocess", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type subprocessProc struct {

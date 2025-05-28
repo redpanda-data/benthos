@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"reject", service.NewConfigSpec().
 			Stable().
 			Categories("Utility").
@@ -66,9 +66,6 @@ output:
 			out = interop.NewUnwrapInternalOutput(s)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type rejectWriter struct {

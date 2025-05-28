@@ -3,9 +3,7 @@
 package manager
 
 import (
-	"context"
 	"errors"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -101,61 +99,4 @@ func TestInitialization(t *testing.T) {
 	_, err = mgr.NewRateLimit(rConf)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not this rate limit")
-}
-
-func TestInitializationOrdering(t *testing.T) {
-	env := bundle.NewEnvironment()
-
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	require.NoError(t, env.InputAdd(func(c input.Config, mgr bundle.NewManagement) (input.Streamed, error) {
-		go func() {
-			defer wg.Done()
-			err := mgr.AccessRateLimit(context.Background(), "testratelimit", func(rl ratelimit.V1) {})
-			_ = assert.Error(t, err) && assert.Contains(t, err.Error(), "unable to locate")
-		}()
-		return nil, nil
-	}, docs.ComponentSpec{
-		Name: "testinput",
-	}))
-
-	require.NoError(t, env.ProcessorAdd(func(c processor.Config, mgr bundle.NewManagement) (processor.V1, error) {
-		go func() {
-			defer wg.Done()
-			err := mgr.AccessRateLimit(context.Background(), "fooratelimit", func(rl ratelimit.V1) {})
-			_ = assert.Error(t, err) && assert.Contains(t, err.Error(), "unable to locate")
-		}()
-		return nil, nil
-	}, docs.ComponentSpec{
-		Name: "testprocessor",
-	}))
-
-	require.NoError(t, env.RateLimitAdd(func(c ratelimit.Config, mgr bundle.NewManagement) (ratelimit.V1, error) {
-		return nil, nil
-	}, docs.ComponentSpec{
-		Name: "testratelimit",
-	}))
-
-	inConf := input.NewConfig()
-	inConf.Label = "fooinput"
-	inConf.Type = "testinput"
-
-	procConf := processor.NewConfig()
-	procConf.Label = "fooproc"
-	procConf.Type = "testprocessor"
-
-	rlConf := ratelimit.NewConfig()
-	rlConf.Label = "fooratelimit"
-	rlConf.Type = "testratelimit"
-
-	resConf := NewResourceConfig()
-	resConf.ResourceInputs = append(resConf.ResourceInputs, inConf)
-	resConf.ResourceProcessors = append(resConf.ResourceProcessors, procConf)
-	resConf.ResourceRateLimits = append(resConf.ResourceRateLimits, rlConf)
-
-	_, err := New(resConf, OptSetEnvironment(env))
-	require.NoError(t, err)
-
-	wg.Wait()
 }

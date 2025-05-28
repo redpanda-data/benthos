@@ -54,14 +54,11 @@ It is possible to batch up messages sent from this buffer using a xref:configura
 }
 
 func init() {
-	err := service.RegisterBatchBuffer(
+	service.MustRegisterBatchBuffer(
 		"memory", memoryBufferConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchBuffer, error) {
 			return newMemoryBufferFromConfig(conf, mgr)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func newMemoryBufferFromConfig(conf *service.ParsedConfig, res *service.Resources) (*memoryBuffer, error) {

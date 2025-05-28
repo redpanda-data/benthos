@@ -21,7 +21,7 @@ const (
 
 func init() {
 	compAlgs := CompressionAlgsList()
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"compress", service.NewConfigSpec().
 			Categories("Parsing").
 			Stable().
@@ -53,9 +53,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("compress", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type compressProc struct {

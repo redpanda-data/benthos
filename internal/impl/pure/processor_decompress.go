@@ -20,7 +20,7 @@ const (
 
 func init() {
 	compAlgs := DecompressionAlgsList()
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"decompress", service.NewConfigSpec().
 			Categories("Parsing").
 			Stable().
@@ -43,9 +43,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("decompress", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type decompressProc struct {

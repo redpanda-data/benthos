@@ -11,7 +11,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor("noop", service.NewConfigSpec().
+	service.MustRegisterBatchProcessor("noop", service.NewConfigSpec().
 		Stable().
 		Summary("Noop is a processor that does nothing, the message passes through unchanged. Why? Sometimes doing nothing is the braver option.").
 		Field(service.NewObjectField("").Default(map[string]any{})),
@@ -19,9 +19,6 @@ func init() {
 			p := &noopProcessor{}
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type noopProcessor struct{}

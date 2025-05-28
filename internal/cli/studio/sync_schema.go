@@ -42,6 +42,11 @@ page within the studio application.`[1:],
 				Value:    "",
 				Usage:    "The single use token used to authenticate the request.",
 			},
+			&cli.StringFlag{
+				Name:  "api-path-prefix",
+				Value: "api",
+				Usage: "Specify the API path prefixof the Benthos studio server to connect to.",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			endpoint := c.String("endpoint")
@@ -52,7 +57,11 @@ page within the studio application.`[1:],
 			if err != nil {
 				return fmt.Errorf("failed to parse endpoint: %w", err)
 			}
-			u.Path = path.Join(u.Path, fmt.Sprintf("/api/v1/token/%v/session/%v/schema", tokenID, sessionID))
+			apiPathPrefix := c.String("api-path-prefix")
+			if apiPathPrefix == "" {
+				apiPathPrefix = "api"
+			}
+			u.Path = path.Join(u.Path, "/", apiPathPrefix, fmt.Sprintf("/v1/token/%v/session/%v/schema", tokenID, sessionID))
 
 			schema := schema.New(cliOpts.Version, cliOpts.DateBuilt, cliOpts.Environment, cliOpts.BloblEnvironment)
 			schema.Config = cliOpts.MainConfigSpecCtor()

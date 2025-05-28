@@ -38,7 +38,7 @@ pipeline:
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"processors", processorsProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			mgr := interop.UnwrapManagement(res)
@@ -60,9 +60,6 @@ func init() {
 			p := processor.NewAutoObservedBatchedProcessor("processors", pp, mgr)
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func newProcessorProc(children []processor.V1, mgr bundle.NewManagement) (*processorProc, error) {

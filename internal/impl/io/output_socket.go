@@ -34,14 +34,11 @@ func socketOutputSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterOutput("socket", socketOutputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (out service.Output, maxInFlight int, err error) {
+	service.MustRegisterOutput("socket", socketOutputSpec(), func(conf *service.ParsedConfig, mgr *service.Resources) (out service.Output, maxInFlight int, err error) {
 		maxInFlight = 1
 		out, err = newSocketWriterFromParsed(conf, mgr)
 		return
 	})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type socketWriter struct {

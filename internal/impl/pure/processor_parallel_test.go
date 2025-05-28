@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -54,7 +53,7 @@ parallel:
 		t.Fatal(err)
 	}
 
-	msgs, res := h.ProcessBatch(context.Background(), message.QuickBatch([][]byte{
+	msgs, res := h.ProcessBatch(t.Context(), message.QuickBatch([][]byte{
 		[]byte("foo"),
 		[]byte("bar"),
 		[]byte("baz"),
@@ -101,7 +100,7 @@ parallel:
 		t.Fatal(err)
 	}
 
-	msgs, res := h.ProcessBatch(context.Background(), message.QuickBatch([][]byte{
+	msgs, res := h.ProcessBatch(t.Context(), message.QuickBatch([][]byte{
 		[]byte("foo"),
 		[]byte("bar"),
 		[]byte("baz"),
@@ -151,7 +150,7 @@ parallel:
 		t.Fatal(err)
 	}
 
-	msgs, res := h.ProcessBatch(context.Background(), message.QuickBatch([][]byte{
+	msgs, res := h.ProcessBatch(t.Context(), message.QuickBatch([][]byte{
 		[]byte("foo"),
 		[]byte("bar"),
 		[]byte("baz"),

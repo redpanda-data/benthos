@@ -62,7 +62,7 @@ Returns the uptime of an output as a duration string (of the form "72h3m0.5s").`
 }
 
 func init() {
-	err := service.RegisterBatchOutput("dynamic", dynOutputSpec(),
+	service.MustRegisterBatchOutput("dynamic", dynOutputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			maxInFlight = 1
 
@@ -74,9 +74,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(o)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func newDynamicOutputFromParsed(conf *service.ParsedConfig, res *service.Resources) (output.Streamed, error) {

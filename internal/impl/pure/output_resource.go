@@ -19,7 +19,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"resource", service.NewConfigSpec().
 			Stable().
 			Categories("Utility").
@@ -82,9 +82,6 @@ You can find out more about resources in xref:configuration:resources.adoc[]`).
 			})
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type resourceOutput struct {

@@ -54,7 +54,7 @@ These values can be overridden during execution, at which point the configured T
 }
 
 func init() {
-	err := service.RegisterCache(
+	service.MustRegisterCache(
 		"memory", memCacheConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Cache, error) {
 			f, err := newMemCacheFromConfig(conf)
@@ -63,9 +63,6 @@ func init() {
 			}
 			return f, nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func newMemCacheFromConfig(conf *service.ParsedConfig) (*memoryCache, error) {

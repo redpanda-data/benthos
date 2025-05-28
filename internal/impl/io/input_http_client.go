@@ -74,7 +74,7 @@ rate_limit_resources:
 }
 
 func init() {
-	err := service.RegisterBatchInput(
+	service.MustRegisterBatchInput(
 		"http_client", httpClientInputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 			rdr, err := newHTTPClientInputFromParsed(conf, mgr)
@@ -83,9 +83,6 @@ func init() {
 			}
 			return service.AutoRetryNacksBatchedToggled(conf, rdr)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

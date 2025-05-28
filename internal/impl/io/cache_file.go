@@ -26,7 +26,7 @@ func fileCacheConfig() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterCache(
+	service.MustRegisterCache(
 		"file", fileCacheConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Cache, error) {
 			f, err := newFileCacheFromConfig(conf, mgr)
@@ -35,9 +35,6 @@ func init() {
 			}
 			return f, nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func newFileCacheFromConfig(conf *service.ParsedConfig, mgr *service.Resources) (*fileCache, error) {

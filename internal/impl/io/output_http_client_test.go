@@ -35,7 +35,7 @@ func parseYAMLOutputConf(t testing.TB, formatStr string, args ...any) (conf outp
 }
 
 func TestHTTPClientMultipartEnabled(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	resultChan := make(chan string, 1)
@@ -108,7 +108,7 @@ http_client:
 }
 
 func TestHTTPClientMultipartDisabled(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	resultChan := make(chan string, 1)
@@ -194,7 +194,7 @@ func writeBatchToChan(ctx context.Context, t *testing.T, batch message.Batch, tC
 }
 
 func TestHTTPClientRetries(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	var reqCount uint32
@@ -224,7 +224,7 @@ http_client:
 }
 
 func TestHTTPClientBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nTestLoops := 1000
@@ -287,7 +287,7 @@ http_client:
 }
 
 func TestHTTPClientSyncResponse(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nTestLoops := 1000
@@ -340,7 +340,7 @@ http_client:
 }
 
 func TestHTTPClientSyncResponseCopyHeaders(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nTestLoops := 1000
@@ -395,7 +395,7 @@ http_client:
 }
 
 func TestHTTPClientMultipart(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nTestLoops := 1000
@@ -490,7 +490,7 @@ http_client:
 }
 
 func TestHTTPOutputClientMultipartBody(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	nTestLoops := 1000
@@ -578,7 +578,7 @@ http_client:
 }
 
 func TestHTTPOutputClientMultipartHeaders(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	resultChan := make(chan message.Batch, 1)

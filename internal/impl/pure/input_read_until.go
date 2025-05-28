@@ -94,7 +94,7 @@ input:
 }
 
 func init() {
-	err := service.RegisterBatchInput("read_until", readUntilInputSpec(),
+	service.MustRegisterBatchInput("read_until", readUntilInputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 			i, err := newReadUntilInputFromParsed(conf, mgr)
 			if err != nil {
@@ -102,9 +102,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalInput(i), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type readUntilInput struct {

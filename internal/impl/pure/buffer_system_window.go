@@ -137,7 +137,7 @@ func getDuration(conf *service.ParsedConfig, required bool, name string) (time.D
 }
 
 func init() {
-	err := service.RegisterBatchBuffer(
+	service.MustRegisterBatchBuffer(
 		"system_window", tumblingWindowBufferConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchBuffer, error) {
 			size, err := getDuration(conf, true, "size")
@@ -176,9 +176,6 @@ func init() {
 				return time.Now().UTC()
 			}, size, slide, offset, allowedLateness, mgr.Logger())
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

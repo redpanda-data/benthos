@@ -20,7 +20,7 @@ const (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"group_by_value", service.NewConfigSpec().
 			Categories("Composition").
 			Stable().
@@ -64,9 +64,6 @@ output:
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("group_by_value", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type groupByValueProc struct {

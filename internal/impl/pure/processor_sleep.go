@@ -23,7 +23,7 @@ const (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor("sleep", service.NewConfigSpec().
+	service.MustRegisterBatchProcessor("sleep", service.NewConfigSpec().
 		Categories("Utility").
 		Stable().
 		Summary(`Sleep for a period of time specified as a duration string for each message. This processor will interpolate functions within the `+"`duration`"+` field, you can find a list of functions xref:configuration:interpolation.adoc#bloblang-queries[here].`).
@@ -42,9 +42,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("sleep", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type sleepProc struct {

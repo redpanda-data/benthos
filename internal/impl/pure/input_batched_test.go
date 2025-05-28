@@ -45,7 +45,7 @@ batched:
 	strm, err := builder.Build()
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 	require.NoError(t, strm.Run(ctx))
 
@@ -97,7 +97,7 @@ processors:
 	strm, err := builder.Build()
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 	require.NoError(t, strm.Run(ctx))
 

@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor("try", service.NewConfigSpec().
+	service.MustRegisterBatchProcessor("try", service.NewConfigSpec().
 		Stable().
 		Categories("Composition").
 		Summary("Executes a list of child processors on messages only if no prior processors have failed (or the errors have been cleared).").
@@ -79,9 +79,6 @@ pipeline:
 			p := processor.NewAutoObservedBatchedProcessor("try", tp, mgr)
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type tryProc struct {

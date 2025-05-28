@@ -3,7 +3,6 @@
 package message
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"testing"
@@ -251,7 +250,7 @@ func TestMessageErrors(t *testing.T) {
 	p1 := NewPart([]byte("foo"))
 	assert.NoError(t, p1.ErrorGet())
 
-	p2 := p1.WithContext(context.Background())
+	p2 := p1.WithContext(t.Context())
 	assert.NoError(t, p2.ErrorGet())
 
 	p3 := p2.ShallowCopy()

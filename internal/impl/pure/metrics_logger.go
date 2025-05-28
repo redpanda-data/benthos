@@ -39,13 +39,10 @@ This metrics type is useful for debugging pipelines when you only have access to
 }
 
 func init() {
-	err := service.RegisterMetricsExporter("logger", loggerMetricsSpec(),
+	service.MustRegisterMetricsExporter("logger", loggerMetricsSpec(),
 		func(conf *service.ParsedConfig, log *service.Logger) (service.MetricsExporter, error) {
 			return newLoggerFromParsed(conf, log)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

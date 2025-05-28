@@ -28,13 +28,10 @@ func decompressScannerSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("decompress", decompressScannerSpec(),
+	service.MustRegisterBatchScannerCreator("decompress", decompressScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return decompressScannerFromParsed(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func decompressScannerFromParsed(conf *service.ParsedConfig) (l *decompressScannerCreator, err error) {

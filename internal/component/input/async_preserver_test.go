@@ -30,7 +30,7 @@ func newMockAsyncReaderBlocked() *mockAsyncReader {
 func TestAsyncPreserverClose(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -73,7 +73,7 @@ func TestAsyncPreserverClose(t *testing.T) {
 func TestAsyncPreserverRetryPriority(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*30)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -173,7 +173,7 @@ func TestAsyncPreserverRetryPriority(t *testing.T) {
 func TestAsyncPreserverNackThenClose(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -246,7 +246,7 @@ func TestAsyncPreserverNackThenClose(t *testing.T) {
 func TestAsyncPreserverCloseThenAck(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -319,7 +319,7 @@ func TestAsyncPreserverCloseThenAck(t *testing.T) {
 func TestAsyncPreserverCloseThenNackThenAck(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -392,7 +392,7 @@ func TestAsyncPreserverCloseThenNackThenAck(t *testing.T) {
 func TestAsyncPreserverMutateThenNack(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	msg := message.NewPart(nil)
@@ -486,7 +486,7 @@ func TestAsyncPreserverMutateThenNack(t *testing.T) {
 func TestAsyncPreserverCloseViaConnectThenAck(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -565,7 +565,7 @@ func TestAsyncPreserverCloseViaConnectThenAck(t *testing.T) {
 func TestAsyncPreserverHappy(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -609,7 +609,7 @@ func TestAsyncPreserverHappy(t *testing.T) {
 func TestAsyncPreserverErrorProp(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -683,7 +683,7 @@ func TestAsyncPreserverErrorBackoff(t *testing.T) {
 		}
 	}()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Millisecond*500)
 	defer cancel()
 
 	require.NoError(t, pres.Connect(ctx))
@@ -709,7 +709,7 @@ func TestAsyncPreserverErrorBackoff(t *testing.T) {
 func TestAsyncPreserverBatchError(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -773,7 +773,7 @@ func TestAsyncPreserverBatchError(t *testing.T) {
 func TestAsyncPreserverBatchErrorUnordered(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -847,7 +847,7 @@ func TestAsyncPreserverBatchErrorUnordered(t *testing.T) {
 func TestAsyncPreserverBuffer(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()
@@ -949,7 +949,7 @@ func TestAsyncPreserverBuffer(t *testing.T) {
 func TestAsyncPreserverBufferBatchedAcks(t *testing.T) {
 	t.Parallel()
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*2)
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*2)
 	defer cancel()
 
 	readerImpl := newMockAsyncReaderBlocked()

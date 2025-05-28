@@ -86,7 +86,7 @@ file:
 	go func() {
 		defer wg.Done()
 
-		ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 		defer done()
 
 		require.NoError(t, pushFn(ctx, service.NewMessage([]byte("hello world 1"))))
@@ -96,7 +96,7 @@ file:
 		require.NoError(t, strm.StopWithin(time.Second*5))
 	}()
 
-	require.NoError(t, strm.Run(context.Background()))
+	require.NoError(t, strm.Run(t.Context()))
 	wg.Wait()
 
 	outBytes, err := os.ReadFile(outFilePath)
@@ -137,7 +137,7 @@ file:
 	go func() {
 		defer wg.Done()
 
-		ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 		defer done()
 
 		require.NoError(t, pushFn(ctx, service.MessageBatch{
@@ -156,7 +156,7 @@ file:
 		require.NoError(t, strm.StopWithin(time.Second*5))
 	}()
 
-	require.NoError(t, strm.Run(context.Background()))
+	require.NoError(t, strm.Run(t.Context()))
 	wg.Wait()
 
 	outBytes, err := os.ReadFile(outFilePath)
@@ -246,7 +246,7 @@ file:
 	strm, err := b.Build()
 	require.NoError(t, err)
 
-	require.NoError(t, strm.Run(context.Background()))
+	require.NoError(t, strm.Run(t.Context()))
 
 	outMut.Lock()
 	assert.Equal(t, map[string]struct{}{
@@ -299,7 +299,7 @@ processors:
 	strm, err := b.Build()
 	require.NoError(t, err)
 
-	require.NoError(t, strm.Run(context.Background()))
+	require.NoError(t, strm.Run(t.Context()))
 
 	outMut.Lock()
 	assert.Equal(t, map[string]struct{}{
@@ -360,7 +360,7 @@ file:
 	strm, err := b.Build()
 	require.NoError(t, err)
 
-	require.NoError(t, strm.Run(context.Background()))
+	require.NoError(t, strm.Run(t.Context()))
 
 	outMut.Lock()
 	assert.Equal(t, map[string]struct{}{
@@ -1019,7 +1019,7 @@ output:
 	strm, err := b.Build()
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	require.NoError(t, strm.Run(tCtx))
 
@@ -1058,7 +1058,7 @@ output:
 	strm, err := b.Build()
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	require.NoError(t, strm.Run(tCtx))
 
@@ -1101,7 +1101,7 @@ logger:
 		strm, err := strmBuilder.Build()
 		require.NoError(b, err)
 
-		require.NoError(b, strm.Run(context.Background()))
+		require.NoError(b, strm.Run(b.Context()))
 	}
 }
 
@@ -1182,7 +1182,7 @@ logger:
 		strm, err := strmBuilder.Build()
 		require.NoError(b, err)
 
-		require.NoError(b, strm.Run(context.Background()))
+		require.NoError(b, strm.Run(b.Context()))
 	}
 }
 
@@ -1256,7 +1256,7 @@ output:
 	strm, tracSum, err := b.BuildTraced()
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	require.NoError(t, strm.Run(tCtx))
 

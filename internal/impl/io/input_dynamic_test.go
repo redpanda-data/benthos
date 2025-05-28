@@ -22,7 +22,7 @@ import (
 )
 
 func TestDynamicInputAPI(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
 	gMux := mux.NewRouter()
@@ -91,7 +91,7 @@ generate:
 }
 
 func TestDynamicInputAPIStopped(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
 	gMux := mux.NewRouter()
@@ -193,7 +193,7 @@ processors:
 			require.NoError(t, builder.AddInputYAML(test.config))
 			require.NoError(t, builder.SetLoggerYAML(`level: none`))
 
-			tCtx, done := context.WithTimeout(context.Background(), time.Minute)
+			tCtx, done := context.WithTimeout(t.Context(), time.Minute)
 			defer done()
 
 			outputMsgs := map[string]struct{}{}

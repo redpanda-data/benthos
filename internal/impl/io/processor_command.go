@@ -73,14 +73,11 @@ pipeline:
 }
 
 func init() {
-	err := service.RegisterProcessor(
+	service.MustRegisterProcessor(
 		"command", commandProcSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
 			return newCommandProcFromParsed(conf, mgr)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type commandProc struct {

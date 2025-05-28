@@ -142,7 +142,7 @@ type csvScannerInfo struct {
 }
 
 func init() {
-	err := service.RegisterBatchInput("csv", csviFieldSpec(),
+	service.MustRegisterBatchInput("csv", csviFieldSpec(),
 		func(conf *service.ParsedConfig, nm *service.Resources) (service.BatchInput, error) {
 			delim, err := conf.FieldString(csviFieldDelim)
 			if err != nil {
@@ -235,9 +235,6 @@ func init() {
 
 			return service.AutoRetryNacksBatchedToggled(conf, rdr)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

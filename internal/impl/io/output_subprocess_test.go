@@ -47,7 +47,7 @@ func TestSubprocessOutputBasic(t *testing.T) {
 
 	t.Parallel()
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	dir := t.TempDir()
@@ -116,7 +116,7 @@ func main() {
 func TestSubprocessOutputEarlyExit(t *testing.T) {
 	t.Skip()
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	dir := t.TempDir()

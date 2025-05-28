@@ -78,7 +78,7 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 		})
 		require.NoError(t, err)
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.EqualError(t, ack, "service shutting down")
 	})
 
@@ -102,18 +102,18 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 			if i == len(expected)-1 {
 				buf.returnEOFOnRead = true
 			}
-			p, ackFn, err := r.Next(context.Background())
+			p, ackFn, err := r.Next(t.Context())
 			require.NoError(t, err)
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 			require.Len(t, p, 1)
 			assert.Equal(t, exp, string(p[0].AsBytes()))
 			allReads[string(p[0].AsBytes())] = p[0].AsBytes()
 		}
 
-		_, _, err = r.Next(context.Background())
+		_, _, err = r.Next(t.Context())
 		assert.EqualError(t, err, "EOF")
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.NoError(t, ack)
 
 		for k, v := range allReads {
@@ -138,18 +138,18 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 		allReads := map[string][]byte{}
 
 		for _, exp := range expected {
-			p, ackFn, err := r.Next(context.Background())
+			p, ackFn, err := r.Next(t.Context())
 			require.NoError(t, err)
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 			require.Len(t, p, 1)
 			assert.Equal(t, exp, string(p[0].AsBytes()))
 			allReads[string(p[0].AsBytes())] = p[0].AsBytes()
 		}
 
-		_, _, err = r.Next(context.Background())
+		_, _, err = r.Next(t.Context())
 		assert.EqualError(t, err, "EOF")
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.NoError(t, ack)
 
 		for k, v := range allReads {
@@ -174,18 +174,18 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 		allReads := map[string][]byte{}
 
 		for _, exp := range expected {
-			p, ackFn, err := r.Next(context.Background())
+			p, ackFn, err := r.Next(t.Context())
 			require.NoError(t, err)
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 			require.Len(t, p, 1)
 			assert.Equal(t, exp, string(p[0].AsBytes()))
 			allReads[string(p[0].AsBytes())] = p[0].AsBytes()
 		}
 
-		_, _, err = r.Next(context.Background())
+		_, _, err = r.Next(t.Context())
 		assert.EqualError(t, err, "EOF")
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.NoError(t, ack)
 
 		for k, v := range allReads {
@@ -211,7 +211,7 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 
 		var ackFns []ReaderAckFn
 		for _, exp := range expected {
-			p, ackFn, err := r.Next(context.Background())
+			p, ackFn, err := r.Next(t.Context())
 			require.NoError(t, err)
 			require.Len(t, p, 1)
 			ackFns = append(ackFns, ackFn)
@@ -219,12 +219,12 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 			allReads[string(p[0].AsBytes())] = p[0].AsBytes()
 		}
 
-		_, _, err = r.Next(context.Background())
+		_, _, err = r.Next(t.Context())
 		assert.EqualError(t, err, "EOF")
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 
 		for _, ackFn := range ackFns {
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 		}
 
 		assert.NoError(t, ack)
@@ -255,7 +255,7 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 
 		for _, exp := range expected {
 			exp := exp
-			p, ackFn, err := r.Next(context.Background())
+			p, ackFn, err := r.Next(t.Context())
 			require.NoError(t, err)
 			require.Len(t, p, 1)
 			assert.Equal(t, exp, string(p[0].AsBytes()))
@@ -263,15 +263,15 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 
 			go func() {
 				defer wg.Done()
-				require.NoError(t, ackFn(context.Background(), nil))
+				require.NoError(t, ackFn(t.Context(), nil))
 			}()
 		}
 
-		_, _, err = r.Next(context.Background())
+		_, _, err = r.Next(t.Context())
 		assert.EqualError(t, err, "EOF")
 
 		wg.Wait()
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 
 		assert.NoError(t, ack)
 
@@ -300,7 +300,7 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 
 			var ackFns []ReaderAckFn
 			for _, exp := range expected {
-				p, ackFn, err := r.Next(context.Background())
+				p, ackFn, err := r.Next(t.Context())
 				require.NoError(t, err)
 				require.Len(t, p, 1)
 				ackFns = append(ackFns, ackFn)
@@ -308,15 +308,15 @@ func testReaderSuite(t *testing.T, codec, path string, data []byte, expected ...
 				allReads[string(p[0].AsBytes())] = p[0].AsBytes()
 			}
 
-			_, _, err = r.Next(context.Background())
+			_, _, err = r.Next(t.Context())
 			assert.EqualError(t, err, "EOF")
-			assert.NoError(t, r.Close(context.Background()))
+			assert.NoError(t, r.Close(t.Context()))
 
 			for i, ackFn := range ackFns {
 				if i == 0 {
-					require.NoError(t, ackFn(context.Background(), exp))
+					require.NoError(t, ackFn(t.Context(), exp))
 				} else {
-					require.NoError(t, ackFn(context.Background(), nil))
+					require.NoError(t, ackFn(t.Context(), nil))
 				}
 			}
 
@@ -423,9 +423,9 @@ func TestCsvSafeReaderMetadata(t *testing.T) {
 	allReads := map[string][]byte{}
 
 	for i, exp := range expected {
-		p, ackFn, err := r.Next(context.Background())
+		p, ackFn, err := r.Next(t.Context())
 		require.NoError(t, err)
-		require.NoError(t, ackFn(context.Background(), nil))
+		require.NoError(t, ackFn(t.Context(), nil))
 		require.Len(t, p, 1)
 		assert.Equal(t, exp, string(p[0].AsBytes()))
 		assertPartMetadataEqual(t, p[0], "row_number", int32(i+2)) // header row is row 1, and compensate for index-0 range
@@ -438,10 +438,10 @@ func TestCsvSafeReaderMetadata(t *testing.T) {
 		}
 	}
 
-	_, _, err = r.Next(context.Background())
+	_, _, err = r.Next(t.Context())
 	assert.EqualError(t, err, "EOF")
 
-	assert.NoError(t, r.Close(context.Background()))
+	assert.NoError(t, r.Close(t.Context()))
 	assert.NoError(t, ack)
 }
 
@@ -714,7 +714,7 @@ func testMultipartReaderSuite(t *testing.T, codec, path string, data []byte, exp
 		})
 		require.NoError(t, err)
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.EqualError(t, ack, "service shutting down")
 	})
 
@@ -736,17 +736,17 @@ func testMultipartReaderSuite(t *testing.T, codec, path string, data []byte, exp
 			if i == len(expected)-1 {
 				buf.returnEOFOnRead = true
 			}
-			p, ackFn, err := r.Next(context.Background())
+			p, ackFn, err := r.Next(t.Context())
 			require.NoError(t, err)
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 			require.Len(t, p, len(exp))
 			assert.Equal(t, exp, strsFromParts(p))
 		}
 
-		_, _, err = r.Next(context.Background())
+		_, _, err = r.Next(t.Context())
 		assert.EqualError(t, err, "EOF")
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.NoError(t, ack)
 	})
 
@@ -765,17 +765,17 @@ func testMultipartReaderSuite(t *testing.T, codec, path string, data []byte, exp
 		require.NoError(t, err)
 
 		for _, exp := range expected {
-			p, ackFn, err := r.Next(context.Background())
+			p, ackFn, err := r.Next(t.Context())
 			require.NoError(t, err)
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 			require.Len(t, p, len(exp))
 			assert.Equal(t, exp, strsFromParts(p))
 		}
 
-		_, _, err = r.Next(context.Background())
+		_, _, err = r.Next(t.Context())
 		assert.EqualError(t, err, "EOF")
 
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 		assert.NoError(t, ack)
 	})
 
@@ -795,19 +795,19 @@ func testMultipartReaderSuite(t *testing.T, codec, path string, data []byte, exp
 
 		var ackFns []ReaderAckFn
 		for _, exp := range expected {
-			p, ackFn, err := r.Next(context.Background())
+			p, ackFn, err := r.Next(t.Context())
 			require.NoError(t, err)
 			require.Len(t, p, len(exp))
 			ackFns = append(ackFns, ackFn)
 			assert.Equal(t, exp, strsFromParts(p))
 		}
 
-		_, _, err = r.Next(context.Background())
+		_, _, err = r.Next(t.Context())
 		assert.EqualError(t, err, "EOF")
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 
 		for _, ackFn := range ackFns {
-			require.NoError(t, ackFn(context.Background(), nil))
+			require.NoError(t, ackFn(t.Context(), nil))
 		}
 
 		assert.NoError(t, ack)
@@ -832,22 +832,22 @@ func testMultipartReaderSuite(t *testing.T, codec, path string, data []byte, exp
 
 		for _, exp := range expected {
 			exp := exp
-			p, ackFn, err := r.Next(context.Background())
+			p, ackFn, err := r.Next(t.Context())
 			require.NoError(t, err)
 			require.Len(t, p, len(exp))
 			assert.Equal(t, exp, strsFromParts(p))
 
 			go func() {
 				defer wg.Done()
-				require.NoError(t, ackFn(context.Background(), nil))
+				require.NoError(t, ackFn(t.Context(), nil))
 			}()
 		}
 
-		_, _, err = r.Next(context.Background())
+		_, _, err = r.Next(t.Context())
 		assert.EqualError(t, err, "EOF")
 
 		wg.Wait()
-		assert.NoError(t, r.Close(context.Background()))
+		assert.NoError(t, r.Close(t.Context()))
 
 		assert.NoError(t, ack)
 	})
@@ -870,22 +870,22 @@ func testMultipartReaderSuite(t *testing.T, codec, path string, data []byte, exp
 
 			var ackFns []ReaderAckFn
 			for _, exp := range expected {
-				p, ackFn, err := r.Next(context.Background())
+				p, ackFn, err := r.Next(t.Context())
 				require.NoError(t, err)
 				require.Len(t, p, len(exp))
 				ackFns = append(ackFns, ackFn)
 				assert.Equal(t, exp, strsFromParts(p))
 			}
 
-			_, _, err = r.Next(context.Background())
+			_, _, err = r.Next(t.Context())
 			assert.EqualError(t, err, "EOF")
-			assert.NoError(t, r.Close(context.Background()))
+			assert.NoError(t, r.Close(t.Context()))
 
 			for i, ackFn := range ackFns {
 				if i == 0 {
-					require.NoError(t, ackFn(context.Background(), exp))
+					require.NoError(t, ackFn(t.Context(), exp))
 				} else {
-					require.NoError(t, ackFn(context.Background(), nil))
+					require.NoError(t, ackFn(t.Context(), nil))
 				}
 			}
 

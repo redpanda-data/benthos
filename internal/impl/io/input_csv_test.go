@@ -50,12 +50,12 @@ func TestCSVReaderHappy(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		require.NoError(t, f.Close(ctx))
 		done()
 	})
 
-	require.NoError(t, f.Connect(context.Background()))
+	require.NoError(t, f.Connect(t.Context()))
 
 	for _, exp := range []string{
 		`{"header1":"foo1","header2":"foo2","header3":"foo3"}`,
@@ -63,7 +63,7 @@ func TestCSVReaderHappy(t *testing.T) {
 		`{"header1":"baz1","header2":"baz2","header3":"baz3"}`,
 	} {
 		var resMsg service.MessageBatch
-		resMsg, _, err = f.ReadBatch(context.Background())
+		resMsg, _, err = f.ReadBatch(t.Context())
 		require.NoError(t, err)
 
 		msgBytes, err := resMsg[0].AsBytes()
@@ -78,10 +78,10 @@ func TestCSVReaderHappy(t *testing.T) {
 		assert.Equal(t, strconv.Itoa(int(dummyTimeUTC.Unix())), m)
 	}
 
-	_, _, err = f.ReadBatch(context.Background())
+	_, _, err = f.ReadBatch(t.Context())
 	assert.Equal(t, service.ErrNotConnected, err)
 
-	err = f.Connect(context.Background())
+	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -117,12 +117,12 @@ func TestCSVReaderGroupCount(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		require.NoError(t, f.Close(ctx))
 		done()
 	})
 
-	require.NoError(t, f.Connect(context.Background()))
+	require.NoError(t, f.Connect(t.Context()))
 
 	for _, exp := range [][]string{
 		{
@@ -140,7 +140,7 @@ func TestCSVReaderGroupCount(t *testing.T) {
 		},
 	} {
 		var resMsg service.MessageBatch
-		resMsg, _, err = f.ReadBatch(context.Background())
+		resMsg, _, err = f.ReadBatch(t.Context())
 		require.NoError(t, err)
 
 		require.Len(t, resMsg, len(exp))
@@ -151,10 +151,10 @@ func TestCSVReaderGroupCount(t *testing.T) {
 		}
 	}
 
-	_, _, err = f.ReadBatch(context.Background())
+	_, _, err = f.ReadBatch(t.Context())
 	assert.Equal(t, service.ErrNotConnected, err)
 
-	err = f.Connect(context.Background())
+	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -199,12 +199,12 @@ func TestCSVReadersTwoFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		require.NoError(t, f.Close(ctx))
 		done()
 	})
 
-	require.NoError(t, f.Connect(context.Background()))
+	require.NoError(t, f.Connect(t.Context()))
 
 	for i, exp := range []string{
 		`{"header1":"foo1","header2":"foo2","header3":"foo3"}`,
@@ -216,23 +216,23 @@ func TestCSVReadersTwoFiles(t *testing.T) {
 	} {
 		var resMsg service.MessageBatch
 		var ackFn service.AckFunc
-		resMsg, ackFn, err = f.ReadBatch(context.Background())
+		resMsg, ackFn, err = f.ReadBatch(t.Context())
 		if err == service.ErrNotConnected {
-			require.NoError(t, f.Connect(context.Background()))
-			resMsg, ackFn, err = f.ReadBatch(context.Background())
+			require.NoError(t, f.Connect(t.Context()))
+			resMsg, ackFn, err = f.ReadBatch(t.Context())
 		}
 		require.NoError(t, err, i)
 
 		mBytes, err := resMsg[0].AsBytes()
 		require.NoError(t, err)
 		assert.Equal(t, exp, string(mBytes), i)
-		_ = ackFn(context.Background(), nil)
+		_ = ackFn(t.Context(), nil)
 	}
 
-	_, _, err = f.ReadBatch(context.Background())
+	_, _, err = f.ReadBatch(t.Context())
 	assert.Equal(t, service.ErrNotConnected, err)
 
-	err = f.Connect(context.Background())
+	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -264,12 +264,12 @@ func TestCSVReaderCustomComma(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		require.NoError(t, f.Close(ctx))
 		done()
 	})
 
-	require.NoError(t, f.Connect(context.Background()))
+	require.NoError(t, f.Connect(t.Context()))
 
 	for _, exp := range []string{
 		`{"header1":"foo1","header2":"foo2","header3":"foo3"}`,
@@ -277,7 +277,7 @@ func TestCSVReaderCustomComma(t *testing.T) {
 		`{"header1":"baz1","header2":"baz2","header3":"baz3"}`,
 	} {
 		var resMsg service.MessageBatch
-		resMsg, _, err = f.ReadBatch(context.Background())
+		resMsg, _, err = f.ReadBatch(t.Context())
 		require.NoError(t, err)
 
 		mBytes, err := resMsg[0].AsBytes()
@@ -286,10 +286,10 @@ func TestCSVReaderCustomComma(t *testing.T) {
 		assert.Equal(t, exp, string(mBytes))
 	}
 
-	_, _, err = f.ReadBatch(context.Background())
+	_, _, err = f.ReadBatch(t.Context())
 	assert.Equal(t, service.ErrNotConnected, err)
 
-	err = f.Connect(context.Background())
+	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -322,12 +322,12 @@ func TestCSVReaderRelaxed(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		require.NoError(t, f.Close(ctx))
 		done()
 	})
 
-	require.NoError(t, f.Connect(context.Background()))
+	require.NoError(t, f.Connect(t.Context()))
 
 	for _, exp := range []string{
 		`{"header1":"foo1","header2":"foo2","header3":"foo3"}`,
@@ -336,7 +336,7 @@ func TestCSVReaderRelaxed(t *testing.T) {
 		`{"header1":"buz1","header2":"buz2"}`,
 	} {
 		var resMsg service.MessageBatch
-		resMsg, _, err = f.ReadBatch(context.Background())
+		resMsg, _, err = f.ReadBatch(t.Context())
 		require.NoError(t, err)
 
 		mBytes, err := resMsg[0].AsBytes()
@@ -345,10 +345,10 @@ func TestCSVReaderRelaxed(t *testing.T) {
 		assert.Equal(t, exp, string(mBytes))
 	}
 
-	_, _, err = f.ReadBatch(context.Background())
+	_, _, err = f.ReadBatch(t.Context())
 	assert.Equal(t, service.ErrNotConnected, err)
 
-	err = f.Connect(context.Background())
+	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -381,12 +381,12 @@ func TestCSVReaderStrict(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		require.NoError(t, f.Close(ctx))
 		done()
 	})
 
-	require.NoError(t, f.Connect(context.Background()))
+	require.NoError(t, f.Connect(t.Context()))
 
 	for _, exp := range []any{
 		`{"header1":"foo1","header2":"foo2","header3":"foo3"}`,
@@ -395,7 +395,7 @@ func TestCSVReaderStrict(t *testing.T) {
 		errors.New("record on line 5: wrong number of fields"),
 	} {
 		var resMsg service.MessageBatch
-		resMsg, _, err = f.ReadBatch(context.Background())
+		resMsg, _, err = f.ReadBatch(t.Context())
 
 		switch expT := exp.(type) {
 		case string:
@@ -411,10 +411,10 @@ func TestCSVReaderStrict(t *testing.T) {
 		}
 	}
 
-	_, _, err = f.ReadBatch(context.Background())
+	_, _, err = f.ReadBatch(t.Context())
 	assert.Equal(t, service.ErrNotConnected, err)
 
-	err = f.Connect(context.Background())
+	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -478,14 +478,14 @@ func TestCSVReaderLazyQuotes(t *testing.T) {
 		)
 		require.NoError(t, err, test.name)
 		t.Cleanup(func() {
-			ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+			ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 			require.NoError(t, f.Close(ctx))
 			done()
 		})
 
-		require.NoError(t, f.Connect(context.Background()), test.name)
+		require.NoError(t, f.Connect(t.Context()), test.name)
 
-		resMsg, _, err := f.ReadBatch(context.Background())
+		resMsg, _, err := f.ReadBatch(t.Context())
 		if test.errContains != "" {
 			require.Contains(t, err.Error(), test.errContains, test.name)
 			return

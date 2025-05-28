@@ -531,7 +531,7 @@ processor_resources:
 	require.NoError(t, os.WriteFile(confBPath, procConfig("b", "b2"), 0o644))
 	require.NoError(t, os.WriteFile(confCPath, procConfig("c", "c2"), 0o644))
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	require.Eventually(t, func() bool {

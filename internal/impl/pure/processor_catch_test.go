@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"errors"
 	"reflect"
 	"testing"
@@ -32,7 +31,7 @@ catch: []
 	exp := [][]byte{
 		[]byte("foo bar baz"),
 	}
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(exp))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(exp))
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -79,7 +78,7 @@ catch:
 		p.ErrorSet(errors.New("foo"))
 		return nil
 	})
-	msgs, res := proc.ProcessBatch(context.Background(), msg)
+	msgs, res := proc.ProcessBatch(t.Context(), msg)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -124,7 +123,7 @@ catch:
 		p.ErrorSet(errors.New("foo"))
 		return nil
 	})
-	msgs, res := proc.ProcessBatch(context.Background(), msg)
+	msgs, res := proc.ProcessBatch(t.Context(), msg)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -170,7 +169,7 @@ catch:
 		p.ErrorSet(errors.New("foo"))
 		return nil
 	})
-	msgs, res := proc.ProcessBatch(context.Background(), msg)
+	msgs, res := proc.ProcessBatch(t.Context(), msg)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -214,7 +213,7 @@ catch:
 	msg := message.QuickBatch(parts)
 	msg.Get(0).ErrorSet(errors.New("foo"))
 	msg.Get(2).ErrorSet(errors.New("foo"))
-	msgs, res := proc.ProcessBatch(context.Background(), msg)
+	msgs, res := proc.ProcessBatch(t.Context(), msg)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -255,7 +254,7 @@ catch:
 		p.ErrorSet(errors.New("foo"))
 		return nil
 	})
-	msgs, res := proc.ProcessBatch(context.Background(), msg)
+	msgs, res := proc.ProcessBatch(t.Context(), msg)
 	assert.NoError(t, res)
 	if len(msgs) != 0 {
 		t.Errorf("Wrong count of result msgs: %v", len(msgs))

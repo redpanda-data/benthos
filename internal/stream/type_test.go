@@ -40,7 +40,7 @@ output:
 	strm, err := stream.New(conf, newMgr)
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	assert.NoError(t, strm.Stop(ctx))
@@ -76,7 +76,7 @@ output:
 	tChan, err := newMgr.GetPipe("foo")
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second)
+	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 
 	var tTmp message.Transaction
@@ -109,7 +109,7 @@ output:
 	newMgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	strm, err := stream.New(conf, newMgr)
@@ -144,7 +144,7 @@ output:
 	newMgr, err := manager.New(manager.NewResourceConfig())
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	strm, err := stream.New(conf, newMgr)
@@ -216,7 +216,7 @@ output:
 	strm, err := stream.New(conf, newMgr)
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	ctx, done := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer done()
 	for !strm.IsReady() {
 		select {
@@ -230,7 +230,7 @@ output:
 `
 	validateHealthCheckResponse(t, mockAPIReg.server.URL, 200, exp)
 
-	stopCtx, stopDone := context.WithTimeout(context.Background(), time.Minute)
+	stopCtx, stopDone := context.WithTimeout(t.Context(), time.Minute)
 	defer stopDone()
 
 	assert.NoError(t, strm.StopUnordered(stopCtx))

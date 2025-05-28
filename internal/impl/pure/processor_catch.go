@@ -12,7 +12,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor("catch", service.NewConfigSpec().
+	service.MustRegisterBatchProcessor("catch", service.NewConfigSpec().
 		Stable().
 		Categories("Composition").
 		Summary("Applies a list of child processors _only_ when a previous processing step has failed.").
@@ -59,9 +59,6 @@ More information about error handling can be found in xref:configuration:error_h
 			p := processor.NewAutoObservedBatchedProcessor("catch", tp, mgr)
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

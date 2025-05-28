@@ -22,7 +22,7 @@ import (
 var _ input.Streamed = &fanInInputBroker{}
 
 func TestBasicFanIn(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	nInputs, nMsgs := 10, 1000
@@ -144,7 +144,7 @@ func TestFanInShutdown(t *testing.T) {
 }
 
 func TestFanInAsync(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	nInputs, nMsgs := 10, 1000
@@ -208,7 +208,7 @@ func TestFanInAsync(t *testing.T) {
 }
 
 func BenchmarkBasicFanIn(b *testing.B) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*5)
+	ctx, done := context.WithTimeout(b.Context(), time.Second*5)
 	defer done()
 
 	nInputs := 10

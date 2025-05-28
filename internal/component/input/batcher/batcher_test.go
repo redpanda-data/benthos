@@ -22,7 +22,7 @@ import (
 )
 
 func TestBatcherStandard(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mockInput := &mock.Input{
@@ -165,7 +165,7 @@ func TestBatcherStandard(t *testing.T) {
 }
 
 func TestBatcherErrorTracking(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mockInput := &mock.Input{
@@ -232,7 +232,7 @@ func TestBatcherErrorTracking(t *testing.T) {
 }
 
 func TestBatcherTiming(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mockInput := &mock.Input{
@@ -319,7 +319,7 @@ func TestBatcherTiming(t *testing.T) {
 }
 
 func TestBatcherFinalFlush(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
 	defer done()
 
 	mockInput := &mock.Input{

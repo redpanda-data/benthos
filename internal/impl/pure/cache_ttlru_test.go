@@ -3,7 +3,6 @@
 package pure
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -61,7 +60,7 @@ init_values:
 	c, err := ttlruMemCacheFromConfig(defConf, logger)
 	require.NoError(t, err)
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	exp := "bar"
 	if act, err := c.Get(ctx, "foo"); err != nil {
@@ -87,7 +86,7 @@ func BenchmarkTTLRU(b *testing.B) {
 	c, err := ttlruMemCacheFromConfig(defConf, logger)
 	require.NoError(b, err)
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 
@@ -112,7 +111,7 @@ func BenchmarkTTLRUParallel(b *testing.B) {
 	c, err := ttlruMemCacheFromConfig(defConf, logger)
 	require.NoError(b, err)
 
-	ctx := context.Background()
+	ctx := b.Context()
 
 	b.ResetTimer()
 

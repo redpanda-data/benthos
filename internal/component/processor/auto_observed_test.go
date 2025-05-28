@@ -38,7 +38,7 @@ func TestProcessorAirGapShutdown(t *testing.T) {
 	rp := &fnProcessor{}
 	agrp := NewAutoObservedProcessor("foo", rp, component.NoopObservability())
 
-	ctx, done := context.WithTimeout(context.Background(), time.Microsecond*5)
+	ctx, done := context.WithTimeout(t.Context(), time.Microsecond*5)
 	defer done()
 
 	err := agrp.Close(ctx)
@@ -49,7 +49,7 @@ func TestProcessorAirGapShutdown(t *testing.T) {
 }
 
 func TestProcessorAirGapOneToOne(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	agrp := NewAutoObservedProcessor("foo", &fnProcessor{
 		fn: func(c context.Context, m *message.Part) ([]*message.Part, error) {
@@ -72,7 +72,7 @@ func TestProcessorAirGapOneToOne(t *testing.T) {
 }
 
 func TestProcessorAirGapOneToError(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	agrp := NewAutoObservedProcessor("foo", &fnProcessor{
 		fn: func(c context.Context, m *message.Part) ([]*message.Part, error) {
@@ -92,7 +92,7 @@ func TestProcessorAirGapOneToError(t *testing.T) {
 }
 
 func TestProcessorAirGapOneToMany(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	agrp := NewAutoObservedProcessor("foo", &fnProcessor{
 		fn: func(c context.Context, m *message.Part) ([]*message.Part, error) {
@@ -137,7 +137,7 @@ func (p *fnBatchProcessor) Close(ctx context.Context) error {
 }
 
 func TestBatchProcessorAirGapShutdown(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Millisecond*5)
+	tCtx, done := context.WithTimeout(t.Context(), time.Millisecond*5)
 	defer done()
 
 	rp := &fnBatchProcessor{}
@@ -149,7 +149,7 @@ func TestBatchProcessorAirGapShutdown(t *testing.T) {
 }
 
 func TestBatchProcessorAirGapOneToOne(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	agrp := NewAutoObservedBatchedProcessor("foo", &fnBatchProcessor{
 		fn: func(c *BatchProcContext, msgs message.Batch) ([]message.Batch, error) {
@@ -172,7 +172,7 @@ func TestBatchProcessorAirGapOneToOne(t *testing.T) {
 }
 
 func TestBatchProcessorAirGapOneToError(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	agrp := NewAutoObservedBatchedProcessor("foo", &fnBatchProcessor{
 		fn: func(c *BatchProcContext, msgs message.Batch) ([]message.Batch, error) {
@@ -192,7 +192,7 @@ func TestBatchProcessorAirGapOneToError(t *testing.T) {
 }
 
 func TestBatchProcessorAirGapOneToMany(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	agrp := NewAutoObservedBatchedProcessor("foo", &fnBatchProcessor{
 		fn: func(c *BatchProcContext, msgs message.Batch) ([]message.Batch, error) {
@@ -227,7 +227,7 @@ func TestBatchProcessorAirGapOneToMany(t *testing.T) {
 }
 
 func TestBatchProcessorAirGapIndividualErrors(t *testing.T) {
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	agrp := NewAutoObservedBatchedProcessor("foo", &fnBatchProcessor{
 		fn: func(c *BatchProcContext, msgs message.Batch) ([]message.Batch, error) {

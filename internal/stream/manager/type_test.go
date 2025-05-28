@@ -32,7 +32,7 @@ output:
 }
 
 func TestTypeBasicOperations(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	res, err := bmanager.New(bmanager.NewResourceConfig())
@@ -94,7 +94,7 @@ func TestTypeBasicOperations(t *testing.T) {
 }
 
 func TestTypeBasicClose(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	res, err := bmanager.New(bmanager.NewResourceConfig())

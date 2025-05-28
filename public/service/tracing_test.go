@@ -58,7 +58,7 @@ tracer:
 	strm, err := builder.Build()
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second)
+	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 
 	require.NoError(t, strm.Run(ctx))
@@ -98,7 +98,7 @@ logger:
 	strm, trace, err := strmBuilder.BuildTraced()
 	require.NoError(t, err)
 
-	require.NoError(t, strm.Run(context.Background()))
+	require.NoError(t, strm.Run(t.Context()))
 
 	assert.Equal(t, 5, int(trace.TotalInput()))
 	assert.Equal(t, 5, int(trace.TotalOutput()))
@@ -176,7 +176,7 @@ logger:
 		strm, trace, err := strmBuilder.BuildTraced()
 		require.NoError(b, err)
 
-		require.NoError(b, strm.Run(context.Background()))
+		require.NoError(b, strm.Run(b.Context()))
 
 		assert.Equal(b, 5, int(trace.TotalInput()))
 		assert.Equal(b, 5, int(trace.TotalOutput()))
@@ -244,7 +244,7 @@ logger:
 		strm, trace, err := strmBuilder.BuildTraced()
 		require.NoError(b, err)
 
-		require.NoError(b, strm.Run(context.Background()))
+		require.NoError(b, strm.Run(b.Context()))
 
 		assert.Equal(b, 5, int(trace.TotalInput()))
 	}

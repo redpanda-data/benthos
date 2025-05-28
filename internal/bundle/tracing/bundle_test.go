@@ -44,7 +44,7 @@ generate:
 	in, err := mgr.NewInput(inConfig)
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second)
+	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	for i := 0; i < 10; i++ {
 		select {
@@ -95,7 +95,7 @@ generate:
 	in, err := mgr.NewInput(inConfig)
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second)
+	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	for i := 0; i < 10; i++ {
 		select {
@@ -193,7 +193,7 @@ generate:
 	in, err := mgr.NewInput(inConfig)
 	require.NoError(t, err)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second)
+	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	for i := 0; i < 10; i++ {
 		select {
@@ -252,7 +252,7 @@ func TestBundleOutputTracing(t *testing.T) {
 		}
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	out.TriggerCloseNow()
@@ -309,7 +309,7 @@ func TestBundleOutputTracingDisabled(t *testing.T) {
 		}
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	out.TriggerCloseNow()
@@ -367,7 +367,7 @@ func TestBundleOutputWithProcessorsTracing(t *testing.T) {
 
 	close(tranChan)
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	require.NoError(t, out.WaitForClose(ctx))
@@ -450,7 +450,7 @@ broker:
 		}
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	out.TriggerCloseNow()
@@ -496,7 +496,7 @@ broker:
 }
 
 func TestBundleProcessorTracing(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	tenv, summary := tracing.TracedBundle(bundle.GlobalEnvironment)
@@ -590,7 +590,7 @@ func TestBundleProcessorTracingError(t *testing.T) {
 }
 
 func TestBundleProcessorTracingDisabled(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	tenv, summary := tracing.TracedBundle(bundle.GlobalEnvironment)

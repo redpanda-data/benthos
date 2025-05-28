@@ -76,7 +76,7 @@ pipeline:
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"switch", switchProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			caseConfs, err := conf.FieldObjectList()
@@ -95,9 +95,6 @@ func init() {
 
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("switch", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 // switchCase contains a condition, processors and other fields for an

@@ -17,7 +17,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"inproc", service.NewConfigSpec().
 			Stable().
 			Categories("Utility").
@@ -41,9 +41,6 @@ It is possible to connect multiple inputs to the same inproc ID, resulting in me
 			out = interop.NewUnwrapInternalOutput(o)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type inprocOutput struct {

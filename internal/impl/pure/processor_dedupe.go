@@ -72,7 +72,7 @@ cache_resources:
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"dedupe", dedupeProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			cache, err := conf.FieldString(dedupFieldCache)
@@ -97,9 +97,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedBatchedProcessor("dedupe", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type dedupeProc struct {

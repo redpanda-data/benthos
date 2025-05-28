@@ -103,7 +103,7 @@ type grokProcConfig struct {
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"grok", grokProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			var g grokProcConfig
@@ -136,9 +136,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("grok", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type grokProc struct {

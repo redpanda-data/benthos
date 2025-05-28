@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -41,7 +40,7 @@ key: ${!json("id")}
 target: foocache
 `)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	require.NoError(t, w.WriteBatch(tCtx, message.QuickBatch([][]byte{
 		[]byte(`{"id":"1","value":"first"}`),
@@ -61,7 +60,7 @@ key: ${!json("id")}
 target: foocache
 `)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	require.NoError(t, w.WriteBatch(tCtx, message.QuickBatch([][]byte{
 		[]byte(`{"id":"1","value":"first"}`),
@@ -90,7 +89,7 @@ target: foocache
 ttl: 2s
 `)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	require.NoError(t, w.WriteBatch(tCtx, message.QuickBatch([][]byte{
 		[]byte(`{"id":"1","value":"first"}`),
@@ -114,7 +113,7 @@ target: foocache
 ttl: 2s
 `)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	require.NoError(t, w.WriteBatch(tCtx, message.QuickBatch([][]byte{
 		[]byte(`{"id":"1","value":"first"}`),
@@ -163,7 +162,7 @@ key: ${!json("key")}
 target: foo
 `)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	exp := map[string]string{}
 	for i := 0; i < 100; i++ {
@@ -176,12 +175,12 @@ target: foo
 	}
 
 	var memCache cache.V1
-	require.NoError(t, mgr.AccessCache(context.Background(), "foo", func(v cache.V1) {
+	require.NoError(t, mgr.AccessCache(t.Context(), "foo", func(v cache.V1) {
 		memCache = v
 	}))
 
 	for k, v := range exp {
-		res, err := memCache.Get(context.Background(), k)
+		res, err := memCache.Get(t.Context(), k)
 		if err != nil {
 			t.Errorf("Missing key '%v': %v", k, err)
 		}
@@ -207,7 +206,7 @@ key: ${!json("key")}
 target: foo
 `)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	exp := map[string]string{}
 	for i := 0; i < 10; i++ {
@@ -224,12 +223,12 @@ target: foo
 	}
 
 	var memCache cache.V1
-	require.NoError(t, mgr.AccessCache(context.Background(), "foo", func(v cache.V1) {
+	require.NoError(t, mgr.AccessCache(t.Context(), "foo", func(v cache.V1) {
 		memCache = v
 	}))
 
 	for k, v := range exp {
-		res, err := memCache.Get(context.Background(), k)
+		res, err := memCache.Get(t.Context(), k)
 		if err != nil {
 			t.Errorf("Missing key '%v': %v", k, err)
 		}

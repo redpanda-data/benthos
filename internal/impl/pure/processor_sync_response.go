@@ -13,7 +13,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor("sync_response", service.NewConfigSpec().
+	service.MustRegisterBatchProcessor("sync_response", service.NewConfigSpec().
 		Categories("Utility").
 		Stable().
 		Summary("Adds the payload in its current state as a synchronous response to the input source, where it is dealt with according to that specific input type.").
@@ -26,9 +26,6 @@ For more information please read xref:guides:sync_responses.adoc[synchronous res
 			p := &syncResponseProc{log: interop.UnwrapManagement(mgr).Logger()}
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type syncResponseProc struct {

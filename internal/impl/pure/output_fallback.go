@@ -18,7 +18,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"fallback", service.NewConfigSpec().
 			Stable().
 			Categories("Utility").
@@ -80,9 +80,6 @@ However, depending on the output and the error returned it is sometimes not poss
 			out = interop.NewUnwrapInternalOutput(w)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

@@ -43,16 +43,13 @@ The execution environment of the subprocess is the same as the Redpanda Connect 
 }
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"subprocess", subprocOutputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			maxInFlight = 1
 			out, err = newSubprocessWriterFromParsed(conf, mgr.Logger())
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

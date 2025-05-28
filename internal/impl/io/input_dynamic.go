@@ -60,7 +60,7 @@ Returns the uptime of an input as a duration string (of the form "72h3m0.5s"), o
 }
 
 func init() {
-	err := service.RegisterBatchInput("dynamic", dynInputSpec(),
+	service.MustRegisterBatchInput("dynamic", dynInputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 			i, err := newDynamicInputFromParsed(conf, mgr)
 			if err != nil {
@@ -68,9 +68,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalInput(i), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func dynInputAnyToYAMLConf(v any) []byte {

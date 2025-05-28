@@ -3,7 +3,6 @@
 package service
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,20 +25,20 @@ a:
 	input, err := parsedConfig.FieldInput("a")
 	require.NoError(t, err)
 
-	res, aFn, err := input.ReadBatch(context.Background())
+	res, aFn, err := input.ReadBatch(t.Context())
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 
-	require.NoError(t, aFn(context.Background(), nil))
+	require.NoError(t, aFn(t.Context(), nil))
 
 	resBytes, err := res[0].AsBytes()
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", string(resBytes))
 
-	_, _, err = input.ReadBatch(context.Background())
+	_, _, err = input.ReadBatch(t.Context())
 	require.Equal(t, ErrEndOfInput, err)
 
-	require.NoError(t, input.Close(context.Background()))
+	require.NoError(t, input.Close(t.Context()))
 }
 
 func TestConfigInputList(t *testing.T) {
@@ -63,32 +62,32 @@ a:
 	require.NoError(t, err)
 	require.Len(t, inputs, 2)
 
-	res, aFn, err := inputs[0].ReadBatch(context.Background())
+	res, aFn, err := inputs[0].ReadBatch(t.Context())
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 
-	require.NoError(t, aFn(context.Background(), nil))
+	require.NoError(t, aFn(t.Context(), nil))
 
 	resBytes, err := res[0].AsBytes()
 	require.NoError(t, err)
 	assert.Equal(t, "hello world", string(resBytes))
 
-	_, _, err = inputs[0].ReadBatch(context.Background())
+	_, _, err = inputs[0].ReadBatch(t.Context())
 	require.Equal(t, ErrEndOfInput, err)
 
-	res, aFn, err = inputs[1].ReadBatch(context.Background())
+	res, aFn, err = inputs[1].ReadBatch(t.Context())
 	require.NoError(t, err)
 	require.Len(t, res, 1)
 
-	require.NoError(t, aFn(context.Background(), nil))
+	require.NoError(t, aFn(t.Context(), nil))
 
 	resBytes, err = res[0].AsBytes()
 	require.NoError(t, err)
 	assert.Equal(t, "hello world two", string(resBytes))
 
-	_, _, err = inputs[1].ReadBatch(context.Background())
+	_, _, err = inputs[1].ReadBatch(t.Context())
 	require.Equal(t, ErrEndOfInput, err)
 
-	require.NoError(t, inputs[0].Close(context.Background()))
-	require.NoError(t, inputs[1].Close(context.Background()))
+	require.NoError(t, inputs[0].Close(t.Context()))
+	require.NoError(t, inputs[1].Close(t.Context()))
 }

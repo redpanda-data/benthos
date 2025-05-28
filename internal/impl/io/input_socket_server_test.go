@@ -44,8 +44,8 @@ func socketServerInputFromConf(t testing.TB, confStr string, bits ...any) (input
 
 	addr := ""
 	require.Eventually(t, func() bool {
-		_ = mgr.AccessCache(context.Background(), "testcache", func(v cache.V1) {
-			res, _ := v.Get(context.Background(), "socket_server_address")
+		_ = mgr.AccessCache(t.Context(), "testcache", func(v cache.V1) {
+			res, _ := v.Get(t.Context(), "socket_server_address")
 			addr = string(res)
 		})
 		return addr != ""
@@ -55,7 +55,7 @@ func socketServerInputFromConf(t testing.TB, confStr string, bits ...any) (input
 }
 
 func TestSocketServerBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -120,7 +120,7 @@ socket_server:
 }
 
 func TestSocketServerRetries(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -200,7 +200,7 @@ socket_server:
 }
 
 func TestSocketServerWriteClosed(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -229,7 +229,7 @@ socket_server:
 }
 
 func TestSocketServerRecon(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -300,7 +300,7 @@ socket_server:
 }
 
 func TestSocketServerMpart(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Minute)
+	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -365,7 +365,7 @@ socket_server:
 }
 
 func TestSocketServerMpartCDelim(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -430,7 +430,7 @@ socket_server:
 }
 
 func TestSocketServerMpartSdown(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	tmpDir := t.TempDir()
@@ -496,7 +496,7 @@ socket_server:
 }
 
 func TestSocketUDPServerBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -561,7 +561,7 @@ socket_server:
 }
 
 func TestSocketUDPServerRetries(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -641,7 +641,7 @@ socket_server:
 }
 
 func TestUDPServerWriteToClosed(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -668,7 +668,7 @@ socket_server:
 }
 
 func TestSocketUDPServerReconnect(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -737,7 +737,7 @@ socket_server:
 }
 
 func TestSocketUDPServerCustomDelim(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -811,7 +811,7 @@ socket_server:
 }
 
 func TestSocketUDPServerShutdown(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -884,7 +884,7 @@ socket_server:
 }
 
 func TestTCPSocketServerBasic(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -949,7 +949,7 @@ socket_server:
 }
 
 func TestTCPSocketServerReconnect(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -1019,7 +1019,7 @@ socket_server:
 }
 
 func TestTCPSocketServerMultipart(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -1083,7 +1083,7 @@ socket_server:
 }
 
 func TestTCPSocketServerMultipartCustomDelim(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -1147,7 +1147,7 @@ socket_server:
 }
 
 func TestTCPSocketServerMultipartShutdown(t *testing.T) {
-	ctx, done := context.WithTimeout(context.Background(), time.Second*20)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -1211,7 +1211,7 @@ socket_server:
 }
 
 func TestTLSSocketServerBasic(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*20)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `
@@ -1280,7 +1280,7 @@ socket_server:
 }
 
 func TestTLSSocketServerClientAuthRequireValid(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*20)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	rdr, addr := socketServerInputFromConf(t, `

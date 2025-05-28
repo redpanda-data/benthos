@@ -141,7 +141,7 @@ func newStreamTestEnvironment(t testing.TB, confTemplate string) streamTestEnvir
 			},
 		},
 		timeout: time.Second * 90,
-		ctx:     context.Background(),
+		ctx:     t.Context(),
 		log:     log.Noop(),
 		stats:   metrics.Noop(),
 	}

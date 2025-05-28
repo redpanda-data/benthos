@@ -102,7 +102,7 @@ The greedy pattern results in higher output throughput at the cost of potentiall
 var ErrBrokerNoOutputs = errors.New("attempting to create broker output type with no outputs")
 
 func init() {
-	err := service.RegisterBatchOutput(
+	service.MustRegisterBatchOutput(
 		"broker", brokerOutputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			var bi output.Streamed
@@ -112,9 +112,6 @@ func init() {
 			out = interop.NewUnwrapInternalOutput(bi)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

@@ -97,7 +97,7 @@ func TestManagerResourceCRUD(t *testing.T) {
 	mgr, err := manager.New(conf)
 	require.NoError(t, err)
 
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*30)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	inConf := input.NewConfig()
@@ -179,13 +179,13 @@ func TestManagerCacheList(t *testing.T) {
 	mgr, err := manager.New(conf)
 	require.NoError(t, err)
 
-	err = mgr.AccessCache(context.Background(), "foo", func(cache.V1) {})
+	err = mgr.AccessCache(t.Context(), "foo", func(cache.V1) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessCache(context.Background(), "bar", func(cache.V1) {})
+	err = mgr.AccessCache(t.Context(), "bar", func(cache.V1) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessCache(context.Background(), "baz", func(cache.V1) {})
+	err = mgr.AccessCache(t.Context(), "baz", func(cache.V1) {})
 	assert.EqualError(t, err, "unable to locate resource: baz")
 }
 
@@ -218,9 +218,10 @@ func TestManagerBadCache(t *testing.T) {
 	badConf.Type = "notexist"
 	conf.ResourceCaches = append(conf.ResourceCaches, badConf)
 
-	if _, err := manager.New(conf); err == nil {
-		t.Fatal("Expected error from bad cache")
-	}
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	require.Error(t, mgr.AccessCache(t.Context(), "bad", nil))
 }
 
 func TestManagerRateLimit(t *testing.T) {
@@ -257,13 +258,13 @@ func TestManagerRateLimitList(t *testing.T) {
 	mgr, err := manager.New(conf)
 	require.NoError(t, err)
 
-	err = mgr.AccessRateLimit(context.Background(), "foo", func(ratelimit.V1) {})
+	err = mgr.AccessRateLimit(t.Context(), "foo", func(ratelimit.V1) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessRateLimit(context.Background(), "bar", func(ratelimit.V1) {})
+	err = mgr.AccessRateLimit(t.Context(), "bar", func(ratelimit.V1) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessRateLimit(context.Background(), "baz", func(ratelimit.V1) {})
+	err = mgr.AccessRateLimit(t.Context(), "baz", func(ratelimit.V1) {})
 	assert.EqualError(t, err, "unable to locate resource: baz")
 }
 
@@ -295,9 +296,10 @@ func TestManagerBadRateLimit(t *testing.T) {
 	badConf.Label = "bad"
 	conf.ResourceRateLimits = append(conf.ResourceRateLimits, badConf)
 
-	if _, err := manager.New(conf); err == nil {
-		t.Fatal("Expected error from bad rate limit")
-	}
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	require.Error(t, mgr.AccessCache(t.Context(), "bad", nil))
 }
 
 func TestManagerProcessor(t *testing.T) {
@@ -334,13 +336,13 @@ func TestManagerProcessorList(t *testing.T) {
 	mgr, err := manager.New(conf)
 	require.NoError(t, err)
 
-	err = mgr.AccessProcessor(context.Background(), "foo", func(processor.V1) {})
+	err = mgr.AccessProcessor(t.Context(), "foo", func(processor.V1) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessProcessor(context.Background(), "bar", func(processor.V1) {})
+	err = mgr.AccessProcessor(t.Context(), "bar", func(processor.V1) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessProcessor(context.Background(), "baz", func(processor.V1) {})
+	err = mgr.AccessProcessor(t.Context(), "baz", func(processor.V1) {})
 	assert.EqualError(t, err, "unable to locate resource: baz")
 }
 
@@ -386,13 +388,13 @@ generate:
 	mgr, err := manager.New(conf)
 	require.NoError(t, err)
 
-	err = mgr.AccessInput(context.Background(), "foo", func(i input.Streamed) {})
+	err = mgr.AccessInput(t.Context(), "foo", func(i input.Streamed) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessInput(context.Background(), "bar", func(i input.Streamed) {})
+	err = mgr.AccessInput(t.Context(), "bar", func(i input.Streamed) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessInput(context.Background(), "baz", func(i input.Streamed) {})
+	err = mgr.AccessInput(t.Context(), "baz", func(i input.Streamed) {})
 	assert.EqualError(t, err, "unable to locate resource: baz")
 }
 
@@ -432,13 +434,13 @@ func TestManagerOutputList(t *testing.T) {
 	mgr, err := manager.New(conf)
 	require.NoError(t, err)
 
-	err = mgr.AccessOutput(context.Background(), "foo", func(ow output.Sync) {})
+	err = mgr.AccessOutput(t.Context(), "foo", func(ow output.Sync) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessOutput(context.Background(), "bar", func(ow output.Sync) {})
+	err = mgr.AccessOutput(t.Context(), "bar", func(ow output.Sync) {})
 	require.NoError(t, err)
 
-	err = mgr.AccessOutput(context.Background(), "baz", func(ow output.Sync) {})
+	err = mgr.AccessOutput(t.Context(), "baz", func(ow output.Sync) {})
 	assert.EqualError(t, err, "unable to locate resource: baz")
 }
 
@@ -542,11 +544,15 @@ func TestManagerPipeGetSet(t *testing.T) {
 	}
 }
 
-type testKeyTypeA int
-type testKeyTypeB int
+type (
+	testKeyTypeA int
+	testKeyTypeB int
+)
 
-const testKeyA testKeyTypeA = iota
-const testKeyB testKeyTypeB = iota
+const (
+	testKeyA testKeyTypeA = iota
+	testKeyB testKeyTypeB = iota
+)
 
 func TestManagerGenericResources(t *testing.T) {
 	mgr, err := manager.New(manager.NewResourceConfig())

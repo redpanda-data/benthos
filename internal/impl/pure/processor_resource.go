@@ -15,7 +15,7 @@ import (
 )
 
 func init() {
-	err := service.RegisterBatchProcessor("resource", service.NewConfigSpec().
+	service.MustRegisterBatchProcessor("resource", service.NewConfigSpec().
 		Stable().
 		Categories("Utility").
 		Summary("Resource is a processor type that runs a processor resource identified by its label.").
@@ -59,9 +59,6 @@ You can find out more about resources in xref:configuration:resources.adoc[]`).
 			}
 			return interop.NewUnwrapInternalBatchProcessor(p), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type resourceProcessor struct {

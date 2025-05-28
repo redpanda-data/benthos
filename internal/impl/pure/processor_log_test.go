@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -51,7 +50,7 @@ log:
 
 		input := message.QuickBatch([][]byte{[]byte(fmt.Sprintf(`{"foo":"%v"}`, level))})
 		expMsgs := []message.Batch{input}
-		actMsgs, res := l.ProcessBatch(context.Background(), input)
+		actMsgs, res := l.ProcessBatch(t.Context(), input)
 		if res != nil {
 			t.Fatal(res)
 		}
@@ -100,7 +99,7 @@ log:
 
 	input := message.QuickBatch([][]byte{[]byte(`{"foo":"info message","bar":"with fields"}`)})
 	expMsgs := []message.Batch{input}
-	actMsgs, res := l.ProcessBatch(context.Background(), input)
+	actMsgs, res := l.ProcessBatch(t.Context(), input)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -121,7 +120,7 @@ log:
 
 	input = message.QuickBatch([][]byte{[]byte(`{"foo":"info message 2","bar":"with fields 2"}`)})
 	expMsgs = []message.Batch{input}
-	actMsgs, res = l.ProcessBatch(context.Background(), input)
+	actMsgs, res = l.ProcessBatch(t.Context(), input)
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -168,7 +167,7 @@ log:
 		`{"age":10,"is_cool":true,"ignore":"this value please"}`,
 	)})
 	expMsgs := []message.Batch{input}
-	actMsgs, res := l.ProcessBatch(context.Background(), input)
+	actMsgs, res := l.ProcessBatch(t.Context(), input)
 	require.NoError(t, res)
 	assert.Equal(t, expMsgs, actMsgs)
 

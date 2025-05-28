@@ -3,7 +3,6 @@
 package pure
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,7 +31,7 @@ processors:
 	proc, err := newCachedProcessorFromParsedConf(mRes, conf)
 	require.NoError(t, err)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	resBatchA1, err := proc.Process(tCtx, service.NewMessage([]byte("keya")))
 	require.NoError(t, err)
@@ -109,7 +108,7 @@ processors:
 	proc, err := newCachedProcessorFromParsedConf(mRes, conf)
 	require.NoError(t, err)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	msg := service.NewMessage([]byte(``))
 	msg.MetaSet("key", "keya")
@@ -174,7 +173,7 @@ processors:
 	proc, err := newCachedProcessorFromParsedConf(mRes, conf)
 	require.NoError(t, err)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	resBatchA1, err := proc.Process(tCtx, service.NewMessage([]byte("keya")))
 	require.NoError(t, err)
@@ -223,7 +222,7 @@ processors:
 	proc, err := newCachedProcessorFromParsedConf(mRes, conf)
 	require.NoError(t, err)
 
-	tCtx := context.Background()
+	tCtx := t.Context()
 
 	resBatchA1, err := proc.Process(tCtx, service.NewMessage([]byte("keya")))
 	assert.EqualError(t, err, `failed to parse ttl expression: time: missing unit in duration "4"`)

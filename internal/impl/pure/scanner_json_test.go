@@ -62,18 +62,18 @@ nope !@ not good json
 	}, &service.ScannerSourceDetails{})
 	require.NoError(t, err)
 
-	resBatch, aFn, err := scanner.NextBatch(context.Background())
+	resBatch, aFn, err := scanner.NextBatch(t.Context())
 	require.NoError(t, err)
-	require.NoError(t, aFn(context.Background(), nil))
+	require.NoError(t, aFn(t.Context(), nil))
 	require.Len(t, resBatch, 1)
 	mBytes, err := resBatch[0].AsBytes()
 	require.NoError(t, err)
 	assert.Equal(t, `{"a":"a0"}`, string(mBytes))
 
-	_, _, err = scanner.NextBatch(context.Background())
+	_, _, err = scanner.NextBatch(t.Context())
 	assert.Error(t, err)
 
-	_, _, err = scanner.NextBatch(context.Background())
+	_, _, err = scanner.NextBatch(t.Context())
 	assert.ErrorIs(t, err, io.EOF)
 
 	assert.ErrorContains(t, ack, "invalid character")

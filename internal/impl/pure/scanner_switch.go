@@ -64,13 +64,10 @@ input:
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("switch", switchScannerSpec(),
+	service.MustRegisterBatchScannerCreator("switch", switchScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return switchScannerFromParsed(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func switchScannerFromParsed(conf *service.ParsedConfig) (l *switchScannerCreator, err error) {

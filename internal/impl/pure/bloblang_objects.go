@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	if err := bloblang.RegisterMethodV2("squash",
+	bloblang.MustRegisterMethodV2("squash",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryObjectAndArray).
 			Description("Squashes an array of objects into a single object, where key collisions result in the values being merged (following similar rules as the `.merge()` method)").
@@ -34,11 +34,9 @@ func init() {
 				}
 				return root.Data(), nil
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("with",
+	bloblang.MustRegisterMethodV2("with",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryObjectAndArray).
 			Variadic().
@@ -63,11 +61,9 @@ If a key within a nested path does not exist then it is ignored.`).
 			return bloblang.ObjectMethod(func(i map[string]any) (any, error) {
 				return mapWith(i, includeList), nil
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("concat",
+	bloblang.MustRegisterMethodV2("concat",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryObjectAndArray).
 			Variadic().
@@ -98,11 +94,9 @@ If a key within a nested path does not exist then it is ignored.`).
 				}
 				return resSlice, nil
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 
-	if err := bloblang.RegisterMethodV2("zip",
+	bloblang.MustRegisterMethodV2("zip",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryObjectAndArray).
 			Variadic().
@@ -147,9 +141,7 @@ If a key within a nested path does not exist then it is ignored.`).
 				}
 				return resSlice, nil
 			}), nil
-		}); err != nil {
-		panic(err)
-	}
+		})
 }
 
 func mapWith(m map[string]any, paths [][]string) map[string]any {

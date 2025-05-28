@@ -92,7 +92,7 @@ dropped.`).
 }
 
 func init() {
-	err := service.RegisterBatchProcessor(
+	service.MustRegisterBatchProcessor(
 		"json_schema", jschemaProcSpec(),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			schemaStr, _ := conf.FieldString(jschemaPFieldSchema)
@@ -104,9 +104,6 @@ func init() {
 			}
 			return interop.NewUnwrapInternalBatchProcessor(processor.NewAutoObservedProcessor("json_schema", p, mgr)), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type jsonSchemaProc struct {

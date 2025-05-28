@@ -48,7 +48,7 @@ cache_resources:
 }
 
 func init() {
-	err := service.RegisterCache(
+	service.MustRegisterCache(
 		"multilevel", multilevelCacheConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Cache, error) {
 			levels, err := conf.FieldStringList()
@@ -57,9 +57,6 @@ func init() {
 			}
 			return newMultilevelCache(levels, mgr, mgr.Logger())
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 //------------------------------------------------------------------------------

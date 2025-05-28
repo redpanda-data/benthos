@@ -3,7 +3,6 @@
 package pure_test
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -33,7 +32,7 @@ for_each: []
 	exp := [][]byte{
 		[]byte("foo bar baz"),
 	}
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(exp))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(exp))
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -68,7 +67,7 @@ for_each:
 		[]byte("MSAyIDMgNA=="),
 		[]byte("aGVsbG8gZm9vIHdvcmxk"),
 	}
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(parts))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(parts))
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -102,7 +101,7 @@ for_each:
 		[]byte("foo bar baz"),
 		[]byte("hello foo world"),
 	}
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(parts))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(parts))
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -137,7 +136,7 @@ for_each:
 		[]byte("Zm9vIGJhciBiYXo="),
 		[]byte("aGVsbG8gZm9vIHdvcmxk"),
 	}
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(parts))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(parts))
 	if res != nil {
 		t.Fatal(res)
 	}
@@ -167,7 +166,7 @@ for_each:
 		[]byte("1 2 3 4"),
 		[]byte("hello world"),
 	}
-	msgs, res := proc.ProcessBatch(context.Background(), message.QuickBatch(parts))
+	msgs, res := proc.ProcessBatch(t.Context(), message.QuickBatch(parts))
 	assert.NoError(t, res)
 	if len(msgs) != 0 {
 		t.Errorf("Wrong count of result msgs: %v", len(msgs))

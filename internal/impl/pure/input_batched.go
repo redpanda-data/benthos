@@ -20,7 +20,7 @@ func batchedInputConfig() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchInput(
+	service.MustRegisterBatchInput(
 		"batched", batchedInputConfig(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
 			child, err := conf.FieldInput("child")
@@ -42,7 +42,4 @@ func init() {
 			sChild := interop.UnwrapOwnedInput(child)
 			return interop.NewUnwrapInternalInput(sChild), nil
 		})
-	if err != nil {
-		panic(err)
-	}
 }

@@ -31,13 +31,10 @@ func reMatchScannerSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("re_match", reMatchScannerSpec(),
+	service.MustRegisterBatchScannerCreator("re_match", reMatchScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return reMatchScannerFromParsed(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func reMatchScannerFromParsed(conf *service.ParsedConfig) (l *reMatchScanner, err error) {

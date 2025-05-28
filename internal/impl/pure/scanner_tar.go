@@ -27,13 +27,10 @@ This scanner adds the following metadata to each message:
 }
 
 func init() {
-	err := service.RegisterBatchScannerCreator("tar", tarScannerSpec(),
+	service.MustRegisterBatchScannerCreator("tar", tarScannerSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
 			return tarScannerFromParsed(conf)
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 func tarScannerFromParsed(conf *service.ParsedConfig) (l *tarScannerCreator, err error) {

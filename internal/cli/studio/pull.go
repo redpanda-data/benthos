@@ -58,6 +58,11 @@ files and execute them, replacing the previous stream running.`[1:],
 				Value: false,
 				Usage: "Whether to send trace data back to Studio during execution. This is opt-in and is used as a way to add trace events to the graph editor for testing and debugging configs. This is a very useful feature but should be used with caution as it exports information about messages passing through the stream.",
 			},
+			&cli.StringFlag{
+				Name:  "api-path-prefix",
+				Value: "api",
+				Usage: "Specify the API path prefix of the Benthos studio server to connect to.",
+			},
 		},
 		Action: func(c *cli.Context) error {
 			// Start off by warning about all unsupported flags

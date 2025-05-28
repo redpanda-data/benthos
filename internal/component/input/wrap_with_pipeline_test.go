@@ -103,7 +103,7 @@ func TestBasicWrapPipeline(t *testing.T) {
 		t.Error("Wrong transactions chan in mock pipe")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	newInput.TriggerStopConsuming()
@@ -174,7 +174,7 @@ func TestBasicWrapMultiPipelines(t *testing.T) {
 		t.Error("Wrong messages chan in mock pipe 2")
 	}
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	newInput.TriggerStopConsuming()
@@ -215,7 +215,7 @@ func (m mockProc) Close(ctx context.Context) error {
 //------------------------------------------------------------------------------
 
 func TestBasicWrapProcessors(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*20)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	mockIn := &mockInput{ts: make(chan message.Transaction)}
@@ -286,7 +286,7 @@ func TestBasicWrapProcessors(t *testing.T) {
 }
 
 func TestBasicWrapDoubleProcessors(t *testing.T) {
-	tCtx, done := context.WithTimeout(context.Background(), time.Second*20)
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
 	mockIn := &mockInput{ts: make(chan message.Transaction)}

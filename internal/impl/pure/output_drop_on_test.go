@@ -56,6 +56,7 @@ drop_on:
 	d, err := bmock.NewManager().NewOutput(dropConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
+		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		d.TriggerCloseNow()
 		assert.NoError(t, d.WaitForClose(ctx))
@@ -103,6 +104,7 @@ drop_on:
 	d, err := bmock.NewManager().NewOutput(dropConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
+		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		d.TriggerCloseNow()
 		assert.NoError(t, d.WaitForClose(ctx))
@@ -179,7 +181,7 @@ drop_on:
 	d, err := bmock.NewManager().NewOutput(dropConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		d.TriggerCloseNow()
 		assert.NoError(t, d.WaitForClose(ctx))
 		done()
@@ -268,7 +270,7 @@ drop_on:
 	d, err := bmock.NewManager().NewOutput(dropConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 		d.TriggerCloseNow()
 		assert.NoError(t, d.WaitForClose(ctx))
 		done()
@@ -339,6 +341,7 @@ drop_on:
 	d, err := bmock.NewManager().NewOutput(dropConf)
 	require.NoError(t, err)
 	t.Cleanup(func() {
+		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		d.TriggerCloseNow()
 		assert.NoError(t, d.WaitForClose(ctx))

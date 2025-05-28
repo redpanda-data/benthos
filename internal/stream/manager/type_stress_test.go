@@ -23,7 +23,7 @@ import (
 func TestTypeUnderStress(t *testing.T) {
 	t.Skip("Skipping long running stress test")
 
-	ctx, done := context.WithTimeout(context.Background(), time.Second*30)
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
 	res, err := bmanager.New(bmanager.NewResourceConfig())

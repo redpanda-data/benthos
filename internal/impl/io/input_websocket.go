@@ -61,7 +61,7 @@ func websocketInputSpec() *service.ConfigSpec {
 }
 
 func init() {
-	err := service.RegisterBatchInput(
+	service.MustRegisterBatchInput(
 		"websocket", websocketInputSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (in service.BatchInput, err error) {
 			oldMgr := interop.UnwrapManagement(mgr)
@@ -86,9 +86,6 @@ func init() {
 			in = interop.NewUnwrapInternalInput(i)
 			return
 		})
-	if err != nil {
-		panic(err)
-	}
 }
 
 type websocketReader struct {
