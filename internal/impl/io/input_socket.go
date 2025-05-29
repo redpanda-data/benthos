@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	isFieldNetwork = "network"
-	isFieldAddress = "address"
-	isFieldMapping = "open_message_mapping"
+	isFieldNetwork            = "network"
+	isFieldAddress            = "address"
+	isFieldOpenMessageMapping = "open_message_mapping"
 )
 
 func socketInputSpec() *service.ConfigSpec {
@@ -34,8 +34,8 @@ func socketInputSpec() *service.ConfigSpec {
 				Description("The address to connect to.").
 				Examples("/tmp/benthos.sock", "127.0.0.1:6000"),
 			service.NewAutoRetryNacksToggleField(),
-			service.NewBloblangField(isFieldMapping).
-				Description("An optional xref:guides:bloblang/about.adoc[Bloblang mapping] which should evaluate to string sent upstream before downstream data flow starts.").
+			service.NewBloblangField(isFieldOpenMessageMapping).
+				Description("An optional xref:guides:bloblang/about.adoc[Bloblang mapping] which should evaluate to a string which will be sent upstream before the downstream data flow starts.").
 				Example(`root = "username,password"`).
 				Optional(),
 		).
@@ -56,10 +56,10 @@ func init() {
 type socketReader struct {
 	log *service.Logger
 
-	address        string
-	network        string
-	codecCtor      codec.DeprecatedFallbackCodec
-	openMsgMapping *bloblang.Executor
+	address            string
+	network            string
+	codecCtor          codec.DeprecatedFallbackCodec
+	openMessageMapping *bloblang.Executor
 
 	codecMut sync.Mutex
 	codec    codec.DeprecatedFallbackStream
@@ -78,8 +78,8 @@ func newSocketReaderFromParsed(pConf *service.ParsedConfig, mgr *service.Resourc
 	if rdr.codecCtor, err = codec.DeprecatedCodecFromParsed(pConf); err != nil {
 		return
 	}
-	if pConf.Contains(isFieldMapping) {
-		if rdr.openMsgMapping, err = pConf.FieldBloblang(isFieldMapping); err != nil {
+	if pConf.Contains(isFieldOpenMessageMapping) {
+		if rdr.openMessageMapping, err = pConf.FieldBloblang(isFieldOpenMessageMapping); err != nil {
 			return nil, err
 		}
 	}
@@ -106,23 +106,23 @@ func (s *socketReader) Connect(ctx context.Context) error {
 		return err
 	}
 
-	if s.openMsgMapping != nil {
-		var mapping_result any
-		if mapping_result, err = s.openMsgMapping.Query(nil); err != nil {
-			return err
-		}
-
-		var open_message string
-		var ok bool
-		if open_message, ok = mapping_result.(string); !ok {
-			err = fmt.Errorf("mapping returned non-string result: %T", mapping_result)
-			return err
-		}
-
-		if open_message != "" {
-			if _, err := conn.Write([]byte(open_message)); err != nil {
-				return err
+	if s.openMessageMapping != nil {
+		var openMessage string
+		if queryResult, err := s.openMessageMapping.Query(nil); err != nil {
+			return fmt.Errorf("open message mapping failed: %s", err)
+		} else {
+			var ok bool
+			if openMessage, ok = queryResult.(string); !ok {
+				return fmt.Errorf("open message mapping returned non-string result: %T", queryResult)
 			}
+
+			if openMessage == "" {
+				return errors.New("open message mapping returned empty string")
+			}
+		}
+
+		if _, err := conn.Write([]byte(openMessage)); err != nil {
+			return fmt.Errorf("failed to write open message: %s", err)
 		}
 	}
 
