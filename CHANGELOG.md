@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 - CLI flag `--env-file` added to the `blobl` command. (@mihaitodor)
 - Go API: New `ComponentLinter` APIs for linting general component configs. (@Jeffail)
+- New `bitwise_and`, `bitwise_or`, and `bitwise_xor` bloblang methods. (@eadwright)
 
 ### Fixed
 

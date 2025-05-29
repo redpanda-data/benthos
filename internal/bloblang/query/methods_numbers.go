@@ -246,8 +246,10 @@ var _ = registerSimpleMethod(
 			`root.new_value = this.value.bitwise_and(6)`,
 			`{"value":12}`,
 			`{"new_value":4}`,
-			`{"value":14}`,
-			`{"new_value":6}`,
+			`{"value":0}`,
+			`{"new_value":0}`,
+			`{"value":-4}`,
+			`{"new_value":4}`,
 		),
 	).Param(ParamInt64("value", "The value to AND with")),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -256,7 +258,7 @@ var _ = registerSimpleMethod(
 			return nil, err
 		}
 
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			lhs, err := value.IGetInt(v)
 			if err != nil {
 				return nil, value.NewTypeError(v, value.TInt)
@@ -277,8 +279,10 @@ var _ = registerSimpleMethod(
 			`root.new_value = this.value.bitwise_or(6)`,
 			`{"value":12}`,
 			`{"new_value":14}`,
-			`{"value":14}`,
-			`{"new_value":14}`,
+			`{"value":0}`,
+			`{"new_value":6}`,
+			`{"value":-2}`,
+			`{"new_value":-2}`,
 		),
 	).Param(ParamInt64("value", "The value to OR with")),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -287,7 +291,7 @@ var _ = registerSimpleMethod(
 			return nil, err
 		}
 
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			lhs, err := value.IGetInt(v)
 			if err != nil {
 				return nil, value.NewTypeError(v, value.TInt)
@@ -308,8 +312,10 @@ var _ = registerSimpleMethod(
 			`root.new_value = this.value.bitwise_xor(6)`,
 			`{"value":12}`,
 			`{"new_value":10}`,
-			`{"value":6}`,
-			`{"new_value":0}`,
+			`{"value":0}`,
+			`{"new_value":6}`,
+			`{"value":-2}`,
+			`{"new_value":-8}`,
 		),
 	).Param(ParamInt64("value", "The value to XOR with")),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -318,7 +324,7 @@ var _ = registerSimpleMethod(
 			return nil, err
 		}
 
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			lhs, err := value.IGetInt(v)
 			if err != nil {
 				return nil, value.NewTypeError(v, value.TInt)

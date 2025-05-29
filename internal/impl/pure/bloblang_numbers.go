@@ -230,66 +230,6 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 			}), nil
 		})
 
-	bloblang.MustRegisterMethodV2("bitwise_and",
-		bloblang.NewPluginSpec().
-			Category(query.MethodCategoryNumbers).
-			Description(`Returns the number bitwise AND-ed with the specified value.`).
-			Example("", `root.new_value = this.value.bitwise_and(6)`,
-				[2]string{`{"value":12}`, `{"new_value":4}`}).
-			Example("", `root.new_value = this.value.bitwise_and(3)`,
-				[2]string{`{"value":14}`, `{"new_value":2}`}).
-			Param(bloblang.NewInt64Param("value").
-				Description("The value you wish to AND with.")),
-		func(args *bloblang.ParsedParams) (bloblang.Method, error) {
-			return bloblang.Int64Method(func(input int64) (any, error) {
-				value, err := args.GetInt64("value")
-				if err != nil {
-					return nil, err
-				}
-				return input & value, nil
-			}), nil
-		})
-
-	bloblang.MustRegisterMethodV2("bitwise_or",
-		bloblang.NewPluginSpec().
-			Category(query.MethodCategoryNumbers).
-			Description(`Returns the number bitwise OR-ed with the specified value.`).
-			Example("", `root.new_value = this.value.bitwise_or(6)`,
-				[2]string{`{"value":12}`, `{"new_value":14}`}).
-			Example("", `root.new_value = this.value.bitwise_or(3)`,
-				[2]string{`{"value":14}`, `{"new_value":15}`}).
-			Param(bloblang.NewInt64Param("value").
-				Description("The value you wish to OR with.")),
-		func(args *bloblang.ParsedParams) (bloblang.Method, error) {
-			return bloblang.Int64Method(func(input int64) (any, error) {
-				value, err := args.GetInt64("value")
-				if err != nil {
-					return nil, err
-				}
-				return input | value, nil
-			}), nil
-		})
-
-	bloblang.MustRegisterMethodV2("bitwise_xor",
-		bloblang.NewPluginSpec().
-			Category(query.MethodCategoryNumbers).
-			Description(`Returns the number bitwise XOR-ed with the specified value.`).
-			Example("", `root.new_value = this.value.bitwise_xor(6)`,
-				[2]string{`{"value":12}`, `{"new_value":10}`}).
-			Example("", `root.new_value = this.value.bitwise_xor(3)`,
-				[2]string{`{"value":14}`, `{"new_value":13}`}).
-			Param(bloblang.NewInt64Param("value").
-				Description("The value you wish to XOR with.")),
-		func(args *bloblang.ParsedParams) (bloblang.Method, error) {
-			return bloblang.Int64Method(func(input int64) (any, error) {
-				value, err := args.GetInt64("value")
-				if err != nil {
-					return nil, err
-				}
-				return input ^ value, nil
-			}), nil
-		})
-
 	//------------------------------------------------------------------------------
 
 	bloblang.MustRegisterFunctionV2("pi",
