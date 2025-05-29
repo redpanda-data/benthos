@@ -5,18 +5,21 @@ package io
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
 
 	"github.com/redpanda-data/benthos/v4/internal/component"
+	"github.com/redpanda-data/benthos/v4/public/bloblang"
 	"github.com/redpanda-data/benthos/v4/public/service"
 	"github.com/redpanda-data/benthos/v4/public/service/codec"
 )
 
 const (
-	isFieldNetwork = "network"
-	isFieldAddress = "address"
+	isFieldNetwork            = "network"
+	isFieldAddress            = "address"
+	isFieldOpenMessageMapping = "open_message_mapping"
 )
 
 func socketInputSpec() *service.ConfigSpec {
@@ -31,6 +34,10 @@ func socketInputSpec() *service.ConfigSpec {
 				Description("The address to connect to.").
 				Examples("/tmp/benthos.sock", "127.0.0.1:6000"),
 			service.NewAutoRetryNacksToggleField(),
+			service.NewBloblangField(isFieldOpenMessageMapping).
+				Description("An optional xref:guides:bloblang/about.adoc[Bloblang mapping] which should evaluate to a string which will be sent upstream before the downstream data flow starts.").
+				Example(`root = "username,password"`).
+				Optional(),
 		).
 		Fields(codec.DeprecatedCodecFields("lines")...)
 }
@@ -49,9 +56,10 @@ func init() {
 type socketReader struct {
 	log *service.Logger
 
-	address   string
-	network   string
-	codecCtor codec.DeprecatedFallbackCodec
+	address            string
+	network            string
+	codecCtor          codec.DeprecatedFallbackCodec
+	openMessageMapping *bloblang.Executor
 
 	codecMut sync.Mutex
 	codec    codec.DeprecatedFallbackStream
@@ -69,6 +77,11 @@ func newSocketReaderFromParsed(pConf *service.ParsedConfig, mgr *service.Resourc
 	}
 	if rdr.codecCtor, err = codec.DeprecatedCodecFromParsed(pConf); err != nil {
 		return
+	}
+	if pConf.Contains(isFieldOpenMessageMapping) {
+		if rdr.openMessageMapping, err = pConf.FieldBloblang(isFieldOpenMessageMapping); err != nil {
+			return nil, err
+		}
 	}
 	return
 }
@@ -92,6 +105,27 @@ func (s *socketReader) Connect(ctx context.Context) error {
 		conn.Close()
 		return err
 	}
+
+	if s.openMessageMapping != nil {
+		var openMessage string
+		if queryResult, err := s.openMessageMapping.Query(nil); err != nil {
+			return fmt.Errorf("open message mapping failed: %s", err)
+		} else {
+			var ok bool
+			if openMessage, ok = queryResult.(string); !ok {
+				return fmt.Errorf("open message mapping returned non-string result: %T", queryResult)
+			}
+
+			if openMessage == "" {
+				return errors.New("open message mapping returned empty string")
+			}
+		}
+
+		if _, err := conn.Write([]byte(openMessage)); err != nil {
+			return fmt.Errorf("failed to write open message: %s", err)
+		}
+	}
+
 	return nil
 }
 
