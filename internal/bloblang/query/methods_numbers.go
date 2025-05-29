@@ -235,3 +235,102 @@ var _ = registerSimpleMethod(
 		}), nil
 	},
 )
+
+var _ = registerSimpleMethod(
+	NewMethodSpec(
+		"bitwise_and", "Returns the number bitwise AND-ed with the specified value.",
+	).InCategory(
+		MethodCategoryNumbers,
+		"",
+		NewExampleSpec("",
+			`root.new_value = this.value.bitwise_and(6)`,
+			`{"value":12}`,
+			`{"new_value":4}`,
+			`{"value":0}`,
+			`{"new_value":0}`,
+			`{"value":-4}`,
+			`{"new_value":4}`,
+		),
+	).Param(ParamInt64("value", "The value to AND with")),
+	func(args *ParsedParams) (simpleMethod, error) {
+		rhs, err := args.FieldInt64("value")
+		if err != nil {
+			return nil, err
+		}
+
+		return func(v any, _ FunctionContext) (any, error) {
+			lhs, err := value.IGetInt(v)
+			if err != nil {
+				return nil, value.NewTypeError(v, value.TInt)
+			}
+
+			return lhs & rhs, nil
+		}, nil
+	},
+)
+
+var _ = registerSimpleMethod(
+	NewMethodSpec(
+		"bitwise_or", "Returns the number bitwise OR-ed with the specified value.",
+	).InCategory(
+		MethodCategoryNumbers,
+		"",
+		NewExampleSpec("",
+			`root.new_value = this.value.bitwise_or(6)`,
+			`{"value":12}`,
+			`{"new_value":14}`,
+			`{"value":0}`,
+			`{"new_value":6}`,
+			`{"value":-2}`,
+			`{"new_value":-2}`,
+		),
+	).Param(ParamInt64("value", "The value to OR with")),
+	func(args *ParsedParams) (simpleMethod, error) {
+		rhs, err := args.FieldInt64("value")
+		if err != nil {
+			return nil, err
+		}
+
+		return func(v any, _ FunctionContext) (any, error) {
+			lhs, err := value.IGetInt(v)
+			if err != nil {
+				return nil, value.NewTypeError(v, value.TInt)
+			}
+
+			return lhs | rhs, nil
+		}, nil
+	},
+)
+
+var _ = registerSimpleMethod(
+	NewMethodSpec(
+		"bitwise_xor", "Returns the number bitwise eXclusive-OR-ed with the specified value.",
+	).InCategory(
+		MethodCategoryNumbers,
+		"",
+		NewExampleSpec("",
+			`root.new_value = this.value.bitwise_xor(6)`,
+			`{"value":12}`,
+			`{"new_value":10}`,
+			`{"value":0}`,
+			`{"new_value":6}`,
+			`{"value":-2}`,
+			`{"new_value":-8}`,
+		),
+	).Param(ParamInt64("value", "The value to XOR with")),
+	func(args *ParsedParams) (simpleMethod, error) {
+		rhs, err := args.FieldInt64("value")
+		if err != nil {
+			return nil, err
+		}
+
+		return func(v any, _ FunctionContext) (any, error) {
+			lhs, err := value.IGetInt(v)
+			if err != nil {
+				return nil, value.NewTypeError(v, value.TInt)
+			}
+
+			return lhs ^ rhs, nil
+		}, nil
+	},
+)
