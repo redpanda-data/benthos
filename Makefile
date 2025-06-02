@@ -36,3 +36,6 @@ test:
 
 test-race:
 	@go test -timeout 3m -race ./...
+
+generate:
+	@go generate ./...
