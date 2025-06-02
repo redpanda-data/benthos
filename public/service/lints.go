@@ -12,6 +12,8 @@ import (
 
 // LintType is a discrete linting type.
 // NOTE: These should be kept in sync with ./internal/docs/field.go:586.
+//
+//go:generate go run golang.org/x/tools/cmd/stringer@v0.33.0 -type=LintType
 type LintType int
 
 const (
