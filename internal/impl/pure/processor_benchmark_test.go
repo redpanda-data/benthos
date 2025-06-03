@@ -21,7 +21,7 @@ interval: 0
 	now := func() time.Time { return currentTime }
 	reporter := &mockBenchmarkReporter{}
 
-	benchmarkProc, err := newBenchmarkProcFromConfig(conf, reporter, now)
+	benchmarkProc, err := newBenchmarkProcFromParsed(conf, service.MockResources(), reporter, now)
 	require.NoError(t, err)
 
 	msg := service.NewMessage([]byte("hello"))
@@ -54,7 +54,7 @@ count_bytes: false
 	now := func() time.Time { return currentTime }
 	reporter := &mockBenchmarkReporter{}
 
-	benchmarkProc, err := newBenchmarkProcFromConfig(conf, reporter, now)
+	benchmarkProc, err := newBenchmarkProcFromParsed(conf, service.MockResources(), reporter, now)
 	require.NoError(t, err)
 
 	msg := service.NewMessage([]byte("hello"))
