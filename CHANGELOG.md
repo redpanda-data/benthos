@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## TBD
+
+### Added
+
+- The `benchmark` processor metrics. (@mmatczuk) 
+
 ## 4.52.0 - 2025-05-29
 
 ### Added

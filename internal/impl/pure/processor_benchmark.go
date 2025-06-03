@@ -18,7 +18,7 @@ func init() {
 	service.MustRegisterProcessor("benchmark", benchmarkSpec(),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.Processor, error) {
 			reporter := benchmarkLogReporter{logger: mgr.Logger()}
-			return newBenchmarkProcFromConfig(conf, reporter, time.Now)
+			return newBenchmarkProcFromParsed(conf, mgr, reporter, time.Now)
 		},
 	)
 }
@@ -32,7 +32,7 @@ func benchmarkSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Categories("Utility").
 		Summary("Logs basic throughput statistics of messages that pass through this processor.").
-		Description("Logs messages per second and bytes per second of messages that are processed at a regular interval. A summary of the amount of messages processed over the entire lifetime of the processor will also be printed when the processor shuts down.").
+		Description("Logs messages per second and bytes per second of messages that are processed at a regular interval. A summary of the amount of messages processed over the entire lifetime of the processor will also be printed when the processor shuts down.\n\nThe following metrics are exposed:\n- benchmark_messages_per_second (gauge): The current throughput in messages per second\n- benchmark_messages_total (counter): The total number of messages processed\n- benchmark_bytes_per_second (gauge): The current throughput in bytes per second\n- benchmark_bytes_total (counter): The total number of bytes processed").
 		Field(service.NewDurationField(bmFieldInterval).
 			Description("How often to emit rolling statistics. If set to 0, only a summary will be logged when the processor shuts down.").
 			Default("5s"),
@@ -43,7 +43,7 @@ func benchmarkSpec() *service.ConfigSpec {
 		)
 }
 
-func newBenchmarkProcFromConfig(conf *service.ParsedConfig, reporter benchmarkReporter, now func() time.Time) (service.Processor, error) {
+func newBenchmarkProcFromParsed(conf *service.ParsedConfig, mgr *service.Resources, reporter benchmarkReporter, now func() time.Time) (service.Processor, error) {
 	interval, err := conf.FieldDuration(bmFieldInterval)
 	if err != nil {
 		return nil, err
@@ -58,6 +58,11 @@ func newBenchmarkProcFromConfig(conf *service.ParsedConfig, reporter benchmarkRe
 		countBytes: countBytes,
 		reporter:   reporter,
 		now:        now,
+
+		mMsgPerSec:   mgr.Metrics().NewGauge("benchmark_messages_per_second"),
+		mTotalMsgs:   mgr.Metrics().NewCounter("benchmark_messages_total"),
+		mBytesPerSec: mgr.Metrics().NewGauge("benchmark_bytes_per_second"),
+		mTotalBytes:  mgr.Metrics().NewCounter("benchmark_bytes_total"),
 	}
 
 	if interval.String() != "0s" {
@@ -83,6 +88,11 @@ type benchmarkProc struct {
 
 	periodic *periodic.Periodic
 	now      func() time.Time
+
+	mMsgPerSec   *service.MetricGauge
+	mBytesPerSec *service.MetricGauge
+	mTotalMsgs   *service.MetricCounter
+	mTotalBytes  *service.MetricCounter
 }
 
 func (b *benchmarkProc) Process(ctx context.Context, msg *service.Message) (service.MessageBatch, error) {
@@ -103,6 +113,9 @@ func (b *benchmarkProc) Process(ctx context.Context, msg *service.Message) (serv
 		b.totalStats.msgBytesCount += bytesCount
 	}
 	b.lock.Unlock()
+
+	b.mTotalMsgs.Incr(1)
+	b.mTotalBytes.IncrFloat64(bytesCount)
 
 	return service.MessageBatch{msg}, nil
 }
@@ -137,9 +150,11 @@ func (b *benchmarkProc) sampleRolling() benchmarkStats {
 func (b *benchmarkProc) printStats(window string, stats benchmarkStats, interval time.Duration) {
 	secs := interval.Seconds()
 	msgsPerSec := stats.msgCount / secs
+	b.mMsgPerSec.SetFloat64(msgsPerSec)
+	bytesPerSec := stats.msgBytesCount / secs
+	b.mBytesPerSec.SetFloat64(bytesPerSec)
 
 	if b.countBytes {
-		bytesPerSec := stats.msgBytesCount / secs
 		b.reporter.reportStats(window, msgsPerSec, bytesPerSec)
 	} else {
 		b.reporter.reportStatsNoBytes(window, msgsPerSec)
