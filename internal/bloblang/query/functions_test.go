@@ -13,6 +13,7 @@ import (
 	"github.com/gofrs/uuid/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.jetify.com/typeid"
 
 	"github.com/redpanda-data/benthos/v4/internal/message"
 )
@@ -271,6 +272,32 @@ func TestUUIDV7FunctionAtTime(t *testing.T) {
 	actual, err := u7ts.Time()
 	require.NoError(t, err)
 	assert.Equal(t, ts.Truncate(time.Millisecond), actual, "expected: %s, got: %s", ts, actual)
+}
+
+func TestTypeidFunction(t *testing.T) {
+	e, err := InitFunctionHelper("typeid")
+	require.NoError(t, err)
+
+	res, err := e.Exec(FunctionContext{})
+	require.NoError(t, err)
+
+	id, ok := res.(typeid.AnyID)
+	require.True(t, ok)
+	require.Empty(t, id.Prefix())
+	require.NotEmpty(t, id.Suffix())
+}
+
+func TestTypeidFunctionPrefix(t *testing.T) {
+	e, err := InitFunctionHelper("typeid", "user")
+	require.NoError(t, err)
+
+	res, err := e.Exec(FunctionContext{})
+	require.NoError(t, err)
+
+	id, ok := res.(typeid.AnyID)
+	require.True(t, ok)
+	require.Equal(t, "user", id.Prefix())
+	require.NotEmpty(t, id.Suffix())
 }
 
 func TestNanoidFunction(t *testing.T) {
