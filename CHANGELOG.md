@@ -3,11 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## TBD
+## 4.53.0 - TBD
 
 ### Added
 
-- The `benchmark` processor metrics. (@mmatczuk) 
+- The `benchmark` processor metrics. (@mmatczuk)
+- New `string_enum` and `string_annotated_enum` template field types. (@mihaitodor)
 
 ## 4.52.0 - 2025-05-29
 

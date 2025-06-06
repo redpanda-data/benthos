@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"sort"
 
 	"github.com/fatih/color"
 	"github.com/nsf/jsondiff"
@@ -28,6 +30,7 @@ type FieldConfig struct {
 	Kind        *string `yaml:"kind,omitempty"`
 	Default     *any    `yaml:"default,omitempty"`
 	Advanced    bool    `yaml:"advanced"`
+	Options     any     `yaml:"options,omitempty"`
 }
 
 // TestConfig defines a unit test for the template.
@@ -62,7 +65,64 @@ func (c FieldConfig) FieldSpec() (docs.FieldSpec, error) {
 	if c.Type == nil {
 		return f, errors.New("missing type field")
 	}
-	f = f.HasType(docs.FieldType(*c.Type))
+
+	switch *c.Type {
+	case "bloblang":
+		f = f.HasType(docs.FieldTypeString).IsBloblang()
+	case "string_enum":
+		options, ok := c.Options.([]any)
+		if !ok {
+			return f, fmt.Errorf("expected options to be an array, got: %T", c.Options)
+		}
+
+		if len(options) == 0 {
+			return f, errors.New("at least one option must be provided")
+		}
+
+		var optionStrings []string
+		for _, o := range options {
+			option, ok := o.(string)
+			if !ok {
+				return f, errors.New("only string options are allowed")
+			}
+			optionStrings = append(optionStrings, option)
+		}
+
+		slices.Sort(optionStrings)
+		if uniqOpts := slices.Compact(optionStrings); len(uniqOpts) != len(optionStrings) {
+			return f, errors.New("duplicate options are not allowed")
+		}
+
+		f = f.HasType(docs.FieldTypeString).HasOptions(optionStrings...)
+	case "string_annotated_enum":
+		options, ok := c.Options.(map[string]any)
+		if !ok {
+			return f, fmt.Errorf("expected options to be an object, got: %T", c.Options)
+		}
+		if len(options) == 0 {
+			return f, errors.New("at least one annotated option must be provided")
+		}
+
+		optionKeys := make([]string, 0, len(options))
+		for key := range options {
+			optionKeys = append(optionKeys, key)
+		}
+		sort.Strings(optionKeys)
+
+		flatOptions := make([]string, 0, len(options)*2)
+		for _, opt := range optionKeys {
+			annotation, ok := options[opt].(string)
+			if !ok {
+				return f, fmt.Errorf("expected the annotation for option %q to be a string, got: %T", opt, options[opt])
+			}
+			flatOptions = append(flatOptions, opt, annotation)
+		}
+
+		f = f.HasType(docs.FieldTypeString).HasAnnotatedOptions(flatOptions...)
+	default:
+		f = f.HasType(docs.FieldType(*c.Type))
+	}
+
 	if c.Kind != nil {
 		switch *c.Kind {
 		case "map":
@@ -71,12 +131,10 @@ func (c FieldConfig) FieldSpec() (docs.FieldSpec, error) {
 			f = f.Array()
 		case "scalar":
 		default:
-			return f, fmt.Errorf("unrecognised scalar type: %v", *c.Kind)
+			return f, fmt.Errorf("unrecognised kind: %v", *c.Kind)
 		}
 	}
-	if f.Type == "bloblang" {
-		f = f.HasType(docs.FieldTypeString).IsBloblang()
-	}
+
 	return f, nil
 }
 
@@ -224,10 +282,12 @@ func FieldConfigSpec() docs.FieldSpecs {
 		docs.FieldString("description", "A description of the field.").HasDefault(""),
 		docs.FieldString("type", "The scalar type of the field.").HasAnnotatedOptions(
 			"string", "standard string type",
+			"string_enum", "string type which can have one of a discrete list of values",
+			"string_annotated_enum", "string type which can have one of a discrete list of values, where each value must be accompanied by a description that annotates its behaviour in the documentation",
 			"int", "standard integer type",
 			"float", "standard float type",
-			"bool", "a boolean true/false",
-			"bloblang", "a bloblang mapping",
+			"bool", "standard boolean type",
+			"bloblang", "bloblang mapping",
 			"unknown", "allows for nesting arbitrary configuration inside of a field",
 		),
 		docs.FieldString("kind", "The kind of the field.").HasOptions(
@@ -235,6 +295,7 @@ func FieldConfigSpec() docs.FieldSpecs {
 		).HasDefault("scalar"),
 		docs.FieldAnything("default", "An optional default value for the field. If a default value is not specified then a configuration without the field is considered incorrect.").Optional(),
 		docs.FieldBool("advanced", "Whether this field is considered advanced.").HasDefault(false),
+		docs.FieldAnything("options", "List of options for `string_enum` fields or map of annotated options for `string_annotated_enum` fields").Optional(),
 	}
 }
 
