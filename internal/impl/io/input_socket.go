@@ -4,6 +4,7 @@ package io
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +20,7 @@ import (
 const (
 	isFieldNetwork            = "network"
 	isFieldAddress            = "address"
+	isFieldTls                = "tls"
 	isFieldOpenMessageMapping = "open_message_mapping"
 )
 
@@ -38,6 +40,7 @@ func socketInputSpec() *service.ConfigSpec {
 				Description("An optional xref:guides:bloblang/about.adoc[Bloblang mapping] which should evaluate to a string which will be sent upstream before the downstream data flow starts.").
 				Example(`root = "username,password"`).
 				Optional(),
+			service.NewTLSToggledField("tls"),
 		).
 		Fields(codec.DeprecatedCodecFields("lines")...)
 }
@@ -58,6 +61,8 @@ type socketReader struct {
 
 	address            string
 	network            string
+	tlsEnabled         bool
+	tlsConf            *tls.Config
 	codecCtor          codec.DeprecatedFallbackCodec
 	openMessageMapping *bloblang.Executor
 
@@ -75,6 +80,10 @@ func newSocketReaderFromParsed(pConf *service.ParsedConfig, mgr *service.Resourc
 	if rdr.network, err = pConf.FieldString(isFieldNetwork); err != nil {
 		return
 	}
+	if rdr.tlsConf, rdr.tlsEnabled, err = pConf.FieldTLSToggled(isFieldTls); err != nil {
+		return nil, err
+	}
+
 	if rdr.codecCtor, err = codec.DeprecatedCodecFromParsed(pConf); err != nil {
 		return
 	}
@@ -97,6 +106,17 @@ func (s *socketReader) Connect(ctx context.Context) error {
 	conn, err := net.Dial(s.network, s.address)
 	if err != nil {
 		return err
+	}
+
+	if s.tlsEnabled && s.tlsConf != nil {
+		tlsConn := tls.Client(conn, s.tlsConf)
+
+		err = tlsConn.Handshake()
+		if err != nil {
+			return err
+		}
+
+		conn = tlsConn
 	}
 
 	if s.codec, err = s.codecCtor.Create(conn, func(ctx context.Context, err error) error {
