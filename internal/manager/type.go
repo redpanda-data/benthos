@@ -248,7 +248,7 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 				return nil, err
 			}
 
-			ni := WrapInput(newInput)
+			ni := WrapInput(newInput, t)
 			return &ni, nil
 		})
 	}
@@ -635,7 +635,7 @@ func (t *Type) StoreInput(ctx context.Context, name string, conf input.Config) e
 		if i != nil {
 			(*i).SwapInput(newInput)
 		} else {
-			ni := WrapInput(newInput)
+			ni := WrapInput(newInput, t)
 			set(&ni)
 		}
 	}); err != nil {

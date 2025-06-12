@@ -31,6 +31,11 @@ func NewInput(batches []message.Batch) *Input {
 	return &Input{TChan: ts}
 }
 
+// ConnectionTest always returns active (for now).
+func (f *Input) ConnectionTest() component.ConnectionTestResults {
+	return component.ConnectionTestSucceeded(component.NoopObservability()).AsList()
+}
+
 // ConnectionStatus returns the current connection activity.
 func (f *Input) ConnectionStatus() component.ConnectionStatuses {
 	if f.closed {

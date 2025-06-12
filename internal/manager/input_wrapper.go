@@ -27,18 +27,21 @@ type InputWrapper struct {
 	ctrl      *inputCtrl
 	inputLock sync.Mutex
 
+	o component.Observability
+
 	tranChan chan message.Transaction
 	shutSig  *shutdown.Signaller
 }
 
 // WrapInput wraps a streamed input and starts the transaction processing loop.
-func WrapInput(i input.Streamed) *InputWrapper {
+func WrapInput(i input.Streamed, o component.Observability) *InputWrapper {
 	var s int32
 	w := &InputWrapper{
 		ctrl: &inputCtrl{
 			input:         i,
 			closedForSwap: &s,
 		},
+		o:        o,
 		tranChan: make(chan message.Transaction),
 		shutSig:  shutdown.NewSignaller(),
 	}
@@ -81,6 +84,18 @@ func (w *InputWrapper) SwapInput(i input.Streamed) {
 // the wrapped input\.
 func (w *InputWrapper) TransactionChan() <-chan message.Transaction {
 	return w.tranChan
+}
+
+// ConnectionTest returns a status after testing the underlying connection.
+func (w *InputWrapper) ConnectionTest() (s component.ConnectionTestResults) {
+	w.inputLock.Lock()
+	if w.ctrl.input != nil {
+		s = w.ctrl.input.ConnectionTest()
+	} else {
+		s = component.ConnectionTestNotSupported(w.o).AsList()
+	}
+	w.inputLock.Unlock()
+	return
 }
 
 // ConnectionStatus returns the current status of the given component

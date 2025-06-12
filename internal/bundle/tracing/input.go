@@ -71,6 +71,10 @@ func (t *tracedInput) TransactionChan() <-chan message.Transaction {
 	return t.tChan
 }
 
+func (t *tracedInput) ConnectionTest() component.ConnectionTestResults {
+	return t.wrapped.ConnectionTest()
+}
+
 func (t *tracedInput) ConnectionStatus() component.ConnectionStatuses {
 	return t.wrapped.ConnectionStatus()
 }

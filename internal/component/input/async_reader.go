@@ -244,6 +244,13 @@ func (r *AsyncReader) TransactionChan() <-chan message.Transaction {
 	return r.transactions
 }
 
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (r *AsyncReader) ConnectionTest() component.ConnectionTestResults {
+	return r.reader.ConnectionTest()
+}
+
 // ConnectionStatus returns the current status of the given component
 // connection. The result is a slice in order to accommodate higher order
 // components that wrap several others.

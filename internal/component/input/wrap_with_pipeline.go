@@ -54,6 +54,13 @@ func (i *WithPipeline) TransactionChan() <-chan message.Transaction {
 	return i.pipe.TransactionChan()
 }
 
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (i *WithPipeline) ConnectionTest() component.ConnectionTestResults {
+	return i.in.ConnectionTest()
+}
+
 // ConnectionStatus returns the current status of the connection of the wrapped
 // component.
 func (i *WithPipeline) ConnectionStatus() component.ConnectionStatuses {
