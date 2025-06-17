@@ -54,6 +54,11 @@ func (i *WithPipeline) TransactionChan() <-chan message.Transaction {
 	return i.pipe.TransactionChan()
 }
 
+// TriggerStartConsuming triggers the consumption of data.
+func (i *WithPipeline) TriggerStartConsuming() {
+	i.in.TriggerStartConsuming()
+}
+
 // ConnectionTest attempts to establish whether the component is capable of
 // creating a connection. This will potentially require and test network
 // connectivity, but does not require the component to be initialized.

@@ -27,6 +27,10 @@ type Streamed interface {
 	// components that wrap several others.
 	ConnectionStatus() component.ConnectionStatuses
 
+	// TriggerStartConsuming instructs the input to start consuming data, and attempting
+	// to write it to the transaction channel.
+	TriggerStartConsuming()
+
 	// TriggerStopConsuming instructs the input to start shutting down resources
 	// once all pending messages are delivered and acknowledged. This call does
 	// not block.

@@ -12,6 +12,8 @@ import (
 
 // Input provides a mocked input implementation.
 type Input struct {
+	batches []message.Batch
+
 	TChan     chan message.Transaction
 	closed    bool
 	closeOnce sync.Once
@@ -21,14 +23,7 @@ type Input struct {
 // list of batches, then exit.
 func NewInput(batches []message.Batch) *Input {
 	ts := make(chan message.Transaction, len(batches))
-	resChan := make(chan error, len(batches))
-	go func() {
-		defer close(ts)
-		for _, b := range batches {
-			ts <- message.NewTransaction(b, resChan)
-		}
-	}()
-	return &Input{TChan: ts}
+	return &Input{batches: batches, TChan: ts}
 }
 
 // ConnectionTest always returns active (for now).
@@ -51,6 +46,17 @@ func (f *Input) ConnectionStatus() component.ConnectionStatuses {
 // TransactionChan returns a transaction channel.
 func (f *Input) TransactionChan() <-chan message.Transaction {
 	return f.TChan
+}
+
+// TriggerStartConsuming kicks of data consumption.
+func (f *Input) TriggerStartConsuming() {
+	resChan := make(chan error, len(f.batches))
+	go func() {
+		defer close(f.TChan)
+		for _, b := range f.batches {
+			f.TChan <- message.NewTransaction(b, resChan)
+		}
+	}()
 }
 
 // TriggerStopConsuming closes the input transaction channel.

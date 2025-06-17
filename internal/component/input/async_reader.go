@@ -65,7 +65,6 @@ func NewAsyncReader(
 	}
 	rdr.connection.Store(component.ConnectionPending(rdr.mgr))
 
-	go rdr.loop()
 	return rdr, nil
 }
 
@@ -79,6 +78,10 @@ func AsyncReaderWithConnBackOff(boff backoff.BackOff) func(a *AsyncReader) {
 }
 
 //------------------------------------------------------------------------------
+
+func (r *AsyncReader) TriggerStartConsuming() {
+	go r.loop()
+}
 
 func (r *AsyncReader) loop() {
 	// Metrics paths

@@ -19,7 +19,14 @@ var _ input.Streamed = &InputWrapper{}
 
 type inputCtrl struct {
 	input         input.Streamed
+	startOnce     sync.Once
 	closedForSwap *int32
+}
+
+func (i *inputCtrl) ensureInit() {
+	i.startOnce.Do(func() {
+		i.input.TriggerStartConsuming()
+	})
 }
 
 // InputWrapper is a wrapper for a streamed input.
@@ -39,13 +46,13 @@ func WrapInput(i input.Streamed, o component.Observability) *InputWrapper {
 	w := &InputWrapper{
 		ctrl: &inputCtrl{
 			input:         i,
+			startOnce:     sync.Once{},
 			closedForSwap: &s,
 		},
 		o:        o,
 		tranChan: make(chan message.Transaction),
 		shutSig:  shutdown.NewSignaller(),
 	}
-	go w.loop()
 	return w
 }
 
@@ -75,13 +82,19 @@ func (w *InputWrapper) SwapInput(i input.Streamed) {
 	w.inputLock.Lock()
 	w.ctrl = &inputCtrl{
 		input:         i,
+		startOnce:     sync.Once{},
 		closedForSwap: &s,
 	}
 	w.inputLock.Unlock()
 }
 
+// TriggerStartConsuming signals that data should be consumed.
+func (w *InputWrapper) TriggerStartConsuming() {
+	go w.loop()
+}
+
 // TransactionChan returns a transactions channel for consuming messages from
-// the wrapped input\.
+// the wrapped input.
 func (w *InputWrapper) TransactionChan() <-chan message.Transaction {
 	return w.tranChan
 }
@@ -133,6 +146,7 @@ func (w *InputWrapper) loop() {
 		if w.ctrl.input != nil {
 			tChan = w.ctrl.input.TransactionChan()
 			closedForSwap = w.ctrl.closedForSwap
+			w.ctrl.ensureInit()
 		}
 		w.inputLock.Unlock()
 

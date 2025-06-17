@@ -67,6 +67,10 @@ func (t *tracedInput) loop() {
 	}
 }
 
+func (t *tracedInput) TriggerStartConsuming() {
+	t.wrapped.TriggerStartConsuming()
+}
+
 func (t *tracedInput) TransactionChan() <-chan message.Transaction {
 	return t.tChan
 }

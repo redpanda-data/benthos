@@ -38,7 +38,6 @@ func New(batcher *policy.Batcher, child input.Streamed, log log.Modular) input.S
 		messagesOut: make(chan message.Transaction),
 		shutSig:     shutdown.NewSignaller(),
 	}
-	go b.loop()
 	return &b
 }
 
@@ -152,6 +151,12 @@ func (m *Impl) loop() {
 			flushBatchFn()
 		}
 	}
+}
+
+// TriggerStartConsuming kicks off the consumption of data.
+func (m *Impl) TriggerStartConsuming() {
+	go m.loop()
+	m.child.TriggerStartConsuming()
 }
 
 // ConnectionTest attempts to establish whether the component is capable of

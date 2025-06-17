@@ -174,8 +174,6 @@ func newReadUntilInputFromParsed(conf *service.ParsedConfig, res *service.Resour
 
 		shutSig: shutdown.NewSignaller(),
 	}
-
-	go rdr.loop()
 	return rdr, nil
 }
 
@@ -300,6 +298,10 @@ runLoop:
 // this input type.
 func (r *readUntilInput) TransactionChan() <-chan message.Transaction {
 	return r.transactions
+}
+
+func (r *readUntilInput) TriggerStartConsuming() {
+	go r.loop()
 }
 
 func (r *readUntilInput) ConnectionStatus() component.ConnectionStatuses {
