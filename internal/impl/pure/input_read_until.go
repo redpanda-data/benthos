@@ -294,14 +294,21 @@ runLoop:
 	}
 }
 
-// TransactionChan returns a transactions channel for consuming messages from
-// this input type.
 func (r *readUntilInput) TransactionChan() <-chan message.Transaction {
 	return r.transactions
 }
 
 func (r *readUntilInput) TriggerStartConsuming() {
 	go r.loop()
+}
+
+func (r *readUntilInput) ConnectionTest() component.ConnectionTestResults {
+	wrappedP := r.wrappedInputLocked.Load()
+	if wrappedP != nil {
+		i := *wrappedP
+		return i.ConnectionStatus()
+	}
+	return nil
 }
 
 func (r *readUntilInput) ConnectionStatus() component.ConnectionStatuses {
