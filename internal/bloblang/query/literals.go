@@ -64,7 +64,7 @@ func NewMapLiteral(values [][2]any) (any, error) {
 	return staticValues, nil
 }
 
-func (m *mapLiteral) Annotation() string {
+func (*mapLiteral) Annotation() string {
 	return "object literal"
 }
 
@@ -163,7 +163,7 @@ func NewArrayLiteral(values ...Function) any {
 	return &arrayLiteral{expandedValues}
 }
 
-func (a *arrayLiteral) Annotation() string {
+func (*arrayLiteral) Annotation() string {
 	return "array literal"
 }
 

@@ -22,14 +22,14 @@ func TestRetryListAllAcks(t *testing.T) {
 	var acked []string
 
 	data := []string{"foo", "bar", "baz"}
-	l := NewList(func(ctx context.Context) (t string, aFn AckFunc, err error) {
+	l := NewList(func(context.Context) (t string, aFn AckFunc, err error) {
 		if len(data) == 0 {
 			err = errCustomEOF
 			return
 		}
 		next := data[0]
 		data = data[1:]
-		return next, func(ctx context.Context, err error) error {
+		return next, func(context.Context, error) error {
 			acked = append(acked, next)
 			return nil
 		}, nil
@@ -72,14 +72,14 @@ func TestRetryListNacks(t *testing.T) {
 	var acked []string
 
 	data := []string{"foo", "bar", "baz"}
-	l := NewList(func(ctx context.Context) (t string, aFn AckFunc, err error) {
+	l := NewList(func(context.Context) (t string, aFn AckFunc, err error) {
 		if len(data) == 0 {
 			err = errCustomEOF
 			return
 		}
 		next := data[0]
 		data = data[1:]
-		return next, func(ctx context.Context, err error) error {
+		return next, func(context.Context, error) error {
 			acked = append(acked, next)
 			return nil
 		}, nil
@@ -155,14 +155,14 @@ func TestRetryListNackMutator(t *testing.T) {
 	var acked []string
 
 	data := []string{"foo"}
-	l := NewList(func(ctx context.Context) (t string, aFn AckFunc, err error) {
+	l := NewList(func(context.Context) (t string, aFn AckFunc, err error) {
 		if len(data) == 0 {
 			err = errCustomEOF
 			return
 		}
 		next := data[0]
 		data = data[1:]
-		return next, func(ctx context.Context, err error) error {
+		return next, func(context.Context, error) error {
 			acked = append(acked, next)
 			return nil
 		}, nil

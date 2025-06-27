@@ -181,7 +181,7 @@ func FunctionDocs() []FunctionSpec {
 //------------------------------------------------------------------------------
 
 func disabledFunction(name string) Function {
-	return ClosureFunction("function "+name, func(ctx FunctionContext) (any, error) {
+	return ClosureFunction("function "+name, func(FunctionContext) (any, error) {
 		return nil, errors.New("this function has been disabled")
 	}, func(ctx TargetsContext) (TargetsContext, []TargetPath) { return ctx, nil })
 }

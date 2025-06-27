@@ -154,7 +154,7 @@ func MethodDocs() []MethodSpec {
 //------------------------------------------------------------------------------
 
 func disabledMethod(name string) Function {
-	return ClosureFunction("method "+name, func(ctx FunctionContext) (any, error) {
+	return ClosureFunction("method "+name, func(FunctionContext) (any, error) {
 		return nil, errors.New("this method has been disabled")
 	}, func(ctx TargetsContext) (TargetsContext, []TargetPath) { return ctx, nil })
 }

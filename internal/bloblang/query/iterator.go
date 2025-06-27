@@ -118,7 +118,7 @@ func newFilterMethod(target Function, args ...any) (Function, error) {
 	}, nil
 }
 
-func (f *filterMethod) Annotation() string {
+func (*filterMethod) Annotation() string {
 	return "method filter"
 }
 
@@ -210,7 +210,7 @@ func newMapEachMethod(target Function, args ...any) (Function, error) {
 	}, nil
 }
 
-func (m *mapEachMethod) Annotation() string {
+func (*mapEachMethod) Annotation() string {
 	return "method map_each"
 }
 

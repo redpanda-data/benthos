@@ -28,7 +28,7 @@ func CtxCollapsedCount(ctx context.Context) int {
 // batched message parts.
 func MessageCollapsedCount(m message.Batch) int {
 	total := 0
-	_ = m.Iter(func(i int, p *message.Part) error {
+	_ = m.Iter(func(_ int, p *message.Part) error {
 		total += CtxCollapsedCount(message.GetContext(p))
 		return nil
 	})

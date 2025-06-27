@@ -37,7 +37,7 @@ func registerSimpleMethod(spec MethodSpec, ctor simpleMethodConstructor) struct{
 type simpleMethod func(v any, ctx FunctionContext) (any, error)
 
 func stringMethod(fn func(v string) (any, error)) simpleMethod {
-	return func(v any, ctx FunctionContext) (any, error) {
+	return func(v any, _ FunctionContext) (any, error) {
 		s, err := value.IGetString(v)
 		if err != nil {
 			return nil, err
@@ -47,7 +47,7 @@ func stringMethod(fn func(v string) (any, error)) simpleMethod {
 }
 
 func numberMethod(fn func(f *float64, i *int64, ui *uint64) (any, error)) simpleMethod {
-	return func(v any, ctx FunctionContext) (any, error) {
+	return func(v any, _ FunctionContext) (any, error) {
 		var f *float64
 		var i *int64
 		var ui *uint64

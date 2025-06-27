@@ -94,17 +94,17 @@ func New(
 	}
 	t.ctx, t.cancel = context.WithCancel(context.Background())
 
-	handlePing := func(w http.ResponseWriter, r *http.Request) {
+	handlePing := func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("pong"))
 	}
 
-	handleStackTrace := func(w http.ResponseWriter, r *http.Request) {
+	handleStackTrace := func(w http.ResponseWriter, _ *http.Request) {
 		stackSlice := make([]byte, 1024*100)
 		s := runtime.Stack(stackSlice, true)
 		_, _ = w.Write(stackSlice[:s])
 	}
 
-	handlePrintJSONConfig := func(w http.ResponseWriter, r *http.Request) {
+	handlePrintJSONConfig := func(w http.ResponseWriter, _ *http.Request) {
 		var g any
 		var err error
 		if node, ok := wholeConf.(yaml.Node); ok {
@@ -123,7 +123,7 @@ func New(
 		_, _ = w.Write(resBytes)
 	}
 
-	handlePrintYAMLConfig := func(w http.ResponseWriter, r *http.Request) {
+	handlePrintYAMLConfig := func(w http.ResponseWriter, _ *http.Request) {
 		resBytes, err := yaml.Marshal(wholeConf)
 		if err != nil {
 			w.WriteHeader(http.StatusBadGateway)
@@ -132,11 +132,11 @@ func New(
 		_, _ = w.Write(resBytes)
 	}
 
-	handleVersion := func(w http.ResponseWriter, r *http.Request) {
+	handleVersion := func(w http.ResponseWriter, _ *http.Request) {
 		fmt.Fprintf(w, "{\"version\":\"%v\", \"built\":\"%v\"}", version, dateBuilt)
 	}
 
-	handleEndpoints := func(w http.ResponseWriter, r *http.Request) {
+	handleEndpoints := func(w http.ResponseWriter, _ *http.Request) {
 		t.endpointsMut.Lock()
 		defer t.endpointsMut.Unlock()
 

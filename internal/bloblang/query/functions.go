@@ -99,7 +99,7 @@ func (f *fieldFunction) QueryTargets(ctx TargetsContext) (TargetsContext, []Targ
 	return ctx, paths
 }
 
-func (f *fieldFunction) Close(ctx context.Context) error {
+func (*fieldFunction) Close(context.Context) error {
 	return nil
 }
 
@@ -156,17 +156,17 @@ func (l *Literal) Annotation() string {
 }
 
 // Exec returns a literal value.
-func (l *Literal) Exec(ctx FunctionContext) (any, error) {
+func (l *Literal) Exec(FunctionContext) (any, error) {
 	return l.Value, nil
 }
 
 // QueryTargets returns nothing.
-func (l *Literal) QueryTargets(ctx TargetsContext) (TargetsContext, []TargetPath) {
+func (*Literal) QueryTargets(ctx TargetsContext) (TargetsContext, []TargetPath) {
 	return ctx, nil
 }
 
 // Close does nothing.
-func (l *Literal) Close(ctx context.Context) error {
+func (*Literal) Close(context.Context) error {
 	return nil
 }
 
@@ -293,7 +293,7 @@ func countFunction(args *ParsedParams) (Function, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ClosureFunction("function count", func(ctx FunctionContext) (any, error) {
+	return ClosureFunction("function count", func(FunctionContext) (any, error) {
 		countersMux.Lock()
 		defer countersMux.Unlock()
 
@@ -467,7 +467,7 @@ func rangeFunction(args *ParsedParams) (Function, error) {
 	for i := 0; i < len(r); i++ {
 		r[i] = start + step*int64(i)
 	}
-	return ClosureFunction("function range", func(ctx FunctionContext) (any, error) {
+	return ClosureFunction("function range", func(FunctionContext) (any, error) {
 		return r, nil
 	}, nil), nil
 }
@@ -817,7 +817,7 @@ var _ = registerFunction(
 			`root.received_at = now().ts_format("Mon Jan 2 15:04:05 -0700 MST 2006", "UTC")`,
 		),
 	),
-	func(args *ParsedParams) (Function, error) {
+	func(*ParsedParams) (Function, error) {
 		return ClosureFunction("function now", func(_ FunctionContext) (any, error) {
 			return time.Now().Format(time.RFC3339Nano), nil
 		}, nil), nil
@@ -935,7 +935,7 @@ var _ = registerFunction(
 		if err != nil {
 			return nil, err
 		}
-		return ClosureFunction("function uuid_v7", func(fctx FunctionContext) (any, error) {
+		return ClosureFunction("function uuid_v7", func(FunctionContext) (any, error) {
 			if time == nil {
 				u7, err := uuid.NewV7()
 				if err != nil {
@@ -979,7 +979,7 @@ func nanoidFunction(args *ParsedParams) (Function, error) {
 	if alphabetArg != nil && lenArg == nil {
 		return nil, errors.New("field length must be specified when an alphabet is specified")
 	}
-	return ClosureFunction("function nanoid", func(ctx FunctionContext) (any, error) {
+	return ClosureFunction("function nanoid", func(FunctionContext) (any, error) {
 		if alphabetArg != nil {
 			return gonanoid.Generate(*alphabetArg, int(*lenArg))
 		}

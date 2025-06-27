@@ -147,7 +147,7 @@ func TestIteratorMethods(t *testing.T) {
 
 func filterFunction() Function {
 	i := 0
-	return ClosureFunction("", func(ctx FunctionContext) (any, error) {
+	return ClosureFunction("", func(FunctionContext) (any, error) {
 		i++
 		return i%100 == 0, nil
 	}, nil)

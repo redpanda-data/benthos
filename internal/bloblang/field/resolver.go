@@ -23,12 +23,12 @@ type Resolver interface {
 type StaticResolver string
 
 // ResolveString returns a string.
-func (s StaticResolver) ResolveString(index int, msg Message, escaped bool) (string, error) {
+func (s StaticResolver) ResolveString(int, Message, bool) (string, error) {
 	return string(s), nil
 }
 
 // ResolveBytes returns a byte slice.
-func (s StaticResolver) ResolveBytes(index int, msg Message, escaped bool) ([]byte, error) {
+func (s StaticResolver) ResolveBytes(int, Message, bool) ([]byte, error) {
 	return []byte(s), nil
 }
 
@@ -47,7 +47,7 @@ func NewQueryResolver(fn query.Function) *QueryResolver {
 }
 
 // ResolveString returns a string.
-func (q QueryResolver) ResolveString(index int, msg Message, escaped bool) (string, error) {
+func (q QueryResolver) ResolveString(index int, msg Message, _ bool) (string, error) {
 	if msg == nil {
 		msg = message.QuickBatch(nil)
 	}

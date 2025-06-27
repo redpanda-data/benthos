@@ -309,7 +309,7 @@ func TestArithmetic(t *testing.T) {
 		return fn
 	}
 	opaqueLit := func(v any) Function {
-		return ClosureFunction("foobar", func(ctx FunctionContext) (any, error) {
+		return ClosureFunction("foobar", func(FunctionContext) (any, error) {
 			return v, nil
 		}, nil)
 	}
@@ -849,7 +849,7 @@ func TestArithmeticTargets(t *testing.T) {
 		return fn
 	}
 	opaqueLit := func(v any) Function {
-		return ClosureFunction("", func(ctx FunctionContext) (any, error) {
+		return ClosureFunction("", func(FunctionContext) (any, error) {
 			return v, nil
 		}, nil)
 	}

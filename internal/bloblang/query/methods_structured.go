@@ -128,7 +128,7 @@ var _ = registerSimpleMethod(
 	).VariadicParams(),
 	func(args *ParsedParams) (simpleMethod, error) {
 		argsList := args.Raw()
-		return func(res any, ctx FunctionContext) (any, error) {
+		return func(res any, _ FunctionContext) (any, error) {
 			arr, ok := res.([]any)
 			if !ok {
 				return nil, value.NewTypeError(res, value.TArray)
@@ -165,7 +165,7 @@ var _ = registerSimpleMethod(
 		if err != nil {
 			return nil, err
 		}
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			gObj := gabs.Wrap(v)
 			if includeEmpty {
 				return gObj.FlattenIncludeEmpty()
@@ -215,7 +215,7 @@ var _ = registerSimpleMethod(
 		}
 		sub := value.IToString(compareRight)
 		bsub := value.IToBytes(compareRight)
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			switch t := v.(type) {
 			case string:
 				return strings.Contains(t, sub), nil
@@ -256,7 +256,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			arr, ok := v.([]any)
 			if !ok {
 				return nil, value.NewTypeError(v, value.TArray)
@@ -295,7 +295,7 @@ var _ = registerSimpleMethod(
 			return nil, err
 		}
 		path := gabs.DotPathToSlice(pathStr)
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			return gabs.Wrap(v).Exists(path...), nil
 		}, nil
 	},
@@ -330,7 +330,7 @@ Exploding objects results in an object where the keys match the target object, a
 			return nil, err
 		}
 		path := gabs.DotPathToSlice(pathRaw)
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			rootMap, ok := v.(map[string]any)
 			if !ok {
 				return nil, value.NewTypeError(v, value.TObject)
@@ -453,7 +453,7 @@ var _ = registerSimpleMethod(
 			return nil, err
 		}
 
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			array, ok := v.([]any)
 			if !ok {
 				return nil, value.NewTypeError(v, value.TArray)
@@ -494,7 +494,7 @@ var _ = registerSimpleMethod(
 			return nil, err
 		}
 
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			array, ok := v.([]any)
 			if !ok {
 				return nil, value.NewTypeError(v, value.TArray)
@@ -617,7 +617,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			array, isArray := v.([]any)
 			if !isArray {
 				return nil, value.NewTypeError(v, value.TArray)
@@ -717,7 +717,7 @@ var _ = registerSimpleMethod(
 		if err != nil {
 			return nil, err
 		}
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			switch array := v.(type) {
 			case []any:
 				i := int(index)
@@ -781,7 +781,7 @@ var _ = registerSimpleMethod(
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse json schema definition: %w", err)
 		}
-		return func(res any, ctx FunctionContext) (any, error) {
+		return func(res any, _ FunctionContext) (any, error) {
 			result, err := schema.Validate(jsonschema.NewGoLoader(res))
 			if err != nil {
 				return nil, err
@@ -820,7 +820,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			if m, ok := v.(map[string]any); ok {
 				keys := make([]any, 0, len(m))
 				for k := range m {
@@ -850,7 +850,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			if m, ok := v.(map[string]any); ok {
 				keyValues := make([]any, 0, len(m))
 				for k, v := range m {
@@ -889,7 +889,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			var length int64
 			switch t := v.(type) {
 			case string:
@@ -1143,7 +1143,7 @@ func assignMethod(target Function, args *ParsedParams) (Function, error) {
 	}, target.QueryTargets), nil
 }
 
-func assigner(destination, source any) any {
+func assigner(_, source any) any {
 	return source
 }
 
@@ -1177,7 +1177,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			switch t := v.(type) {
 			case string:
 				if t == "" {
@@ -1227,7 +1227,7 @@ var _ = registerMethod(
 )
 
 func sortMethod(target Function, args *ParsedParams) (Function, error) {
-	compareFn := func(ctx FunctionContext, values []any, i, j int) (bool, error) {
+	compareFn := func(_ FunctionContext, values []any, i, j int) (bool, error) {
 		switch values[i].(type) {
 		case float64, int, int64, uint64, json.Number:
 			lhs, err := value.IGetNumber(values[i])
@@ -1471,7 +1471,7 @@ func sliceMethod(args *ParsedParams) (simpleMethod, error) {
 		}
 		return
 	}
-	return func(v any, ctx FunctionContext) (any, error) {
+	return func(v any, _ FunctionContext) (any, error) {
 		switch t := v.(type) {
 		case string:
 			start, end, err := getBounds(int64(len(t)))
@@ -1658,7 +1658,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			if m, ok := v.(map[string]any); ok {
 				values := make([]any, 0, len(m))
 				for _, e := range m {
@@ -1696,7 +1696,7 @@ If a key within a nested path does not exist or is not an object then it is not 
 			}
 			excludeList = append(excludeList, gabs.DotPathToSlice(argStr))
 		}
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			m, ok := v.(map[string]any)
 			if !ok {
 				return nil, value.NewTypeError(v, value.TObject)

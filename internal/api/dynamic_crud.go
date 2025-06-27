@@ -94,8 +94,8 @@ type Dynamic struct {
 // NewDynamic creates a new Dynamic API type.
 func NewDynamic() *Dynamic {
 	return &Dynamic{
-		onUpdate:     func(ctx context.Context, id string, conf []byte) error { return nil },
-		onDelete:     func(ctx context.Context, id string) error { return nil },
+		onUpdate:     func(context.Context, string, []byte) error { return nil },
+		onDelete:     func(context.Context, string) error { return nil },
 		configs:      map[string][]byte{},
 		configHashes: newDynamicConfMgr(),
 		ids:          map[string]time.Time{},
@@ -240,7 +240,7 @@ func (d *Dynamic) handleGETInput(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (d *Dynamic) handlePOSTInput(w http.ResponseWriter, r *http.Request) error {
+func (d *Dynamic) handlePOSTInput(_ http.ResponseWriter, r *http.Request) error {
 	id := mux.Vars(r)["id"]
 
 	reqBytes, err := io.ReadAll(r.Body)
@@ -265,7 +265,7 @@ func (d *Dynamic) handlePOSTInput(w http.ResponseWriter, r *http.Request) error 
 	return nil
 }
 
-func (d *Dynamic) handleDELInput(w http.ResponseWriter, r *http.Request) error {
+func (d *Dynamic) handleDELInput(_ http.ResponseWriter, r *http.Request) error {
 	id := mux.Vars(r)["id"]
 
 	if err := d.onDelete(r.Context(), id); err != nil {

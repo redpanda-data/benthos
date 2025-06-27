@@ -139,7 +139,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			arr, ok := v.([]any)
 			if !ok {
 				return nil, value.NewTypeError(v, value.TArray)
@@ -182,7 +182,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			arr, ok := v.([]any)
 			if !ok {
 				return nil, value.NewTypeError(v, value.TArray)

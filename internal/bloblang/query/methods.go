@@ -93,9 +93,8 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
-			switch v.(type) {
-			case []any:
+		return func(v any, _ FunctionContext) (any, error) {
+			if _, ok := v.([]any); ok {
 				return v, nil
 			}
 			arr := make([]any, 1)
@@ -420,7 +419,7 @@ var _ = registerSimpleMethod(
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			if v == nil {
 				return nil, errors.New("value is null")
 			}
@@ -574,7 +573,7 @@ root.foo_type = this.foo.type()`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
-		return func(v any, ctx FunctionContext) (any, error) {
+		return func(v any, _ FunctionContext) (any, error) {
 			return string(value.ITypeOf(v)), nil
 		}, nil
 	},

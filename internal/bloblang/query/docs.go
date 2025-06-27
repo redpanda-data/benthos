@@ -230,10 +230,11 @@ func NewMethodSpec(name, description string, examples ...ExampleSpec) MethodSpec
 // mappings.
 func NewDeprecatedMethodSpec(name, description string, examples ...ExampleSpec) MethodSpec {
 	return MethodSpec{
-		Name:     name,
-		Status:   StatusDeprecated,
-		Examples: examples,
-		Params:   NewParams(),
+		Name:        name,
+		Status:      StatusDeprecated,
+		Description: description,
+		Examples:    examples,
+		Params:      NewParams(),
 	}
 }
 

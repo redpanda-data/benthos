@@ -39,7 +39,7 @@ func TestFunctionSetWithout(t *testing.T) {
 
 func TestFunctionSetOnlyPure(t *testing.T) {
 	setOne := AllFunctions
-	require.NoError(t, setOne.Add(NewFunctionSpec("meower", "meow", "Does impure meows.").MarkImpure(), func(args *ParsedParams) (Function, error) {
+	require.NoError(t, setOne.Add(NewFunctionSpec("meower", "meow", "Does impure meows.").MarkImpure(), func(*ParsedParams) (Function, error) {
 		return nil, errors.New("not implemented")
 	}))
 	setTwo := setOne.OnlyPure()
@@ -55,8 +55,8 @@ func TestFunctionSetDeactivated(t *testing.T) {
 	customErr := errors.New("custom error")
 
 	spec := NewFunctionSpec(FunctionCategoryGeneral, "meow", "").Param(ParamString("val1", ""))
-	require.NoError(t, setOne.Add(spec, func(args *ParsedParams) (Function, error) {
-		return ClosureFunction("", func(ctx FunctionContext) (any, error) {
+	require.NoError(t, setOne.Add(spec, func(*ParsedParams) (Function, error) {
+		return ClosureFunction("", func(FunctionContext) (any, error) {
 			return nil, customErr
 		}, func(ctx TargetsContext) (TargetsContext, []TargetPath) { return ctx, nil }), nil
 	}))
@@ -84,8 +84,8 @@ func TestFunctionResolveParamError(t *testing.T) {
 	setOne := AllFunctions.Without()
 
 	spec := NewFunctionSpec(FunctionCategoryGeneral, "meow", "").Param(ParamString("val1", ""))
-	require.NoError(t, setOne.Add(spec, func(args *ParsedParams) (Function, error) {
-		return ClosureFunction("", func(ctx FunctionContext) (any, error) {
+	require.NoError(t, setOne.Add(spec, func(*ParsedParams) (Function, error) {
+		return ClosureFunction("", func(FunctionContext) (any, error) {
 			return "ok", nil
 		}, func(ctx TargetsContext) (TargetsContext, []TargetPath) { return ctx, nil }), nil
 	}))

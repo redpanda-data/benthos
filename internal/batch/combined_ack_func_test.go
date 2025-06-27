@@ -14,7 +14,7 @@ import (
 func TestCombinedAckFunc(t *testing.T) {
 	var ackCalled int
 	var ackErr error
-	combined := NewCombinedAcker(func(c context.Context, e error) error {
+	combined := NewCombinedAcker(func(_ context.Context, e error) error {
 		ackCalled++
 		ackErr = e
 		return nil
@@ -59,7 +59,7 @@ func TestCombinedAckFunc(t *testing.T) {
 func TestCombinedAckError(t *testing.T) {
 	var ackCalled int
 	var ackErr error
-	combined := NewCombinedAcker(func(c context.Context, e error) error {
+	combined := NewCombinedAcker(func(_ context.Context, e error) error {
 		ackCalled++
 		ackErr = e
 		return nil
@@ -105,7 +105,7 @@ func TestCombinedAckError(t *testing.T) {
 
 func TestCombinedAckErrorSync(t *testing.T) {
 	var ackCalled bool
-	combined := NewCombinedAcker(func(c context.Context, e error) error {
+	combined := NewCombinedAcker(func(context.Context, error) error {
 		ackCalled = true
 		return nil
 	})

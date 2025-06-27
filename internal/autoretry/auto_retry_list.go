@@ -65,7 +65,7 @@ type List[T any] struct {
 // NewList returns a new list of Ts requiring automatic retries.
 func NewList[T any](reader ReadFunc[T], mutator MutatorFunc[T]) *List[T] {
 	if mutator == nil {
-		mutator = func(t T, err error) T { return t }
+		mutator = func(t T, _ error) T { return t }
 	}
 	readCtx, readDone := context.WithCancel(context.Background())
 	return &List[T]{
@@ -224,7 +224,7 @@ func (l *List[T]) exhausted() bool {
 }
 
 // Close any pending read attempts that could be dangling from prior shifts.
-func (l *List[T]) Close(ctx context.Context) error {
+func (l *List[T]) Close(context.Context) error {
 	l.readDone()
 	return nil
 }
@@ -232,7 +232,7 @@ func (l *List[T]) Close(ctx context.Context) error {
 // TODO: Ensure docs around auto retry and all implementations are okay with
 // nacks on termination, otherwise we leave them.
 //
-//nolint:unused // Keeping this around for now.
+//nolint:unused,unusedfunc // Keeping this around for now.
 func (l *List[T]) nackAllPending() error {
 	l.cond.L.Lock()
 	defer l.cond.L.Unlock()
