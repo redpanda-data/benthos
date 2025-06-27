@@ -37,6 +37,7 @@ require (
 	github.com/urfave/cli/v2 v2.27.6
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a
+	go.jetify.com/typeid v1.3.0
 	go.opentelemetry.io/otel v1.36.0
 	go.opentelemetry.io/otel/trace v1.36.0
 	go.uber.org/multierr v1.11.0
@@ -70,7 +71,6 @@ require (
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/otel/metric v1.36.0 // indirect
 	golang.org/x/sys v0.33.0 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 
 go 1.24.1
