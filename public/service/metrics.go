@@ -151,8 +151,6 @@ func (g *MetricGauge) Decr(value int64, labelValues ...string) {
 // DecrFloat64 decrements a gauge by a decimal amount.
 // The number of label values must match the number and order of labels specified when the gauge was created.
 // Not all metrics exporters support floats, in which case the value will be cast to an int64.
-// Note that this method is not available in all metrics exporters, so you may
-// need to use Decr instead if you encounter an error.
 func (g *MetricGauge) DecrFloat64(value float64, labelValues ...string) {
 	if g == nil {
 		return
