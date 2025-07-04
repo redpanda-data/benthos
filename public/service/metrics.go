@@ -120,6 +120,46 @@ func (g *MetricGauge) SetFloat64(value float64, labelValues ...string) {
 	g.gv.With(labelValues...).SetFloat64(value)
 }
 
+// Incr increments a gauge by an integer amount.
+// The number of label values must match the number and order of labels specified when the gauge was created.
+func (g *MetricGauge) Incr(value int64, labelValues ...string) {
+	if g == nil {
+		return
+	}
+	g.gv.With(labelValues...).Incr(value)
+}
+
+// IncrFloat64 increments a gauge by a decimal amount.
+// The number of label values must match the number and order of labels specified when the gauge was created.
+// Not all metrics exporters support floats, in which case the value will be cast to an int64.
+func (g *MetricGauge) IncrFloat64(value float64, labelValues ...string) {
+	if g == nil {
+		return
+	}
+	g.gv.With(labelValues...).IncrFloat64(value)
+}
+
+// Decr decrements a gauge by an integer amount.
+// The number of label values must match the number and order of labels specified when the gauge was created.
+func (g *MetricGauge) Decr(value int64, labelValues ...string) {
+	if g == nil {
+		return
+	}
+	g.gv.With(labelValues...).Decr(value)
+}
+
+// DecrFloat64 decrements a gauge by a decimal amount.
+// The number of label values must match the number and order of labels specified when the gauge was created.
+// Not all metrics exporters support floats, in which case the value will be cast to an int64.
+// Note that this method is not available in all metrics exporters, so you may
+// need to use Decr instead if you encounter an error.
+func (g *MetricGauge) DecrFloat64(value float64, labelValues ...string) {
+	if g == nil {
+		return
+	}
+	g.gv.With(labelValues...).DecrFloat64(value)
+}
+
 //------------------------------------------------------------------------------
 
 // MetricsExporter is an interface implemented by Benthos metrics exporters.
