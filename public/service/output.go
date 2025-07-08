@@ -84,7 +84,7 @@ func newAirGapWriter(w Output) output.AsyncSink {
 }
 
 func (a *airGapWriter) Connect(ctx context.Context) error {
-	return a.w.Connect(ctx)
+	return publicToInternalErr(a.w.Connect(ctx))
 }
 
 func (a *airGapWriter) WriteBatch(ctx context.Context, msg message.Batch) error {
@@ -92,7 +92,7 @@ func (a *airGapWriter) WriteBatch(ctx context.Context, msg message.Batch) error 
 }
 
 func (a *airGapWriter) Close(ctx context.Context) error {
-	return a.w.Close(ctx)
+	return publicToInternalErr(a.w.Close(ctx))
 }
 
 //------------------------------------------------------------------------------
@@ -107,7 +107,7 @@ func newAirGapBatchWriter(w BatchOutput) output.AsyncSink {
 }
 
 func (a *airGapBatchWriter) Connect(ctx context.Context) error {
-	return a.w.Connect(ctx)
+	return publicToInternalErr(a.w.Connect(ctx))
 }
 
 func (a *airGapBatchWriter) WriteBatch(ctx context.Context, msg message.Batch) error {
@@ -120,7 +120,7 @@ func (a *airGapBatchWriter) WriteBatch(ctx context.Context, msg message.Batch) e
 }
 
 func (a *airGapBatchWriter) Close(ctx context.Context) error {
-	return a.w.Close(ctx)
+	return publicToInternalErr(a.w.Close(ctx))
 }
 
 //------------------------------------------------------------------------------
