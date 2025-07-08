@@ -124,7 +124,7 @@ func (a *airGapReader) ReadBatch(ctx context.Context) (message.Batch, input.Asyn
 }
 
 func (a *airGapReader) Close(ctx context.Context) error {
-	return a.r.Close(ctx)
+	return publicToInternalErr(a.r.Close(ctx))
 }
 
 //------------------------------------------------------------------------------
@@ -159,7 +159,7 @@ func (a *airGapBatchReader) ReadBatch(ctx context.Context) (message.Batch, input
 }
 
 func (a *airGapBatchReader) Close(ctx context.Context) error {
-	return a.r.Close(ctx)
+	return publicToInternalErr(a.r.Close(ctx))
 }
 
 //------------------------------------------------------------------------------
