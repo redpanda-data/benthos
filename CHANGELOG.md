@@ -7,7 +7,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-- Added TLS support to the input component `socket`. (@eadwright)
+- Added TLS support to the input and output `socket` components. (@eadwright)
  
 ## 4.53.1 - 2025-07-08
 

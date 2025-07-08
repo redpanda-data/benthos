@@ -40,7 +40,7 @@ func socketInputSpec() *service.ConfigSpec {
 				Description("An optional xref:guides:bloblang/about.adoc[Bloblang mapping] which should evaluate to a string which will be sent upstream before the downstream data flow starts.").
 				Example(`root = "username,password"`).
 				Optional(),
-			service.NewTLSToggledField("tls"),
+			service.NewTLSToggledField(isFieldTls),
 		).
 		Fields(codec.DeprecatedCodecFields("lines")...)
 }

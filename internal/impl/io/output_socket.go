@@ -4,6 +4,7 @@ package io
 
 import (
 	"context"
+	"crypto/tls"
 	"io"
 	"net"
 	"sync"
@@ -16,6 +17,7 @@ import (
 const (
 	osFieldNetwork = "network"
 	osFieldAddress = "address"
+	osFieldTls     = "tls"
 )
 
 func socketOutputSpec() *service.ConfigSpec {
@@ -30,6 +32,7 @@ func socketOutputSpec() *service.ConfigSpec {
 				Description("The address to connect to.").
 				Examples("/tmp/benthos.sock", "127.0.0.1:6000"),
 			service.NewInternalField(codec.NewWriterDocs("codec").HasDefault("lines")),
+			service.NewTLSToggledField(osFieldTls),
 		)
 }
 
@@ -44,6 +47,8 @@ func init() {
 type socketWriter struct {
 	network    string
 	address    string
+	tlsEnabled bool
+	tlsConf    *tls.Config
 	suffixFn   codec.SuffixFn
 	appendMode bool
 
@@ -63,6 +68,9 @@ func newSocketWriterFromParsed(pConf *service.ParsedConfig, mgr *service.Resourc
 	if w.network, err = pConf.FieldString(osFieldNetwork); err != nil {
 		return
 	}
+	if w.tlsConf, w.tlsEnabled, err = pConf.FieldTLSToggled(osFieldTls); err != nil {
+		return nil, err
+	}
 
 	var codecStr string
 	if codecStr, err = pConf.FieldString("codec"); err != nil {
@@ -81,10 +89,24 @@ func (s *socketWriter) Connect(ctx context.Context) error {
 		return nil
 	}
 
-	var err error
-	if s.writer, err = net.Dial(s.network, s.address); err != nil {
+	conn, err := net.Dial(s.network, s.address)
+	if err != nil {
 		return err
 	}
+
+	if s.tlsEnabled && s.tlsConf != nil {
+		tlsConn := tls.Client(conn, s.tlsConf)
+
+		err = tlsConn.Handshake()
+		if err != nil {
+			return err
+		}
+
+		conn = tlsConn
+	}
+
+	s.writer = conn
+
 	return nil
 }
 
