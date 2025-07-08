@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 
 - Added TLS support to the input component `socket`. (@eadwright)
  
+## 4.53.1 - 2025-07-08
+
+### Fixed
+
+- Fixed an issue where backoff errors we being disregarded for output plugins. (@Jeffail)
+
 ## 4.53.0 - 2025-06-10
 
 ### Added

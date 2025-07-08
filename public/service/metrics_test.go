@@ -221,3 +221,218 @@ logger:
 	}, testMetrics.values)
 	testMetrics.lock.Unlock()
 }
+
+func TestMetricsGaugeIncrDecrInt64(t *testing.T) {
+	tests := []struct {
+		name      string
+		initial   int64
+		incrValue int64
+		decrValue int64
+		expected  int64
+	}{
+		{
+			name:      "increment and decrement",
+			initial:   10,
+			incrValue: 5,
+			decrValue: 2,
+			expected:  13,
+		},
+		{
+			name:      "only increment",
+			initial:   0,
+			incrValue: 15,
+			decrValue: 0,
+			expected:  15,
+		},
+		{
+			name:      "only decrement",
+			initial:   20,
+			incrValue: 0,
+			decrValue: 7,
+			expected:  13,
+		},
+		{
+			name:      "large float values",
+			initial:   100,
+			incrValue: 999,
+			decrValue: 500,
+			expected:  599,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stats := metrics.NewLocal()
+			nm := newReverseAirGapMetrics(stats)
+
+			gge := nm.NewGauge("test_gauge")
+			if tt.initial != 0 {
+				gge.Set(tt.initial)
+			}
+
+			if tt.incrValue != 0 {
+				gge.Incr(tt.incrValue)
+			}
+			if tt.decrValue != 0 {
+				gge.Decr(tt.decrValue)
+			}
+
+			assert.Equal(t, tt.expected, stats.GetCounters()["test_gauge"])
+		})
+	}
+}
+
+func TestMetricsGaugeIncrDecrInt64WithLabels(t *testing.T) {
+	tests := []struct {
+		name              string
+		initial           int64
+		incrValue         int64
+		decrValue         int64
+		expected          int64
+		labelKeys         []string
+		labelValues       []string
+		expectedGaugeName string
+	}{
+		{
+			name:              "increment and decrement",
+			initial:           10,
+			incrValue:         5,
+			decrValue:         2,
+			expected:          13,
+			labelKeys:         []string{"label1"},
+			labelValues:       []string{"value1"},
+			expectedGaugeName: "test_gauge{label1=\"value1\"}",
+		},
+		{
+			name:              "incorrect number of values for label",
+			initial:           0,
+			incrValue:         15,
+			decrValue:         0,
+			expected:          15,
+			labelKeys:         []string{"label1"},
+			labelValues:       []string{"value1", "value2"},
+			expectedGaugeName: "test_gauge",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stats := metrics.NewLocal()
+			nm := newReverseAirGapMetrics(stats)
+
+			gge := nm.NewGauge("test_gauge", tt.labelKeys...)
+			if tt.initial != 0 {
+				gge.Set(tt.initial, tt.labelValues...)
+			}
+
+			if tt.incrValue != 0 {
+				gge.Incr(tt.incrValue, tt.labelValues...)
+			}
+			if tt.decrValue != 0 {
+				gge.Decr(tt.decrValue, tt.labelValues...)
+			}
+			assert.Equal(t, tt.expected, stats.GetCounters()[tt.expectedGaugeName])
+		})
+	}
+}
+
+func TestMetricsGaugeIncrDecrFloat64(t *testing.T) {
+	tests := []struct {
+		name      string
+		initial   int64
+		incrValue float64
+		decrValue float64
+		expected  int64
+	}{
+		{
+			name:      "increment and decrement",
+			initial:   10,
+			incrValue: 5.7,
+			decrValue: 2.3,
+			expected:  13,
+		},
+		{
+			name:      "only increment",
+			initial:   0,
+			incrValue: 15.9,
+			decrValue: 0,
+			expected:  15,
+		},
+		{
+			name:      "only decrement",
+			initial:   20,
+			incrValue: 0,
+			decrValue: 7.8,
+			expected:  13,
+		},
+		{
+			name:      "large float values",
+			initial:   100,
+			incrValue: 999.99,
+			decrValue: 500.51,
+			expected:  599,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stats := metrics.NewLocal()
+			nm := newReverseAirGapMetrics(stats)
+
+			gge := nm.NewGauge("test_gauge")
+			if tt.initial != 0 {
+				gge.Set(tt.initial)
+			}
+
+			if tt.incrValue != 0 {
+				gge.IncrFloat64(tt.incrValue)
+			}
+			if tt.decrValue != 0 {
+				gge.DecrFloat64(tt.decrValue)
+			}
+
+			assert.Equal(t, tt.expected, stats.GetCounters()["test_gauge"])
+		})
+	}
+}
+
+func TestMetricsGaugeSetFloat64(t *testing.T) {
+	tests := []struct {
+		name     string
+		setValue float64
+		expected int64
+	}{
+		{
+			name:     "positive float",
+			setValue: 42.7,
+			expected: 42,
+		},
+		{
+			name:     "negative float",
+			setValue: -15.3,
+			expected: -15,
+		},
+		{
+			name:     "zero",
+			setValue: 0.0,
+			expected: 0,
+		},
+		{
+			name:     "large float",
+			setValue: 999999.99,
+			expected: 999999,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stats := metrics.NewLocal()
+			nm := newReverseAirGapMetrics(stats)
+
+			gge := nm.NewGauge("test_gauge")
+			gge.SetFloat64(tt.setValue)
+
+			assert.Equal(t, tt.expected, stats.GetCounters()["test_gauge"])
+		})
+	}
+}
