@@ -3,6 +3,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.54.0 - TBD
+
+### Added
+
+- Go API: New `public/schema` package for serde to and from a common schema format. (@Jeffail)
+- New Bloblang method `infer_schema`. (@Jeffail)
+
 ## 4.53.1 - 2025-07-08
 
 ### Fixed
