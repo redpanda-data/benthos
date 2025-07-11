@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.54.0 - TBD
+
+### Added
+
+- Added TLS support to the input and output `socket` components. (@eadwright)
+ 
 ## 4.53.1 - 2025-07-08
 
 ### Fixed
