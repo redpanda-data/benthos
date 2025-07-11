@@ -5,6 +5,7 @@ package io
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -176,6 +177,79 @@ func TestTCPSocketBasic(t *testing.T) {
 	wtr := socketWriterFromConf(t, `
 network: tcp
 address: %v
+`, ln.Addr().String())
+
+	defer func() {
+		if err := wtr.Close(ctx); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	go func() {
+		if cerr := wtr.Connect(t.Context()); cerr != nil {
+			t.Error(cerr)
+		}
+	}()
+
+	conn, err := ln.Accept()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var buf bytes.Buffer
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		_ = conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+		_, _ = buf.ReadFrom(conn)
+		wg.Done()
+	}()
+
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("foo"))); err != nil {
+		t.Error(err)
+	}
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("bar\n"))); err != nil {
+		t.Error(err)
+	}
+	if err = wtr.Write(t.Context(), service.NewMessage([]byte("baz"))); err != nil {
+		t.Error(err)
+	}
+
+	require.NoError(t, wtr.Close(ctx))
+	wg.Wait()
+
+	exp := "foo\nbar\nbaz\n"
+	if act := buf.String(); exp != act {
+		t.Errorf("Wrong result: %v != %v", act, exp)
+	}
+
+	conn.Close()
+}
+
+func TestTCPSocketWithTLS(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	tlsConfig, err := generateSelfSignedTLSConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ln, err := tls.Listen("tcp", "127.0.0.1:0", tlsConfig)
+	if err != nil {
+		if ln, err = net.Listen("tcp6", "[::1]:0"); err != nil {
+			t.Fatalf("failed to listen on a port: %v", err)
+		}
+	}
+	defer ln.Close()
+
+	wtr := socketWriterFromConf(t, `
+network: tcp
+address: %v
+tls:
+  enabled: true
+  skip_cert_verify: true
 `, ln.Addr().String())
 
 	defer func() {
