@@ -13,19 +13,18 @@ type CommonType int
 
 // Supported common types
 const (
-	Boolean           CommonType = 0
-	Int32             CommonType = 1
-	Int64             CommonType = 2
-	Float32           CommonType = 3
-	Float64           CommonType = 4
-	String            CommonType = 5
-	ByteArray         CommonType = 6
-	FixedLenByteArray CommonType = 7
-	Object            CommonType = 8
-	Map               CommonType = 9
-	Array             CommonType = 10
-	Null              CommonType = 11
-	Union             CommonType = 12
+	Boolean   CommonType = 0
+	Int32     CommonType = 1
+	Int64     CommonType = 2
+	Float32   CommonType = 3
+	Float64   CommonType = 4
+	String    CommonType = 5
+	ByteArray CommonType = 6
+	Object    CommonType = 7
+	Map       CommonType = 8
+	Array     CommonType = 9
+	Null      CommonType = 10
+	Union     CommonType = 11
 )
 
 // String returns a human readable string representation of the type.
@@ -45,8 +44,6 @@ func (t CommonType) String() string {
 		return "STRING"
 	case ByteArray:
 		return "BYTE_ARRAY"
-	case FixedLenByteArray:
-		return "FIXED_LEN_BYTE_ARRAY"
 	case Object:
 		return "OBJECT"
 	case Map:
@@ -78,8 +75,6 @@ func typeFromStr(v string) (CommonType, error) {
 		return String, nil
 	case "BYTE_ARRAY":
 		return ByteArray, nil
-	case "FIXED_LEN_BYTE_ARRAY":
-		return FixedLenByteArray, nil
 	case "OBJECT":
 		return Object, nil
 	case "MAP":
