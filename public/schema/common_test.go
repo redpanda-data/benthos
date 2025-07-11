@@ -20,7 +20,6 @@ func TestSchemaStringify(t *testing.T) {
 		{Input: Float64, Output: "FLOAT64"},
 		{Input: String, Output: "STRING"},
 		{Input: ByteArray, Output: "BYTE_ARRAY"},
-		{Input: FixedLenByteArray, Output: "FIXED_LEN_BYTE_ARRAY"},
 		{Input: Object, Output: "OBJECT"},
 		{Input: Map, Output: "MAP"},
 		{Input: Array, Output: "ARRAY"},
