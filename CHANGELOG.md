@@ -8,7 +8,11 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Added TLS support to the input and output `socket` components. (@eadwright)
- 
+
+### Changed
+
+- The `retry` processor now emits the `backoff_duration` metadata as nanoseconds. (@mihaitodor)
+
 ## 4.53.1 - 2025-07-08
 
 ### Fixed
