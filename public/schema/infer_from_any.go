@@ -7,10 +7,8 @@ import (
 	"sort"
 )
 
-func inferFromAny(name string, v any) (*Common, error) {
-	c := Common{
-		Name: name,
-	}
+func inferFromAny(name string, v any) (Common, error) {
+	c := Common{Name: name}
 
 	switch t := v.(type) {
 	case bool:
@@ -32,12 +30,12 @@ func inferFromAny(name string, v any) (*Common, error) {
 		for i, e := range t {
 			ec, err := inferFromAny("", e)
 			if err != nil {
-				return nil, fmt.Errorf(".%v%v", i, err)
+				return c, fmt.Errorf(".%v%v", i, err)
 			}
 			if i == 0 {
-				c.Children = []*Common{ec}
+				c.Children = []Common{ec}
 			} else if c.Children[0].Type != ec.Type {
-				return nil, fmt.Errorf(".%v mismatched array types, found %v and %v", i, c.Children[0].Type, ec.Type)
+				return c, fmt.Errorf(".%v mismatched array types, found %v and %v", i, c.Children[0].Type, ec.Type)
 			}
 		}
 	case map[string]any:
@@ -54,17 +52,17 @@ func inferFromAny(name string, v any) (*Common, error) {
 
 			ec, err := inferFromAny(k, v)
 			if err != nil {
-				return nil, fmt.Errorf(".%v%v", k, err)
+				return c, fmt.Errorf(".%v%v", k, err)
 			}
 			c.Children = append(c.Children, ec)
 		}
 	case nil:
 		c.Type = Null
 	default:
-		return nil, fmt.Errorf(" unsupported data type: %T", v)
+		return c, fmt.Errorf(" unsupported data type: %T", v)
 	}
 
-	return &c, nil
+	return c, nil
 }
 
 // InferFromAny attempts to infer a common schema from any Go value. This
@@ -73,6 +71,6 @@ func inferFromAny(name string, v any) (*Common, error) {
 // float64, []byte, string, map[string]any, []any.
 //
 // All values will be recorded as non-optional.
-func InferFromAny(v any) (*Common, error) {
+func InferFromAny(v any) (Common, error) {
 	return inferFromAny("", v)
 }

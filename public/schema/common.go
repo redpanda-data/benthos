@@ -13,18 +13,18 @@ type CommonType int
 
 // Supported common types
 const (
-	Boolean   CommonType = 0
-	Int32     CommonType = 1
-	Int64     CommonType = 2
-	Float32   CommonType = 3
-	Float64   CommonType = 4
-	String    CommonType = 5
-	ByteArray CommonType = 6
-	Object    CommonType = 7
-	Map       CommonType = 8
-	Array     CommonType = 9
-	Null      CommonType = 10
-	Union     CommonType = 11
+	Boolean   CommonType = 1
+	Int32     CommonType = 2
+	Int64     CommonType = 3
+	Float32   CommonType = 4
+	Float64   CommonType = 5
+	String    CommonType = 6
+	ByteArray CommonType = 7
+	Object    CommonType = 8
+	Map       CommonType = 9
+	Array     CommonType = 10
+	Null      CommonType = 11
+	Union     CommonType = 12
 )
 
 // String returns a human readable string representation of the type.
@@ -55,7 +55,7 @@ func (t CommonType) String() string {
 	case Union:
 		return "UNION"
 	default:
-		return "Type(?)"
+		return "UNKNOWN"
 	}
 }
 
@@ -98,7 +98,7 @@ type Common struct {
 	Name     string
 	Type     CommonType
 	Optional bool
-	Children []*Common
+	Children []Common
 }
 
 // ToAny serializes the common schema into a generic Go value, with structured
@@ -136,28 +136,28 @@ func (c *Common) ToAny() any {
 }
 
 // ParseFromAny deserializes a common schema from a generic Go value.
-func ParseFromAny(v any) (*Common, error) {
+func ParseFromAny(v any) (Common, error) {
+	var c Common
+
 	obj, ok := v.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("expected map, received: %T", v)
+		return c, fmt.Errorf("expected map, received: %T", v)
 	}
-
-	c := &Common{}
 
 	if typeStr, ok := obj["type"].(string); ok {
 		var err error
 		if c.Type, err = typeFromStr(typeStr); err != nil {
-			return nil, err
+			return c, err
 		}
 	} else {
-		return nil, fmt.Errorf("expected field `type` of type string, got %T", obj["type"])
+		return c, fmt.Errorf("expected field `type` of type string, got %T", obj["type"])
 	}
 
 	if name, ok := obj["name"]; ok {
 		if nameStr, ok := name.(string); ok {
 			c.Name = nameStr
 		} else {
-			return nil, fmt.Errorf("expected field `name` of type string, got %T", obj["name"])
+			return c, fmt.Errorf("expected field `name` of type string, got %T", obj["name"])
 		}
 	}
 
@@ -165,7 +165,7 @@ func ParseFromAny(v any) (*Common, error) {
 		if optionalB, ok := optional.(bool); ok {
 			c.Optional = optionalB
 		} else {
-			return nil, fmt.Errorf("expected field `optional` of type string, got %T", obj["optional"])
+			return c, fmt.Errorf("expected field `optional` of type string, got %T", obj["optional"])
 		}
 	}
 
@@ -173,7 +173,7 @@ func ParseFromAny(v any) (*Common, error) {
 		for i, cEle := range cArr {
 			cChild, err := ParseFromAny(cEle)
 			if err != nil {
-				return nil, fmt.Errorf("child element %v: %w", i, err)
+				return c, fmt.Errorf("child element %v: %w", i, err)
 			}
 
 			c.Children = append(c.Children, cChild)

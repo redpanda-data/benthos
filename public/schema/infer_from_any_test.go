@@ -13,13 +13,13 @@ func TestFromAnySchema(t *testing.T) {
 	for _, test := range []struct {
 		Name        string
 		Input       any
-		Output      *Common
+		Output      Common
 		ErrContains string
 	}{
 		{
 			Name:  "Valid scalar schema",
 			Input: 10,
-			Output: &Common{
+			Output: Common{
 				Type: Int64,
 			},
 		},
@@ -33,9 +33,9 @@ func TestFromAnySchema(t *testing.T) {
 				"moo":   true,
 				"quack": nil,
 			},
-			Output: &Common{
+			Output: Common{
 				Type: Object,
-				Children: []*Common{
+				Children: []Common{
 					{Name: "bar", Type: Int32},
 					{Name: "baz", Type: Float32},
 					{Name: "buz", Type: Float64},
@@ -58,27 +58,27 @@ func TestFromAnySchema(t *testing.T) {
 					},
 				},
 			},
-			Output: &Common{
+			Output: Common{
 				Type: Object,
-				Children: []*Common{
+				Children: []Common{
 					{
 						Name: "foo",
 						Type: Object,
-						Children: []*Common{
+						Children: []Common{
 							{
 								Name: "bar",
 								Type: Array,
-								Children: []*Common{
+								Children: []Common{
 									{
 										Type: Array,
-										Children: []*Common{
+										Children: []Common{
 											{
 												Type: Object,
-												Children: []*Common{
+												Children: []Common{
 													{
 														Name: "baz",
 														Type: Array,
-														Children: []*Common{
+														Children: []Common{
 															{
 																Type: Int64,
 															},
