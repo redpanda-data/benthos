@@ -101,6 +101,13 @@ type Common struct {
 	Children []Common
 }
 
+const (
+	anyFieldType     = "type"
+	anyFieldName     = "name"
+	anyFieldOptional = "optional"
+	anyFieldChildren = "children"
+)
+
 // ToAny serializes the common schema into a generic Go value, with structured
 // schemas being represented as map[string]any and []any. This could be further
 // manipulated using generic mapping tools such as bloblang, before either
@@ -113,15 +120,15 @@ type Common struct {
 // the Children field.
 func (c *Common) ToAny() any {
 	m := map[string]any{
-		"type": c.Type.String(),
+		anyFieldType: c.Type.String(),
 	}
 
 	if c.Name != "" {
-		m["name"] = c.Name
+		m[anyFieldName] = c.Name
 	}
 
 	if c.Optional {
-		m["optional"] = true
+		m[anyFieldOptional] = true
 	}
 
 	if len(c.Children) > 0 {
@@ -129,7 +136,7 @@ func (c *Common) ToAny() any {
 		for i, child := range c.Children {
 			children[i] = child.ToAny()
 		}
-		m["children"] = children
+		m[anyFieldChildren] = children
 	}
 
 	return m
@@ -144,32 +151,32 @@ func ParseFromAny(v any) (Common, error) {
 		return c, fmt.Errorf("expected map, received: %T", v)
 	}
 
-	if typeStr, ok := obj["type"].(string); ok {
+	if typeStr, ok := obj[anyFieldType].(string); ok {
 		var err error
 		if c.Type, err = typeFromStr(typeStr); err != nil {
 			return c, err
 		}
 	} else {
-		return c, fmt.Errorf("expected field `type` of type string, got %T", obj["type"])
+		return c, fmt.Errorf("expected field `type` of type string, got %T", obj[anyFieldType])
 	}
 
-	if name, ok := obj["name"]; ok {
+	if name, ok := obj[anyFieldName]; ok {
 		if nameStr, ok := name.(string); ok {
 			c.Name = nameStr
 		} else {
-			return c, fmt.Errorf("expected field `name` of type string, got %T", obj["name"])
+			return c, fmt.Errorf("expected field `name` of type string, got %T", obj[anyFieldName])
 		}
 	}
 
-	if optional, ok := obj["optional"]; ok {
+	if optional, ok := obj[anyFieldOptional]; ok {
 		if optionalB, ok := optional.(bool); ok {
 			c.Optional = optionalB
 		} else {
-			return c, fmt.Errorf("expected field `optional` of type string, got %T", obj["optional"])
+			return c, fmt.Errorf("expected field `optional` of type string, got %T", obj[anyFieldOptional])
 		}
 	}
 
-	if cArr, ok := obj["children"].([]any); ok {
+	if cArr, ok := obj[anyFieldChildren].([]any); ok {
 		for i, cEle := range cArr {
 			cChild, err := ParseFromAny(cEle)
 			if err != nil {
