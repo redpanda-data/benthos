@@ -4,6 +4,7 @@ package schema
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +32,7 @@ func TestFromAnySchema(t *testing.T) {
 				"baz":   float32(1.1),
 				"buz":   float64(1.2),
 				"moo":   true,
+				"meow":  time.Now().Add(time.Second),
 				"quack": nil,
 			},
 			Output: Common{
@@ -40,6 +42,7 @@ func TestFromAnySchema(t *testing.T) {
 					{Name: "baz", Type: Float32},
 					{Name: "buz", Type: Float64},
 					{Name: "foo", Type: String},
+					{Name: "meow", Type: Timestamp},
 					{Name: "moo", Type: Boolean},
 					{Name: "quack", Type: Null},
 				},

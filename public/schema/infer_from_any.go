@@ -5,6 +5,7 @@ package schema
 import (
 	"fmt"
 	"sort"
+	"time"
 )
 
 func inferFromAny(name string, v any) (Common, error) {
@@ -25,6 +26,8 @@ func inferFromAny(name string, v any) (Common, error) {
 		c.Type = ByteArray
 	case string:
 		c.Type = String
+	case time.Time:
+		c.Type = Timestamp
 	case []any:
 		c.Type = Array
 		for i, e := range t {

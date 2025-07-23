@@ -25,6 +25,7 @@ const (
 	Array     CommonType = 10
 	Null      CommonType = 11
 	Union     CommonType = 12
+	Timestamp CommonType = 13
 )
 
 // String returns a human readable string representation of the type.
@@ -54,6 +55,8 @@ func (t CommonType) String() string {
 		return "NULL"
 	case Union:
 		return "UNION"
+	case Timestamp:
+		return "TIMESTAMP"
 	default:
 		return "UNKNOWN"
 	}
@@ -85,6 +88,8 @@ func typeFromStr(v string) (CommonType, error) {
 		return Null, nil
 	case "UNION":
 		return Union, nil
+	case "TIMESTAMP":
+		return Timestamp, nil
 	default:
 		return 0, fmt.Errorf("unrecognised type string: %v", v)
 	}
