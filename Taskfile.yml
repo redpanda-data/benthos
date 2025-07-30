@@ -41,3 +41,4 @@ tasks:
     desc: Run unit and template tests
     deps:
       - test:unit
+      - test:template

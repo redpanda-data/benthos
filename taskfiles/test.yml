@@ -15,3 +15,18 @@ tasks:
       - ut-race
     cmds:
       - go test {{.GO_FLAGS}} -ldflags "{{.LD_FLAGS}}" -timeout 3m -shuffle=on -race ./...
+
+  template:
+    desc: Run template tests
+    aliases:
+      - tmpl
+    deps:
+      - :build:benthos
+    vars:
+      TEMPLATE_FILES:
+        sh: find internal/impl -type f -name "template_*.yaml"
+      TIMEOUT: '{{if .CI}}3m{{else}}1m{{end}}'
+    cmds:
+      - go test {{.GO_FLAGS}} -ldflags "{{.LD_FLAGS}}" -timeout {{.TIMEOUT}} ./...
+      - '{{.TARGET_DIR}}/benthos template lint {{.TEMPLATE_FILES}}'
+      - '{{.TARGET_DIR}}/benthos test ./config/test/...'
