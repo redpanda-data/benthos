@@ -13,6 +13,7 @@ vars:
 
 includes:
   tools: ./taskfiles/tools.yml
+  test: ./taskfiles/test.yml
 
 tasks:
   deps:
@@ -34,3 +35,8 @@ tasks:
       - tools:install-golangci-lint
     cmds:
       - '{{.TOOLS_BIN_DIR}}/golangci-lint run cmd/... internal/... public/...'
+
+  test:
+    desc: Run unit and template tests
+    deps:
+      - test:unit
