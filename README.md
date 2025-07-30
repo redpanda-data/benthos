@@ -37,10 +37,9 @@ This behaviour is the default and free of caveats, which also makes deploying an
 ## Formatting and Linting
 
 Benthos uses [golangci-lint][golangci-lint] for formatting and linting.
-You can install it with `make install-tools` and then run:
 
-- `make fmt` to format the codebase,
-- `make lint` to lint the codebase.
+- `task fmt` to format the codebase,
+- `task lint` to lint the codebase.
 
 [godoc-badge]: https://pkg.go.dev/badge/github.com/redpanda-data/benthos/v4/public
 [godoc-url]: https://pkg.go.dev/github.com/redpanda-data/benthos/v4/public

@@ -1,0 +1,33 @@
+version: '3'
+
+tasks:
+  unit:
+    desc: Run unit tests
+    aliases:
+      - ut
+    vars:
+      TIMEOUT: '{{if .CI}}3m{{else}}1m{{end}}'
+    cmds:
+      - go test {{.GO_FLAGS}} -ldflags "{{.LD_FLAGS}}" -timeout {{.TIMEOUT}} -shuffle=on ./...
+
+  unit-race:
+    desc: Run unit tests with race detection
+    aliases:
+      - ut-race
+    vars:
+      TIMEOUT: '{{if .CI}}3m{{else}}1m{{end}}'
+    cmds:
+      - go test {{.GO_FLAGS}} -ldflags "{{.LD_FLAGS}}" -timeout {{.TIMEOUT}} -shuffle=on -race ./...
+
+  template:
+    desc: Run template tests
+    aliases:
+      - tmpl
+    deps:
+      - :build:benthos
+    vars:
+      TEMPLATE_FILES:
+        sh: find internal/impl -type f -name "template_*.yaml"
+    cmds:
+      - '{{.TARGET_DIR}}/benthos template lint {{.TEMPLATE_FILES}}'
+      - '{{.TARGET_DIR}}/benthos test ./config/test/...'
