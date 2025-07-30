@@ -1,5 +1,10 @@
 .PHONY: deps test test-race fmt lint
 
+define DEPRECATION_WARNING
+$(warning DEPRECATED: This Makefile is deprecated. Please use https://taskfile.dev instead.)
+
+endef
+
 GOMAXPROCS ?= 1
 
 build:
