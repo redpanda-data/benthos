@@ -12,6 +12,7 @@ vars:
     sh: git describe --tags 2>/dev/null | sed 's/^v//' || echo "0.0.0"
 
 includes:
+  build: ./taskfiles/build.yml
   tools: ./taskfiles/tools.yml
   test: ./taskfiles/test.yml
 
