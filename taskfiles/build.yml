@@ -10,6 +10,7 @@ tasks:
     desc: Build all apps
     deps:
       - benthos
+      - benthos-wasm
 
   benthos:
     desc: Build Benthos
@@ -24,6 +25,22 @@ tasks:
     cmds:
       - task: :target-dir
       - '{{.GO_BUILD_CMD}} -o {{.TARGET_DIR}}/benthos ./cmd/benthos'
+    silent: true
+
+  benthos-wasm:
+    desc: Build Benthos WASM
+    method: timestamp
+    sources:
+      - internal/**
+      - public/**
+      - go.mod
+      - go.sum
+    generates:
+      - '{{.TARGET_DIR}}/benthos.wasm'
+    cmds:
+      - task: :target-dir
+      - 'GOOS=js GOARCH=wasm {{.GO_BUILD_CMD}} -o {{.TARGET_DIR}}/benthos.wasm ./cmd/benthos'
+    silent: true
 
   :target-dir:
     internal: true
