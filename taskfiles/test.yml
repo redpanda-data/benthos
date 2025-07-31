@@ -1,4 +1,5 @@
 version: '3'
+
 tasks:
   unit:
     desc: Run unit tests

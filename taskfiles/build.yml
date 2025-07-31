@@ -42,6 +42,11 @@ tasks:
       - 'GOOS=js GOARCH=wasm {{.GO_BUILD_CMD}} -o {{.TARGET_DIR}}/benthos.wasm ./cmd/benthos'
     silent: true
 
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf {{.TARGET_DIR}}
+
   :target-dir:
     internal: true
     cmds:
