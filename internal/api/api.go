@@ -99,9 +99,15 @@ func New(
 	}
 
 	handleStackTrace := func(w http.ResponseWriter, r *http.Request) {
-		stackSlice := make([]byte, 1024*100)
-		s := runtime.Stack(stackSlice, true)
-		_, _ = w.Write(stackSlice[:s])
+		buf := make([]byte, 1024)
+		for {
+			n := runtime.Stack(buf, true)
+			if n < len(buf) {
+				_, _ = w.Write(buf[:n])
+				return
+			}
+			buf = make([]byte, 2*len(buf))
+		}
 	}
 
 	handlePrintJSONConfig := func(w http.ResponseWriter, r *http.Request) {
