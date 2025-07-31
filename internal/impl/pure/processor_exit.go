@@ -14,7 +14,7 @@ func init() {
 		Categories("Utility").
 		Beta().
 		Summary(`Exit the process with a code.`).
-		Field(service.NewIntField("").Description("The exit code to use.").Default(0))
+		Field(service.NewIntField("").Default(0))
 	service.MustRegisterProcessor(
 		"exit", spec,
 		func(conf *service.ParsedConfig, res *service.Resources) (service.Processor, error) {
