@@ -1,0 +1,51 @@
+version: '3'
+
+vars:
+  LD_FLAGS: '{{default "-w -s" .LD_FLAGS}}'
+  DATE_BUILT: '{{now | date "2006-01-02T15:04:05Z"}}'
+  GO_BUILD_CMD: go build {{.GO_FLAGS}} -tags "{{.TAGS}}" -ldflags "{{.LD_FLAGS}} -X main.Version=v{{.VERSION}} -X main.DateBuilt={{.DATE_BUILT}}"
+
+tasks:
+  all:
+    desc: Build all apps
+    deps:
+      - benthos
+      - benthos-wasm
+
+  benthos:
+    desc: Build Benthos
+    method: timestamp
+    sources:
+      - internal/**
+      - public/**
+      - go.mod
+      - go.sum
+    generates:
+      - '{{.TARGET_DIR}}/benthos'
+    cmds:
+      - task: :target-dir
+      - '{{.GO_BUILD_CMD}} -o {{.TARGET_DIR}}/benthos ./cmd/benthos'
+
+  benthos-wasm:
+    desc: Build Benthos WASM
+    method: timestamp
+    sources:
+      - internal/**
+      - public/**
+      - go.mod
+      - go.sum
+    generates:
+      - '{{.TARGET_DIR}}/benthos.wasm'
+    cmds:
+      - task: :target-dir
+      - 'GOOS=js GOARCH=wasm {{.GO_BUILD_CMD}} -o {{.TARGET_DIR}}/benthos.wasm ./cmd/benthos'
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf {{.TARGET_DIR}}
+
+  :target-dir:
+    internal: true
+    cmds:
+      - mkdir -p '{{.TARGET_DIR}}'
