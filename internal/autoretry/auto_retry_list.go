@@ -98,21 +98,26 @@ func (l *List[T]) adopt(t T, aFn AckFunc) AckFunc {
 }
 
 func (l *List[T]) wrapPendingAck(t *pendingT[T]) AckFunc {
-	return func(ctx context.Context, err error) error {
-		l.cond.L.Lock()
-		defer func() {
-			// Either outcome is worth broadcasting.
-			l.cond.Broadcast()
-			l.cond.L.Unlock()
-		}()
+	var ackOnce sync.Once
 
-		if err != nil {
-			t.t = l.mutator(t.t, err)
-			l.pendingRetry = append(l.pendingRetry, t)
-			return nil
-		}
-		l.retryInFlight--
-		return t.aFn(ctx, nil)
+	return func(ctx context.Context, err error) (outErr error) {
+		ackOnce.Do(func() {
+			l.cond.L.Lock()
+			defer func() {
+				// Either outcome is worth broadcasting.
+				l.cond.Broadcast()
+				l.cond.L.Unlock()
+			}()
+
+			if err != nil {
+				t.t = l.mutator(t.t, err)
+				l.pendingRetry = append(l.pendingRetry, t)
+				return
+			}
+			l.retryInFlight--
+			outErr = t.aFn(ctx, nil)
+		})
+		return
 	}
 }
 

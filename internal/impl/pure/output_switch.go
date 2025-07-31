@@ -337,6 +337,7 @@ func (o *switchOutput) dispatchToTargets(
 		ctx, done := o.shutSig.HardStopCtx(context.Background())
 		defer done()
 		_ = ackFn(ctx, nil)
+		return
 	}
 
 	for target, parts := range outputTargets {
