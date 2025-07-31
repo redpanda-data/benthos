@@ -17,6 +17,12 @@ includes:
   test: ./taskfiles/test.yml
 
 tasks:
+
+  install:
+    desc: Install Benthos
+    cmds:
+      - go install ./cmd/benthos
+
   deps:
     desc: Tidy Go modules
     cmds:
@@ -42,3 +48,7 @@ tasks:
     deps:
       - test:unit
       - test:template
+  generate:
+    desc: Runs Go generate
+    cmds:
+      - go generate ./...
