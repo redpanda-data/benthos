@@ -24,14 +24,17 @@ jobs:
       with:
         go-version: stable
 
+    - name: Install Task
+      uses: ./.github/actions/setup-task
+
     - name: Deps
-      run: make deps && git diff-index --quiet HEAD || { >&2 echo "Stale go.{mod,sum} detected. This can be fixed with 'make deps'."; exit 1; }
+      run: task deps && git diff-index --quiet HEAD || { >&2 echo "Stale go.{mod,sum} detected. This can be fixed with 'task deps'."; exit 1; }
 
     - name: Test
-      run: make test
+      run: task test
 
     - name: Test WASM build
-      run: make build-wasm
+      run: task build:benthos-wasm
 
   golangci-lint:
     if: ${{ github.repository == 'redpanda-data/benthos' || github.event_name != 'schedule' }}
