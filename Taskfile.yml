@@ -1,0 +1,55 @@
+version: '3'
+
+dotenv:
+  - .env
+  - .env.local
+  - .versions
+
+vars:
+  TARGET_DIR: target
+  TOOLS_BIN_DIR: '{{.USER_WORKING_DIR}}/bin'
+  VERSION:
+    sh: git describe --tags 2>/dev/null | sed 's/^v//' || echo "0.0.0"
+
+includes:
+  build: ./taskfiles/build.yml
+  tools: ./taskfiles/tools.yml
+  test: ./taskfiles/test.yml
+
+tasks:
+
+  install:
+    desc: Install Benthos
+    cmds:
+      - go install ./cmd/benthos
+
+  deps:
+    desc: Tidy Go modules
+    cmds:
+      - go mod tidy
+
+  fmt:
+    desc: Format code and tidy modules
+    deps:
+      - tools:install-golangci-lint
+    cmds:
+      - '{{.TOOLS_BIN_DIR}}/golangci-lint fmt cmd/... internal/... public/...'
+      - go mod tidy
+
+  lint:
+    desc: Run linter on code
+    deps:
+      - tools:install-golangci-lint
+    cmds:
+      - '{{.TOOLS_BIN_DIR}}/golangci-lint run cmd/... internal/... public/...'
+
+  test:
+    desc: Run unit, template and config tests
+    deps:
+      - test:unit
+      - test:template
+
+  generate:
+    desc: Runs Go generate
+    cmds:
+      - go generate ./...

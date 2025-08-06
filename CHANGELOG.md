@@ -3,15 +3,27 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.54.0 - TBD
+## 4.55.0 - 2025-08-06
 
 ### Added
 
-- Added TLS support to the input and output `socket` components. (@eadwright)
+- Go API: New input wrapping field for forcing timely acknowledgements. (@Jeffail)
+
+### Fixed
+
+- The `/debug/stack` endpoint no longer truncates large traces. (@Jeffail)
 
 ### Changed
 
 - The `retry` processor now emits the `backoff_duration` metadata as nanoseconds. (@mihaitodor)
+
+## 4.54.0 - 2025-07-28
+
+### Added
+
+- Added TLS support to the input and output `socket` components. (@eadwright)
+- Go API: New `public/schema` package for serde to and from a common schema format. (@Jeffail)
+- New Bloblang method `infer_schema`. (@Jeffail)
 
 ## 4.53.1 - 2025-07-08
 
