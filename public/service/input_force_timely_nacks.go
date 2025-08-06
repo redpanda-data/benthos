@@ -10,8 +10,8 @@ import (
 )
 
 // ForceTimelyNacksBatched wraps an input implementation with a timely ack
-// mechanism only if a field defined by NewTimelyNacksField has been specified
-// and is a duration greater than zero.
+// mechanism only if a field defined by NewForceTimelyNacksField has been
+// specified and is a duration greater than zero.
 func ForceTimelyNacksBatched(c *ParsedConfig, i BatchInput) (BatchInput, error) {
 	if !c.Contains(ForceTimelyNacksFieldName) {
 		return i, nil
@@ -28,24 +28,24 @@ func ForceTimelyNacksBatched(c *ParsedConfig, i BatchInput) (BatchInput, error) 
 	return &forceTimelyNacksInputBatched{
 		logger:          c.Resources().Logger(),
 		maxWaitDuration: d,
-		child:           i,
+		inner:           i,
 	}, nil
 }
 
-var errForceTimelyNacks = errors.New("message acknowledgement exceeded maximum wait and has been rejected")
+var errForceTimelyNacks = errors.New("message acknowledgement exceeded maximum wait duration and has been rejected")
 
 type forceTimelyNacksInputBatched struct {
 	logger          *Logger
 	maxWaitDuration time.Duration
-	child           BatchInput
+	inner           BatchInput
 }
 
 func (i *forceTimelyNacksInputBatched) Connect(ctx context.Context) error {
-	return i.child.Connect(ctx)
+	return i.inner.Connect(ctx)
 }
 
 func (i *forceTimelyNacksInputBatched) ReadBatch(ctx context.Context) (MessageBatch, AckFunc, error) {
-	batch, ackFn, err := i.child.ReadBatch(ctx)
+	batch, ackFn, err := i.inner.ReadBatch(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -59,7 +59,7 @@ func (i *forceTimelyNacksInputBatched) ReadBatch(ctx context.Context) (MessageBa
 			return
 		case <-time.After(i.maxWaitDuration):
 			ackOnce.Do(func() {
-				i.logger.With("duration", i.maxWaitDuration.String()).Warn("Message acknowledgement exceeded our configured maximum wait period and is being rejected as a result")
+				i.logger.With("duration", i.maxWaitDuration.String()).Warn("Message acknowledgement exceeded configured maximum wait duration and is being rejected as a result")
 				_ = ackFn(context.Background(), errForceTimelyNacks)
 			})
 		}
@@ -77,5 +77,5 @@ func (i *forceTimelyNacksInputBatched) ReadBatch(ctx context.Context) (MessageBa
 }
 
 func (i *forceTimelyNacksInputBatched) Close(ctx context.Context) error {
-	return i.child.Close(ctx)
+	return i.inner.Close(ctx)
 }
