@@ -139,3 +139,20 @@ func (p *ParsedConfig) FieldInputMap(path ...string) (map[string]*OwnedInput, er
 
 	return ins, nil
 }
+
+// ForceTimelyNacksFieldName is the configuration field name for enabling a
+// forced timely acknowledgement for messages based on a specified maximum wait
+// period.
+const ForceTimelyNacksFieldName = "timely_nacks_maximum_wait"
+
+// NewForceTimelyNacksField creates a configuration field for enabling a forced
+// maximum period of time whereby messages can be in flight and not
+// acknowledged. If this period is reached before ack or nack then a nack is
+// forced and the message will be rejected or replayed depending on the
+// configuration.
+func NewForceTimelyNacksField() *ConfigField {
+	return NewDurationField(ForceTimelyNacksFieldName).
+		Description("EXPERIMENTAL: Specify a maximum period of time in which each message can be consumed and awaiting either acknowledgement or rejection before rejection is instead forced. This can be useful for avoiding situations where certain downstream components can result in blocked confirmation of delivery that exceeds SLAs.").
+		Advanced().
+		Optional()
+}
