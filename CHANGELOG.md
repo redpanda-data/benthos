@@ -13,6 +13,10 @@ All notable changes to this project will be documented in this file.
 
 - The `/debug/stack` endpoint no longer truncates large traces. (@Jeffail)
 
+### Changed
+
+- The `retry` processor now emits the `backoff_duration` metadata as nanoseconds. (@mihaitodor)
+
 ## 4.54.0 - 2025-07-28
 
 ### Added

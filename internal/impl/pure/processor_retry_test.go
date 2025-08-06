@@ -52,7 +52,7 @@ retry:
 
 		backoffDuration, ok := m.MetaGetMut("backoff_duration")
 		require.True(t, ok)
-		assert.Equal(t, backoffDuration, time.Duration(0))
+		assert.Equal(t, backoffDuration, time.Duration(0).Nanoseconds())
 
 		resMsgs = append(resMsgs, string(m.AsBytes()))
 	}
@@ -202,7 +202,7 @@ retry:
 
 		backoffDuration, ok := m.MetaGetMut("backoff_duration")
 		require.True(t, ok)
-		assert.Greater(t, backoffDuration, time.Duration(0))
+		assert.Greater(t, backoffDuration, time.Duration(0).Nanoseconds())
 
 		resMsgs = append(resMsgs, string(m.AsBytes()))
 	}
