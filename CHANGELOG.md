@@ -3,6 +3,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.55.0 - 2025-08-06
+
+### Added
+
+- Go API: New input wrapping field for forcing timely acknowledgements. (@Jeffail)
+
+### Fixed
+
+- The `/debug/stack` endpoint no longer truncates large traces. (@Jeffail)
+
 ## 4.54.0 - 2025-07-28
 
 ### Added
