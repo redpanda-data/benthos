@@ -13,7 +13,7 @@ func Spec() docs.FieldSpecs {
 			"OFF", "FATAL", "ERROR", "WARN", "INFO", "DEBUG", "TRACE", "ALL", "NONE",
 		).HasDefault("INFO").LinterFunc(nil),
 		docs.FieldString(fieldFormat, "Set the format of emitted logs.").HasOptions("json", "logfmt").HasDefault("logfmt"),
-		docs.FieldBool(fieldAddTimeStamp, "Whether to include timestamps in logs.").HasDefault(false),
+		docs.FieldBool(fieldAddTimeStamp, "Whether to include timestamps in logs.").HasDefault(true),
 		docs.FieldString(fieldLevelName, "The name of the level field added to logs when the `format` is `json`.").HasDefault("level").Advanced(),
 		docs.FieldString(fieldTimestampName, "The name of the timestamp field added to logs when `add_timestamp` is set to `true` and the `format` is `json`.").HasDefault("time").Advanced(),
 		docs.FieldString(fieldMessageName, "The name of the message field added to logs when the `format` is `json`.").HasDefault("msg").Advanced(),

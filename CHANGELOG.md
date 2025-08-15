@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## TBD
+
+### Changed
+
+- Logging: Enable timestamp output by default (@josephwoodward)
+
 ## 4.55.0 - 2025-08-06
 
 ### Added
