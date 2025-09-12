@@ -148,6 +148,47 @@ dog:
 				"required environment variables were not set",
 			},
 		},
+		{
+			name:    "meta section present but ignored",
+			typeStr: "input",
+			config: `
+dog:
+  woof: meow
+meta:
+  some: stuff
+  that: I put here just cus
+  andalso: [ these, are, here ]
+`,
+		},
+		{
+			name:    "meta section present and linted",
+			typeStr: "input",
+			config: `
+dog:
+  woof: meow
+meta:
+  some: stuff
+  yoyo:
+    a: this is a linted string
+    b: this is wrong
+  andalso: [ these, are, here ]
+`,
+			linter: env.NewComponentConfigLinter().
+				SetMetaFieldsFn(func(componentType string) []*service.ConfigField {
+					if componentType != "input" {
+						return nil
+					}
+					return []*service.ConfigField{
+						service.NewObjectField("yoyo",
+							service.NewStringField("a"),
+							service.NewStringEnumField("b", "this", "orthis"),
+						),
+					}
+				}),
+			lintContains: []string{
+				"this is wrong is not a valid option",
+			},
+		},
 	}
 
 	for _, test := range tests {
