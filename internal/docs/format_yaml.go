@@ -692,7 +692,7 @@ func (f FieldSpecs) LintYAML(ctx LintContext, node *yaml.Node) []Lint {
 			}
 			spec, exists := specNamesAll[walkNode.Content[i].Value]
 			if !exists {
-				if walkNode.Content[i+1].Kind != yaml.AliasNode {
+				if !ctx.conf.IgnoreUnrecognized && walkNode.Content[i+1].Kind != yaml.AliasNode {
 					lints = append(lints, NewLintError(walkNode.Content[i].Line, LintUnknown, fmt.Errorf("field %v not recognised", walkNode.Content[i].Value)))
 				}
 				continue

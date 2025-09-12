@@ -22,6 +22,7 @@ type ComponentConfigLinter struct {
 	lintConf       docs.LintConfig
 	skipEnvVarLint bool
 	envVarLookupFn func(string) (string, bool)
+	metaFieldsFn   func(componentType string) docs.FieldSpecs
 }
 
 // NewComponentConfigLinter creates a component linter.
@@ -32,6 +33,9 @@ func (e *Environment) NewComponentConfigLinter() *ComponentConfigLinter {
 		env:            e,
 		lintConf:       lintConf,
 		envVarLookupFn: os.LookupEnv,
+		metaFieldsFn: func(string) docs.FieldSpecs {
+			return nil
+		},
 	}
 }
 
@@ -61,6 +65,20 @@ func (c *ComponentConfigLinter) SetSkipEnvVarCheck(v bool) *ComponentConfigLinte
 func (c *ComponentConfigLinter) SetEnvVarLookupFunc(fn func(context.Context, string) (string, bool)) *ComponentConfigLinter {
 	c.envVarLookupFn = func(s string) (string, bool) {
 		return fn(context.Background(), s)
+	}
+	return c
+}
+
+// SetMetaFieldsFn adds an explicit list of fields that should be present within
+// the meta section of a config. This is provided as a closure that receives
+// the component type, which allows for component specific meta linting.
+func (c *ComponentConfigLinter) SetMetaFieldsFn(fn func(componentType string) []*ConfigField) *ComponentConfigLinter {
+	c.metaFieldsFn = func(componentType string) docs.FieldSpecs {
+		var ifs docs.FieldSpecs
+		for _, f := range fn(componentType) {
+			ifs = append(ifs, f.field)
+		}
+		return ifs
 	}
 	return c
 }
@@ -115,6 +133,25 @@ func (c *ComponentConfigLinter) LintYAML(componentType string, yamlBytes []byte)
 			What:   l.What,
 		})
 	}
+
+	if metaFields := c.metaFieldsFn(componentType); len(metaFields) > 0 {
+		tmpConf := c.lintConf
+		tmpConf.IgnoreUnrecognized = true
+		for i := 0; i < len(cNode.Content)-1; i += 2 {
+			if cNode.Content[i].Value == "meta" {
+				for _, l := range metaFields.LintYAML(docs.NewLintContext(tmpConf), cNode.Content[i+1]) {
+					lints = append(lints, Lint{
+						Column: l.Column,
+						Line:   l.Line,
+						Type:   convertDocsLintType(l.Type),
+						What:   l.What,
+					})
+				}
+				break
+			}
+		}
+	}
+
 	return
 }
 

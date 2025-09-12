@@ -3,11 +3,15 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## TBD
+## 4.56.0 - 2025-09-12
 
 ### Changed
 
 - Logging: Enable timestamp output by default (@josephwoodward)
+
+### Added
+
+- Go API: Ability to add custom meta linting fields to `ComponentLinter`. (@Jeffail)
 
 ## 4.55.0 - 2025-08-06
 
