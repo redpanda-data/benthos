@@ -685,7 +685,7 @@ type LintConfig struct {
 	// Require labels for components.
 	RequireLabels bool
 
-	// Ignore object fields that aren't recnogized.
+	// Ignore object fields that aren't recognized.
 	IgnoreUnrecognized bool
 }
 
