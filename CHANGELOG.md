@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.57.0 - TBD
+
+### Added
+
+- New `json_array` scanner. (@Jeffail)
+
 ## 4.56.0 - 2025-09-12
 
 ### Changed
