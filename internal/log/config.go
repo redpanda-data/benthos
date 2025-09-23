@@ -47,7 +47,7 @@ func NewConfig() Config {
 		TimestampName: "time",
 		MessageName:   "msg",
 		StaticFields: map[string]string{
-			"@service": "benthos",
+			"@service": "redpanda-benthos",
 		},
 	}
 }
