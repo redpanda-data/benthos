@@ -9,7 +9,6 @@ import (
 
 func TestPartWithContext(t *testing.T) {
 	p1 := NewPart([]byte(`foobar`))
-	//nolint:usetesting // context.Background() could be replaced by t.Context()
 	if exp, act := context.Background(), GetContext(p1); exp != act {
 		t.Errorf("Wrong context returned: %v != %v", act, exp)
 	}

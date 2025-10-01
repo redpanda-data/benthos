@@ -60,7 +60,6 @@ fallback:
 	require.NoError(t, s.Consume(sendChan))
 
 	t.Cleanup(func() {
-		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		s.TriggerCloseNow()
 		require.NoError(t, s.WaitForClose(ctx))
@@ -147,7 +146,6 @@ fallback:
 	require.NoError(t, s.Consume(sendChan))
 
 	t.Cleanup(func() {
-		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		s.TriggerCloseNow()
 		require.NoError(t, s.WaitForClose(ctx))
@@ -236,7 +234,6 @@ fallback:
 	require.NoError(t, s.Consume(sendChan))
 
 	t.Cleanup(func() {
-		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		s.TriggerCloseNow()
 		require.NoError(t, s.WaitForClose(ctx))
@@ -322,7 +319,6 @@ fallback:
 	require.NoError(t, s.Consume(sendChan))
 
 	t.Cleanup(func() {
-		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		s.TriggerCloseNow()
 		require.NoError(t, s.WaitForClose(ctx))
@@ -414,7 +410,6 @@ fallback:
 	require.NoError(t, s.Consume(sendChan))
 
 	t.Cleanup(func() {
-		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		s.TriggerCloseNow()
 		require.NoError(t, s.WaitForClose(ctx))

@@ -134,7 +134,6 @@ broker:
 	t.Cleanup(func() {
 		s.TriggerCloseNow()
 
-		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second*10)
 		assert.NoError(t, s.WaitForClose(ctx))
 		done()
