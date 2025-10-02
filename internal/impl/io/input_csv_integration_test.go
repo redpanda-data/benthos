@@ -54,7 +54,6 @@ csv:
 `, dummyFileA, dummyFileB)
 
 	t.Cleanup(func() {
-		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second)
 		require.NoError(t, f.WaitForClose(ctx))
 		done()
@@ -92,7 +91,6 @@ csv:
 `, dummyCSVFile)
 
 	t.Cleanup(func() {
-		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second)
 		require.NoError(t, f.WaitForClose(ctx))
 		done()
@@ -137,7 +135,6 @@ csv:
 `, dir)
 
 	t.Cleanup(func() {
-		//nolint:usetesting // context.Background() could be replaced by t.Context()
 		ctx, done := context.WithTimeout(context.Background(), time.Second)
 		require.NoError(t, f.WaitForClose(ctx))
 		done()
