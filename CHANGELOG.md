@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.57.1 - 2025-10-02
+
+### Fixed
+
+- The `test` subcommand no longer ignores environment variables. (@Nimon77)
+
 ## 4.57.0 - 2025-09-23
 
 ### Added
