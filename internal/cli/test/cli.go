@@ -49,6 +49,10 @@ For more information check out the docs at:
 			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
 		},
 		Action: func(c *cli.Context) error {
+			if err := cliOpts.CustomRunExtractFn(c); err != nil {
+				return err
+			}
+
 			if len(cliOpts.RootFlags.GetSet(c)) > 0 {
 				return errors.New("cannot override fields with --set (-s) during unit tests")
 			}
