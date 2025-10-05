@@ -39,10 +39,10 @@ input:
 			`This example uses a xref:components:inputs/generate.adoc[`+"`generate`"+` input] to make payload for the template.`,
 			`
 input:
-	generate:
+  generate:
     count: 1
     mapping: root.foo = "bar"
-	processors:
+  processors:
     - template:
         code: "{{ .value }}"
         mapping: "root.value = this.foo"
@@ -52,13 +52,13 @@ input:
 			`This example loads a template from a file and applies it to the message.`,
 			`
 input:
-	generate:
+  generate:
     count: 1
     mapping: root.foo = "bar"
-	processors:
-		- template:
-				code: |
-					{{ template "greeting" . }}
+  processors:
+    - template:
+        code: |
+          {{ template "greeting" . }}
         files: ["./templates/greeting.tmpl"]
 `).
 		Fields(
@@ -67,7 +67,7 @@ input:
 				Example("{{.name}}").
 				Optional(),
 			service.NewStringListField("files").
-				Description("A list of file paths containing template definitions. Templates from these files will be parsed and available for execution.").
+				Description("A list of file paths containing template definitions. Templates from these files will be parsed and available for execution. Glob patterns are supported, including super globs (double star).").
 				Optional(),
 			service.NewBloblangField("mapping").
 				Description("An optional xref:guides:bloblang/about.adoc[Bloblang] mapping to apply to the message before executing the template. This allows you to transform the data structure before templating.").
@@ -108,8 +108,10 @@ func templateFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) (*
 
 	t := &tmplProc{tmpl: &template.Template{}}
 	if len(files) > 0 {
-		if t.tmpl, err = t.tmpl.ParseFiles(files...); err != nil {
-			return nil, err
+		for _, f := range files {
+			if t.tmpl, err = t.tmpl.ParseGlob(f); err != nil {
+				return nil, err
+			}
 		}
 	}
 
