@@ -43,6 +43,11 @@ func (u *UnwrapInternalInput) Unwrap() input.Streamed {
 	return u.s
 }
 
+// ConnectionTest does nothing, use Unwrap instead.
+func (u *UnwrapInternalInput) ConnectionTest() component.ConnectionTestResults {
+	return nil
+}
+
 // Connect does nothing, use Unwrap instead.
 func (u *UnwrapInternalInput) Connect(ctx context.Context) error {
 	return component.ErrNotUnwrapped
