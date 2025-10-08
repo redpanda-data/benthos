@@ -118,7 +118,8 @@ func newDynamicInputFromParsed(conf *service.ParsedConfig, res *service.Resource
 	dynAPI := api.NewDynamic()
 	mgr := interop.UnwrapManagement(res)
 	fanIn, err := newDynamicFanInInput(
-		inputs, mgr.Logger(),
+		mgr,
+		inputs,
 		func(ctx context.Context, l string) {
 			inputConfigsMut.Lock()
 			defer inputConfigsMut.Unlock()

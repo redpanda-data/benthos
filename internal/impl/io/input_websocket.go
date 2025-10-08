@@ -148,14 +148,7 @@ func (w *websocketReader) getWS() *websocket.Conn {
 	return ws
 }
 
-func (w *websocketReader) Connect(ctx context.Context) error {
-	w.lock.Lock()
-	defer w.lock.Unlock()
-
-	if w.client != nil {
-		return nil
-	}
-
+func (w *websocketReader) getConn(ctx context.Context) (*websocket.Conn, error) {
 	headers := http.Header{}
 
 	err := w.reqSigner(w.mgr.FS(), &http.Request{
@@ -163,7 +156,7 @@ func (w *websocketReader) Connect(ctx context.Context) error {
 		Header: headers,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var (
@@ -185,9 +178,25 @@ func (w *websocketReader) Connect(ctx context.Context) error {
 	if w.tlsEnabled {
 		dialer.TLSClientConfig = w.tlsConf
 		if client, res, err = dialer.Dial(w.urlStr, headers); err != nil {
-			return err
+			return nil, err
 		}
 	} else if client, res, err = dialer.Dial(w.urlStr, headers); err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func (w *websocketReader) Connect(ctx context.Context) error {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	if w.client != nil {
+		return nil
+	}
+
+	client, err := w.getConn(ctx)
+	if err != nil {
 		return err
 	}
 
@@ -198,11 +207,13 @@ func (w *websocketReader) Connect(ctx context.Context) error {
 	case wsOpenMsgTypeText:
 		openMsgType = websocket.TextMessage
 	default:
+		_ = client.Close()
 		return fmt.Errorf("unrecognised open_message_type: %s", w.openMsgType)
 	}
 
 	if len(w.openMsg) > 0 {
 		if err := client.WriteMessage(openMsgType, w.openMsg); err != nil {
+			_ = client.Close()
 			return err
 		}
 	}

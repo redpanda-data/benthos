@@ -338,7 +338,8 @@ type sequenceInput struct {
 
 	transactions chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 type sequenceTarget struct {
@@ -382,7 +383,6 @@ func newSequenceInputFromParsed(conf *service.ParsedConfig, res *service.Resourc
 		return nil, errors.New("failed to initialize first input")
 	}
 
-	go rdr.loop()
 	return rdr, nil
 }
 
@@ -604,7 +604,7 @@ func (r *sequenceInput) TransactionChan() <-chan message.Transaction {
 
 func (r *sequenceInput) ConnectionTest() component.ConnectionTestResults {
 	if t, _ := r.getTarget(); t != nil {
-		return t.ConnectionStatus()
+		return t.ConnectionTest()
 	}
 	return nil
 }
@@ -614,6 +614,12 @@ func (r *sequenceInput) ConnectionStatus() component.ConnectionStatuses {
 		return t.ConnectionStatus()
 	}
 	return nil
+}
+
+func (r *sequenceInput) TriggerStartConsuming() {
+	r.startOnce.Do(func() {
+		go r.loop()
+	})
 }
 
 func (r *sequenceInput) TriggerStopConsuming() {
