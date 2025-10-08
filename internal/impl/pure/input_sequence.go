@@ -602,6 +602,13 @@ func (r *sequenceInput) TransactionChan() <-chan message.Transaction {
 	return r.transactions
 }
 
+func (r *sequenceInput) ConnectionTest() component.ConnectionTestResults {
+	if t, _ := r.getTarget(); t != nil {
+		return t.ConnectionStatus()
+	}
+	return nil
+}
+
 func (r *sequenceInput) ConnectionStatus() component.ConnectionStatuses {
 	if t, _ := r.getTarget(); t != nil {
 		return t.ConnectionStatus()

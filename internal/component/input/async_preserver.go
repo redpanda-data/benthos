@@ -81,6 +81,13 @@ func NewAsyncPreserver(r Async) *AsyncPreserver {
 
 //------------------------------------------------------------------------------
 
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (p *AsyncPreserver) ConnectionTest() component.ConnectionTestResults {
+	return p.r.ConnectionTest()
+}
+
 // Connect attempts to establish a connection to the source, if
 // unsuccessful returns an error. If the attempt is successful (or not
 // necessary) returns nil.

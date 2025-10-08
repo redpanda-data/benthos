@@ -5,6 +5,8 @@ package service
 import (
 	"context"
 
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/component/input/batcher"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -100,11 +102,20 @@ type BatchInput interface {
 
 // Implements input.AsyncReader.
 type airGapReader struct {
+	o bundle.NewManagement
 	r Input
 }
 
-func newAirGapReader(r Input) input.Async {
-	return &airGapReader{r: r}
+func newAirGapReader(o bundle.NewManagement, r Input) input.Async {
+	return &airGapReader{o: o, r: r}
+}
+
+func (a *airGapReader) ConnectionTest() component.ConnectionTestResults {
+	t, ok := a.r.(ConnectionTestable)
+	if !ok {
+		return component.ConnectionTestNotSupported(a.o).AsList()
+	}
+	return t.ConnectionTest().intoInternal(a.o)
 }
 
 func (a *airGapReader) Connect(ctx context.Context) error {
@@ -131,11 +142,20 @@ func (a *airGapReader) Close(ctx context.Context) error {
 
 // Implements input.AsyncReader.
 type airGapBatchReader struct {
+	o bundle.NewManagement
 	r BatchInput
 }
 
-func newAirGapBatchReader(r BatchInput) input.Async {
-	return &airGapBatchReader{r: r}
+func newAirGapBatchReader(o bundle.NewManagement, r BatchInput) input.Async {
+	return &airGapBatchReader{o: o, r: r}
+}
+
+func (a *airGapBatchReader) ConnectionTest() component.ConnectionTestResults {
+	t, ok := a.r.(ConnectionTestable)
+	if !ok {
+		return component.ConnectionTestNotSupported(a.o).AsList()
+	}
+	return t.ConnectionTest().intoInternal(a.o)
 }
 
 func (a *airGapBatchReader) Connect(ctx context.Context) error {
