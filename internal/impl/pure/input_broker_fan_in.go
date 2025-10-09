@@ -85,7 +85,7 @@ func (i *fanInInputBroker) TriggerStartConsuming() {
 	}
 }
 
-func (i *fanInInputBroker) ConnectionTest() component.ConnectionTestResults {
+func (i *fanInInputBroker) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
 	i.remainingMapMut.Lock()
 	defer i.remainingMapMut.Unlock()
 
@@ -95,7 +95,7 @@ func (i *fanInInputBroker) ConnectionTest() component.ConnectionTestResults {
 
 	var results component.ConnectionTestResults
 	for index := range i.remainingMap {
-		results = append(results, i.closables[index].ConnectionTest()...)
+		results = append(results, i.closables[index].ConnectionTest(ctx)...)
 	}
 	return results
 }

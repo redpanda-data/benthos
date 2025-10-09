@@ -908,7 +908,7 @@ func (h *httpServerInput) TransactionChan() <-chan message.Transaction {
 	return h.transactions
 }
 
-func (h *httpServerInput) ConnectionTest() component.ConnectionTestResults {
+func (h *httpServerInput) ConnectionTest(context.Context) component.ConnectionTestResults {
 	return component.ConnectionTestSucceeded(h.mgr).AsList()
 }
 

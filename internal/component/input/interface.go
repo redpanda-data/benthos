@@ -20,7 +20,7 @@ type Streamed interface {
 	// ConnectionTest attempts to establish whether the component is capable of
 	// creating a connection. This will potentially require and test network
 	// connectivity, but does not require the component to be initialized.
-	ConnectionTest() component.ConnectionTestResults
+	ConnectionTest(ctx context.Context) component.ConnectionTestResults
 
 	// ConnectionStatus returns the current status of the given component
 	// connection. The result is a slice in order to accommodate higher order
@@ -56,7 +56,7 @@ type Async interface {
 	// ConnectionTest attempts to establish whether the component is capable of
 	// creating a connection. This will potentially require and test network
 	// connectivity, but does not require the component to be initialized.
-	ConnectionTest() component.ConnectionTestResults
+	ConnectionTest(ctx context.Context) component.ConnectionTestResults
 
 	// Connect attempts to establish a connection to the source, if
 	// unsuccessful returns an error. If the attempt is successful (or not

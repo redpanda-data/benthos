@@ -162,8 +162,8 @@ func (m *Impl) TriggerStartConsuming() {
 // ConnectionTest attempts to establish whether the component is capable of
 // creating a connection. This will potentially require and test network
 // connectivity, but does not require the component to be initialized.
-func (m *Impl) ConnectionTest() component.ConnectionTestResults {
-	return m.child.ConnectionTest()
+func (m *Impl) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return m.child.ConnectionTest(ctx)
 }
 
 // ConnectionStatus returns the current status of the given component

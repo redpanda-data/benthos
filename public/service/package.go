@@ -85,7 +85,7 @@ type ConnectionTestable interface {
 	// ConnectionTest attempts to establish whether the component is capable of
 	// creating a connection. This will potentially require and test network
 	// connectivity, but does not require the component to be initialized.
-	ConnectionTest() ConnectionTestResults
+	ConnectionTest(ctx context.Context) ConnectionTestResults
 }
 
 // Closer is implemented by components that support stopping and cleaning up

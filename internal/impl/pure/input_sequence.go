@@ -602,9 +602,9 @@ func (r *sequenceInput) TransactionChan() <-chan message.Transaction {
 	return r.transactions
 }
 
-func (r *sequenceInput) ConnectionTest() component.ConnectionTestResults {
+func (r *sequenceInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
 	if t, _ := r.getTarget(); t != nil {
-		return t.ConnectionTest()
+		return t.ConnectionTest(ctx)
 	}
 	return nil
 }

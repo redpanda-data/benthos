@@ -207,7 +207,7 @@ func parseCronExpression(cronExpression string) (*cron.Schedule, error) {
 	return &cronSchedule, nil
 }
 
-func (b *generateReader) ConnectionTest() component.ConnectionTestResults {
+func (b *generateReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
 	return b.staticConnResult
 }
 

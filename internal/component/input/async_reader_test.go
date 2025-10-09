@@ -53,6 +53,10 @@ func newMockAsyncReader() *mockAsyncReader {
 	}
 }
 
+func (r *mockAsyncReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
+}
+
 func (r *mockAsyncReader) Connect(ctx context.Context) error {
 	cerr, open := <-r.connChan
 	if !open {
@@ -109,6 +113,10 @@ func (r *mockAsyncReader) Close(ctx context.Context) error {
 
 type asyncReaderCantConnect struct{}
 
+func (r asyncReaderCantConnect) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
+}
+
 func (r asyncReaderCantConnect) Connect(ctx context.Context) error {
 	return component.ErrNotConnected
 }
@@ -134,6 +142,10 @@ func TestAsyncReaderCantConnect(t *testing.T) {
 
 type asyncReaderCantRead struct {
 	connected int
+}
+
+func (r *asyncReaderCantRead) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
 }
 
 func (r *asyncReaderCantRead) Connect(ctx context.Context) error {
@@ -684,6 +696,10 @@ type asyncReaderCantReadOrConnect struct {
 	connected int
 }
 
+func (r *asyncReaderCantReadOrConnect) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
+}
+
 func (r *asyncReaderCantReadOrConnect) Connect(ctx context.Context) error {
 	r.connected++
 	return errors.New("sorry")
@@ -731,6 +747,10 @@ func BenchmarkAsyncReaderGenerateN1000(b *testing.B) {
 
 type mockStaticReader struct {
 	d []byte
+}
+
+func (r *mockStaticReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
 }
 
 func (r *mockStaticReader) Connect(ctx context.Context) error {

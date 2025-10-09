@@ -145,9 +145,9 @@ func (r *resourceInput) TransactionChan() (tChan <-chan message.Transaction) {
 }
 
 // ConnectionTest does nothing, use Unwrap instead.
-func (r *resourceInput) ConnectionTest() (res component.ConnectionTestResults) {
+func (r *resourceInput) ConnectionTest(ctx context.Context) (res component.ConnectionTestResults) {
 	if err := r.mgr.AccessInput(context.Background(), r.name, func(i input.Streamed) {
-		res = i.ConnectionTest()
+		res = i.ConnectionTest(ctx)
 	}); err != nil {
 		return component.ConnectionTestResults{
 			component.ConnectionTestFailed(r.mgr, err),

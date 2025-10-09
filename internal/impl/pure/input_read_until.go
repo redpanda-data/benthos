@@ -302,11 +302,11 @@ func (r *readUntilInput) TriggerStartConsuming() {
 	go r.loop()
 }
 
-func (r *readUntilInput) ConnectionTest() component.ConnectionTestResults {
+func (r *readUntilInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
 	wrappedP := r.wrappedInputLocked.Load()
 	if wrappedP != nil {
 		i := *wrappedP
-		return i.ConnectionTest()
+		return i.ConnectionTest(ctx)
 	}
 	return nil
 }

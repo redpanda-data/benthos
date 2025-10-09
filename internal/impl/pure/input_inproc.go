@@ -111,7 +111,7 @@ func (i *inprocInput) TransactionChan() <-chan message.Transaction {
 	return i.transactions
 }
 
-func (i *inprocInput) ConnectionTest() component.ConnectionTestResults {
+func (i *inprocInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
 	return component.ConnectionTestSucceeded(i.mgr).AsList()
 }
 

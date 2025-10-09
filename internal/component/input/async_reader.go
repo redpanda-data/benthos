@@ -79,6 +79,7 @@ func AsyncReaderWithConnBackOff(boff backoff.BackOff) func(a *AsyncReader) {
 
 //------------------------------------------------------------------------------
 
+// TriggerStartConsuming initiates async connection and consumption.
 func (r *AsyncReader) TriggerStartConsuming() {
 	go r.loop()
 }
@@ -250,8 +251,8 @@ func (r *AsyncReader) TransactionChan() <-chan message.Transaction {
 // ConnectionTest attempts to establish whether the component is capable of
 // creating a connection. This will potentially require and test network
 // connectivity, but does not require the component to be initialized.
-func (r *AsyncReader) ConnectionTest() component.ConnectionTestResults {
-	return r.reader.ConnectionTest()
+func (r *AsyncReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return r.reader.ConnectionTest(ctx)
 }
 
 // ConnectionStatus returns the current status of the given component

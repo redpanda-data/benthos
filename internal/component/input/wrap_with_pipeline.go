@@ -62,8 +62,8 @@ func (i *WithPipeline) TriggerStartConsuming() {
 // ConnectionTest attempts to establish whether the component is capable of
 // creating a connection. This will potentially require and test network
 // connectivity, but does not require the component to be initialized.
-func (i *WithPipeline) ConnectionTest() component.ConnectionTestResults {
-	return i.in.ConnectionTest()
+func (i *WithPipeline) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return i.in.ConnectionTest(ctx)
 }
 
 // ConnectionStatus returns the current status of the connection of the wrapped

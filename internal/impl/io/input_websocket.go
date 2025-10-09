@@ -187,6 +187,16 @@ func (w *websocketReader) getConn(ctx context.Context) (*websocket.Conn, error) 
 	return client, nil
 }
 
+func (w *websocketReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	client, err := w.getConn(ctx)
+	if err != nil {
+		return component.ConnectionTestFailed(w.mgr, err).AsList()
+	}
+
+	_ = client.Close()
+	return component.ConnectionTestSucceeded(w.mgr).AsList()
+}
+
 func (w *websocketReader) Connect(ctx context.Context) error {
 	w.lock.Lock()
 	defer w.lock.Unlock()

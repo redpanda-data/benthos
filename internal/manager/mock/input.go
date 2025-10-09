@@ -27,7 +27,7 @@ func NewInput(batches []message.Batch) *Input {
 }
 
 // ConnectionTest always returns active (for now).
-func (f *Input) ConnectionTest() component.ConnectionTestResults {
+func (f *Input) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
 	return component.ConnectionTestSucceeded(component.NoopObservability()).AsList()
 }
 

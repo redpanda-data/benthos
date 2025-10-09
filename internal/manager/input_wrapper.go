@@ -100,10 +100,10 @@ func (w *InputWrapper) TransactionChan() <-chan message.Transaction {
 }
 
 // ConnectionTest returns a status after testing the underlying connection.
-func (w *InputWrapper) ConnectionTest() (s component.ConnectionTestResults) {
+func (w *InputWrapper) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
 	w.inputLock.Lock()
 	if w.ctrl.input != nil {
-		s = w.ctrl.input.ConnectionTest()
+		s = w.ctrl.input.ConnectionTest(ctx)
 	} else {
 		s = component.ConnectionTestNotSupported(w.o).AsList()
 	}

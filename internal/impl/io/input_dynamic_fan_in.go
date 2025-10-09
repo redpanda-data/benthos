@@ -103,7 +103,7 @@ func (d *dynamicFanInInput) TransactionChan() <-chan message.Transaction {
 	return d.transactionChan
 }
 
-func (d *dynamicFanInInput) ConnectionTest() component.ConnectionTestResults {
+func (d *dynamicFanInInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
 	// TODO: We need to refactor the mechanisms for serving new inputs in order
 	// to allow access from here.
 	return component.ConnectionTestNotSupported(d.mgr).AsList()

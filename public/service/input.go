@@ -110,12 +110,12 @@ func newAirGapReader(o bundle.NewManagement, r Input) input.Async {
 	return &airGapReader{o: o, r: r}
 }
 
-func (a *airGapReader) ConnectionTest() component.ConnectionTestResults {
+func (a *airGapReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
 	t, ok := a.r.(ConnectionTestable)
 	if !ok {
 		return component.ConnectionTestNotSupported(a.o).AsList()
 	}
-	return t.ConnectionTest().intoInternal(a.o)
+	return t.ConnectionTest(ctx).intoInternal(a.o)
 }
 
 func (a *airGapReader) Connect(ctx context.Context) error {
@@ -150,12 +150,12 @@ func newAirGapBatchReader(o bundle.NewManagement, r BatchInput) input.Async {
 	return &airGapBatchReader{o: o, r: r}
 }
 
-func (a *airGapBatchReader) ConnectionTest() component.ConnectionTestResults {
+func (a *airGapBatchReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
 	t, ok := a.r.(ConnectionTestable)
 	if !ok {
 		return component.ConnectionTestNotSupported(a.o).AsList()
 	}
-	return t.ConnectionTest().intoInternal(a.o)
+	return t.ConnectionTest(ctx).intoInternal(a.o)
 }
 
 func (a *airGapBatchReader) Connect(ctx context.Context) error {
