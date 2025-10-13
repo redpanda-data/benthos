@@ -38,6 +38,8 @@ func testInput(t testing.TB, confStr string) input.Streamed {
 	i, err := mock.NewManager().NewInput(iConf)
 	require.NoError(t, err)
 
+	i.TriggerStartConsuming()
+
 	return i
 }
 
@@ -410,6 +412,8 @@ sequence:
 	rdr, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
 
+	rdr.TriggerStartConsuming()
+
 	exp := []string{
 		"foo", "bar", "baz",
 	}
@@ -481,6 +485,8 @@ sequence:
 
 	rdr, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	rdr.TriggerStartConsuming()
 
 	select {
 	case tran, open := <-rdr.TransactionChan():

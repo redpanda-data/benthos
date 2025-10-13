@@ -31,6 +31,7 @@ type AsyncReader struct {
 	mgr component.Observability
 
 	transactions chan message.Transaction
+	startOnce    sync.Once
 	shutSig      *shutdown.Signaller
 }
 
@@ -81,7 +82,9 @@ func AsyncReaderWithConnBackOff(boff backoff.BackOff) func(a *AsyncReader) {
 
 // TriggerStartConsuming initiates async connection and consumption.
 func (r *AsyncReader) TriggerStartConsuming() {
-	go r.loop()
+	r.startOnce.Do(func() {
+		go r.loop()
+	})
 }
 
 func (r *AsyncReader) loop() {

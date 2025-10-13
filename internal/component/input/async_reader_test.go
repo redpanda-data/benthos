@@ -297,6 +297,8 @@ func TestAsyncReaderCanReconnect(t *testing.T) {
 		}
 	}()
 
+	r.TriggerStartConsuming()
+
 	var ts message.Transaction
 	var open bool
 	select {
@@ -361,6 +363,8 @@ func TestAsyncReaderFailsReconnect(t *testing.T) {
 		case <-time.After(time.Second):
 		}
 	}()
+
+	r.TriggerStartConsuming()
 
 	var ts message.Transaction
 	var open bool
@@ -455,6 +459,8 @@ func TestAsyncReaderHappyPath(t *testing.T) {
 		}
 	}()
 
+	r.TriggerStartConsuming()
+
 	var ts message.Transaction
 	var open bool
 
@@ -507,6 +513,8 @@ func TestAsyncReaderCloseWithPendingAcks(t *testing.T) {
 		case <-time.After(time.Second):
 		}
 	}()
+
+	r.TriggerStartConsuming()
 
 	var ts message.Transaction
 	var open bool
@@ -583,6 +591,8 @@ func TestAsyncReaderSadPath(t *testing.T) {
 		}
 	}()
 
+	r.TriggerStartConsuming()
+
 	var ts message.Transaction
 	var open bool
 
@@ -643,6 +653,8 @@ func TestAsyncReaderParallel(t *testing.T) {
 			}
 		}
 	}()
+
+	r.TriggerStartConsuming()
 
 	expErrs := []error{}
 	for i := range expMsgs {
@@ -786,6 +798,8 @@ func benchmarkAsyncReaderGenerateN(b *testing.B, capacity int) {
 		r.TriggerStopConsuming()
 		require.NoError(b, r.WaitForClose(ctx))
 	})
+
+	r.TriggerStartConsuming()
 
 	resFns := make([]func(context.Context, error) error, capacity)
 

@@ -74,6 +74,8 @@ http_client:
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
 
+	h.TriggerStartConsuming()
+
 	var tr message.Transaction
 	var open bool
 
@@ -125,6 +127,8 @@ http_client:
 
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
 
 	var tr message.Transaction
 	var open bool
@@ -320,6 +324,8 @@ http_client:
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
 
+	h.TriggerStartConsuming()
+
 	for _, expPart := range inputs {
 		var ts message.Transaction
 		var open bool
@@ -393,6 +399,8 @@ http_client:
 
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
 
 	var tr message.Transaction
 	var open bool
@@ -496,6 +504,8 @@ http_client:
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
 
+	h.TriggerStartConsuming()
+
 	reqMut.Lock()
 	for _, test := range tests {
 		var ts message.Transaction
@@ -595,6 +605,8 @@ http_client:
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
 
+	h.TriggerStartConsuming()
+
 	for _, test := range tests {
 		var ts message.Transaction
 		var open bool
@@ -662,6 +674,8 @@ http_client:
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
 
+	h.TriggerStartConsuming()
+
 	for i := 0; i < 10; i++ {
 		for _, testMsg := range msgs {
 			var ts message.Transaction
@@ -724,6 +738,8 @@ http_client:
 
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
 
 	for i := 0; i < 10; i++ {
 		for _, testMsg := range msgs {
@@ -793,6 +809,8 @@ http_client:
 
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
 
 	for i := 0; i < 10; i++ {
 		if i == 9 {
@@ -871,6 +889,8 @@ http_client:
 
 	h, err := mock.NewManager().NewInput(conf)
 	require.NoError(b, err)
+
+	h.TriggerStartConsuming()
 
 	b.ReportAllocs()
 	b.ResetTimer()

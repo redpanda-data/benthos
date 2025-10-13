@@ -249,6 +249,8 @@ func (o *OwnedInput) BatchedWith(b *Batcher) *OwnedInput {
 // If this method returns ErrEndOfInput then that indicates that the input has
 // finished and will no longer yield new messages.
 func (o *OwnedInput) ReadBatch(ctx context.Context) (MessageBatch, AckFunc, error) {
+	o.i.TriggerStartConsuming() // This is safe to call multiple times
+
 	var tran message.Transaction
 	var open bool
 	select {

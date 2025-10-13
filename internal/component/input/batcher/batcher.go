@@ -26,7 +26,8 @@ type Impl struct {
 
 	messagesOut chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 // New creates a new Batcher around an input.
@@ -155,8 +156,10 @@ func (m *Impl) loop() {
 
 // TriggerStartConsuming kicks off the consumption of data.
 func (m *Impl) TriggerStartConsuming() {
-	go m.loop()
-	m.child.TriggerStartConsuming()
+	m.startOnce.Do(func() {
+		go m.loop()
+		m.child.TriggerStartConsuming()
+	})
 }
 
 // ConnectionTest attempts to establish whether the component is capable of

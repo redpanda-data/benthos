@@ -68,6 +68,9 @@ func (t *tracedInput) loop() {
 }
 
 func (t *tracedInput) TriggerStartConsuming() {
+	// Note: we aren't performing any connections within this component, and so
+	// it is fine to push this signal through to the child with our own loop
+	// already initialized.
 	t.wrapped.TriggerStartConsuming()
 }
 

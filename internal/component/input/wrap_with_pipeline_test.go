@@ -103,6 +103,8 @@ func TestBasicWrapPipeline(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	newInput.TriggerStartConsuming()
+
 	if newInput.TransactionChan() != mockPi.ts {
 		t.Error("Wrong transaction chan in new input type")
 	}
@@ -167,6 +169,8 @@ func TestBasicWrapMultiPipelines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	newInput.TriggerStartConsuming()
 
 	if newInput.TransactionChan() != mockPi2.ts {
 		t.Error("Wrong message chan in new input type")

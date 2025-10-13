@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -117,7 +118,8 @@ type readUntilInput struct {
 
 	transactions chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newReadUntilInputFromParsed(conf *service.ParsedConfig, res *service.Resources) (input.Streamed, error) {
@@ -226,6 +228,8 @@ runLoop:
 			wrapped = *wrappedP
 		}
 
+		wrapped.TriggerStartConsuming() // This is safe to call multiple times
+
 		var tran message.Transaction
 		{
 			timeoutChan, timeoutDone := resetIdleTimeout(r.idleTimeout)
@@ -299,7 +303,9 @@ func (r *readUntilInput) TransactionChan() <-chan message.Transaction {
 }
 
 func (r *readUntilInput) TriggerStartConsuming() {
-	go r.loop()
+	r.startOnce.Do(func() {
+		go r.loop()
+	})
 }
 
 func (r *readUntilInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {

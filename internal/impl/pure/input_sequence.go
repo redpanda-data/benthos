@@ -463,6 +463,7 @@ func (r *sequenceInput) createNextTarget() (input.Streamed, bool, error) {
 	}
 	if target != nil {
 		r.log.Debugf("Initialized sequence input %v.", len(r.spent)-1)
+		target.TriggerStartConsuming()
 		r.target = target
 	}
 	final := len(r.remaining) == 0

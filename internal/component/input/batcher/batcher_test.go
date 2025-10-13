@@ -62,6 +62,8 @@ func TestBatcherStandard(t *testing.T) {
 
 	resFns := []func(context.Context, error) error{}
 
+	batcher.TriggerStartConsuming()
+
 	var tran message.Transaction
 	select {
 	case tran = <-batcher.TransactionChan():
@@ -199,6 +201,8 @@ func TestBatcherErrorTracking(t *testing.T) {
 		close(doneReadsChan)
 	}()
 
+	batcher.TriggerStartConsuming()
+
 	var tran message.Transaction
 	select {
 	case tran = <-batcher.TransactionChan():
@@ -256,6 +260,8 @@ func TestBatcherTiming(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out")
 	}
+
+	batcher.TriggerStartConsuming()
 
 	var tran message.Transaction
 	select {
@@ -333,6 +339,8 @@ func TestBatcherFinalFlush(t *testing.T) {
 	require.NoError(t, err)
 
 	batcher := batcher.New(batchPol, mockInput, log.Noop())
+
+	batcher.TriggerStartConsuming()
 
 	resChan := make(chan error, 1)
 	select {

@@ -33,6 +33,8 @@ func TestResourceInput(t *testing.T) {
 	p, err := mgr.NewInput(nConf)
 	require.NoError(t, err)
 
+	p.TriggerStartConsuming()
+
 	tChan := p.TransactionChan()
 	readTran := func() message.Transaction {
 		select {
@@ -86,6 +88,8 @@ func TestResourceInputEarlyTermination(t *testing.T) {
 
 	p, err := mgr.NewInput(nConf)
 	require.NoError(t, err)
+
+	p.TriggerStartConsuming()
 
 	tChan := p.TransactionChan()
 	readTran := func() message.Transaction {

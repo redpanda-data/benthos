@@ -45,6 +45,8 @@ func TestStaticBasicDynamicFanIn(t *testing.T) {
 		return
 	}
 
+	fanIn.TriggerStartConsuming()
+
 	for i := 0; i < nMsgs; i++ {
 		for j := 0; j < nInputs; j++ {
 			content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
@@ -98,6 +100,8 @@ func TestBasicDynamicFanIn(t *testing.T) {
 		t.Error(err)
 		return
 	}
+
+	fanIn.TriggerStartConsuming()
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
@@ -207,6 +211,8 @@ func TestStaticDynamicFanInShutdown(t *testing.T) {
 		return
 	}
 
+	fanIn.TriggerStartConsuming()
+
 	for _, mockIn := range mockInputs {
 		select {
 		case _, open := <-mockIn.TransactionChan():
@@ -276,6 +282,8 @@ func TestStaticDynamicFanInAsync(t *testing.T) {
 		return
 	}
 	defer fanIn.TriggerStopConsuming()
+
+	fanIn.TriggerStartConsuming()
 
 	wg := sync.WaitGroup{}
 	wg.Add(nInputs)

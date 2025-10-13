@@ -24,9 +24,7 @@ type inputCtrl struct {
 }
 
 func (i *inputCtrl) ensureInit() {
-	i.startOnce.Do(func() {
-		i.input.TriggerStartConsuming()
-	})
+	i.input.TriggerStartConsuming()
 }
 
 // InputWrapper is a wrapper for a streamed input.
@@ -36,8 +34,9 @@ type InputWrapper struct {
 
 	o component.Observability
 
-	tranChan chan message.Transaction
-	shutSig  *shutdown.Signaller
+	startOnce sync.Once
+	tranChan  chan message.Transaction
+	shutSig   *shutdown.Signaller
 }
 
 // WrapInput wraps a streamed input and starts the transaction processing loop.
@@ -90,7 +89,9 @@ func (w *InputWrapper) SwapInput(i input.Streamed) {
 
 // TriggerStartConsuming signals that data should be consumed.
 func (w *InputWrapper) TriggerStartConsuming() {
-	go w.loop()
+	w.startOnce.Do(func() {
+		go w.loop()
+	})
 }
 
 // TransactionChan returns a transactions channel for consuming messages from

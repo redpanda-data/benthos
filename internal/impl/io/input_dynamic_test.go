@@ -38,6 +38,8 @@ func TestDynamicInputAPI(t *testing.T) {
 	i, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	i.TriggerStartConsuming()
+
 	req := httptest.NewRequest(http.MethodGet, "/inputs", http.NoBody)
 	res := httptest.NewRecorder()
 	gMux.ServeHTTP(res, req)
@@ -106,6 +108,8 @@ func TestDynamicInputAPIStopped(t *testing.T) {
 
 	i, err := mgr.NewInput(conf)
 	require.NoError(t, err)
+
+	i.TriggerStartConsuming()
 
 	fooConf := `
 generate:
