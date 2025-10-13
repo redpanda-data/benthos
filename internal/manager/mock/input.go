@@ -14,6 +14,7 @@ import (
 type Input struct {
 	batches []message.Batch
 
+	startOnce sync.Once
 	TChan     chan message.Transaction
 	closed    bool
 	closeOnce sync.Once
@@ -50,13 +51,19 @@ func (f *Input) TransactionChan() <-chan message.Transaction {
 
 // TriggerStartConsuming kicks of data consumption.
 func (f *Input) TriggerStartConsuming() {
-	resChan := make(chan error, len(f.batches))
-	go func() {
-		defer close(f.TChan)
-		for _, b := range f.batches {
-			f.TChan <- message.NewTransaction(b, resChan)
-		}
-	}()
+	if len(f.batches) == 0 {
+		return
+	}
+
+	f.startOnce.Do(func() {
+		resChan := make(chan error, len(f.batches))
+		go func() {
+			defer close(f.TChan)
+			for _, b := range f.batches {
+				f.TChan <- message.NewTransaction(b, resChan)
+			}
+		}()
+	})
 }
 
 // TriggerStopConsuming closes the input transaction channel.

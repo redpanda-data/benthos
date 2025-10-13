@@ -38,6 +38,7 @@ func TestBatcherStandard(t *testing.T) {
 	}
 
 	batcher := batcher.New(batchPol, mockInput, log.Noop())
+	batcher.TriggerStartConsuming()
 
 	testMsgs := []string{}
 	testResChans := []chan error{}
@@ -61,8 +62,6 @@ func TestBatcherStandard(t *testing.T) {
 	}()
 
 	resFns := []func(context.Context, error) error{}
-
-	batcher.TriggerStartConsuming()
 
 	var tran message.Transaction
 	select {
@@ -189,6 +188,8 @@ func TestBatcherErrorTracking(t *testing.T) {
 		testResChans = append(testResChans, make(chan error))
 	}
 
+	batcher.TriggerStartConsuming()
+
 	resErrs := []error{}
 	doneReadsChan := make(chan struct{})
 	go func() {
@@ -200,8 +201,6 @@ func TestBatcherErrorTracking(t *testing.T) {
 		}
 		close(doneReadsChan)
 	}()
-
-	batcher.TriggerStartConsuming()
 
 	var tran message.Transaction
 	select {
@@ -253,6 +252,7 @@ func TestBatcherTiming(t *testing.T) {
 	}
 
 	batcher := batcher.New(batchPol, mockInput, log.Noop())
+	batcher.TriggerStartConsuming()
 
 	resChan := make(chan error)
 	select {
@@ -260,8 +260,6 @@ func TestBatcherTiming(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("timed out")
 	}
-
-	batcher.TriggerStartConsuming()
 
 	var tran message.Transaction
 	select {

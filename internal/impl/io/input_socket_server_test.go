@@ -42,6 +42,8 @@ func socketServerInputFromConf(t testing.TB, confStr string, bits ...any) (input
 	s, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	s.TriggerStartConsuming()
+
 	addr := ""
 	require.Eventually(t, func() bool {
 		_ = mgr.AccessCache(t.Context(), "testcache", func(v cache.V1) {
@@ -65,8 +67,6 @@ socket_server:
   network: unix
   address: %v
 `, filepath.Join(tmpDir, "benthos.sock"))
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -132,8 +132,6 @@ socket_server:
   network: unix
   address: %v
 `, filepath.Join(tmpDir, "benthos.sock"))
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -215,8 +213,6 @@ socket_server:
   address: %v
 `, filepath.Join(tmpDir, "benthos.sock"))
 
-	rdr.TriggerStartConsuming()
-
 	conn, err := net.Dial("unix", addr)
 	require.NoError(t, err)
 
@@ -245,8 +241,6 @@ socket_server:
   network: unix
   address: %v
 `, filepath.Join(tmpDir, "benthos.sock"))
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -320,8 +314,6 @@ socket_server:
   codec: lines/multipart
 `, filepath.Join(tmpDir, "benthos.sock"))
 
-	rdr.TriggerStartConsuming()
-
 	defer func() {
 		rdr.TriggerStopConsuming()
 		assert.NoError(t, rdr.WaitForClose(ctx))
@@ -386,8 +378,6 @@ socket_server:
   address: %v
   codec: delim:@/multipart
 `, filepath.Join(tmpDir, "b.sock"))
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -454,8 +444,6 @@ socket_server:
   codec: lines/multipart
 `, filepath.Join(tmpDir, "b.sock"))
 
-	rdr.TriggerStartConsuming()
-
 	defer func() {
 		rdr.TriggerStopConsuming()
 		assert.NoError(t, rdr.WaitForClose(ctx))
@@ -518,8 +506,6 @@ socket_server:
   network: udp
   address: 127.0.0.1:0
 `)
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -585,8 +571,6 @@ socket_server:
   network: udp
   address: 127.0.0.1:0
 `)
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -668,8 +652,6 @@ socket_server:
   address: 127.0.0.1:0
 `)
 
-	rdr.TriggerStartConsuming()
-
 	conn, err := net.Dial("udp", addr)
 	require.NoError(t, err)
 
@@ -696,8 +678,6 @@ socket_server:
   network: udp
   address: 127.0.0.1:0
 `)
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -768,8 +748,6 @@ socket_server:
   address: 127.0.0.1:0
   codec: delim:@
 `)
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -844,8 +822,6 @@ socket_server:
   address: 127.0.0.1:0
 `)
 
-	rdr.TriggerStartConsuming()
-
 	defer func() {
 		rdr.TriggerStopConsuming()
 		assert.NoError(t, rdr.WaitForClose(ctx))
@@ -919,8 +895,6 @@ socket_server:
   address: 127.0.0.1:0
 `)
 
-	rdr.TriggerStartConsuming()
-
 	defer func() {
 		rdr.TriggerStopConsuming()
 		assert.NoError(t, rdr.WaitForClose(ctx))
@@ -985,8 +959,6 @@ socket_server:
   network: tcp
   address: 127.0.0.1:0
 `)
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -1059,8 +1031,6 @@ socket_server:
   codec: lines/multipart
 `)
 
-	rdr.TriggerStartConsuming()
-
 	defer func() {
 		rdr.TriggerStopConsuming()
 		assert.NoError(t, rdr.WaitForClose(ctx))
@@ -1124,8 +1094,6 @@ socket_server:
   address: 127.0.0.1:0
   codec: delim:@/multipart
 `)
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -1191,8 +1159,6 @@ socket_server:
   codec: lines/multipart
 `)
 
-	rdr.TriggerStartConsuming()
-
 	defer func() {
 		rdr.TriggerStopConsuming()
 		assert.NoError(t, rdr.WaitForClose(ctx))
@@ -1257,8 +1223,6 @@ socket_server:
   tls:
     self_signed: true
 `)
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -1329,8 +1293,6 @@ socket_server:
     self_signed: true
     client_auth: "require_valid"
 `)
-
-	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()

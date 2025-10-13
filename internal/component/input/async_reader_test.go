@@ -128,10 +128,9 @@ func (r asyncReaderCantConnect) Close(ctx context.Context) error { return nil }
 
 func TestAsyncReaderCantConnect(t *testing.T) {
 	r, err := input.NewAsyncReader("foo", asyncReaderCantConnect{}, mock.NewManager())
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	require.NoError(t, err)
+
+	r.TriggerStartConsuming()
 
 	// We will fail to connect but should still exit immediately.
 	r.TriggerStopConsuming()
@@ -164,6 +163,8 @@ func TestAsyncReaderCantRead(t *testing.T) {
 	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager())
 	require.NoError(t, err)
 
+	r.TriggerStartConsuming()
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
@@ -183,6 +184,8 @@ func TestAsyncReaderTypeClosedOnConn(t *testing.T) {
 		t.Error(err)
 		return
 	}
+
+	r.TriggerStartConsuming()
 
 	go func() {
 		select {
@@ -205,6 +208,8 @@ func TestAsyncReaderTypeClosedOnReconn(t *testing.T) {
 		t.Error(err)
 		return
 	}
+
+	r.TriggerStartConsuming()
 
 	go func() {
 		select {
@@ -234,6 +239,8 @@ func TestAsyncReaderTypeClosedOnReread(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	r.TriggerStartConsuming()
 
 	go func() {
 		select {
@@ -399,6 +406,8 @@ func TestAsyncReaderCloseDuringReconnect(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	r.TriggerStartConsuming()
+
 	select {
 	case readerImpl.connChan <- nil:
 	case <-time.After(time.Second):
@@ -442,6 +451,8 @@ func TestAsyncReaderHappyPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	r.TriggerStartConsuming()
+
 	select {
 	case readerImpl.connChan <- nil:
 	case <-time.After(time.Second):
@@ -458,8 +469,6 @@ func TestAsyncReaderHappyPath(t *testing.T) {
 		case <-time.After(time.Second):
 		}
 	}()
-
-	r.TriggerStartConsuming()
 
 	var ts message.Transaction
 	var open bool
@@ -501,6 +510,8 @@ func TestAsyncReaderCloseWithPendingAcks(t *testing.T) {
 	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager())
 	require.NoError(t, err)
 
+	r.TriggerStartConsuming()
+
 	select {
 	case readerImpl.connChan <- nil:
 	case <-time.After(time.Second):
@@ -513,8 +524,6 @@ func TestAsyncReaderCloseWithPendingAcks(t *testing.T) {
 		case <-time.After(time.Second):
 		}
 	}()
-
-	r.TriggerStartConsuming()
 
 	var ts message.Transaction
 	var open bool
@@ -570,6 +579,8 @@ func TestAsyncReaderSadPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	r.TriggerStartConsuming()
+
 	select {
 	case readerImpl.connChan <- nil:
 	case <-time.After(time.Second):
@@ -590,8 +601,6 @@ func TestAsyncReaderSadPath(t *testing.T) {
 			}
 		}
 	}()
-
-	r.TriggerStartConsuming()
 
 	var ts message.Transaction
 	var open bool
@@ -639,6 +648,8 @@ func TestAsyncReaderParallel(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	r.TriggerStartConsuming()
+
 	select {
 	case readerImpl.connChan <- nil:
 	case <-time.After(time.Second):
@@ -653,8 +664,6 @@ func TestAsyncReaderParallel(t *testing.T) {
 			}
 		}
 	}()
-
-	r.TriggerStartConsuming()
 
 	expErrs := []error{}
 	for i := range expMsgs {
@@ -731,6 +740,8 @@ func TestAsyncReaderTypeConnMaxExceeded(t *testing.T) {
 
 	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager(), input.AsyncReaderWithConnBackOff(backoff.WithMaxRetries(boff, 3)))
 	require.NoError(t, err)
+
+	r.TriggerStartConsuming()
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()

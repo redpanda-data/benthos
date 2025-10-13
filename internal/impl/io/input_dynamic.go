@@ -105,7 +105,9 @@ func newDynamicInputFromParsed(conf *service.ParsedConfig, res *service.Resource
 
 	inputs := map[string]input.Streamed{}
 	for k, v := range inputsMap {
-		inputs[k] = interop.UnwrapOwnedInput(v)
+		tmp := interop.UnwrapOwnedInput(v)
+		tmp.TriggerStartConsuming()
+		inputs[k] = tmp
 	}
 
 	var inputConfigsMut sync.Mutex
@@ -160,8 +162,10 @@ func newDynamicInputFromParsed(conf *service.ParsedConfig, res *service.Resource
 		inputConfigsMut.Lock()
 		inputYAMLConfs[id] = dynInputAnyToYAMLConf(newConf)
 		inputConfigsMut.Unlock()
+
 		if err = fanIn.SetInput(ctx, id, newInput); err != nil {
 			mgr.Logger().Error("Failed to set input '%v': %v", id, err)
+			newInput.TriggerStartConsuming()
 			inputConfigsMut.Lock()
 			delete(inputYAMLConfs, id)
 			inputConfigsMut.Unlock()

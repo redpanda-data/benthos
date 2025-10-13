@@ -73,6 +73,7 @@ func (s *Stream) Run(ctx context.Context) (err error) {
 			stream.OptOnClose(func() {
 				s.shutSig.TriggerHasStopped()
 			}))
+		s.strm.TriggerStartConsuming()
 	}
 	s.strmMut.Unlock()
 	if err != nil {
