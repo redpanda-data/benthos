@@ -16,6 +16,10 @@ type messageData struct {
 	metadata     map[string]any
 }
 
+// defaultMetadataSize specifies how many metadata entries are preallocated by
+// default when adding metadata to a message.
+const defaultMetadataSize = 5
+
 func newMessageBytes(content []byte) *messageData {
 	return &messageData{
 		rawBytes: content,
@@ -180,10 +184,7 @@ func (m *messageData) MetaGetMut(key string) (any, bool) {
 func (m *messageData) MetaSetMut(key string, value any) {
 	m.writeableMeta()
 	if m.metadata == nil {
-		m.metadata = map[string]any{
-			key: value,
-		}
-		return
+		m.metadata = make(map[string]any, defaultMetadataSize)
 	}
 	m.metadata[key] = value
 }
