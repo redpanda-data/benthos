@@ -20,6 +20,11 @@ func jSchemaIsRequired(f *FieldSpec) bool {
 // JSONSchema serializes a field spec into a JSON schema structure.
 func (f FieldSpec) JSONSchema() any {
 	spec := map[string]any{}
+	spec["is_advanced"] = f.IsAdvanced
+	spec["is_deprecated"] = f.IsDeprecated
+	spec["is_optional"] = f.IsOptional
+	spec["is_secret"] = f.IsSecret
+	spec["version"] = f.Version
 	switch f.Kind {
 	case Kind2DArray:
 		innerField := f
