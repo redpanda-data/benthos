@@ -3,6 +3,17 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.58.0 - 2025-10-23
+
+### Added
+
+- New `public/utils/netutil` package. (@alextreichler)
+- Exporting a schema with the format `jsonschema` now includes `is_advanced`, `is_deprecated`, `is_optional`, `is_secret` extra fields. (@tomasz-sadura)
+
+### Fixed
+
+- Templates are now able to mark themselves as deprecated. (@Jeffail)
+
 ## 4.57.1 - 2025-10-02
 
 ### Fixed
