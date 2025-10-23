@@ -24,7 +24,6 @@ func (f FieldSpec) JSONSchema() any {
 	spec["is_deprecated"] = f.IsDeprecated
 	spec["is_optional"] = f.IsOptional
 	spec["is_secret"] = f.IsSecret
-	spec["version"] = f.Version
 	switch f.Kind {
 	case Kind2DArray:
 		innerField := f
