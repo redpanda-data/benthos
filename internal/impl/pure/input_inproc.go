@@ -43,7 +43,6 @@ func init() {
 			transactions: make(chan message.Transaction),
 			shutSig:      shutdown.NewSignaller(),
 		}
-		go inprocRdr.loop()
 		return interop.NewUnwrapInternalInput(inprocRdr), nil
 	})
 }
@@ -104,8 +103,16 @@ messageLoop:
 	}
 }
 
+func (i *inprocInput) TriggerStartConsuming() {
+	go i.loop()
+}
+
 func (i *inprocInput) TransactionChan() <-chan message.Transaction {
 	return i.transactions
+}
+
+func (i *inprocInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestSucceeded(i.mgr).AsList()
 }
 
 func (i *inprocInput) ConnectionStatus() component.ConnectionStatuses {

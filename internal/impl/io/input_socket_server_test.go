@@ -42,6 +42,8 @@ func socketServerInputFromConf(t testing.TB, confStr string, bits ...any) (input
 	s, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	s.TriggerStartConsuming()
+
 	addr := ""
 	require.Eventually(t, func() bool {
 		_ = mgr.AccessCache(t.Context(), "testcache", func(v cache.V1) {

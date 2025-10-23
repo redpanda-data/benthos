@@ -338,7 +338,8 @@ type sequenceInput struct {
 
 	transactions chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 type sequenceTarget struct {
@@ -382,7 +383,6 @@ func newSequenceInputFromParsed(conf *service.ParsedConfig, res *service.Resourc
 		return nil, errors.New("failed to initialize first input")
 	}
 
-	go rdr.loop()
 	return rdr, nil
 }
 
@@ -464,6 +464,7 @@ func (r *sequenceInput) createNextTarget() (input.Streamed, bool, error) {
 	}
 	if target != nil {
 		r.log.Debugf("Initialized sequence input %v.", len(r.spent)-1)
+		target.TriggerStartConsuming()
 		r.target = target
 	}
 	final := len(r.remaining) == 0
@@ -602,11 +603,24 @@ func (r *sequenceInput) TransactionChan() <-chan message.Transaction {
 	return r.transactions
 }
 
+func (r *sequenceInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	if t, _ := r.getTarget(); t != nil {
+		return t.ConnectionTest(ctx)
+	}
+	return nil
+}
+
 func (r *sequenceInput) ConnectionStatus() component.ConnectionStatuses {
 	if t, _ := r.getTarget(); t != nil {
 		return t.ConnectionStatus()
 	}
 	return nil
+}
+
+func (r *sequenceInput) TriggerStartConsuming() {
+	r.startOnce.Do(func() {
+		go r.loop()
+	})
 }
 
 func (r *sequenceInput) TriggerStopConsuming() {

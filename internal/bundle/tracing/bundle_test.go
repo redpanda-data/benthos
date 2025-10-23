@@ -44,6 +44,8 @@ generate:
 	in, err := mgr.NewInput(inConfig)
 	require.NoError(t, err)
 
+	in.TriggerStartConsuming()
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	for i := 0; i < 10; i++ {
@@ -94,6 +96,8 @@ generate:
 
 	in, err := mgr.NewInput(inConfig)
 	require.NoError(t, err)
+
+	in.TriggerStartConsuming()
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
@@ -147,6 +151,8 @@ generate:
 	in, err = mgr.NewInput(inConfig)
 	require.NoError(t, err)
 
+	in.TriggerStartConsuming()
+
 	for i := 0; i < 5; i++ {
 		select {
 		case tran := <-in.TransactionChan():
@@ -192,6 +198,8 @@ generate:
 
 	in, err := mgr.NewInput(inConfig)
 	require.NoError(t, err)
+
+	in.TriggerStartConsuming()
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()

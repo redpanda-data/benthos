@@ -260,7 +260,7 @@ func (e *Environment) RegisterInput(name string, spec *ConfigSpec, ctor InputCon
 		if err != nil {
 			return nil, err
 		}
-		rdr := newAirGapReader(i)
+		rdr := newAirGapReader(nm, i)
 		return input.NewAsyncReader(conf.Type, rdr, nm)
 	}), componentSpec)
 }
@@ -292,7 +292,7 @@ func (e *Environment) RegisterBatchInput(name string, spec *ConfigSpec, ctor Bat
 		}); ok {
 			return u.Unwrap(), nil
 		}
-		rdr := newAirGapBatchReader(i)
+		rdr := newAirGapBatchReader(nm, i)
 		return input.NewAsyncReader(conf.Type, rdr, nm)
 	}), componentSpec)
 }

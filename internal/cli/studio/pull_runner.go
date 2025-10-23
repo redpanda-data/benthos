@@ -207,6 +207,15 @@ func (r *PullRunner) logLints(lints []string) {
 	}
 }
 
+func initStream(conf stream.Config, mgr bundle.NewManagement) (*stream.Type, error) {
+	s, err := stream.New(conf, mgr)
+	if err != nil {
+		return nil, err
+	}
+	s.TriggerStartConsuming()
+	return s, nil
+}
+
 func (r *PullRunner) setStreamDisabled(ctx context.Context, toDisabled bool) error {
 	if r.isDisabled == toDisabled {
 		return nil // Already set
@@ -221,7 +230,7 @@ func (r *PullRunner) setStreamDisabled(ctx context.Context, toDisabled bool) err
 			}
 		} else if r.latestMainConf != nil && r.mgr != nil {
 			if err := r.stoppableStream.Replace(ctx, func() (common.RunningStream, error) {
-				return stream.New(*r.latestMainConf, r.mgr)
+				return initStream(*r.latestMainConf, r.mgr)
 			}); err != nil {
 				return err
 			}
@@ -242,7 +251,7 @@ func (r *PullRunner) triggerStreamReset(ctx context.Context, conf *config.Type, 
 	}
 	return r.withExitContext(ctx, func(ctx context.Context) error {
 		return r.stoppableStream.Replace(ctx, func() (common.RunningStream, error) {
-			return stream.New(conf.Config, mgr)
+			return initStream(conf.Config, mgr)
 		})
 	})
 }

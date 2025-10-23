@@ -50,7 +50,7 @@ func New(conf Config, mgr bundle.NewManagement, opts ...func(*Type)) (*Type, err
 	for _, opt := range opts {
 		opt(t)
 	}
-	if err := t.start(); err != nil {
+	if err := t.init(); err != nil {
 		return nil, err
 	}
 
@@ -138,7 +138,7 @@ func (t *Type) ConnectionStatus() (s component.ConnectionStatuses) {
 	return
 }
 
-func (t *Type) start() (err error) {
+func (t *Type) init() (err error) {
 	// Constructors
 	iMgr := t.manager.IntoPath("input")
 	if t.inputLayer, err = iMgr.NewInput(t.conf.Input); err != nil {
@@ -192,6 +192,12 @@ func (t *Type) start() (err error) {
 	}(t.outputLayer)
 
 	return nil
+}
+
+// TriggerStartConsuming prompts components to establish connections and start
+// consuming data.
+func (t *Type) TriggerStartConsuming() {
+	t.inputLayer.TriggerStartConsuming()
 }
 
 // StopGracefully attempts to close the stream in the most graceful way by only

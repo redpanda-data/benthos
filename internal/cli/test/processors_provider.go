@@ -140,6 +140,10 @@ func (p *ProcessorsProvider) initProcs(confs cachedConfig) ([]processor.V1, erro
 		return nil, fmt.Errorf("failed to initialise resources: %v", err)
 	}
 
+	if err := mgr.TriggerStartConsuming(context.TODO()); err != nil {
+		return nil, err
+	}
+
 	procs := make([]processor.V1, len(confs.procs))
 	for i, conf := range confs.procs {
 		if procs[i], err = mgr.NewProcessor(conf); err != nil {

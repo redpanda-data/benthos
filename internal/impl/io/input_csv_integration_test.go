@@ -28,6 +28,8 @@ func csvInput(t testing.TB, confPattern string, args ...any) input.Streamed {
 	i, err := mock.NewManager().NewInput(iConf)
 	require.NoError(t, err)
 
+	i.TriggerStartConsuming()
+
 	return i
 }
 

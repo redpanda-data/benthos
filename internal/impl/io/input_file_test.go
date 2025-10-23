@@ -73,6 +73,8 @@ file:
 	i, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
 
+	i.TriggerStartConsuming()
+
 	for range exp {
 		var tran message.Transaction
 		var open bool
@@ -159,6 +161,8 @@ file:
 
 	i, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	i.TriggerStartConsuming()
 
 	for range exp {
 		var tran message.Transaction

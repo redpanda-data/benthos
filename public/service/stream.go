@@ -66,13 +66,19 @@ func (s *Stream) Resources() *Resources {
 // has gracefully come to a stop, or the provided context is cancelled.
 func (s *Stream) Run(ctx context.Context) (err error) {
 	s.strmMut.Lock()
+	if err = s.mgr.TriggerStartConsuming(ctx); err != nil {
+		return
+	}
+
 	if s.strm != nil {
 		err = errors.New("stream has already been run")
 	} else {
-		s.strm, err = stream.New(s.conf, s.mgr,
+		if s.strm, err = stream.New(s.conf, s.mgr,
 			stream.OptOnClose(func() {
 				s.shutSig.TriggerHasStopped()
-			}))
+			})); err == nil {
+			s.strm.TriggerStartConsuming()
+		}
 	}
 	s.strmMut.Unlock()
 	if err != nil {

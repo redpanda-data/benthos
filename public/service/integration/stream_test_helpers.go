@@ -407,6 +407,8 @@ func initInput(t testing.TB, env *streamTestEnvironment) input.Streamed {
 	input, err := env.mgr.NewInput(iConf)
 	require.NoError(t, err)
 
+	input.TriggerStartConsuming()
+
 	if env.sleepAfterInput > 0 {
 		time.Sleep(env.sleepAfterInput)
 	}
