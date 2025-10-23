@@ -2,6 +2,8 @@
 
 package component
 
+import "errors"
+
 // ConnectionStatus represents the current connection status of a given
 // component.
 type ConnectionStatus struct {
@@ -67,5 +69,55 @@ func ConnectionClosed(o Observability) *ConnectionStatus {
 		Label:     o.Label(),
 		Path:      o.Path(),
 		Connected: false,
+	}
+}
+
+//------------------------------------------------------------------------------
+
+// ErrConnectionTestNotSupported is returned by components that cannot yet test
+// their connections.
+var ErrConnectionTestNotSupported = errors.New("this component does not support testing connections")
+
+// ConnectionTestResult represents the result of a connection test.
+type ConnectionTestResult struct {
+	Label string
+	Path  []string
+	Err   error
+}
+
+// ConnectionTestResults represents an aggregate of connection test results.
+type ConnectionTestResults []*ConnectionTestResult
+
+// AsList returns an aggregated list of connection results containing only the
+// target. This is convenient for components that only have one connection to
+// test.
+func (c *ConnectionTestResult) AsList() ConnectionTestResults {
+	return ConnectionTestResults{c}
+}
+
+// ConnectionTestFailed returns a failed connection test result.
+func ConnectionTestFailed(o Observability, err error) *ConnectionTestResult {
+	return &ConnectionTestResult{
+		Label: o.Label(),
+		Path:  o.Path(),
+		Err:   err,
+	}
+}
+
+// ConnectionTestSucceeded returns a successful connection test result.
+func ConnectionTestSucceeded(o Observability) *ConnectionTestResult {
+	return &ConnectionTestResult{
+		Label: o.Label(),
+		Path:  o.Path(),
+	}
+}
+
+// ConnectionTestNotSupported returns a test result indicating that the
+// component does not support testing connections.
+func ConnectionTestNotSupported(o Observability) *ConnectionTestResult {
+	return &ConnectionTestResult{
+		Label: o.Label(),
+		Path:  o.Path(),
+		Err:   ErrConnectionTestNotSupported,
 	}
 }
