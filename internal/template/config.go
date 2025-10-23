@@ -322,6 +322,7 @@ func ConfigSpec() docs.FieldSpecs {
 			"stable", "This template is stable and will therefore not change in a breaking way outside of major version releases.",
 			"beta", "This template is beta and will therefore not change in a breaking way unless a major problem is found.",
 			"experimental", "This template is experimental and therefore subject to breaking changes outside of major version releases.",
+			"deprecated", "This template has been deprecated and should no longer be used.",
 		).HasDefault("stable"),
 		docs.FieldString(
 			"categories", "An optional list of tags, which are used for arbitrarily grouping components in documentation.",
