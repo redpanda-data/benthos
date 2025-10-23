@@ -671,3 +671,44 @@ mapping: |
 		})
 	}
 }
+
+func TestDeprecatedTemplate(t *testing.T) {
+	mgr, err := manager.New(manager.NewResourceConfig())
+	require.NoError(t, err)
+
+	templateBytes := []byte(`
+name: foo_memory
+type: cache
+status: deprecated
+
+fields:
+  - name: foovalue
+    type: string
+
+mapping: |
+  root.memory.init_values.foo = this.foovalue
+`)
+
+	tplConf, lints, err := template.ReadConfigYAML(mgr.Environment(), templateBytes)
+	require.NoError(t, err)
+
+	assert.Empty(t, lints)
+	assert.Equal(t, tplConf.Status, string(docs.StatusDeprecated))
+
+	require.NoError(t, template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), templateBytes))
+
+	conf, err := cache.FromAny(mgr, map[string]any{
+		"foo_memory": map[string]any{
+			"foovalue": "meow",
+		},
+	})
+	require.NoError(t, err)
+
+	c, err := mgr.NewCache(conf)
+	require.NoError(t, err)
+
+	res, err := c.Get(t.Context(), "foo")
+	require.NoError(t, err)
+
+	assert.Equal(t, "meow", string(res))
+}
