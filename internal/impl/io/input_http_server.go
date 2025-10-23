@@ -360,7 +360,8 @@ type httpServerInput struct {
 	handlerWG    sync.WaitGroup
 	transactions chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 
 	mPostRcvd metrics.StatCounter
 	mWSRcvd   metrics.StatCounter
@@ -423,7 +424,6 @@ func newHTTPServerInput(conf hsiConfig, mgr bundle.NewManagement) (input.Streame
 		}
 	}
 
-	go h.loop()
 	return &h, nil
 }
 
@@ -907,10 +907,20 @@ func (h *httpServerInput) TransactionChan() <-chan message.Transaction {
 	return h.transactions
 }
 
+func (h *httpServerInput) ConnectionTest(context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestSucceeded(h.mgr).AsList()
+}
+
 func (h *httpServerInput) ConnectionStatus() component.ConnectionStatuses {
 	return component.ConnectionStatuses{
 		component.ConnectionActive(h.mgr),
 	}
+}
+
+func (h *httpServerInput) TriggerStartConsuming() {
+	h.startOnce.Do(func() {
+		go h.loop()
+	})
 }
 
 func (h *httpServerInput) TriggerStopConsuming() {

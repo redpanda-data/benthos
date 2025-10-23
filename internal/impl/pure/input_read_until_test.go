@@ -83,6 +83,8 @@ func testReadUntilBasic(inConf string, t *testing.T) {
 		t.Fatal(err)
 	}
 
+	in.TriggerStartConsuming()
+
 	expMsgs := []string{
 		"foo",
 		"bar",
@@ -141,6 +143,8 @@ func testReadUntilRestart(inConf string, t *testing.T) {
 	in, err := bmock.NewManager().NewInput(rConf)
 	require.NoError(t, err)
 
+	in.TriggerStartConsuming()
+
 	expMsgs := []string{
 		"foo",
 		"bar",
@@ -181,6 +185,8 @@ func testReadUntilRetry(inConf string, t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	in.TriggerStartConsuming()
 
 	expMsgs := map[string]struct{}{
 		"foo": {},
@@ -286,6 +292,8 @@ read_until:
 
 	strm, err := bmock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
 
 	tran, open := <-strm.TransactionChan()
 	require.True(t, open)

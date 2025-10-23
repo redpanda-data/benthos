@@ -45,6 +45,8 @@ func TestBasicFanIn(t *testing.T) {
 		return
 	}
 
+	fanIn.TriggerStartConsuming()
+
 	for i := 0; i < nMsgs; i++ {
 		for j := 0; j < nInputs; j++ {
 			content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
@@ -123,6 +125,8 @@ func TestFanInShutdown(t *testing.T) {
 		return
 	}
 
+	fanIn.TriggerStartConsuming()
+
 	for _, mockIn := range mockInputs {
 		select {
 		case _, open := <-mockIn.TransactionChan():
@@ -164,6 +168,8 @@ func TestFanInAsync(t *testing.T) {
 		t.Error(err)
 		return
 	}
+
+	fanIn.TriggerStartConsuming()
 
 	wg := sync.WaitGroup{}
 	wg.Add(nInputs)
@@ -229,6 +235,8 @@ func BenchmarkBasicFanIn(b *testing.B) {
 		b.Error(err)
 		return
 	}
+
+	fanIn.TriggerStartConsuming()
 
 	defer func() {
 		fanIn.TriggerStopConsuming()

@@ -65,6 +65,8 @@ http_server:
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	h.TriggerStartConsuming()
+
 	server := httptest.NewServer(reg.mut)
 	defer server.Close()
 
@@ -311,6 +313,8 @@ http_server:
 	server, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	server.TriggerStartConsuming()
+
 	defer func() {
 		server.TriggerStopConsuming()
 		assert.NoError(t, server.WaitForClose(tCtx))
@@ -376,6 +380,8 @@ http_server:
 
 	server, err := mgr.NewInput(conf)
 	require.NoError(t, err)
+
+	server.TriggerStartConsuming()
 
 	defer func() {
 		server.TriggerStopConsuming()
@@ -448,6 +454,8 @@ http_server:
 		assert.NoError(t, server.WaitForClose(tCtx))
 	}()
 
+	server.TriggerStartConsuming()
+
 	testServer := httptest.NewServer(reg.mut)
 	defer testServer.Close()
 
@@ -507,6 +515,8 @@ http_server:
 
 	server, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	server.TriggerStartConsuming()
 
 	defer func() {
 		server.TriggerStopConsuming()
@@ -574,6 +584,8 @@ http_server:
 
 	server, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	server.TriggerStartConsuming()
 
 	defer func() {
 		server.TriggerStopConsuming()
@@ -647,6 +659,8 @@ http_server:
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	h.TriggerStartConsuming()
+
 	server := httptest.NewServer(reg.mut)
 	defer server.Close()
 
@@ -683,6 +697,8 @@ http_server:
 
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
 
 	server := httptest.NewServer(reg.mut)
 	defer server.Close()
@@ -736,6 +752,8 @@ http_server:
 
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
 
 	server := httptest.NewServer(reg.mut)
 	defer server.Close()
@@ -801,6 +819,8 @@ http_server:
 
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
 
 	server := httptest.NewServer(reg.mut)
 	defer server.Close()
@@ -899,6 +919,8 @@ http_server:
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	h.TriggerStartConsuming()
+
 	server := httptest.NewServer(reg.mut)
 	defer server.Close()
 
@@ -982,6 +1004,8 @@ http_server:
 
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
 
 	server := httptest.NewServer(reg.mut)
 	defer server.Close()
@@ -1126,6 +1150,8 @@ http_server:
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	h.TriggerStartConsuming()
+
 	server := httptest.NewServer(reg.mut)
 	t.Cleanup(func() {
 		server.Close()
@@ -1205,6 +1231,8 @@ http_server:
 
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
 
 	server := httptest.NewServer(reg.mut)
 	defer server.Close()
@@ -1313,6 +1341,8 @@ http_server:
 
 	server, err := mock.NewManager().NewInput(conf)
 	require.NoError(t, err)
+
+	server.TriggerStartConsuming()
 
 	defer func() {
 		server.TriggerStopConsuming()

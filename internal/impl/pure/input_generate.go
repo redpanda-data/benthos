@@ -111,14 +111,15 @@ func init() {
 //------------------------------------------------------------------------------
 
 type generateReader struct {
-	remaining    int
-	batchSize    int
-	limited      bool
-	firstIsFree  bool
-	exec         *mapping.Executor
-	timer        *time.Ticker
-	schedule     *cron.Schedule
-	schedulePrev *time.Time
+	staticConnResult component.ConnectionTestResults
+	remaining        int
+	batchSize        int
+	limited          bool
+	firstIsFree      bool
+	exec             *mapping.Executor
+	timer            *time.Ticker
+	schedule         *cron.Schedule
+	schedulePrev     *time.Time
 }
 
 func newGenerateReaderFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) (*generateReader, error) {
@@ -179,14 +180,15 @@ func newGenerateReaderFromParsed(conf *service.ParsedConfig, mgr bundle.NewManag
 	}
 
 	return &generateReader{
-		exec:         exec,
-		remaining:    count,
-		batchSize:    batchSize,
-		limited:      count > 0,
-		timer:        timer,
-		schedule:     schedule,
-		schedulePrev: schedulePrev,
-		firstIsFree:  firstIsFree,
+		staticConnResult: component.ConnectionTestSucceeded(mgr).AsList(),
+		exec:             exec,
+		remaining:        count,
+		batchSize:        batchSize,
+		limited:          count > 0,
+		timer:            timer,
+		schedule:         schedule,
+		schedulePrev:     schedulePrev,
+		firstIsFree:      firstIsFree,
 	}, nil
 }
 
@@ -203,6 +205,10 @@ func parseCronExpression(cronExpression string) (*cron.Schedule, error) {
 	}
 
 	return &cronSchedule, nil
+}
+
+func (b *generateReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return b.staticConnResult
 }
 
 // Connect establishes a Bloblang reader.

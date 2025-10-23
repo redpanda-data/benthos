@@ -95,6 +95,8 @@ mapping: |
 	strm, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	strm.TriggerStartConsuming()
+
 	var tran message.Transaction
 	var open bool
 	select {

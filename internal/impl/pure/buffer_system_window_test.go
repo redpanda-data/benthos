@@ -118,6 +118,7 @@ system_window:
 
 			cancelledCtx, done := context.WithCancel(t.Context())
 			done()
+
 			err = strm.Run(cancelledCtx)
 			if test.buildErrContains != "" {
 				require.Error(t, err)

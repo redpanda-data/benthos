@@ -32,7 +32,9 @@ generate:
 	iWrapped, err := bMgr.NewInput(conf)
 	require.NoError(t, err)
 
-	iWrapper := manager.WrapInput(iWrapped)
+	iWrapper := manager.WrapInput(iWrapped, bMgr)
+	iWrapper.TriggerStartConsuming()
+
 	select {
 	case tran, open := <-iWrapper.TransactionChan():
 		require.True(t, open)
