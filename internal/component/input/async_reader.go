@@ -31,6 +31,7 @@ type AsyncReader struct {
 	mgr component.Observability
 
 	transactions chan message.Transaction
+	startOnce    sync.Once
 	shutSig      *shutdown.Signaller
 }
 
@@ -65,7 +66,6 @@ func NewAsyncReader(
 	}
 	rdr.connection.Store(component.ConnectionPending(rdr.mgr))
 
-	go rdr.loop()
 	return rdr, nil
 }
 
@@ -79,6 +79,13 @@ func AsyncReaderWithConnBackOff(boff backoff.BackOff) func(a *AsyncReader) {
 }
 
 //------------------------------------------------------------------------------
+
+// TriggerStartConsuming initiates async connection and consumption.
+func (r *AsyncReader) TriggerStartConsuming() {
+	r.startOnce.Do(func() {
+		go r.loop()
+	})
+}
 
 func (r *AsyncReader) loop() {
 	// Metrics paths
@@ -242,6 +249,13 @@ func (r *AsyncReader) loop() {
 // this input type.
 func (r *AsyncReader) TransactionChan() <-chan message.Transaction {
 	return r.transactions
+}
+
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (r *AsyncReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return r.reader.ConnectionTest(ctx)
 }
 
 // ConnectionStatus returns the current status of the given component

@@ -53,6 +53,10 @@ func newMockAsyncReader() *mockAsyncReader {
 	}
 }
 
+func (r *mockAsyncReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
+}
+
 func (r *mockAsyncReader) Connect(ctx context.Context) error {
 	cerr, open := <-r.connChan
 	if !open {
@@ -109,6 +113,10 @@ func (r *mockAsyncReader) Close(ctx context.Context) error {
 
 type asyncReaderCantConnect struct{}
 
+func (r asyncReaderCantConnect) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
+}
+
 func (r asyncReaderCantConnect) Connect(ctx context.Context) error {
 	return component.ErrNotConnected
 }
@@ -120,10 +128,9 @@ func (r asyncReaderCantConnect) Close(ctx context.Context) error { return nil }
 
 func TestAsyncReaderCantConnect(t *testing.T) {
 	r, err := input.NewAsyncReader("foo", asyncReaderCantConnect{}, mock.NewManager())
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	require.NoError(t, err)
+
+	r.TriggerStartConsuming()
 
 	// We will fail to connect but should still exit immediately.
 	r.TriggerStopConsuming()
@@ -134,6 +141,10 @@ func TestAsyncReaderCantConnect(t *testing.T) {
 
 type asyncReaderCantRead struct {
 	connected int
+}
+
+func (r *asyncReaderCantRead) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
 }
 
 func (r *asyncReaderCantRead) Connect(ctx context.Context) error {
@@ -151,6 +162,8 @@ func TestAsyncReaderCantRead(t *testing.T) {
 
 	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager())
 	require.NoError(t, err)
+
+	r.TriggerStartConsuming()
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
@@ -171,6 +184,8 @@ func TestAsyncReaderTypeClosedOnConn(t *testing.T) {
 		t.Error(err)
 		return
 	}
+
+	r.TriggerStartConsuming()
 
 	go func() {
 		select {
@@ -193,6 +208,8 @@ func TestAsyncReaderTypeClosedOnReconn(t *testing.T) {
 		t.Error(err)
 		return
 	}
+
+	r.TriggerStartConsuming()
 
 	go func() {
 		select {
@@ -222,6 +239,8 @@ func TestAsyncReaderTypeClosedOnReread(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	r.TriggerStartConsuming()
 
 	go func() {
 		select {
@@ -284,6 +303,8 @@ func TestAsyncReaderCanReconnect(t *testing.T) {
 		case <-time.After(time.Second):
 		}
 	}()
+
+	r.TriggerStartConsuming()
 
 	var ts message.Transaction
 	var open bool
@@ -350,6 +371,8 @@ func TestAsyncReaderFailsReconnect(t *testing.T) {
 		}
 	}()
 
+	r.TriggerStartConsuming()
+
 	var ts message.Transaction
 	var open bool
 	select {
@@ -382,6 +405,8 @@ func TestAsyncReaderCloseDuringReconnect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	r.TriggerStartConsuming()
 
 	select {
 	case readerImpl.connChan <- nil:
@@ -425,6 +450,8 @@ func TestAsyncReaderHappyPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	r.TriggerStartConsuming()
 
 	select {
 	case readerImpl.connChan <- nil:
@@ -482,6 +509,8 @@ func TestAsyncReaderCloseWithPendingAcks(t *testing.T) {
 
 	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager())
 	require.NoError(t, err)
+
+	r.TriggerStartConsuming()
 
 	select {
 	case readerImpl.connChan <- nil:
@@ -550,6 +579,8 @@ func TestAsyncReaderSadPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	r.TriggerStartConsuming()
+
 	select {
 	case readerImpl.connChan <- nil:
 	case <-time.After(time.Second):
@@ -616,6 +647,8 @@ func TestAsyncReaderParallel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	r.TriggerStartConsuming()
 
 	select {
 	case readerImpl.connChan <- nil:
@@ -684,6 +717,10 @@ type asyncReaderCantReadOrConnect struct {
 	connected int
 }
 
+func (r *asyncReaderCantReadOrConnect) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
+}
+
 func (r *asyncReaderCantReadOrConnect) Connect(ctx context.Context) error {
 	r.connected++
 	return errors.New("sorry")
@@ -703,6 +740,8 @@ func TestAsyncReaderTypeConnMaxExceeded(t *testing.T) {
 
 	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager(), input.AsyncReaderWithConnBackOff(backoff.WithMaxRetries(boff, 3)))
 	require.NoError(t, err)
+
+	r.TriggerStartConsuming()
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
@@ -731,6 +770,10 @@ func BenchmarkAsyncReaderGenerateN1000(b *testing.B) {
 
 type mockStaticReader struct {
 	d []byte
+}
+
+func (r *mockStaticReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
 }
 
 func (r *mockStaticReader) Connect(ctx context.Context) error {
@@ -766,6 +809,8 @@ func benchmarkAsyncReaderGenerateN(b *testing.B, capacity int) {
 		r.TriggerStopConsuming()
 		require.NoError(b, r.WaitForClose(ctx))
 	})
+
+	r.TriggerStartConsuming()
 
 	resFns := make([]func(context.Context, error) error, capacity)
 

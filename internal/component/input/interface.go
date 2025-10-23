@@ -17,10 +17,19 @@ type Streamed interface {
 	// transaction will be sent.
 	TransactionChan() <-chan message.Transaction
 
+	// ConnectionTest attempts to establish whether the component is capable of
+	// creating a connection. This will potentially require and test network
+	// connectivity, but does not require the component to be initialized.
+	ConnectionTest(ctx context.Context) component.ConnectionTestResults
+
 	// ConnectionStatus returns the current status of the given component
 	// connection. The result is a slice in order to accommodate higher order
 	// components that wrap several others.
 	ConnectionStatus() component.ConnectionStatuses
+
+	// TriggerStartConsuming instructs the input to start consuming data, and attempting
+	// to write it to the transaction channel.
+	TriggerStartConsuming()
 
 	// TriggerStopConsuming instructs the input to start shutting down resources
 	// once all pending messages are delivered and acknowledged. This call does
@@ -44,6 +53,11 @@ type AsyncAckFn func(context.Context, error) error
 // Async is a type that reads Benthos messages from an external source and
 // allows acknowledgements for a message batch to be propagated asynchronously.
 type Async interface {
+	// ConnectionTest attempts to establish whether the component is capable of
+	// creating a connection. This will potentially require and test network
+	// connectivity, but does not require the component to be initialized.
+	ConnectionTest(ctx context.Context) component.ConnectionTestResults
+
 	// Connect attempts to establish a connection to the source, if
 	// unsuccessful returns an error. If the attempt is successful (or not
 	// necessary) returns nil.
