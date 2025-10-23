@@ -76,6 +76,30 @@ func newFanInInputBroker(inputs []input.Streamed) (*fanInInputBroker, error) {
 	return i, nil
 }
 
+func (i *fanInInputBroker) TriggerStartConsuming() {
+	i.remainingMapMut.Lock()
+	defer i.remainingMapMut.Unlock()
+
+	for _, v := range i.closables {
+		v.TriggerStartConsuming()
+	}
+}
+
+func (i *fanInInputBroker) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	i.remainingMapMut.Lock()
+	defer i.remainingMapMut.Unlock()
+
+	if len(i.remainingMap) == 0 {
+		return nil
+	}
+
+	var results component.ConnectionTestResults
+	for index := range i.remainingMap {
+		results = append(results, i.closables[index].ConnectionTest(ctx)...)
+	}
+	return results
+}
+
 func (i *fanInInputBroker) TransactionChan() <-chan message.Transaction {
 	return i.transactions
 }

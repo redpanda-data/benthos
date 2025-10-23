@@ -4,9 +4,11 @@ package io
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Jeffail/shutdown"
 
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/log"
@@ -22,6 +24,7 @@ type wrappedInput struct {
 }
 
 type dynamicFanInInput struct {
+	mgr bundle.NewManagement
 	log log.Modular
 
 	transactionChan chan message.Transaction
@@ -33,17 +36,19 @@ type dynamicFanInInput struct {
 	inputs           map[string]input.Streamed
 	inputClosedChans map[string]chan struct{}
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newDynamicFanInInput(
+	mgr bundle.NewManagement,
 	inputs map[string]input.Streamed,
-	logger log.Modular,
 	onAdd func(ctx context.Context, l string),
 	onRemove func(ctx context.Context, l string),
 ) (*dynamicFanInInput, error) {
 	d := &dynamicFanInInput{
-		log: logger,
+		mgr: mgr,
+		log: mgr.Logger(),
 
 		transactionChan: make(chan message.Transaction),
 
@@ -67,7 +72,6 @@ func newDynamicFanInInput(
 			d.log.Error("Failed to start new dynamic input '%v': %v\n", key, err)
 		}
 	}
-	go d.managerLoop()
 	return d, nil
 }
 
@@ -97,6 +101,12 @@ func (d *dynamicFanInInput) SetInput(ctx context.Context, ident string, input in
 
 func (d *dynamicFanInInput) TransactionChan() <-chan message.Transaction {
 	return d.transactionChan
+}
+
+func (d *dynamicFanInInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	// TODO: We need to refactor the mechanisms for serving new inputs in order
+	// to allow access from here.
+	return component.ConnectionTestNotSupported(d.mgr).AsList()
 }
 
 func (d *dynamicFanInInput) ConnectionStatus() component.ConnectionStatuses {
@@ -202,6 +212,12 @@ func (d *dynamicFanInInput) managerLoop() {
 			return
 		}
 	}
+}
+
+func (d *dynamicFanInInput) TriggerStartConsuming() {
+	d.startOnce.Do(func() {
+		go d.managerLoop()
+	})
 }
 
 func (d *dynamicFanInInput) TriggerStopConsuming() {

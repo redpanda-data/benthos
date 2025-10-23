@@ -248,7 +248,7 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 				return nil, err
 			}
 
-			ni := WrapInput(newInput)
+			ni := WrapInput(newInput, t)
 			return &ni, nil
 		})
 	}
@@ -635,8 +635,9 @@ func (t *Type) StoreInput(ctx context.Context, name string, conf input.Config) e
 		if i != nil {
 			(*i).SwapInput(newInput)
 		} else {
-			ni := WrapInput(newInput)
+			ni := WrapInput(newInput, t)
 			set(&ni)
+			ni.TriggerStartConsuming()
 		}
 	}); err != nil {
 		return err
@@ -933,6 +934,15 @@ func (t *Type) CloseObservability(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// TriggerStartConsuming instructs the manager to start resource inputs
+// consuming data. This call blocks if there are lazily evaluated inputs..
+func (t *Type) TriggerStartConsuming(ctx context.Context) error {
+	return t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
+		i.TriggerStartConsuming()
+		return nil
+	})
 }
 
 // TriggerStopConsuming instructs the manager to stop resource inputs and

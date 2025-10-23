@@ -25,6 +25,7 @@ func TestResourceInput(t *testing.T) {
 		{message.NewPart([]byte("hello world 2"))},
 		{message.NewPart([]byte("hello world 3"))},
 	})
+	mgr.Inputs["foo"].TriggerStartConsuming()
 
 	nConf := input.NewConfig()
 	nConf.Type = "resource"
@@ -32,6 +33,8 @@ func TestResourceInput(t *testing.T) {
 
 	p, err := mgr.NewInput(nConf)
 	require.NoError(t, err)
+
+	p.TriggerStartConsuming()
 
 	tChan := p.TransactionChan()
 	readTran := func() message.Transaction {
@@ -79,6 +82,7 @@ func TestResourceInputEarlyTermination(t *testing.T) {
 		{message.NewPart([]byte("hello world 2"))},
 		{message.NewPart([]byte("hello world 3"))},
 	})
+	mgr.Inputs["foo"].TriggerStartConsuming()
 
 	nConf := input.NewConfig()
 	nConf.Type = "resource"
@@ -86,6 +90,8 @@ func TestResourceInputEarlyTermination(t *testing.T) {
 
 	p, err := mgr.NewInput(nConf)
 	require.NoError(t, err)
+
+	p.TriggerStartConsuming()
 
 	tChan := p.TransactionChan()
 	readTran := func() message.Transaction {

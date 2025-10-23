@@ -271,6 +271,8 @@ func TestDefaultBasedOverridesWithYAML(t *testing.T) {
 	s, err := stream.New(c.Config, mock.NewManager())
 	require.NoError(t, err)
 
+	s.TriggerStartConsuming()
+
 	assert.Eventually(t, func() bool {
 		fBytes, _ := os.ReadFile(outFile)
 		return bytes.Contains(fBytes, []byte(`{"foo":"bar"}`))
@@ -307,6 +309,8 @@ input:
 
 	s, err := stream.New(c.Config, mock.NewManager())
 	require.NoError(t, err)
+
+	s.TriggerStartConsuming()
 
 	assert.Eventually(t, func() bool {
 		fBytes, _ := os.ReadFile(outFile)
@@ -347,6 +351,8 @@ input:
 
 	s, err := stream.New(c.Config, mock.NewManager())
 	require.NoError(t, err)
+
+	s.TriggerStartConsuming()
 
 	assert.Eventually(t, func() bool {
 		fBytes, _ := os.ReadFile(outFile)

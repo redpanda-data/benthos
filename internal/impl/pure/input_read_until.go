@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -117,7 +118,8 @@ type readUntilInput struct {
 
 	transactions chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newReadUntilInputFromParsed(conf *service.ParsedConfig, res *service.Resources) (input.Streamed, error) {
@@ -174,8 +176,6 @@ func newReadUntilInputFromParsed(conf *service.ParsedConfig, res *service.Resour
 
 		shutSig: shutdown.NewSignaller(),
 	}
-
-	go rdr.loop()
 	return rdr, nil
 }
 
@@ -227,6 +227,8 @@ runLoop:
 		} else {
 			wrapped = *wrappedP
 		}
+
+		wrapped.TriggerStartConsuming() // This is safe to call multiple times
 
 		var tran message.Transaction
 		{
@@ -296,10 +298,23 @@ runLoop:
 	}
 }
 
-// TransactionChan returns a transactions channel for consuming messages from
-// this input type.
 func (r *readUntilInput) TransactionChan() <-chan message.Transaction {
 	return r.transactions
+}
+
+func (r *readUntilInput) TriggerStartConsuming() {
+	r.startOnce.Do(func() {
+		go r.loop()
+	})
+}
+
+func (r *readUntilInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	wrappedP := r.wrappedInputLocked.Load()
+	if wrappedP != nil {
+		i := *wrappedP
+		return i.ConnectionTest(ctx)
+	}
+	return nil
 }
 
 func (r *readUntilInput) ConnectionStatus() component.ConnectionStatuses {
