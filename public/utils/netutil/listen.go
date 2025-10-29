@@ -23,7 +23,7 @@ import (
 // SO_REUSEADDR, you should use Listen() and then pass the listener to Serve()
 // rather than using ListenAndServe() directly to ensure the port is bound before
 // proceeding.
-func ListenWithReuseAddrSpec() net.ListenConfig {
+func ListenConfigWithReuseAddr() net.ListenConfig {
 	return net.ListenConfig{
 		Control: func(network, address string, c syscall.RawConn) error {
 			var sockOptErr error
