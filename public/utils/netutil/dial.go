@@ -64,7 +64,7 @@ func DialerConfigFromParsed(pConf *service.ParsedConfig) (DialerConfig, error) {
 	if pConf.Contains("keep_alive") {
 		pc := pConf.Namespace("keep_alive")
 
-		conf.KeepAliveConfig.Idle, err = pc.FieldDuration("keep_alive")
+		conf.KeepAliveConfig.Idle, err = pc.FieldDuration("idle")
 		if err != nil {
 			return conf, err
 		}
