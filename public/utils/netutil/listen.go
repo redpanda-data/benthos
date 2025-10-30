@@ -20,9 +20,9 @@ type ListenerConfig struct {
 	ReusePort bool
 }
 
-// DecorateListenConfig applies ListenerConfig settings to a net.ListenConfig.
+// DecorateListenerConfig applies ListenerConfig settings to a net.ListenConfig.
 // This configures socket options like SO_REUSEADDR and SO_REUSEPORT.
-func DecorateListenConfig(lc *net.ListenConfig, conf ListenerConfig) error {
+func DecorateListenerConfig(lc *net.ListenConfig, conf ListenerConfig) error {
 	// If no options are set, nothing to do
 	if !conf.ReuseAddr && !conf.ReusePort {
 		return nil

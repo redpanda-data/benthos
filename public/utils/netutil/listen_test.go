@@ -21,7 +21,7 @@ func TestDecorateListenConfig(t *testing.T) {
 		ReuseAddr: true,
 	}
 
-	err := DecorateListenConfig(&lc, conf)
+	err := DecorateListenerConfig(&lc, conf)
 	require.NoError(t, err)
 
 	listener1, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
@@ -52,7 +52,7 @@ func TestListenerConfig_ServerReload(t *testing.T) {
 
 	// Create first server
 	lc1 := net.ListenConfig{}
-	err := DecorateListenConfig(&lc1, conf)
+	err := DecorateListenerConfig(&lc1, conf)
 	require.NoError(t, err)
 
 	listener1, err := lc1.Listen(ctx, "tcp", addr)
@@ -101,7 +101,7 @@ func TestListenerConfig_ServerReload(t *testing.T) {
 
 	// Create second server on same address - should succeed due to SO_REUSEADDR
 	lc2 := net.ListenConfig{}
-	err = DecorateListenConfig(&lc2, conf)
+	err = DecorateListenerConfig(&lc2, conf)
 	require.NoError(t, err)
 
 	listener2, err := lc2.Listen(ctx, "tcp", addr)
@@ -138,7 +138,7 @@ func TestListenerConfig_Empty(t *testing.T) {
 	lc := net.ListenConfig{}
 	conf := ListenerConfig{}
 
-	err := DecorateListenConfig(&lc, conf)
+	err := DecorateListenerConfig(&lc, conf)
 	require.NoError(t, err)
 
 	// Should still be able to listen normally
