@@ -1034,3 +1034,25 @@ func NewVarFunction(name string) Function {
 		return ctx, paths
 	})
 }
+
+//------------------------------------------------------------------------------
+
+var _ = registerFunction(
+	NewFunctionSpec(
+		FunctionCategoryGeneral, "bytes",
+		"Create a new byte array that is zero initialized",
+		NewExampleSpec("",
+			`root.data = bytes(5)`,
+			`{"data":"AAAAAAAK"}`,
+		),
+	).Param(ParamInt64("length", "The size of the resulting byte array.")),
+	func(args *ParsedParams) (Function, error) {
+		length, err := args.FieldInt64("length")
+		if err != nil {
+			return nil, err
+		}
+		return ClosureFunction("function bytes", func(_ FunctionContext) (any, error) {
+			return make([]byte, length), nil
+		}, nil), nil
+	},
+)

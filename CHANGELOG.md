@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - New `string.repeat(int)` method to repeat a string or byte array N times. (@rockwotj)
+- New `bytes` method to create a 0 initialized byte array. (@rockwotj)
 
 ## 4.58.0 - 2025-10-23
 
