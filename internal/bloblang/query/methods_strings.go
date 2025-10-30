@@ -23,6 +23,8 @@ import (
 	"hash/fnv"
 	"html"
 	"io"
+	"math"
+	"math/bits"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -2114,6 +2116,49 @@ root.description = this.description.trim_suffix("_foobar")`,
 				return strings.TrimSuffix(t, suffix), nil
 			case []byte:
 				return bytes.TrimSuffix(t, bytesSuffix), nil
+			}
+			return nil, value.NewTypeError(v, value.TString)
+		}, nil
+	},
+)
+
+//------------------------------------------------------------------------------
+
+var _ = registerSimpleMethod(
+	NewMethodSpec(
+		"repeat", "",
+	).InCategory(
+		MethodCategoryStrings,
+		"Repeat returns a new string consisting of count copies of the string",
+		NewExampleSpec("",
+			`root.repeated = this.name.repeat(3)
+root.not_repeated = this.name.repeat(0)`,
+			`{"name":"bob"}`,
+			`{"not_repeated":"","repeated":"bobbobbob"}`,
+		),
+	).Param(ParamInt64("count", "The number of times to repeat the string.")),
+	func(args *ParsedParams) (simpleMethod, error) {
+		count, err := args.FieldInt64("count")
+		if err != nil {
+			return nil, err
+		}
+		if count < 0 {
+			return nil, fmt.Errorf("invalid count, must be greater than or equal to zero: %d", count)
+		}
+		return func(v any, ctx FunctionContext) (any, error) {
+			switch t := v.(type) {
+			case string:
+				hi, lo := bits.Mul(uint(len(t)), uint(count))
+				if hi > 0 || lo > uint(math.MaxInt) {
+					return nil, fmt.Errorf("invalid count, would overflow: %d*%d", len(t), count)
+				}
+				return strings.Repeat(t, int(count)), nil
+			case []byte:
+				hi, lo := bits.Mul(uint(len(t)), uint(count))
+				if hi > 0 || lo > uint(math.MaxInt) {
+					return nil, fmt.Errorf("invalid count, would overflow: %d*%d", len(t), count)
+				}
+				return bytes.Repeat(t, int(count)), nil
 			}
 			return nil, value.NewTypeError(v, value.TString)
 		}, nil
