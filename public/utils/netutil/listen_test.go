@@ -4,6 +4,7 @@ package netutil
 
 import (
 	"context"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -11,37 +12,49 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestListenWithReuseAddr(t *testing.T) {
+func TestDecorateListenConfig(t *testing.T) {
 	ctx := context.Background()
 
-	// First listener
-	listener1, err := ListenWithReuseAddr(ctx, "tcp", "127.0.0.1:0")
+	// Test decorating an existing ListenConfig
+	lc := net.ListenConfig{}
+	conf := ListenerConfig{
+		ReuseAddr: true,
+	}
+
+	err := DecorateListenConfig(&lc, conf)
+	require.NoError(t, err)
+
+	listener1, err := lc.Listen(ctx, "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	defer listener1.Close()
 
 	addr := listener1.Addr().String()
-
-	// Close first listener
 	require.NoError(t, listener1.Close())
 
-	// Small delay to allow socket to enter TIME_WAIT
 	time.Sleep(10 * time.Millisecond)
 
-	// Second listener on the same address should succeed due to SO_REUSEADDR
-	listener2, err := ListenWithReuseAddr(ctx, "tcp", addr)
-	require.NoError(t, err, "Failed to bind to address after closing first listener - SO_REUSEADDR may not be working")
+	// Should be able to rebind immediately with decorated config
+	listener2, err := lc.Listen(ctx, "tcp", addr)
+	require.NoError(t, err, "Failed to bind with decorated ListenConfig")
 	defer listener2.Close()
 }
 
-func TestListenConfigWithReuseAddr_ServerReload(t *testing.T) {
+func TestListenerConfig_ServerReload(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Use a fixed port for this test
 	addr := "127.0.0.1:19284"
 
+	conf := ListenerConfig{
+		ReuseAddr: true,
+	}
+
 	// Create first server
-	lc1 := ListenConfigWithReuseAddr()
+	lc1 := net.ListenConfig{}
+	err := DecorateListenConfig(&lc1, conf)
+	require.NoError(t, err)
+
 	listener1, err := lc1.Listen(ctx, "tcp", addr)
 	require.NoError(t, err)
 
@@ -87,7 +100,10 @@ func TestListenConfigWithReuseAddr_ServerReload(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Create second server on same address - should succeed due to SO_REUSEADDR
-	lc2 := ListenConfigWithReuseAddr()
+	lc2 := net.ListenConfig{}
+	err = DecorateListenConfig(&lc2, conf)
+	require.NoError(t, err)
+
 	listener2, err := lc2.Listen(ctx, "tcp", addr)
 	require.NoError(t, err, "Failed to bind to port after server shutdown - SO_REUSEADDR may not be working")
 
@@ -115,4 +131,18 @@ func TestListenConfigWithReuseAddr_ServerReload(t *testing.T) {
 	shutdownCtx2, shutdownCancel2 := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel2()
 	require.NoError(t, server2.Shutdown(shutdownCtx2))
+}
+
+func TestListenerConfig_Empty(t *testing.T) {
+	// Test that empty config doesn't break anything
+	lc := net.ListenConfig{}
+	conf := ListenerConfig{}
+
+	err := DecorateListenConfig(&lc, conf)
+	require.NoError(t, err)
+
+	// Should still be able to listen normally
+	listener, err := lc.Listen(context.Background(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
 }
