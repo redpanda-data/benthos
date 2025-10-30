@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.59.0 - TBD
+
+### Added
+
+- New `string.repeat(int)` method to repeat a string or byte array N times. (@rockwotj)
+
 ## 4.58.0 - 2025-10-23
 
 ### Added
