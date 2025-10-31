@@ -1,5 +1,6 @@
-// Copyright 2025 Redpanda Data, Inc.
+//go:build !wasm
 
+// Copyright 2025 Redpanda Data, Inc.
 package netutil
 
 import (
