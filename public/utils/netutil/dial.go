@@ -39,7 +39,8 @@ func DialerConfigSpec() *service.ConfigField {
 			Default("0s"),
 	).
 		Description("TCP socket configuration.").
-		Optional()
+		Optional().
+		Advanced()
 }
 
 // DialerConfig contains TCP socket configuration options used to configure
