@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.60.0 - TBD
+
+### Added
+
+- New `connect_timeout` to `tcp` dialer config. (@mmatczuk)
+
 ## 4.59.0 - 2025-11-03
 
 ### Added

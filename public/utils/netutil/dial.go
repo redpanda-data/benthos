@@ -16,6 +16,9 @@ import (
 // DialerConfigSpec returns the config spec for DialerConfig.
 func DialerConfigSpec() *service.ConfigField {
 	return service.NewObjectField("tcp",
+		service.NewDurationField("connect_timeout").
+			Description("Maximum amount of time a dial will wait for a connect to complete. Zero disables.").
+			Default("0s"),
 		service.NewObjectField("keep_alive",
 			service.NewDurationField("idle").
 				Description("Duration the connection must be idle before sending the first keep-alive probe. "+
@@ -42,6 +45,11 @@ func DialerConfigSpec() *service.ConfigField {
 // DialerConfig contains TCP socket configuration options used to configure
 // a net.Dialer.
 type DialerConfig struct {
+	// Timeout is the maximum amount of time a dial will wait for a connect to
+	// complete. If Deadline is also set, it may fail earlier.
+	//
+	// The default is no timeout.
+	Timeout         time.Duration
 	KeepAliveConfig net.KeepAliveConfig
 	// TCPUserTimeout is only supported on Linux since 2.6.37, on other
 	// platforms it's ignored.
@@ -55,6 +63,11 @@ func DialerConfigFromParsed(pConf *service.ParsedConfig) (DialerConfig, error) {
 		conf DialerConfig
 		err  error
 	)
+
+	conf.Timeout, err = pConf.FieldDuration("connect_timeout")
+	if err != nil {
+		return conf, err
+	}
 
 	conf.TCPUserTimeout, err = pConf.FieldDuration("tcp_user_timeout")
 	if err != nil {
@@ -110,6 +123,7 @@ func DecorateDialer(d *net.Dialer, conf DialerConfig) error {
 		return err
 	}
 
+	d.Timeout = conf.Timeout
 	d.KeepAliveConfig = conf.KeepAliveConfig
 
 	fn := d.ControlContext
