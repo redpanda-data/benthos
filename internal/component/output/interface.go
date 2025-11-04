@@ -44,6 +44,10 @@ type Streamed interface {
 	// components that wrap several others.
 	ConnectionStatus() component.ConnectionStatuses
 
+	// TriggerStartConsuming instructs the output to establish connections and
+	// begin consuming data.
+	TriggerStartConsuming()
+
 	// TriggerCloseNow triggers the shut down of this component but should not
 	// block the calling goroutine.
 	TriggerCloseNow()
