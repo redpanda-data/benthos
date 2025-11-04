@@ -125,6 +125,7 @@ func DecorateDialer(d *net.Dialer, conf DialerConfig) error {
 
 	d.Timeout = conf.Timeout
 	d.KeepAliveConfig = conf.KeepAliveConfig
+	d.Timeout = conf.Timeout
 
 	fn := d.ControlContext
 	if fn == nil && d.Control != nil {
