@@ -159,7 +159,7 @@ func wrapControlContext(inner controlContextFunc, conf DialerConfig) controlCont
 
 		var syscallErr error
 		if err := conn.Control(func(fd uintptr) {
-			syscallErr = syscall.SetsockoptInt(int(fd), syscall.IPPROTO_TCP,
+			syscallErr = setsockoptInt(fd, syscall.IPPROTO_TCP,
 				tcpUserTimeout, int(conf.TCPUserTimeout.Milliseconds()))
 		}); err != nil {
 			return fmt.Errorf("failed to set tcp_user_timeout: %w", err)
