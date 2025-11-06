@@ -82,7 +82,7 @@ func DecorateListenerConfig(lc *net.ListenConfig, conf ListenerConfig) error {
 		var sockOptErr error
 		if err := c.Control(func(fd uintptr) {
 			if conf.ReuseAddr {
-				sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
+				sockOptErr = setsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, 1)
 				if sockOptErr != nil {
 					return
 				}
@@ -91,7 +91,7 @@ func DecorateListenerConfig(lc *net.ListenConfig, conf ListenerConfig) error {
 			if conf.ReusePort {
 				// SO_REUSEPORT = 15 on Linux, not available on all platforms
 				const SO_REUSEPORT = 0x0F
-				sockOptErr = syscall.SetsockoptInt(int(fd), syscall.SOL_SOCKET, SO_REUSEPORT, 1)
+				sockOptErr = setsockoptInt(fd, syscall.SOL_SOCKET, SO_REUSEPORT, 1)
 				if sockOptErr != nil {
 					// Ignore error if SO_REUSEPORT is not supported on this platform
 					// This allows the code to work across different OSes
