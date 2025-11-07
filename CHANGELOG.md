@@ -3,11 +3,15 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.60.0 - TBD
+## 4.60.0 - 2025-11-07
 
 ### Added
 
 - New `connect_timeout` to `tcp` dialer config. (@mmatczuk)
+
+### Fixed
+
+- Fixed build failure on Windows caused by syscall signature miss-match in `netutil`. (@mmatczuk)
 
 ## 4.59.0 - 2025-11-03
 
