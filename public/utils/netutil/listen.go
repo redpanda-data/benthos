@@ -1,5 +1,7 @@
 // Copyright 2025 Redpanda Data, Inc.
 
+//go:build !js
+
 package netutil
 
 import (

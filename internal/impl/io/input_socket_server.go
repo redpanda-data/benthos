@@ -1,5 +1,7 @@
 // Copyright 2025 Redpanda Data, Inc.
 
+//go:build !js
+
 package io
 
 import (
@@ -24,6 +26,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/public/service"
 	"github.com/redpanda-data/benthos/v4/public/service/codec"
+	"github.com/redpanda-data/benthos/v4/public/utils/netutil"
 )
 
 const (
@@ -40,6 +43,8 @@ const (
 	issFieldTLSClientAuthRequireAny    = "require_any"
 	issFieldTLSClientAuthRequireValid  = "require_valid"
 	issFieldTLSClientAuthVerifyIfGiven = "verify_if_given"
+	issFieldSoReuseAddr                = "reuse_addr"
+	issFieldSoReusePort                = "reuse_port"
 )
 
 func socketServerInputSpec() *service.ConfigSpec {
@@ -50,13 +55,19 @@ func socketServerInputSpec() *service.ConfigSpec {
 		Fields(
 			service.NewStringEnumField(issFieldNetwork, "unix", "tcp", "udp", "tls").
 				Description("A network type to accept."),
-			service.NewStringField(isFieldAddress).
+			service.NewStringField(issFieldAddress).
 				Description("The address to listen from.").
 				Examples("/tmp/benthos.sock", "0.0.0.0:6000"),
 			service.NewStringField(issFieldAddressCache).
 				Description("An optional xref:components:caches/about.adoc[`cache`] within which this input should write it's bound address once known. The key of the cache item containing the address will be the label of the component suffixed with `_address` (e.g. `foo_address`), or `socket_server_address` when a label has not been provided. This is useful in situations where the address is dynamically allocated by the server (`127.0.0.1:0`) and you want to store the allocated address somewhere for reference by other systems and components.").
 				Optional().
 				Version("4.25.0"),
+			service.NewBoolField(issFieldSoReuseAddr).
+				Description("Enables the SO_REUSEADDR socket option. This allows the server to bind to an address that is still in a TIME_WAIT state, which is useful for quickly restarting the service.").
+				Optional(),
+			service.NewBoolField(issFieldSoReusePort).
+				Description("Enables the SO_REUSEPORT socket option. This allows multiple processes (e.g., multiple Redpanda Connect instances) to bind to the same address and port, enabling kernel-level load balancing of incoming connections.").
+				Optional(),
 			service.NewObjectField(issFieldTLS,
 				service.NewStringField(issFieldTLSCertFile).
 					Description("PEM encoded certificate for use with TLS.").
@@ -101,7 +112,7 @@ type wrapPacketConn struct {
 
 func (w *wrapPacketConn) Read(p []byte) (n int, err error) {
 	n, _, err = w.ReadFrom(p)
-	return
+	return n, err
 }
 
 type socketServerInput struct {
@@ -111,6 +122,8 @@ type socketServerInput struct {
 	network       string
 	address       string
 	addressCache  string
+	reuseAddr     bool
+	reusePort     bool
 	tlsCert       string
 	tlsKey        string
 	tlsSelfSigned bool
@@ -130,10 +143,10 @@ func newSocketServerInputFromParsed(conf *service.ParsedConfig, mgr *service.Res
 	}
 
 	if t.network, err = conf.FieldString(issFieldNetwork); err != nil {
-		return
+		return i, err
 	}
 	if t.address, err = conf.FieldString(issFieldAddress); err != nil {
-		return
+		return i, err
 	}
 	t.addressCache, _ = conf.FieldString(issFieldAddressCache)
 
@@ -155,12 +168,14 @@ func newSocketServerInputFromParsed(conf *service.ParsedConfig, mgr *service.Res
 	case issFieldTLSClientAuthVerifyIfGiven:
 		t.tlsClientAuth = tls.VerifyClientCertIfGiven
 	default:
-		return
+		return i, err
 	}
 
 	if t.codecCtor, err = codec.DeprecatedCodecFromParsed(conf); err != nil {
-		return
+		return i, err
 	}
+	t.reuseAddr, _ = conf.FieldBool(issFieldSoReuseAddr)
+	t.reusePort, _ = conf.FieldBool(issFieldSoReusePort)
 	return &t, nil
 }
 
@@ -169,9 +184,17 @@ func (t *socketServerInput) Connect(ctx context.Context) error {
 	var cn net.PacketConn
 
 	var err error
+	netConf := netutil.ListenerConfig{
+		ReuseAddr: t.reuseAddr,
+		ReusePort: t.reusePort,
+	}
+	lc := net.ListenConfig{}
+	if err = netutil.DecorateListenerConfig(&lc, netConf); err != nil {
+		return fmt.Errorf("failed to apply listener config: %w", err)
+	}
 	switch t.network {
 	case "tcp", "unix":
-		ln, err = net.Listen(t.network, t.address)
+		ln, err = lc.Listen(ctx, t.network, t.address)
 	case "tls":
 		var cert tls.Certificate
 		if cert, err = loadOrCreateCertificate(t.tlsCert, t.tlsKey, t.tlsSelfSigned); err != nil {
@@ -181,9 +204,14 @@ func (t *socketServerInput) Connect(ctx context.Context) error {
 			Certificates: []tls.Certificate{cert},
 			ClientAuth:   t.tlsClientAuth,
 		}
-		ln, err = tls.Listen("tcp", t.address, config)
+		var baseListener net.Listener
+		baseListener, err = lc.Listen(ctx, "tcp", t.address)
+		if err != nil {
+			break
+		}
+		ln = tls.NewListener(baseListener, config)
 	case "udp":
-		cn, err = net.ListenPacket(t.network, t.address)
+		cn, err = lc.ListenPacket(ctx, t.network, t.address)
 	default:
 		return fmt.Errorf("socket network '%v' is not supported by this input", t.network)
 	}
