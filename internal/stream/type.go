@@ -182,13 +182,13 @@ func (t *Type) start() (err error) {
 	}
 
 	go func(out output.Streamed) {
-		for {
-			if err := out.WaitForClose(context.Background()); err == nil {
-				t.onClose()
-				atomic.StoreUint32(&t.closed, 1)
-				return
-			}
+		// WaitForClose blocks until output is fully closed.
+		// Errors indicate close completed with issues, but output is still closed.
+		if err := out.WaitForClose(context.Background()); err != nil {
+			t.manager.Logger().Debug("Output close completed with error: %v", err)
 		}
+		t.onClose()
+		atomic.StoreUint32(&t.closed, 1)
 	}(t.outputLayer)
 
 	return nil
