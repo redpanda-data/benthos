@@ -36,6 +36,12 @@ func (g *greedyOutputBroker) ConnectionStatus() (s component.ConnectionStatuses)
 	return
 }
 
+func (g *greedyOutputBroker) TriggerStartConsuming() {
+	for _, out := range g.outputs {
+		out.TriggerStartConsuming()
+	}
+}
+
 func (g *greedyOutputBroker) TriggerCloseNow() {
 	for _, out := range g.outputs {
 		out.TriggerCloseNow()
