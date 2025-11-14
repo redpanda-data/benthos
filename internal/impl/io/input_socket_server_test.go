@@ -495,6 +495,406 @@ socket_server:
 	wg.Wait()
 }
 
+func TestUnixgramSocketServerBasic(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
+	defer done()
+
+	tmpDir := t.TempDir()
+
+	rdr, addr := socketServerInputFromConf(t, `
+socket_server:
+  network: unixgram
+  address: %v
+`, filepath.Join(tmpDir, "benthos.sock"))
+
+	defer func() {
+		rdr.TriggerStopConsuming()
+		assert.NoError(t, rdr.WaitForClose(ctx))
+	}()
+
+	conn, err := net.Dial("unixgram", addr)
+	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
+
+		_, cerr := conn.Write([]byte("foo\n"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("bar\n"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("baz\n"))
+		require.NoError(t, cerr)
+
+		wg.Done()
+	}()
+
+	readNextMsg := func() (message.Batch, error) {
+		var tran message.Transaction
+		select {
+		case tran = <-rdr.TransactionChan():
+			require.NoError(t, tran.Ack(ctx, nil))
+		case <-time.After(time.Second):
+			return nil, errors.New("timed out")
+		}
+		return tran.Payload, nil
+	}
+
+	exp := [][]byte{[]byte("foo")}
+	msg, err := readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("bar")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("baz")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	wg.Wait()
+	conn.Close()
+}
+
+func TestUnixgramSocketServerRetries(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
+	defer done()
+
+	tmpDir := t.TempDir()
+
+	rdr, addr := socketServerInputFromConf(t, `
+socket_server:
+  network: unixgram
+  address: %v
+`, filepath.Join(tmpDir, "benthos.sock"))
+
+	defer func() {
+		rdr.TriggerStopConsuming()
+		assert.NoError(t, rdr.WaitForClose(ctx))
+	}()
+
+	conn, err := net.Dial("unixgram", addr)
+	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
+
+		_, cerr := conn.Write([]byte("foo\n"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("bar\n"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("baz\n"))
+		require.NoError(t, cerr)
+
+		wg.Done()
+	}()
+
+	readNextMsg := func(reject bool) (message.Batch, error) {
+		var tran message.Transaction
+		select {
+		case tran = <-rdr.TransactionChan():
+			var res error
+			if reject {
+				res = errors.New("test err")
+			}
+			require.NoError(t, tran.Ack(ctx, res))
+		case <-time.After(time.Second * 5):
+			return nil, errors.New("timed out")
+		}
+		return tran.Payload, nil
+	}
+
+	exp := [][]byte{[]byte("foo")}
+	msg, err := readNextMsg(false)
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("bar")}
+	msg, err = readNextMsg(true)
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	expRemaining := []string{"bar", "baz"}
+	actRemaining := []string{}
+
+	msg, err = readNextMsg(false)
+	require.NoError(t, err)
+	require.Equal(t, 1, msg.Len())
+	actRemaining = append(actRemaining, string(msg.Get(0).AsBytes()))
+
+	msg, err = readNextMsg(false)
+	require.NoError(t, err)
+	require.Equal(t, 1, msg.Len())
+	actRemaining = append(actRemaining, string(msg.Get(0).AsBytes()))
+
+	sort.Strings(actRemaining)
+	assert.Equal(t, expRemaining, actRemaining)
+
+	wg.Wait()
+	conn.Close()
+}
+
+func TestUnixgramServerWriteToClosed(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
+	defer done()
+
+	tmpDir := t.TempDir()
+
+	rdr, addr := socketServerInputFromConf(t, `
+socket_server:
+  network: unixgram
+  address: %v
+`, filepath.Join(tmpDir, "benthos.sock"))
+
+	conn, err := net.Dial("unixgram", addr)
+	require.NoError(t, err)
+
+	_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
+
+	rdr.TriggerStopConsuming()
+	assert.NoError(t, rdr.WaitForClose(ctx))
+
+	// Just make sure data written doesn't panic
+	_, _ = conn.Write([]byte("bar\n"))
+
+	_, open := <-rdr.TransactionChan()
+	assert.False(t, open)
+
+	conn.Close()
+}
+
+func TestUnixgramSocketServerReconnect(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
+	defer done()
+
+	tmpDir := t.TempDir()
+
+	rdr, addr := socketServerInputFromConf(t, `
+socket_server:
+  network: unixgram
+  address: %v
+`, filepath.Join(tmpDir, "benthos.sock"))
+
+	defer func() {
+		rdr.TriggerStopConsuming()
+		assert.NoError(t, rdr.WaitForClose(ctx))
+	}()
+
+	conn, err := net.Dial("unixgram", addr)
+	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
+		_, cerr := conn.Write([]byte("foo\n"))
+		require.NoError(t, cerr)
+
+		conn.Close()
+
+		conn, cerr = net.Dial("unixgram", addr)
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("bar\n"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("baz\n"))
+		require.NoError(t, cerr)
+
+		wg.Done()
+	}()
+
+	readNextMsg := func() (message.Batch, error) {
+		var tran message.Transaction
+		select {
+		case tran = <-rdr.TransactionChan():
+			require.NoError(t, tran.Ack(ctx, nil))
+		case <-time.After(time.Second):
+			return nil, errors.New("timed out")
+		}
+		return tran.Payload, nil
+	}
+
+	exp := [][]byte{[]byte("foo")}
+	msg, err := readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("bar")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("baz")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	wg.Wait()
+	conn.Close()
+}
+
+func TestUnixgramSocketServerCustomDelim(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
+	defer done()
+
+	tmpDir := t.TempDir()
+
+	rdr, addr := socketServerInputFromConf(t, `
+socket_server:
+  network: unixgram
+  address: %v
+  codec: delim:@
+`, filepath.Join(tmpDir, "benthos.sock"))
+
+	defer func() {
+		rdr.TriggerStopConsuming()
+		assert.NoError(t, rdr.WaitForClose(ctx))
+	}()
+
+	conn, err := net.Dial("unixgram", addr)
+	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
+
+		_, cerr := conn.Write([]byte("foo@"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("bar@"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("@"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("baz\n@@"))
+		require.NoError(t, cerr)
+
+		wg.Done()
+	}()
+
+	readNextMsg := func() (message.Batch, error) {
+		var tran message.Transaction
+		select {
+		case tran = <-rdr.TransactionChan():
+			require.NoError(t, tran.Ack(ctx, nil))
+		case <-time.After(time.Second):
+			return nil, errors.New("timed out")
+		}
+		return tran.Payload, nil
+	}
+
+	exp := [][]byte{[]byte("foo")}
+	msg, err := readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("bar")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("baz\n")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	wg.Wait()
+	conn.Close()
+}
+
+func TestUnixgramSocketServerShutdown(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
+	defer done()
+
+	tmpDir := t.TempDir()
+
+	rdr, addr := socketServerInputFromConf(t, `
+socket_server:
+  network: unixgram
+  address: %v
+`, filepath.Join(tmpDir, "benthos.sock"))
+
+	defer func() {
+		rdr.TriggerStopConsuming()
+		assert.NoError(t, rdr.WaitForClose(ctx))
+	}()
+
+	conn, err := net.Dial("unixgram", addr)
+	require.NoError(t, err)
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
+
+		_, cerr := conn.Write([]byte("foo\n"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("bar\n"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("\n"))
+		require.NoError(t, cerr)
+
+		_, cerr = conn.Write([]byte("baz\n"))
+		require.NoError(t, cerr)
+
+		conn.Close()
+		wg.Done()
+	}()
+
+	readNextMsg := func() (message.Batch, error) {
+		var tran message.Transaction
+		select {
+		case tran = <-rdr.TransactionChan():
+			require.NoError(t, tran.Ack(ctx, nil))
+		case <-time.After(time.Second):
+			return nil, errors.New("timed out")
+		}
+		return tran.Payload, nil
+	}
+
+	exp := [][]byte{[]byte("foo")}
+	msg, err := readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("bar")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	exp = [][]byte{[]byte("baz")}
+	msg, err = readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, exp, message.GetAllBytes(msg))
+
+	wg.Wait()
+}
+
 func TestSocketUDPServerBasic(t *testing.T) {
 	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
