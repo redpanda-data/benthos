@@ -48,7 +48,7 @@ func socketServerInputSpec() *service.ConfigSpec {
 		Summary(`Creates a server that receives a stream of messages over a TCP, UDP or Unix socket.`).
 		Categories("Network").
 		Fields(
-			service.NewStringEnumField(issFieldNetwork, "unix", "tcp", "udp", "tls").
+			service.NewStringEnumField(issFieldNetwork, "unix", "tcp", "udp", "tls", "unixgram").
 				Description("A network type to accept."),
 			service.NewStringField(isFieldAddress).
 				Description("The address to listen from.").
@@ -182,7 +182,7 @@ func (t *socketServerInput) Connect(ctx context.Context) error {
 			ClientAuth:   t.tlsClientAuth,
 		}
 		ln, err = tls.Listen("tcp", t.address, config)
-	case "udp":
+	case "udp", "unixgram":
 		cn, err = net.ListenPacket(t.network, t.address)
 	default:
 		return fmt.Errorf("socket network '%v' is not supported by this input", t.network)
@@ -203,7 +203,7 @@ func (t *socketServerInput) Connect(ctx context.Context) error {
 		t.log.Infof("Receiving %v socket messages from address: %v", t.network, addr.String())
 	} else {
 		addr = cn.LocalAddr()
-		t.log.Infof("Receiving udp socket messages from address: %v", addr.String())
+		t.log.Infof("Receiving %v socket messages from address: %v", t.network, addr.String())
 	}
 	if t.addressCache != "" {
 		key := "socket_server_address"
