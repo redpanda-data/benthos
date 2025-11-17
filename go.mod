@@ -4,7 +4,7 @@ require (
 	cuelang.org/go v0.13.2
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/Jeffail/grok v1.1.0
-	github.com/Jeffail/shutdown v1.0.0
+	github.com/Jeffail/shutdown v1.1.0
 	github.com/OneOfOne/xxhash v1.2.8
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/dustin/go-humanize v1.0.1
