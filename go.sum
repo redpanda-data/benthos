@@ -6,8 +6,8 @@ github.com/Jeffail/gabs/v2 v2.7.0 h1:Y2edYaTcE8ZpRsR2AtmPu5xQdFDIthFG0jYhu5PY8kg
 github.com/Jeffail/gabs/v2 v2.7.0/go.mod h1:dp5ocw1FvBBQYssgHsG7I1WYsiLRtkUaB1FEtSwvNUw=
 github.com/Jeffail/grok v1.1.0 h1:kiHmZ+0J5w/XUihRgU3DY9WIxKrNQCDjnfAb6bMLFaE=
 github.com/Jeffail/grok v1.1.0/go.mod h1:dm0hLksrDwOMa6To7ORXCuLbuNtASIZTfYheavLpsuE=
-github.com/Jeffail/shutdown v1.0.0 h1:afYjnY4pksqP/012m3NGJVccDI+WATdSzIMVHZKU8/Y=
-github.com/Jeffail/shutdown v1.0.0/go.mod h1:5dT4Y1oe60SJELCkmAB1pr9uQyHBhh6cwDLQTfmuO5U=
+github.com/Jeffail/shutdown v1.1.0 h1:5Bm3llKt0hnRjmTUlxgBnFg/snFfwqTOUMp3So8jCLo=
+github.com/Jeffail/shutdown v1.1.0/go.mod h1:5dT4Y1oe60SJELCkmAB1pr9uQyHBhh6cwDLQTfmuO5U=
 github.com/OneOfOne/xxhash v1.2.8 h1:31czK/TI9sNkxIKfaUfGlU47BAxQ0ztGgd9vPyqimf8=
 github.com/OneOfOne/xxhash v1.2.8/go.mod h1:eZbhyaAYD41SGSSsnmcpxVoRiQ/MPUTjUdIIOT9Um7Q=
 github.com/cenkalti/backoff/v4 v4.3.0 h1:MyRJ/UdXutAwSAT+s3wNd7MfTIcy71VQueUuFK343L8=
