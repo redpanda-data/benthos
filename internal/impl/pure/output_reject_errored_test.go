@@ -59,6 +59,8 @@ fallback:
 	resChan := make(chan error)
 	require.NoError(t, s.Consume(sendChan))
 
+	s.TriggerStartConsuming()
+
 	t.Cleanup(func() {
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		s.TriggerCloseNow()
@@ -144,6 +146,8 @@ fallback:
 	sendChan := make(chan message.Transaction)
 	resChan := make(chan error)
 	require.NoError(t, s.Consume(sendChan))
+
+	s.TriggerStartConsuming()
 
 	t.Cleanup(func() {
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
@@ -233,6 +237,8 @@ fallback:
 	resChan := make(chan error)
 	require.NoError(t, s.Consume(sendChan))
 
+	s.TriggerStartConsuming()
+
 	t.Cleanup(func() {
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		s.TriggerCloseNow()
@@ -317,6 +323,8 @@ fallback:
 	sendChan := make(chan message.Transaction)
 	resChan := make(chan error)
 	require.NoError(t, s.Consume(sendChan))
+
+	s.TriggerStartConsuming()
 
 	t.Cleanup(func() {
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
@@ -408,6 +416,8 @@ fallback:
 	sendChan := make(chan message.Transaction)
 	resChan := make(chan error)
 	require.NoError(t, s.Consume(sendChan))
+
+	s.TriggerStartConsuming()
 
 	t.Cleanup(func() {
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)

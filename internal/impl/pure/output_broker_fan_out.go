@@ -4,6 +4,7 @@ package pure
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -20,7 +21,8 @@ type fanOutOutputBroker struct {
 	outputTSChans []chan message.Transaction
 	outputs       []output.Streamed
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newFanOutOutputBroker(outputs []output.Streamed) (*fanOutOutputBroker, error) {
@@ -45,8 +47,6 @@ func (o *fanOutOutputBroker) Consume(transactions <-chan message.Transaction) er
 		return component.ErrAlreadyStarted
 	}
 	o.transactions = transactions
-
-	go o.loop()
 	return nil
 }
 
@@ -115,6 +115,15 @@ func (o *fanOutOutputBroker) loop() {
 			}
 		}
 	}
+}
+
+func (o *fanOutOutputBroker) TriggerStartConsuming() {
+	o.startOnce.Do(func() {
+		for _, to := range o.outputs {
+			to.TriggerStartConsuming()
+		}
+		go o.loop()
+	})
 }
 
 func (o *fanOutOutputBroker) TriggerCloseNow() {

@@ -207,6 +207,9 @@ func (o *OwnedOutput) Prime() error {
 	if err := o.o.Consume(tChan); err != nil {
 		return err
 	}
+
+	o.o.TriggerStartConsuming() // This is safe to call multiple times
+
 	o.t.Store(&tChan)
 	return nil
 }
@@ -224,6 +227,9 @@ func (o *OwnedOutput) PrimeBuffered(n int) error {
 	if err := o.o.Consume(tChan); err != nil {
 		return err
 	}
+
+	o.o.TriggerStartConsuming() // This is safe to call multiple times
+
 	o.t.Store(&tChan)
 	return nil
 }

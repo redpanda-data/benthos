@@ -62,6 +62,8 @@ func TestBasicRoundRobin(t *testing.T) {
 		return
 	}
 
+	oTM.TriggerStartConsuming()
+
 	for i := 0; i < nMsgs; i++ {
 		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
 		select {
@@ -134,6 +136,8 @@ func BenchmarkBasicRoundRobin(b *testing.B) {
 		b.Error(err)
 		return
 	}
+
+	oTM.TriggerStartConsuming()
 
 	content := [][]byte{[]byte("hello world")}
 

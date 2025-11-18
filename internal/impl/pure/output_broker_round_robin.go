@@ -4,6 +4,7 @@ package pure
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Jeffail/shutdown"
 
@@ -18,7 +19,8 @@ type roundRobinOutputBroker struct {
 	outputTSChans []chan message.Transaction
 	outputs       []output.Streamed
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newRoundRobinOutputBroker(outputs []output.Streamed) (*roundRobinOutputBroker, error) {
@@ -42,8 +44,6 @@ func (o *roundRobinOutputBroker) Consume(ts <-chan message.Transaction) error {
 		return component.ErrAlreadyStarted
 	}
 	o.transactions = ts
-
-	go o.loop()
 	return nil
 }
 
@@ -86,6 +86,15 @@ func (o *roundRobinOutputBroker) loop() {
 			i = 0
 		}
 	}
+}
+
+func (o *roundRobinOutputBroker) TriggerStartConsuming() {
+	o.startOnce.Do(func() {
+		for _, to := range o.outputs {
+			to.TriggerStartConsuming()
+		}
+		go o.loop()
+	})
 }
 
 func (o *roundRobinOutputBroker) TriggerCloseNow() {

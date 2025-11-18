@@ -56,7 +56,8 @@ type AsyncWriter struct {
 
 	transactions <-chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 // NewAsyncWriter creates a Streamed implementation around an AsyncSink.
@@ -257,7 +258,6 @@ func (w *AsyncWriter) Consume(ts <-chan message.Transaction) error {
 		return component.ErrAlreadyStarted
 	}
 	w.transactions = ts
-	go w.loop()
 	return nil
 }
 
@@ -266,6 +266,13 @@ func (w *AsyncWriter) ConnectionStatus() component.ConnectionStatuses {
 	return component.ConnectionStatuses{
 		w.connection.Load(),
 	}
+}
+
+// TriggerStartConsuming initiates async connection and consumption.
+func (w *AsyncWriter) TriggerStartConsuming() {
+	w.startOnce.Do(func() {
+		go w.loop()
+	})
 }
 
 // TriggerCloseNow shuts down the output and stops processing messages.

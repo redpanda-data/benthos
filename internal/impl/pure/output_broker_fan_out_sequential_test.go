@@ -35,6 +35,8 @@ func TestBasicFanOutSequential(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
 
+	oTM.TriggerStartConsuming()
+
 	assert.True(t, oTM.ConnectionStatus().AllActive())
 
 	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
@@ -89,6 +91,8 @@ func TestFanOutSequentialBlock(t *testing.T) {
 	oTM, err := newFanOutSequentialOutputBroker(outputs)
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
+
+	oTM.TriggerStartConsuming()
 
 	select {
 	case readChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte("hello world")}), resChan):

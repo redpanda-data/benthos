@@ -74,6 +74,10 @@ func (t *tracedOutput) ConnectionStatus() component.ConnectionStatuses {
 	return t.wrapped.ConnectionStatus()
 }
 
+func (t *tracedOutput) TriggerStartConsuming() {
+	t.wrapped.TriggerStartConsuming()
+}
+
 func (t *tracedOutput) TriggerCloseNow() {
 	t.wrapped.TriggerCloseNow()
 	t.shutSig.TriggerHardStop()

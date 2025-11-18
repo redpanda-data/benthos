@@ -44,6 +44,8 @@ func TestBasicDynamicFanOut(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
 
+	oTM.TriggerStartConsuming()
+
 	for i := 0; i < nMsgs; i++ {
 		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
 		select {
@@ -94,6 +96,8 @@ func TestDynamicFanOutChangeOutputs(t *testing.T) {
 	oTM, err := newDynamicFanOutOutputBroker(nil, log.Noop(), nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
+
+	oTM.TriggerStartConsuming()
 
 	for i := 0; i < nOutputs; i++ {
 		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
@@ -204,6 +208,8 @@ func TestDynamicFanOutAtLeastOnce(t *testing.T) {
 	require.NoError(t, oTM.Consume(readChan))
 	assert.Error(t, oTM.Consume(readChan), "Expected error on duplicate receive call")
 
+	oTM.TriggerStartConsuming()
+
 	wg := sync.WaitGroup{}
 	wg.Add(2)
 
@@ -265,6 +271,8 @@ func TestDynamicFanOutStartEmpty(t *testing.T) {
 
 	require.NoError(t, oTM.Consume(readChan))
 	assert.Error(t, oTM.Consume(readChan), "Expected error on duplicate receive call")
+
+	oTM.TriggerStartConsuming()
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
@@ -332,6 +340,8 @@ func TestDynamicFanOutShutDownFromErrorResponse(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
 
+	oTM.TriggerStartConsuming()
+
 	select {
 	case readChan <- message.NewTransaction(message.QuickBatch(nil), resChan):
 	case <-time.After(time.Second):
@@ -382,6 +392,8 @@ func TestDynamicFanOutShutDownFromReceive(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
 
+	oTM.TriggerStartConsuming()
+
 	select {
 	case readChan <- message.NewTransaction(message.QuickBatch(nil), resChan):
 	case <-time.After(time.Second):
@@ -420,6 +432,8 @@ func TestDynamicFanOutShutDownFromSend(t *testing.T) {
 	oTM, err := newDynamicFanOutOutputBroker(outputs, log.Noop(), nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
+
+	oTM.TriggerStartConsuming()
 
 	select {
 	case readChan <- message.NewTransaction(message.QuickBatch(nil), resChan):

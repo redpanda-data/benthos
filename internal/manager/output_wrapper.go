@@ -51,6 +51,10 @@ func (w *outputWrapper) ConnectionStatus() component.ConnectionStatuses {
 	return w.output.ConnectionStatus()
 }
 
+func (w *outputWrapper) TriggerStartConsuming() {
+	w.output.TriggerStartConsuming()
+}
+
 func (w *outputWrapper) TriggerStopConsuming() {
 	w.shutSig.TriggerSoftStop()
 	w.tranMut.Lock()

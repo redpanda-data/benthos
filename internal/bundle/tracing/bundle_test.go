@@ -245,6 +245,8 @@ func TestBundleOutputTracing(t *testing.T) {
 	tranChan := make(chan message.Transaction)
 	require.NoError(t, out.Consume(tranChan))
 
+	out.TriggerStartConsuming()
+
 	for i := 0; i < 10; i++ {
 		resChan := make(chan error)
 		tran := message.NewTransaction(message.QuickBatch([][]byte{[]byte(strconv.Itoa(i))}), resChan)
@@ -302,6 +304,8 @@ func TestBundleOutputTracingDisabled(t *testing.T) {
 	tranChan := make(chan message.Transaction)
 	require.NoError(t, out.Consume(tranChan))
 
+	out.TriggerStartConsuming()
+
 	for i := 0; i < 10; i++ {
 		resChan := make(chan error)
 		tran := message.NewTransaction(message.QuickBatch([][]byte{[]byte(strconv.Itoa(i))}), resChan)
@@ -357,6 +361,8 @@ func TestBundleOutputWithProcessorsTracing(t *testing.T) {
 
 	tranChan := make(chan message.Transaction)
 	require.NoError(t, out.Consume(tranChan))
+
+	out.TriggerStartConsuming()
 
 	for i := 0; i < 10; i++ {
 		resChan := make(chan error)
@@ -439,6 +445,8 @@ broker:
 
 	tranChan := make(chan message.Transaction)
 	require.NoError(t, out.Consume(tranChan))
+
+	out.TriggerStartConsuming()
 
 	for i := 0; i < 5; i++ {
 		resChan := make(chan error)

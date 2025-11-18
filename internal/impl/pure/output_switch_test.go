@@ -66,6 +66,8 @@ cases:`
 
 	require.NoError(t, s.Consume(readChan))
 
+	s.TriggerStartConsuming()
+
 	for i := 0; i < nMsgs; i++ {
 		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
 		select {
@@ -127,6 +129,8 @@ cases:`
 
 	require.NoError(t, s.Consume(readChan))
 
+	s.TriggerStartConsuming()
+
 	for i := 0; i < nMsgs; i++ {
 		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
 		select {
@@ -187,6 +191,8 @@ cases:
 	readChan := make(chan message.Transaction)
 	resChan := make(chan error)
 	require.NoError(t, s.Consume(readChan))
+
+	s.TriggerStartConsuming()
 
 	msg := message.QuickBatch([][]byte{
 		[]byte(`{"content":"hello world","id":0}`),
@@ -258,6 +264,8 @@ cases:
 	readChan := make(chan message.Transaction)
 	resChan := make(chan error, 1)
 	require.NoError(t, s.Consume(readChan))
+
+	s.TriggerStartConsuming()
 
 	msg := message.QuickBatch([][]byte{
 		[]byte("hello world 0"),
@@ -350,6 +358,8 @@ cases:
 	resChan := make(chan error, 1)
 
 	require.NoError(t, s.Consume(readChan))
+
+	s.TriggerStartConsuming()
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -452,6 +462,8 @@ cases:
 
 	require.NoError(t, s.Consume(readChan))
 
+	s.TriggerStartConsuming()
+
 	msg := message.QuickBatch([][]byte{
 		[]byte(`{"foo":"bar"}`),
 		[]byte(`{"not_foo":"baz"}`),
@@ -522,6 +534,8 @@ cases:
 
 	require.NoError(t, s.Consume(readChan))
 
+	s.TriggerStartConsuming()
+
 	msg := message.QuickBatch([][]byte{
 		[]byte(`{"foo":"bar"}`),
 		[]byte(`{"foo":"baz"}`),
@@ -588,6 +602,8 @@ cases:
 	resChan := make(chan error, 1)
 
 	require.NoError(t, s.Consume(readChan))
+
+	s.TriggerStartConsuming()
 
 	msg := message.QuickBatch([][]byte{
 		[]byte(`{"foo":"baz"}`),
@@ -661,6 +677,8 @@ cases:
 
 	require.NoError(t, s.Consume(readChan))
 
+	s.TriggerStartConsuming()
+
 	msg := message.QuickBatch([][]byte{[]byte(`{"foo":"qux"}`)})
 	select {
 	case readChan <- message.NewTransaction(msg, resChan):
@@ -703,6 +721,8 @@ cases:
 	resChan := make(chan error, 1)
 
 	require.NoError(t, s.Consume(readChan))
+
+	s.TriggerStartConsuming()
 
 	msg := message.QuickBatch([][]byte{[]byte(`{"foo":"qux"}`)})
 	select {
@@ -747,6 +767,8 @@ cases:
 	resChan := make(chan error, 1)
 
 	require.NoError(t, s.Consume(readChan))
+
+	s.TriggerStartConsuming()
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -845,6 +867,8 @@ cases:
 
 	require.NoError(t, s.Consume(readChan))
 
+	s.TriggerStartConsuming()
+
 	select {
 	case readChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte("foo")}), resChan):
 	case <-time.After(time.Second):
@@ -899,6 +923,8 @@ cases:
 
 	require.NoError(t, s.Consume(readChan))
 
+	s.TriggerStartConsuming()
+
 	select {
 	case readChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte("foo")}), resChan):
 	case <-time.After(time.Second):
@@ -944,6 +970,8 @@ cases:
 
 	require.NoError(t, s.Consume(readChan))
 
+	s.TriggerStartConsuming()
+
 	select {
 	case readChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte("foo")}), resChan):
 	case <-time.After(time.Second):
@@ -983,6 +1011,8 @@ cases:
 	resChan := make(chan error, 1)
 
 	require.NoError(t, s.Consume(readChan))
+
+	s.TriggerStartConsuming()
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)

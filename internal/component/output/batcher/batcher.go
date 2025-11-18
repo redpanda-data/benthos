@@ -5,6 +5,7 @@ package batcher
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Jeffail/shutdown"
@@ -31,7 +32,8 @@ type Impl struct {
 	messagesIn  <-chan message.Transaction
 	messagesOut chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 // NewFromConfig creates a new output preceded by a batching mechanism that
@@ -177,8 +179,15 @@ func (m *Impl) Consume(msgs <-chan message.Transaction) error {
 		return err
 	}
 	m.messagesIn = msgs
-	go m.loop()
 	return nil
+}
+
+// TriggerStartConsuming initiates async connection and consumption.
+func (m *Impl) TriggerStartConsuming() {
+	m.startOnce.Do(func() {
+		go m.loop()
+		m.child.TriggerStartConsuming()
+	})
 }
 
 // TriggerCloseNow shuts down the Batcher and stops processing messages.

@@ -60,6 +60,10 @@ func (m *OutputChanneled) Consume(msgs <-chan message.Transaction) error {
 	return nil
 }
 
+// TriggerStartConsuming does nothing.
+func (m *OutputChanneled) TriggerStartConsuming() {
+}
+
 // TriggerCloseNow does nothing.
 func (m *OutputChanneled) TriggerCloseNow() {
 }

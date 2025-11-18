@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/Jeffail/shutdown"
 
@@ -105,7 +106,8 @@ type rejectErroredBroker struct {
 	outputTSChan chan message.Transaction
 	output       output.Streamed
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newRejectErroredBroker(output output.Streamed, res *service.Resources) (*rejectErroredBroker, error) {
@@ -130,8 +132,6 @@ func (t *rejectErroredBroker) Consume(ts <-chan message.Transaction) error {
 		return component.ErrAlreadyStarted
 	}
 	t.transactions = ts
-
-	go t.loop()
 	return nil
 }
 
@@ -261,6 +261,13 @@ func (t *rejectErroredBroker) loop() {
 			return
 		}
 	}
+}
+
+func (t *rejectErroredBroker) TriggerStartConsuming() {
+	t.startOnce.Do(func() {
+		t.output.TriggerStartConsuming()
+		go t.loop()
+	})
 }
 
 func (t *rejectErroredBroker) TriggerCloseNow() {
