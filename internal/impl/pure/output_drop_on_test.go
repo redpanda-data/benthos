@@ -67,6 +67,8 @@ drop_on:
 
 	require.NoError(t, d.Consume(tChan))
 
+	d.TriggerStartConsuming()
+
 	select {
 	case tChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte("foobar")}), rChan):
 	case <-time.After(time.Second):
@@ -113,6 +115,8 @@ drop_on:
 	rChan := make(chan error)
 
 	require.NoError(t, d.Consume(tChan))
+
+	d.TriggerStartConsuming()
 
 	select {
 	case tChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte("foobar")}), rChan):
@@ -189,6 +193,8 @@ drop_on:
 	rChan := make(chan error)
 
 	require.NoError(t, d.Consume(tChan))
+
+	d.TriggerStartConsuming()
 
 	sendAndGet := func(msg, expErr string) {
 		t.Helper()
@@ -279,6 +285,8 @@ drop_on:
 
 	require.NoError(t, d.Consume(tChan))
 
+	d.TriggerStartConsuming()
+
 	sendAndGet := func(msg, expErr string) {
 		t.Helper()
 
@@ -349,6 +357,8 @@ drop_on:
 	rChan := make(chan error)
 
 	require.NoError(t, d.Consume(tChan))
+
+	d.TriggerStartConsuming()
 
 	select {
 	case tChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte("error doesnt match")}), rChan):

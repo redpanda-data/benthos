@@ -804,6 +804,7 @@ func (t *Type) StoreOutput(ctx context.Context, name string, conf output.Config)
 			return
 		}
 
+		wrappedOutput.TriggerStartConsuming()
 		set(&wrappedOutput)
 	}); err != nil {
 		return err
@@ -939,10 +940,21 @@ func (t *Type) CloseObservability(ctx context.Context) error {
 // TriggerStartConsuming instructs the manager to start resource inputs
 // consuming data. This call blocks if there are lazily evaluated inputs..
 func (t *Type) TriggerStartConsuming(ctx context.Context) error {
-	return t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
+	if err := t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
 		i.TriggerStartConsuming()
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+
+	if err := t.outputs.RWalk(ctx, func(name string, o *outputWrapper) error {
+		o.TriggerStartConsuming()
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // TriggerStopConsuming instructs the manager to stop resource inputs and

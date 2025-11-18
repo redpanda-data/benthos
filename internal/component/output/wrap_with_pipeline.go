@@ -63,6 +63,11 @@ func (i *WithPipeline) ConnectionStatus() component.ConnectionStatuses {
 
 //------------------------------------------------------------------------------
 
+// TriggerStartConsuming initiates async connection and consumption.
+func (i *WithPipeline) TriggerStartConsuming() {
+	i.out.TriggerStartConsuming()
+}
+
 // TriggerCloseNow triggers a closure of this object but does not block.
 func (i *WithPipeline) TriggerCloseNow() {
 	i.pipe.TriggerCloseNow()

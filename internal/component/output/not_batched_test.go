@@ -76,6 +76,8 @@ func TestNotBatchedSingleMessages(t *testing.T) {
 	tChan := make(chan message.Transaction)
 	require.NoError(t, nbOut.Consume(tChan))
 
+	nbOut.TriggerStartConsuming()
+
 	for i := 0; i < 5; i++ {
 		select {
 		case tChan <- message.NewTransaction(msg(fmt.Sprintf("foo%v", i)), resChan):
@@ -116,6 +118,8 @@ func TestShutdown(t *testing.T) {
 	resChan := make(chan error)
 	tChan := make(chan message.Transaction)
 	require.NoError(t, nbOut.Consume(tChan))
+
+	nbOut.TriggerStartConsuming()
 
 	select {
 	case tChan <- message.NewTransaction(msg("foo"), resChan):
@@ -170,6 +174,8 @@ func TestNotBatchedBreakOutMessages(t *testing.T) {
 	tChan := make(chan message.Transaction)
 	require.NoError(t, nbOut.Consume(tChan))
 
+	nbOut.TriggerStartConsuming()
+
 	select {
 	case tChan <- message.NewTransaction(msg(
 		"foo0", "foo1", "foo2", "foo3", "foo4",
@@ -212,6 +218,8 @@ func TestNotBatchedBreakOutMessagesErrors(t *testing.T) {
 	resChan := make(chan error)
 	tChan := make(chan message.Transaction)
 	require.NoError(t, nbOut.Consume(tChan))
+
+	nbOut.TriggerStartConsuming()
 
 	sourceMessage := msg("foo0", "foo1", "foo2", "foo3", "foo4")
 	sortGroup, sourceMessage := message.NewSortGroup(sourceMessage)
@@ -272,6 +280,8 @@ func TestNotBatchedBreakOutMessagesErrorsAsync(t *testing.T) {
 	resChan := make(chan error)
 	tChan := make(chan message.Transaction)
 	require.NoError(t, nbOut.Consume(tChan))
+
+	nbOut.TriggerStartConsuming()
 
 	sourceMessage := msg("foo0", "foo1", "foo2", "foo3", "foo4")
 	sortGroup, sourceMessage := message.NewSortGroup(sourceMessage)

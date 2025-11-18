@@ -47,7 +47,8 @@ type dynamicFanOutOutputBroker struct {
 	newOutputChan chan wrappedOutput
 	outputs       map[string]outputWithTSChan
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newDynamicFanOutOutputBroker(
@@ -113,8 +114,6 @@ func (d *dynamicFanOutOutputBroker) Consume(transactions <-chan message.Transact
 		return component.ErrAlreadyStarted
 	}
 	d.transactions = transactions
-
-	go d.loop()
 	return nil
 }
 
@@ -132,8 +131,10 @@ func (d *dynamicFanOutOutputBroker) addOutput(ident string, output output.Stream
 		output.TriggerCloseNow()
 		return err
 	}
-	ow.ctx, ow.done = context.WithCancel(context.Background())
 
+	output.TriggerStartConsuming()
+
+	ow.ctx, ow.done = context.WithCancel(context.Background())
 	d.outputs[ident] = ow
 	return nil
 }
@@ -291,6 +292,12 @@ func (d *dynamicFanOutOutputBroker) ConnectionStatus() (s component.ConnectionSt
 		s = append(s, out.output.ConnectionStatus()...)
 	}
 	return
+}
+
+func (d *dynamicFanOutOutputBroker) TriggerStartConsuming() {
+	d.startOnce.Do(func() {
+		go d.loop()
+	})
 }
 
 func (d *dynamicFanOutOutputBroker) TriggerCloseNow() {

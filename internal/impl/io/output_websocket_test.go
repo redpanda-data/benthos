@@ -64,6 +64,8 @@ websocket:
 	tChan := make(chan message.Transaction)
 	require.NoError(t, m.Consume(tChan))
 
+	m.TriggerStartConsuming()
+
 	for _, msg := range expMsgs {
 		require.NoError(t, writeBatchToChan(ctx, t, message.QuickBatch([][]byte{[]byte(msg)}), tChan))
 	}
@@ -103,6 +105,8 @@ websocket:
 
 	tChan := make(chan message.Transaction)
 	require.NoError(t, m.Consume(tChan))
+
+	m.TriggerStartConsuming()
 
 	m.TriggerCloseNow()
 	require.NoError(t, m.WaitForClose(ctx))

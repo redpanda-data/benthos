@@ -44,6 +44,8 @@ func TestResourceOutput(t *testing.T) {
 	tChan := make(chan message.Transaction)
 	assert.NoError(t, p.Consume(tChan))
 
+	p.TriggerStartConsuming()
+
 	for i := 0; i < 10; i++ {
 		msg := fmt.Sprintf("foo:%v", i)
 		select {

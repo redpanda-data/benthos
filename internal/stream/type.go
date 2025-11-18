@@ -198,6 +198,7 @@ func (t *Type) init() (err error) {
 // consuming data.
 func (t *Type) TriggerStartConsuming() {
 	t.inputLayer.TriggerStartConsuming()
+	t.outputLayer.TriggerStartConsuming()
 }
 
 // StopGracefully attempts to close the stream in the most graceful way by only

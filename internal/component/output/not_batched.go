@@ -20,7 +20,8 @@ type notBatchedOutput struct {
 	inChan  <-chan message.Transaction
 	outChan chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 // OnlySinglePayloads expands message batches into individual payloads,
@@ -146,8 +147,14 @@ func (n *notBatchedOutput) Consume(ts <-chan message.Transaction) error {
 		return err
 	}
 	n.inChan = ts
-	go n.loop()
 	return nil
+}
+
+func (n *notBatchedOutput) TriggerStartConsuming() {
+	n.out.TriggerStartConsuming()
+	n.startOnce.Do(func() {
+		go n.loop()
+	})
 }
 
 func (n *notBatchedOutput) ConnectionStatus() component.ConnectionStatuses {

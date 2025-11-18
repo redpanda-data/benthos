@@ -38,6 +38,9 @@ func (m *mockOutput) ConnectionStatus() component.ConnectionStatuses {
 	}
 }
 
+func (m *mockOutput) TriggerStartConsuming() {
+}
+
 func (m *mockOutput) TriggerCloseNow() {
 	// NOT EXPECTING TO HIT THIS
 }
