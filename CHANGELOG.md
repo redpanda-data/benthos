@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.61.0 - 2025-11-21
+
+### Added
+
+- (socket_server) Add support for unixgram (@alextreichler)
+
 ## 4.60.0 - 2025-11-07
 
 ### Added
