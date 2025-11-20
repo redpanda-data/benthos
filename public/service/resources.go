@@ -328,7 +328,7 @@ func (r *Resources) XUnwrapper() any {
 // looping, max in flight, back pressure, and so on. This is similar to how an
 // output would be executed within a standard Benthos pipeline.
 func (r *Resources) ManagedBatchOutput(typeName string, maxInFlight int, b BatchOutput) (*OwnedOutput, error) {
-	w := newAirGapBatchWriter(b)
+	w := newAirGapBatchWriter(r.mgr, b)
 	o, err := output.NewAsyncWriter(typeName, maxInFlight, w, r.mgr)
 	if err != nil {
 		return nil, err

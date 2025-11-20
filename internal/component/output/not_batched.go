@@ -157,6 +157,10 @@ func (n *notBatchedOutput) TriggerStartConsuming() {
 	})
 }
 
+func (n *notBatchedOutput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return n.out.ConnectionTest(ctx)
+}
+
 func (n *notBatchedOutput) ConnectionStatus() component.ConnectionStatuses {
 	return n.out.ConnectionStatus()
 }

@@ -70,6 +70,10 @@ func (t *tracedOutput) Consume(inChan <-chan message.Transaction) error {
 	return t.wrapped.Consume(t.tChan)
 }
 
+func (t *tracedOutput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return t.wrapped.ConnectionTest(ctx)
+}
+
 func (t *tracedOutput) ConnectionStatus() component.ConnectionStatuses {
 	return t.wrapped.ConnectionStatus()
 }
