@@ -59,6 +59,7 @@ const (
 	hsiFieldResponseStatus          = "status"
 	hsiFieldResponseHeaders         = "headers"
 	hsiFieldResponseExtractMetadata = "metadata_headers"
+	hsiFieldTLS                     = "tls"
 )
 
 type hsiConfig struct {
@@ -74,6 +75,7 @@ type hsiConfig struct {
 	KeyFile            string
 	CORS               httpserver.CORSConfig
 	Response           hsiResponseConfig
+	TLSConfig          *tls.Config
 }
 
 type hsiResponseConfig struct {
@@ -129,6 +131,13 @@ func hsiConfigFromParsed(pConf *service.ParsedConfig) (conf hsiConfig, err error
 	}
 	if conf.Response, err = hsiResponseConfigFromParsed(pConf.Namespace(hsiFieldResponse)); err != nil {
 		return
+	}
+	tlsConf, enabled, err := pConf.FieldTLSToggled(hsiFieldTLS)
+	if err != nil {
+		return
+	}
+	if enabled {
+		conf.TLSConfig = tlsConf
 	}
 	return
 }
@@ -246,14 +255,17 @@ You can access these metadata fields using xref:configuration:interpolation.adoc
 			service.NewStringField(hsiFieldRateLimit).
 				Description("An optional xref:components:rate_limits/about.adoc[rate limit] to throttle requests by.").
 				Default(""),
+			service.NewServerTLSToggledField(hsiFieldTLS),
 			service.NewStringField(hsiFieldCertFile).
 				Description("Enable TLS by specifying a certificate and key file. Only valid with a custom `address`.").
 				Advanced().
-				Default(""),
+				Default("").
+				Deprecated(),
 			service.NewStringField(hsiFieldKeyFile).
 				Description("Enable TLS by specifying a certificate and key file. Only valid with a custom `address`.").
 				Advanced().
-				Default(""),
+				Default("").
+				Deprecated(),
 			service.NewInternalField(corsSpec),
 			service.NewObjectField(hsiFieldResponse,
 				service.NewInterpolatedStringField(hsiFieldResponseStatus).
@@ -374,7 +386,10 @@ func newHTTPServerInput(conf hsiConfig, mgr bundle.NewManagement) (input.Streame
 	var err error
 	if conf.Address != "" {
 		gMux = mux.NewRouter()
-		server = &http.Server{Addr: conf.Address}
+		server = &http.Server{
+			Addr:      conf.Address,
+			TLSConfig: conf.TLSConfig,
+		}
 		if server.Handler, err = conf.CORS.WrapHandler(gMux); err != nil {
 			return nil, fmt.Errorf("bad CORS configuration: %w", err)
 		}
@@ -876,11 +891,13 @@ func (h *httpServerInput) loop() {
 
 	if h.server != nil {
 		go func() {
-			if h.conf.KeyFile != "" || h.conf.CertFile != "" {
+			if h.conf.TLSConfig != nil || h.conf.KeyFile != "" || h.conf.CertFile != "" {
 				h.log.Info(
 					"Receiving HTTPS messages at: https://%s\n",
 					h.conf.Address+h.conf.Path,
 				)
+
+				// if TLSConfig.ClientCertificates are set and CertFile or KeyFile are not empty, the server will use the CertFile and KeyFile instead of the ClientCertificates.
 				if err := h.server.ListenAndServeTLS(
 					h.conf.CertFile, h.conf.KeyFile,
 				); err != http.ErrServerClosed {
