@@ -24,6 +24,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/public/service"
 	"github.com/redpanda-data/benthos/v4/public/service/codec"
+	"github.com/redpanda-data/benthos/v4/public/utils/netutil"
 )
 
 const (
@@ -50,6 +51,8 @@ func socketServerInputSpec() *service.ConfigSpec {
 		Fields(
 			service.NewStringEnumField(issFieldNetwork, "unix", "tcp", "udp", "tls", "unixgram").
 				Description("A network type to accept."),
+			netutil.ListenerConfigSpec().
+				Advanced(),
 			service.NewStringField(isFieldAddress).
 				Description("The address to listen from.").
 				Examples("/tmp/benthos.sock", "0.0.0.0:6000"),
