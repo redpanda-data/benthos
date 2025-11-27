@@ -5,6 +5,7 @@ package pure
 import (
 	"context"
 
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -45,7 +46,7 @@ For more information please read xref:guides:sync_responses.adoc[synchronous res
 			Field(service.NewObjectField("").Default(map[string]any{})),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			var s output.Streamed
-			if s, err = output.NewAsyncWriter("sync_response", 1, SyncResponseWriter{}, interop.UnwrapManagement(mgr)); err != nil {
+			if s, err = output.NewAsyncWriter("sync_response", 1, SyncResponseWriter{o: interop.UnwrapManagement(mgr)}, interop.UnwrapManagement(mgr)); err != nil {
 				return
 			}
 			out = interop.NewUnwrapInternalOutput(s)
@@ -57,7 +58,14 @@ For more information please read xref:guides:sync_responses.adoc[synchronous res
 // ResultStore located in the context of the first message part of each batch.
 // This is essentially a mechanism that returns the result of a pipeline
 // directly back to the origin of the message.
-type SyncResponseWriter struct{}
+type SyncResponseWriter struct {
+	o component.Observability
+}
+
+// ConnectionTest always returns success.
+func (s SyncResponseWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestSucceeded(s.o).AsList()
+}
 
 // Connect is a noop.
 func (s SyncResponseWriter) Connect(ctx context.Context) error {

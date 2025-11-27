@@ -145,6 +145,15 @@ func (r *resourceOutput) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (r *resourceOutput) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	if err := r.mgr.AccessOutput(context.Background(), r.name, func(o output.Sync) {
+		s = o.ConnectionTest(ctx)
+	}); err != nil {
+		return component.ConnectionTestFailed(r.mgr, err).AsList()
+	}
+	return
+}
+
 func (r *resourceOutput) ConnectionStatus() (s component.ConnectionStatuses) {
 	if err := r.mgr.AccessOutput(context.Background(), r.name, func(o output.Sync) {
 		s = o.ConnectionStatus()

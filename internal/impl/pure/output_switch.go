@@ -270,6 +270,13 @@ func (o *switchOutput) Consume(transactions <-chan message.Transaction) error {
 	return nil
 }
 
+func (o *switchOutput) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	for _, out := range o.outputs {
+		s = append(s, out.ConnectionTest(ctx)...)
+	}
+	return
+}
+
 func (o *switchOutput) ConnectionStatus() (s component.ConnectionStatuses) {
 	for _, out := range o.outputs {
 		s = append(s, out.ConnectionStatus()...)

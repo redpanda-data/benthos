@@ -47,6 +47,13 @@ func (o *roundRobinOutputBroker) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (o *roundRobinOutputBroker) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	for _, out := range o.outputs {
+		s = append(s, out.ConnectionTest(ctx)...)
+	}
+	return
+}
+
 func (o *roundRobinOutputBroker) ConnectionStatus() (s component.ConnectionStatuses) {
 	for _, out := range o.outputs {
 		s = append(s, out.ConnectionStatus()...)
