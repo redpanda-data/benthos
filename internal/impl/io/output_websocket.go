@@ -107,6 +107,10 @@ func (w *websocketWriter) getWS() *websocket.Conn {
 	return ws
 }
 
+func (w *websocketWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(w.mgr).AsList()
+}
+
 func (w *websocketWriter) Connect(ctx context.Context) error {
 	w.lock.Lock()
 	defer w.lock.Unlock()

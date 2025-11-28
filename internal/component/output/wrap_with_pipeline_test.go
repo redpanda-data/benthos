@@ -32,6 +32,10 @@ func (m *mockOutput) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (m *mockOutput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(component.NoopObservability()).AsList()
+}
+
 func (m *mockOutput) ConnectionStatus() component.ConnectionStatuses {
 	return component.ConnectionStatuses{
 		component.ConnectionActive(component.NoopObservability()),

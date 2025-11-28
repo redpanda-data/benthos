@@ -448,6 +448,10 @@ func (h *httpServerOutput) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (h *httpServerOutput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(h.mgr).AsList()
+}
+
 func (h *httpServerOutput) ConnectionStatus() component.ConnectionStatuses {
 	return component.ConnectionStatuses{
 		component.ConnectionActive(h.mgr),

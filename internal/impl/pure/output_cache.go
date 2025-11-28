@@ -9,6 +9,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/field"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/cache"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
@@ -138,6 +139,11 @@ func NewCacheWriter(conf *service.ParsedConfig, mgr bundle.NewManagement) (*Cach
 		ttl:    ttl,
 		log:    mgr.Logger(),
 	}, nil
+}
+
+// ConnectionTest is currently unsupported.
+func (c *CacheWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(c.mgr).AsList()
 }
 
 // Connect does nothing.

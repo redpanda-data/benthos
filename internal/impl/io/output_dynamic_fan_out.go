@@ -285,6 +285,15 @@ func (d *dynamicFanOutOutputBroker) loop() {
 	}
 }
 
+func (d *dynamicFanOutOutputBroker) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	d.outputsMut.RLock()
+	defer d.outputsMut.RUnlock()
+	for _, out := range d.outputs {
+		s = append(s, out.output.ConnectionTest(ctx)...)
+	}
+	return
+}
+
 func (d *dynamicFanOutOutputBroker) ConnectionStatus() (s component.ConnectionStatuses) {
 	d.outputsMut.RLock()
 	defer d.outputsMut.RUnlock()

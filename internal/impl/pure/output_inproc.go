@@ -105,6 +105,10 @@ func (i *inprocOutput) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (i *inprocOutput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestSucceeded(i.mgr).AsList()
+}
+
 func (i *inprocOutput) ConnectionStatus() component.ConnectionStatuses {
 	return component.ConnectionStatuses{
 		component.ConnectionActive(i.mgr),
