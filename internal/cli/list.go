@@ -11,6 +11,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang/query"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config/schema"
 	"github.com/redpanda-data/benthos/v4/internal/cuegen"
@@ -48,7 +49,16 @@ components will be shown.
 
   {{.BinaryName}} list
   {{.BinaryName}} list --format json inputs output
-  {{.BinaryName}} list rate-limits buffers`)[1:],
+  {{.BinaryName}} list rate-limits buffers
+
+When using --format jsonschema with bloblang-functions or bloblang-methods,
+you can optionally specify function or method names to retrieve metadata for
+only those specific items:
+
+  {{.BinaryName}} list --format jsonschema bloblang-functions
+  {{.BinaryName}} list --format jsonschema bloblang-functions uuid_v4
+  {{.BinaryName}} list --format jsonschema bloblang-functions uuid_v4 nanoid
+  {{.BinaryName}} list --format jsonschema bloblang-methods uppercase catch`)[1:],
 		Before: func(c *cli.Context) error {
 			return common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
@@ -129,6 +139,43 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 		}
 		fmt.Fprintln(opts.Stdout, string(jsonBytes))
 	case "jsonschema":
+		// Special handling for bloblang functions and methods
+		if _, isFunctions := ofTypes["bloblang-functions"]; isFunctions {
+			functions := schema.BloblangFunctions
+
+			// Filter by specific function names if provided
+			if len(ofTypes) > 1 {
+				filtered := []query.FunctionSpec{}
+				for _, fn := range functions {
+					if _, requested := ofTypes[fn.Name]; requested {
+						filtered = append(filtered, fn)
+					}
+				}
+				functions = filtered
+			}
+
+			outputBloblangJSON(opts, "bloblang-functions", functions)
+			return
+		}
+		if _, isMethods := ofTypes["bloblang-methods"]; isMethods {
+			methods := schema.BloblangMethods
+
+			// Filter by specific method names if provided
+			if len(ofTypes) > 1 {
+				filtered := []query.MethodSpec{}
+				for _, method := range methods {
+					if _, requested := ofTypes[method.Name]; requested {
+						filtered = append(filtered, method)
+					}
+				}
+				methods = filtered
+			}
+
+			outputBloblangJSON(opts, "bloblang-methods", methods)
+			return
+		}
+
+		// Default: Component jsonschema
 		jsonSchemaBytes, err := jsonschema.Marshal(schema.Config, opts.Environment)
 		if err != nil {
 			panic(err)
@@ -141,4 +188,12 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 		}
 		fmt.Fprintln(opts.Stdout, string(source))
 	}
+}
+
+func outputBloblangJSON(opts *common.CLIOpts, key string, data any) {
+	jsonBytes, err := json.Marshal(map[string]any{key: data})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Fprintln(opts.Stdout, string(jsonBytes))
 }
