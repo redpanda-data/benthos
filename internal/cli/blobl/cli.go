@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/Jeffail/gabs/v2"
@@ -31,13 +32,15 @@ var red = color.New(color.FgRed).SprintFunc()
 func CliCommand(opts *common.CLIOpts) *cli.Command {
 	return &cli.Command{
 		Name:  "blobl",
-		Usage: opts.ExecTemplate("Execute a {{.ProductName}} mapping on documents consumed via stdin"),
+		Usage: opts.ExecTemplate("Execute a {{.ProductName}} mapping on documents consumed via stdin or file"),
 		Description: opts.ExecTemplate(`
 Provides a convenient tool for mapping JSON documents over the command line:
 
   cat documents.jsonl | {{.BinaryName}} blobl 'foo.bar.map_each(this.uppercase())'
 
   echo '{"foo":"bar"}' | {{.BinaryName}} blobl -f ./mapping.blobl
+
+  {{.BinaryName}} blobl -i input.jsonl -f ./mapping.blobl
 
 Find out more about Bloblang at: {{.DocumentationURL}}/guides/bloblang/about`)[1:],
 		Flags: []cli.Flag{
@@ -61,6 +64,11 @@ Find out more about Bloblang at: {{.DocumentationURL}}/guides/bloblang/about`)[1
 				Name:    "file",
 				Aliases: []string{"f"},
 				Usage:   "execute a mapping from a file.",
+			},
+			&cli.StringFlag{
+				Name:    "input",
+				Aliases: []string{"i"},
+				Usage:   "read input from a file instead of stdin.",
 			},
 			&cli.IntFlag{
 				Name:  "max-token-length",
@@ -280,7 +288,16 @@ func run(c *cli.Context, opts *common.CLIOpts) error {
 	eGroup.Go(func() error {
 		defer close(inputsChan)
 
-		scanner := bufio.NewScanner(os.Stdin)
+		var r io.Reader = os.Stdin
+		if filePath := c.String("input"); filePath != "" {
+			f, err := os.Open(filePath)
+			if err != nil {
+				return fmt.Errorf("failed to open input file: %w", err)
+			}
+			defer f.Close()
+			r = f
+		}
+		scanner := bufio.NewScanner(r)
 		scanner.Buffer(nil, c.Int("max-token-length"))
 		for scanner.Scan() {
 			input := make([]byte, len(scanner.Bytes()))
