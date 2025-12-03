@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/fatih/color"
@@ -282,10 +283,9 @@ func run(c *cli.Context, opts *common.CLIOpts) error {
 		return errors.New(err.Error())
 	}
 
-	eGroup, _ := errgroup.WithContext(c.Context)
-
 	inputsChan := make(chan []byte)
-	eGroup.Go(func() error {
+	eg, _ := errgroup.WithContext(c.Context)
+	eg.Go(func() error {
 		defer close(inputsChan)
 
 		var r io.Reader = os.Stdin
@@ -307,33 +307,28 @@ func run(c *cli.Context, opts *common.CLIOpts) error {
 		return scanner.Err()
 	})
 
-	resultsChan := make(chan string)
-	go func() {
-		for res := range resultsChan {
-			fmt.Fprintln(opts.Stdout, res)
-		}
-	}()
+	var mu sync.Mutex
 
 	for i := 0; i < t; i++ {
-		eGroup.Go(func() error {
+		eg.Go(func() error {
 			execCache := newExecCache()
 			for {
 				input, open := <-inputsChan
 				if !open {
 					return nil
 				}
+				res, err := execCache.executeMapping(exec, raw, pretty, input)
 
-				resultStr, err := execCache.executeMapping(exec, raw, pretty, input)
+				mu.Lock()
 				if err != nil {
 					fmt.Fprintln(opts.Stderr, red(fmt.Sprintf("failed to execute map: %v", err)))
-					continue
+				} else {
+					fmt.Fprintln(opts.Stdout, res)
 				}
-				resultsChan <- resultStr
+				mu.Unlock()
 			}
 		})
 	}
 
-	err = eGroup.Wait()
-	close(resultsChan)
-	return err
+	return eg.Wait()
 }
