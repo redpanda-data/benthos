@@ -14,8 +14,8 @@ func init() {
 		bloblang.NewPluginSpec().
 			Impure().
 			Category(query.FunctionCategoryEnvironment).
-			Description(`Returns a string matching the hostname of the machine running Benthos.`).
-			Example("", `root.thing.host = hostname()`),
+			Description(`Returns the hostname of the machine running Benthos. Useful for identifying which instance processed a message in distributed deployments.`).
+			ExampleNotTested("", `root.processed_by = hostname()`),
 		func(_ *bloblang.ParsedParams) (bloblang.Function, error) {
 			return func() (any, error) {
 				hn, err := os.Hostname()
@@ -35,17 +35,17 @@ func init() {
 				return !noCache
 			}).
 			Category(query.FunctionCategoryEnvironment).
-			Description("Returns the value of an environment variable, or `null` if the environment variable does not exist.").
+			Description("Reads an environment variable and returns its value as a string. Returns `null` if the variable is not set. By default, values are cached for performance.").
 			Param(bloblang.NewStringParam("name").
-				Description("The name of an environment variable.")).
+				Description("The name of the environment variable to read.")).
 			Param(bloblang.NewBoolParam("no_cache").
-				Description("Force the variable lookup to occur for each mapping invocation.").
+				Description("Disable caching to read the latest value on each invocation.").
 				Default(false)).
-			Example("", `root.thing.key = env("key").or("default value")`).
-			Example("", `root.thing.key = env(this.thing.key_name)`).
-			Example(
-				"When the name parameter is static this function will only resolve once and yield the same result for each invocation as an optimization, this means that updates to env vars during runtime will not be reflected. You can disable this cache with the optional parameter `no_cache`, which when set to `true` will cause the variable lookup to be performed for each execution of the mapping.",
-				`root.thing.key = env(name: "key", no_cache: true)`,
+			ExampleNotTested("", `root.api_key = env("API_KEY")`).
+			ExampleNotTested("", `root.database_url = env("DB_URL").or("localhost:5432")`).
+			ExampleNotTested(
+				"Use `no_cache` to read updated environment variables during runtime, useful for dynamic configuration changes.",
+				`root.config = env(name: "DYNAMIC_CONFIG", no_cache: true)`,
 			),
 		func(args *bloblang.ParsedParams) (bloblang.Function, error) {
 			name, err := args.GetString("name")
@@ -85,20 +85,17 @@ func init() {
 				return !noCache
 			}).
 			Category(query.FunctionCategoryEnvironment).
-			Description("Reads a file and returns its contents. Relative paths are resolved from the directory of the process executing the mapping. In order to read files relative to the mapping file use the newer <<file_rel, `file_rel` function>>").
+			Description("Reads a file and returns its contents as bytes. Paths are resolved from the process working directory. For paths relative to the mapping file, use `file_rel`. By default, files are cached after first read.").
 			Param(bloblang.NewStringParam("path").
-				Description("The path of the target file.")).
+				Description("The absolute or relative path to the file.")).
 			Param(bloblang.NewBoolParam("no_cache").
-				Description("Force the file to be read for each mapping invocation.").
+				Description("Disable caching to read the latest file contents on each invocation.").
 				Default(false)).
-			Example("", `root.doc = file(env("BENTHOS_TEST_BLOBLANG_FILE")).parse_json()`, [2]string{
-				`{}`,
-				`{"doc":{"foo":"bar"}}`,
-			}).
-			Example(
-				"When the path parameter is static this function will only read the specified file once and yield the same result for each invocation as an optimization, this means that updates to files during runtime will not be reflected. You can disable this cache with the optional parameter `no_cache`, which when set to `true` will cause the file to be read for each execution of the mapping.",
-				`root.doc = file(path: env("BENTHOS_TEST_BLOBLANG_FILE"), no_cache: true).parse_json()`,
-				[2]string{`{}`, `{"doc":{"foo":"bar"}}`},
+			ExampleNotTested("", `root.config = file("/etc/config.json").parse_json()`).
+			ExampleNotTested("", `root.template = file("./templates/email.html").string()`).
+			ExampleNotTested(
+				"Use `no_cache` to read updated file contents during runtime, useful for hot-reloading configuration.",
+				`root.rules = file(path: "/etc/rules.yaml", no_cache: true).parse_yaml()`,
 			),
 		func(args *bloblang.ParsedParams) (bloblang.Function, error) {
 			path, err := args.GetString("path")
@@ -136,20 +133,17 @@ func init() {
 				return !noCache
 			}).
 			Category(query.FunctionCategoryEnvironment).
-			Description("Reads a file and returns its contents. Relative paths are resolved from the directory of the mapping.").
+			Description("Reads a file and returns its contents as bytes. Paths are resolved relative to the mapping file's directory, making it portable across different environments. By default, files are cached after first read.").
 			Param(bloblang.NewStringParam("path").
-				Description("The path of the target file.")).
+				Description("The path to the file, relative to the mapping file's directory.")).
 			Param(bloblang.NewBoolParam("no_cache").
-				Description("Force the file to be read for each mapping invocation.").
+				Description("Disable caching to read the latest file contents on each invocation.").
 				Default(false)).
-			Example("", `root.doc = file_rel(env("BENTHOS_TEST_BLOBLANG_FILE")).parse_json()`, [2]string{
-				`{}`,
-				`{"doc":{"foo":"bar"}}`,
-			}).
-			Example(
-				"When the path parameter is static this function will only read the specified file once and yield the same result for each invocation as an optimization, this means that updates to files during runtime will not be reflected. You can disable this cache with the optional parameter `no_cache`, which when set to `true` will cause the file to be read for each execution of the mapping.",
-				`root.doc = file_rel(path: env("BENTHOS_TEST_BLOBLANG_FILE"), no_cache: true).parse_json()`,
-				[2]string{`{}`, `{"doc":{"foo":"bar"}}`},
+			ExampleNotTested("", `root.schema = file_rel("./schemas/user.json").parse_json()`).
+			ExampleNotTested("", `root.lookup = file_rel("../data/lookup.csv").parse_csv()`).
+			ExampleNotTested(
+				"Use `no_cache` to read updated file contents during runtime, useful for reloading data files without restarting.",
+				`root.translations = file_rel(path: "./i18n/en.yaml", no_cache: true).parse_yaml()`,
 			),
 		func(args *bloblang.ParsedParams) (bloblang.Function, error) {
 			path, err := args.GetString("path")
