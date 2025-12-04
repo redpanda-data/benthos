@@ -300,9 +300,8 @@ var _ = registerSimpleMethod(
 //------------------------------------------------------------------------------
 
 var _ = registerSimpleMethod(
-	NewMethodSpec(
-		"exists",
-		"Checks whether a field exists at the specified dot path within an object. Returns true if the field is present (even if null), false otherwise.",
+	NewMethodSpec("exists", "Checks whether a field exists at the specified dot path within an object. Returns true if the field is present (even if null), false otherwise.").InCategory(
+		MethodCategoryObjectAndArray, "",
 		NewExampleSpec("",
 			`root.result = this.foo.exists("bar.baz")`,
 			`{"foo":{"bar":{"baz":"yep, I exist"}}}`,

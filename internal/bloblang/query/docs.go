@@ -164,6 +164,7 @@ func NewHiddenFunctionSpec(name string) FunctionSpec {
 
 // Method categories.
 var (
+	MethodCategoryGeneral        = "General"
 	MethodCategoryStrings        = "String Manipulation"
 	MethodCategoryNumbers        = "Number Manipulation"
 	MethodCategoryTime           = "Timestamp Manipulation"
