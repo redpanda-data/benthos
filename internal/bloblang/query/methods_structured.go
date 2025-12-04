@@ -19,7 +19,7 @@ import (
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"all",
-		"Checks each element of an array against a query and returns true if all elements passed. An error occurs if the target is not an array, or if any element results in the provided query returning a non-boolean result. Returns false if the target array is empty.",
+		"Tests whether all elements in an array satisfy a condition. Returns true only if the query evaluates to true for every element. Returns false for empty arrays.",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"",
@@ -29,6 +29,13 @@ var _ = registerSimpleMethod(
 			`{"all_over_21":false}`,
 			`{"patrons":[{"id":"1","age":45},{"id":"2","age":23}]}`,
 			`{"all_over_21":true}`,
+		),
+		NewExampleSpec("",
+			`root.all_positive = this.values.all(v -> v > 0)`,
+			`{"values":[1,2,3,4,5]}`,
+			`{"all_positive":true}`,
+			`{"values":[1,-2,3,4,5]}`,
+			`{"all_positive":false}`,
 		),
 	).Param(ParamQuery("test", "A test query to apply to each element.", false)),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -65,7 +72,7 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"any",
-		"Checks the elements of an array against a query and returns true if any element passes. An error occurs if the target is not an array, or if an element results in the provided query returning a non-boolean result. Returns false if the target array is empty.",
+		"Tests whether at least one element in an array satisfies a condition. Returns true if the query evaluates to true for any element. Returns false for empty arrays.",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"",
@@ -75,6 +82,13 @@ var _ = registerSimpleMethod(
 			`{"any_over_21":true}`,
 			`{"patrons":[{"id":"1","age":10},{"id":"2","age":12}]}`,
 			`{"any_over_21":false}`,
+		),
+		NewExampleSpec("",
+			`root.has_errors = this.results.any(r -> r.status == "error")`,
+			`{"results":[{"status":"ok"},{"status":"error"},{"status":"ok"}]}`,
+			`{"has_errors":true}`,
+			`{"results":[{"status":"ok"},{"status":"ok"}]}`,
+			`{"has_errors":false}`,
 		),
 	).Param(ParamQuery("test", "A test query to apply to each element.", false)),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -116,7 +130,7 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"append",
-		"Returns an array with new elements appended to the end.",
+		"Adds one or more elements to the end of an array and returns the new array. The original array is not modified.",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"",
@@ -124,6 +138,11 @@ var _ = registerSimpleMethod(
 			`root.foo = this.foo.append("and", "this")`,
 			`{"foo":["bar","baz"]}`,
 			`{"foo":["bar","baz","and","this"]}`,
+		),
+		NewExampleSpec("",
+			`root.combined = this.items.append(this.new_item)`,
+			`{"items":["apple","banana"],"new_item":"orange"}`,
+			`{"combined":["apple","banana","orange"]}`,
 		),
 	).VariadicParams(),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -147,14 +166,14 @@ var _ = registerSimpleMethod(
 		"collapse", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		"Collapse an array or object into an object of key/value pairs for each field, where the key is the full path of the structured field in dot path notation. Empty arrays an objects are ignored by default.",
+		"Flattens a nested structure into a single-level object with dot-notation keys representing the full path to each value. Empty arrays and objects are excluded by default.",
 		NewExampleSpec("",
 			`root.result = this.collapse()`,
 			`{"foo":[{"bar":"1"},{"bar":{}},{"bar":"2"},{"bar":[]}]}`,
 			`{"result":{"foo.0.bar":"1","foo.2.bar":"2"}}`,
 		),
 		NewExampleSpec(
-			"An optional boolean parameter can be set to true in order to include empty objects and arrays.",
+			"Set include_empty to true to preserve empty objects and arrays in the output.",
 			`root.result = this.collapse(include_empty: true)`,
 			`{"foo":[{"bar":"1"},{"bar":{}},{"bar":"2"},{"bar":[]}]}`,
 			`{"result":{"foo.0.bar":"1","foo.1.bar":{},"foo.2.bar":"2","foo.3.bar":[]}}`,
@@ -246,13 +265,18 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"enumerated",
-		"Converts an array into a new array of objects, where each object has a field index containing the `index` of the element and a field `value` containing the original value of the element.",
+		"Transforms an array into an array of objects with index and value fields, making it easy to access both the position and content of each element.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec("",
 			`root.foo = this.foo.enumerated()`,
 			`{"foo":["bar","baz"]}`,
 			`{"foo":[{"index":0,"value":"bar"},{"index":1,"value":"baz"}]}`,
+		),
+		NewExampleSpec("Useful for filtering by index position",
+			`root.first_two = this.items.enumerated().filter(item -> item.index < 2).map_each(item -> item.value)`,
+			`{"items":["a","b","c","d"]}`,
+			`{"first_two":["a","b"]}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -278,7 +302,7 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"exists",
-		"Checks that a field, identified via a xref:configuration:field_paths.adoc[dot path], exists in an object.",
+		"Checks whether a field exists at the specified dot path within an object. Returns true if the field is present (even if null), false otherwise.",
 		NewExampleSpec("",
 			`root.result = this.foo.exists("bar.baz")`,
 			`{"foo":{"bar":{"baz":"yep, I exist"}}}`,
@@ -287,6 +311,13 @@ var _ = registerSimpleMethod(
 			`{"result":false}`,
 			`{"foo":{}}`,
 			`{"result":false}`,
+		),
+		NewExampleSpec("Also returns true for null values if the field exists",
+			`root.has_field = this.data.exists("optional_field")`,
+			`{"data":{"optional_field":null}}`,
+			`{"has_field":true}`,
+			`{"data":{}}`,
+			`{"has_field":false}`,
 		),
 	).Param(ParamString("path", "A xref:configuration:field_paths.adoc[dot path] to a field.")),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -308,17 +339,17 @@ var _ = registerSimpleMethod(
 		"explode", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		"Explodes an array or object at a xref:configuration:field_paths.adoc[field path].",
+		"Expands a nested array or object field into multiple documents, distributing elements while preserving the surrounding structure. Useful for denormalizing data.",
 		NewExampleSpec(`##### On arrays
 
-Exploding arrays results in an array containing elements matching the original document, where the target field of each element is an element of the exploded array:`,
+When exploding an array, each element becomes a separate document with the array element replacing the original field:`,
 			`root = this.explode("value")`,
 			`{"id":1,"value":["foo","bar","baz"]}`,
 			`[{"id":1,"value":"foo"},{"id":1,"value":"bar"},{"id":1,"value":"baz"}]`,
 		),
 		NewExampleSpec(`##### On objects
 
-Exploding objects results in an object where the keys match the target object, and the values match the original document but with the target field replaced by the exploded value:`,
+When exploding an object, the output keys match the nested object's keys, with values being the full document where the target field is replaced by each nested value:`,
 			`root = this.explode("value")`,
 			`{"id":1,"value":{"foo":2,"bar":[3,4],"baz":{"bev":5}}}`,
 			`{"bar":{"id":1,"value":[3,4]},"baz":{"id":1,"value":{"bev":5}},"foo":{"id":1,"value":2}}`,
@@ -370,7 +401,7 @@ var _ = registerSimpleMethod(
 		"filter", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		"Executes a mapping query argument for each element of an array or key/value pair of an object. If the query returns `false` the item is removed from the resulting array or object. The item will also be removed if the query returns any non-boolean value.",
+		"Returns a new array or object containing only elements that satisfy the provided condition. Elements for which the query returns true are kept, all others are removed.",
 		NewExampleSpec(``,
 			`root.new_nums = this.nums.filter(num -> num > 10)`,
 			`{"nums":[3,11,4,17]}`,
@@ -378,7 +409,7 @@ var _ = registerSimpleMethod(
 		),
 		NewExampleSpec(`##### On objects
 
-When filtering objects the mapping query argument is provided a context with a field `+"`key`"+` containing the value key, and a field `+"`value`"+` containing the value.`,
+When filtering objects, the query receives a context with `+"`key`"+` and `+"`value`"+` fields for each entry:`,
 			`root.new_dict = this.dict.filter(item -> item.value.contains("foo"))`,
 			`{"dict":{"first":"hello foo","second":"world","third":"this foo is great"}}`,
 			`{"new_dict":{"first":"hello foo","third":"this foo is great"}}`,
@@ -433,7 +464,7 @@ When filtering objects the mapping query argument is provided a context with a f
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"find",
-		"Returns the index of the first occurrence of a value in an array. `-1` is returned if there are no matches. Numerical comparisons are made irrespective of the representation type (float versus integer).",
+		"Searches an array for a matching value and returns the index of the first occurrence. Returns -1 if no match is found. Numeric types are compared by value regardless of representation.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec("",
@@ -474,7 +505,7 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"find_all",
-		"Returns an array containing the indexes of all occurrences of a value in an array. An empty array is returned if there are no matches. Numerical comparisons are made irrespective of the representation type (float versus integer).",
+		"Searches an array for all occurrences of a value and returns an array of matching indexes. Returns an empty array if no matches are found. Numeric types are compared by value regardless of representation.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec("",
@@ -517,13 +548,18 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"find_by",
-		"Returns the index of the first occurrence of an array where the provided query resolves to a boolean `true`. `-1` is returned if there are no matches.",
+		"Searches an array for the first element that satisfies a condition and returns its index. Returns -1 if no element matches the query.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec("",
 			`root.index = this.find_by(v -> v != "bar")`,
 			`["foo", "bar", "baz"]`,
 			`{"index":0}`,
+		),
+		NewExampleSpec("Find first object matching criteria",
+			`root.first_adult = this.users.find_by(u -> u.age >= 18)`,
+			`{"users":[{"name":"Alice","age":15},{"name":"Bob","age":22},{"name":"Carol","age":19}]}`,
+			`{"first_adult":1}`,
 		),
 	).Beta().Param(ParamQuery("query", "A query to execute for each element.", false)),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -561,13 +597,18 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"find_all_by",
-		"Returns an array containing the indexes of all occurrences of an array where the provided query resolves to a boolean `true`. An empty array is returned if there are no matches. Numerical comparisons are made irrespective of the representation type (float versus integer).",
+		"Searches an array for all elements that satisfy a condition and returns an array of their indexes. Returns an empty array if no elements match.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec("",
 			`root.index = this.find_all_by(v -> v != "bar")`,
 			`["foo", "bar", "baz"]`,
 			`{"index":[0,2]}`,
+		),
+		NewExampleSpec("Find all indexes matching criteria",
+			`root.error_indexes = this.logs.find_all_by(log -> log.level == "error")`,
+			`{"logs":[{"level":"info"},{"level":"error"},{"level":"warn"},{"level":"error"}]}`,
+			`{"error_indexes":[1,3]}`,
 		),
 	).Beta().Param(ParamQuery("query", "A query to execute for each element.", false)),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -607,13 +648,18 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"flatten",
-		"Iterates an array and any element that is itself an array is removed and has its elements inserted directly in the resulting array.",
+		"Flattens an array by one level, expanding nested arrays into the parent array. Only the first level of nesting is removed.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec(``,
 			`root.result = this.flatten()`,
 			`["foo",["bar","baz"],"buz"]`,
 			`{"result":["foo","bar","baz","buz"]}`,
+		),
+		NewExampleSpec("Deeper nesting requires multiple flatten calls",
+			`root.result = this.data.flatten()`,
+			`{"data":["a",["b",["c","d"]],"e"]}`,
+			`{"result":["a","b",["c","d"],"e"]}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -641,20 +687,20 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"fold",
-		"Takes two arguments: an initial value, and a mapping query. For each element of an array the mapping context is an object with two fields `tally` and `value`, where `tally` contains the current accumulated value and `value` is the value of the current element. The mapping must return the result of adding the value to the tally.\n\nThe first argument is the value that `tally` will have on the first call.",
+		"Reduces an array to a single value by iteratively applying a function. Also known as reduce or aggregate. The query receives an accumulator (tally) and current element (value) for each iteration.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
-		NewExampleSpec(``,
+		NewExampleSpec(`Sum numbers in an array`,
 			`root.sum = this.foo.fold(0, item -> item.tally + item.value)`,
 			`{"foo":[3,8,11]}`,
 			`{"sum":22}`,
 		),
-		NewExampleSpec(``,
+		NewExampleSpec(`Concatenate strings`,
 			`root.result = this.foo.fold("", item -> "%v%v".format(item.tally, item.value))`,
 			`{"foo":["hello ", "world"]}`,
 			`{"result":"hello world"}`,
 		),
-		NewExampleSpec(`You can use fold to merge an array of objects together:`,
+		NewExampleSpec(`Merge an array of objects into a single object`,
 			`root.smoothie = this.fruits.fold({}, item -> item.tally.merge(item.value))`,
 			`{"fruits":[{"apple":5},{"banana":3},{"orange":8}]}`,
 			`{"smoothie":{"apple":5,"banana":3,"orange":8}}`,
@@ -810,13 +856,18 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"keys",
-		"Returns the keys of an object as an array.",
+		"Extracts all keys from an object and returns them as a sorted array.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec("",
 			`root.foo_keys = this.foo.keys()`,
 			`{"foo":{"bar":1,"baz":2}}`,
 			`{"foo_keys":["bar","baz"]}`,
+		),
+		NewExampleSpec("Check if specific keys exist",
+			`root.has_id = this.data.keys().contains("id")`,
+			`{"data":{"id":123,"name":"test"}}`,
+			`{"has_id":true}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -839,7 +890,7 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"key_values",
-		"Returns the key/value pairs of an object as an array, where each element is an object with a `key` field and a `value` field. The order of the resulting array will be random.",
+		"Converts an object into an array of key-value pair objects. Each element has a 'key' field and a 'value' field. Order is not guaranteed unless sorted.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec("",
@@ -847,6 +898,11 @@ var _ = registerSimpleMethod(
 
 			`{"foo":{"bar":1,"baz":2}}`,
 			`{"foo_key_values":[{"key":"bar","value":1},{"key":"baz","value":2}]}`,
+		),
+		NewExampleSpec("Filter object entries by value",
+			`root.large_items = this.items.key_values().filter(pair -> pair.value > 15).map_each(pair -> pair.key)`,
+			`{"items":{"a":5,"b":15,"c":20,"d":3}}`,
+			`{"large_items":["c"]}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -872,14 +928,14 @@ var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"length", "",
 	).InCategory(
-		MethodCategoryStrings, "Returns the length of a string.",
+		MethodCategoryStrings, "Returns the character count of a string.",
 		NewExampleSpec("",
 			`root.foo_len = this.foo.length()`,
 			`{"foo":"hello world"}`,
 			`{"foo_len":11}`,
 		),
 	).InCategory(
-		MethodCategoryObjectAndArray, "Returns the length of an array or object (number of keys).",
+		MethodCategoryObjectAndArray, "Returns the size of an array (element count) or object (key count).",
 		NewExampleSpec("",
 			`root.foo_len = this.foo.length()`,
 			`{"foo":["first","second"]}`,
@@ -917,7 +973,7 @@ var _ = registerSimpleMethod(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec(`##### On arrays
 
-Apply a mapping to each element of an array and replace the element with the result. Within the argument mapping the context is the value of the element being mapped.`,
+Transforms each array element using a query. Return deleted() to remove an element, or the new value to replace it.`,
 			`root.new_nums = this.nums.map_each(num -> if num < 10 {
   deleted()
 } else {
@@ -928,7 +984,7 @@ Apply a mapping to each element of an array and replace the element with the res
 		),
 		NewExampleSpec(`##### On objects
 
-Apply a mapping to each value of an object and replace the value with the result. Within the argument mapping the context is an object with a field `+"`key`"+` containing the value key, and a field `+"`value`"+`.`,
+Transforms each object value using a query. The query receives an object with 'key' and 'value' fields for each entry.`,
 			`root.new_dict = this.dict.map_each(item -> item.value.uppercase())`,
 			`{"dict":{"foo":"hello","bar":"world"}}`,
 			`{"new_dict":{"bar":"WORLD","foo":"HELLO"}}`,
@@ -996,13 +1052,13 @@ var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"map_each_key", "",
 	).InCategory(
-		MethodCategoryObjectAndArray, `Apply a mapping to each key of an object, and replace the key with the result, which must be a string.`,
+		MethodCategoryObjectAndArray, `Transforms object keys using a query. The query receives each key as a string and must return a new string key. Use this to rename or transform keys while preserving values.`,
 		NewExampleSpec(``,
 			`root.new_dict = this.dict.map_each_key(key -> key.uppercase())`,
 			`{"dict":{"keya":"hello","keyb":"world"}}`,
 			`{"new_dict":{"KEYA":"hello","KEYB":"world"}}`,
 		),
-		NewExampleSpec(``,
+		NewExampleSpec(`Conditionally transform keys`,
 			`root = this.map_each_key(key -> if key.contains("kafka") { "_" + key })`,
 			`{"amqp_key":"foo","kafka_key":"bar","kafka_topic":"baz"}`,
 			`{"_kafka_key":"bar","_kafka_topic":"baz","amqp_key":"foo"}`,
@@ -1047,13 +1103,18 @@ var _ = registerSimpleMethod(
 
 var _ = registerMethod(
 	NewMethodSpec(
-		"merge", "Merge a source object into an existing destination object. When a collision is found within the merged structures (both a source and destination object contain the same non-object keys) the result will be an array containing both values, where values that are already arrays will be expanded into the resulting array. In order to simply override destination fields on collision use the <<assign, `assign`>> method.",
+		"merge", "Combines two objects or arrays. When merging objects, conflicting keys create arrays containing both values. Arrays are concatenated. For key override behavior instead, use the assign method.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec(``,
 			`root = this.foo.merge(this.bar)`,
 			`{"foo":{"first_name":"fooer","likes":"bars"},"bar":{"second_name":"barer","likes":"foos"}}`,
 			`{"first_name":"fooer","likes":["bars","foos"],"second_name":"barer"}`,
+		),
+		NewExampleSpec(`Merge arrays`,
+			`root.combined = this.list1.merge(this.list2)`,
+			`{"list1":["a","b"],"list2":["c","d"]}`,
+			`{"combined":["a","b","c","d"]}`,
 		),
 	).Param(ParamAny("with", "A value to merge the target value with.")),
 	mergeMethod,
@@ -1097,13 +1158,18 @@ func mergeMethod(target Function, args *ParsedParams) (Function, error) {
 
 var _ = registerMethod(
 	NewMethodSpec(
-		"assign", "Merge a source object into an existing destination object. When a collision is found within the merged structures (both a source and destination object contain the same non-object keys) the value in the destination object will be overwritten by that of source object. In order to preserve both values on collision use the <<merge, `merge`>> method.",
+		"assign", "Merges two objects or arrays with override behavior. For objects, source values replace destination values on key conflicts. Arrays are concatenated. To preserve both values on conflict, use the merge method instead.",
 	).InCategory(
 		MethodCategoryObjectAndArray, "",
 		NewExampleSpec(``,
 			`root = this.foo.assign(this.bar)`,
 			`{"foo":{"first_name":"fooer","likes":"bars"},"bar":{"second_name":"barer","likes":"foos"}}`,
 			`{"first_name":"fooer","likes":"foos","second_name":"barer"}`,
+		),
+		NewExampleSpec(`Override defaults with user settings`,
+			`root.config = this.defaults.assign(this.user_settings)`,
+			`{"defaults":{"timeout":30,"retries":3},"user_settings":{"timeout":60}}`,
+			`{"config":{"retries":3,"timeout":60}}`,
 		),
 	).Param(ParamAny("with", "A value to merge the target value with.")),
 	assignMethod,
@@ -1206,13 +1272,13 @@ var _ = registerMethod(
 		"sort", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		"Attempts to sort the values of an array in increasing order. The type of all values must match in order for the ordering to succeed. Supports string and number values.",
+		"Sorts an array in ascending order. Works with strings and numbers. For custom sorting logic, provide a comparison query that receives 'left' and 'right' elements.",
 		NewExampleSpec("",
 			`root.sorted = this.foo.sort()`,
 			`{"foo":["bbb","ccc","aaa"]}`,
 			`{"sorted":["aaa","bbb","ccc"]}`,
 		),
-		NewExampleSpec("It's also possible to specify a mapping argument, which is provided an object context with fields `left` and `right`, the mapping must return a boolean indicating whether the `left` value is less than `right`. This allows you to sort arrays containing non-string or non-number values.",
+		NewExampleSpec("Custom comparison for complex objects - return true if left < right",
 			`root.sorted = this.foo.sort(item -> item.left.v < item.right.v)`,
 			`{"foo":[{"id":"foo","v":"bbb"},{"id":"bar","v":"ccc"},{"id":"baz","v":"aaa"}]}`,
 			`{"sorted":[{"id":"baz","v":"aaa"},{"id":"foo","v":"bbb"},{"id":"bar","v":"ccc"}]}`,
@@ -1312,11 +1378,16 @@ var _ = registerMethod(
 		"sort_by", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		"Attempts to sort the elements of an array, in increasing order, by a value emitted by an argument query applied to each element. The type of all values must match in order for the ordering to succeed. Supports string and number values.",
+		"Sorts an array by a value extracted from each element using a query. The extracted values determine sort order and must all be strings or numbers.",
 		NewExampleSpec("",
 			`root.sorted = this.foo.sort_by(ele -> ele.id)`,
 			`{"foo":[{"id":"bbb","message":"bar"},{"id":"aaa","message":"foo"},{"id":"ccc","message":"baz"}]}`,
 			`{"sorted":[{"id":"aaa","message":"foo"},{"id":"bbb","message":"bar"},{"id":"ccc","message":"baz"}]}`,
+		),
+		NewExampleSpec("Sort by numeric field",
+			`root.sorted = this.items.sort_by(item -> item.priority)`,
+			`{"items":[{"name":"low","priority":3},{"name":"high","priority":1},{"name":"med","priority":2}]}`,
+			`{"sorted":[{"name":"high","priority":1},{"name":"med","priority":2},{"name":"low","priority":3}]}`,
 		),
 	).Param(ParamQuery("query", "A query to apply to each element that yields a value used for sorting.", false)),
 	sortByMethod,
@@ -1503,11 +1574,16 @@ var _ = registerMethod(
 		"sum", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		"Sum the numerical values of an array.",
+		"Calculates the sum of all numeric values in an array. Non-numeric values cause an error.",
 		NewExampleSpec("",
 			`root.sum = this.foo.sum()`,
 			`{"foo":[3,8,4]}`,
 			`{"sum":15}`,
+		),
+		NewExampleSpec("Works with decimals",
+			`root.total = this.prices.sum()`,
+			`{"prices":[10.5,20.25,5.00]}`,
+			`{"total":35.75}`,
 		),
 	),
 	sumMethod,
@@ -1548,11 +1624,16 @@ var _ = registerSimpleMethod(
 		"unique", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		"Attempts to remove duplicate values from an array. The array may contain a combination of different value types, but numbers and strings are checked separately (`\"5\"` is a different element to `5`).",
+		"Removes duplicate values from an array, keeping the first occurrence of each unique value. Strings and numbers are treated as distinct types (\"5\" differs from 5).",
 		NewExampleSpec("",
 			`root.uniques = this.foo.unique()`,
 			`{"foo":["a","b","a","c"]}`,
 			`{"uniques":["a","b","c"]}`,
+		),
+		NewExampleSpec("Use a query to determine uniqueness by a field",
+			`root.unique_users = this.users.unique(u -> u.id)`,
+			`{"users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"},{"id":1,"name":"Alice Duplicate"}]}`,
+			`{"unique_users":[{"id":1,"name":"Alice"},{"id":2,"name":"Bob"}]}`,
 		),
 	).
 		Param(ParamQuery(
@@ -1650,11 +1731,16 @@ var _ = registerSimpleMethod(
 		"values", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		"Returns the values of an object as an array. The order of the resulting array will be random.",
+		"Extracts all values from an object and returns them as an array. Order is not guaranteed unless the result is sorted.",
 		NewExampleSpec("",
 			`root.foo_vals = this.foo.values().sort()`,
 			`{"foo":{"bar":1,"baz":2}}`,
 			`{"foo_vals":[1,2]}`,
+		),
+		NewExampleSpec("Find max value in object",
+			`root.max = this.scores.values().sort().index(-1)`,
+			`{"scores":{"player1":85,"player2":92,"player3":78}}`,
+			`{"max":92}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -1678,13 +1764,16 @@ var _ = registerSimpleMethod(
 		"without", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		`Returns an object where one or more xref:configuration:field_paths.adoc[field path] arguments are removed. Each path specifies a specific field to be deleted from the input object, allowing for nested fields.
-
-If a key within a nested path does not exist or is not an object then it is not removed.`,
+		`Removes specified fields from an object using dot-notation paths. Returns a new object with the fields removed. Non-existent paths are safely ignored.`,
 		NewExampleSpec("",
 			`root = this.without("inner.a","inner.c","d")`,
 			`{"inner":{"a":"first","b":"second","c":"third"},"d":"fourth","e":"fifth"}`,
 			`{"e":"fifth","inner":{"b":"second"}}`,
+		),
+		NewExampleSpec("Remove sensitive fields",
+			`root = this.without("password","ssn","creditCard")`,
+			`{"username":"alice","password":"secret","email":"alice@example.com","ssn":"123-45-6789"}`,
+			`{"email":"alice@example.com","username":"alice"}`,
 		),
 	).VariadicParams(),
 	func(args *ParsedParams) (simpleMethod, error) {

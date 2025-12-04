@@ -67,11 +67,16 @@ var _ = registerSimpleMethod(
 		"capitalize", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Takes a string value and returns a copy with all Unicode letters that begin words mapped to their Unicode title case.",
+		"Converts the first letter of each word in a string to uppercase (title case). Useful for formatting names, titles, and headings.",
 		NewExampleSpec("",
 			`root.title = this.title.capitalize()`,
 			`{"title":"the foo bar"}`,
 			`{"title":"The Foo Bar"}`,
+		),
+		NewExampleSpec("",
+			`root.name = this.name.capitalize()`,
+			`{"name":"alice smith"}`,
+			`{"name":"Alice Smith"}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -501,11 +506,16 @@ var _ = registerSimpleMethod(
 		"escape_html", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Escapes a string so that special characters like `<` to become `&lt;`. It escapes only five such characters: `<`, `>`, `&`, `'` and `\"` so that it can be safely placed within an HTML entity.",
+		"Escapes special HTML characters (`<`, `>`, `&`, `'`, `\"`) to make a string safe for HTML output. Use when embedding untrusted text in HTML to prevent XSS vulnerabilities.",
 		NewExampleSpec("",
 			`root.escaped = this.value.escape_html()`,
 			`{"value":"foo & bar"}`,
 			`{"escaped":"foo &amp; bar"}`,
+		),
+		NewExampleSpec("",
+			`root.safe_html = this.user_input.escape_html()`,
+			`{"user_input":"<script>alert('xss')</script>"}`,
+			`{"safe_html":"&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt;"}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -522,7 +532,7 @@ var _ = registerSimpleMethod(
 		"index_of", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Returns the starting index of the argument substring in a string target, or `-1` if the target doesn't contain the argument.",
+		"Finds the position of a substring within a string. Returns the zero-based index of the first occurrence, or -1 if not found. Useful for searching and string manipulation.",
 		NewExampleSpec("",
 			`root.index = this.thing.index_of("bar")`,
 			`{"thing":"foobar"}`,
@@ -558,11 +568,16 @@ var _ = registerSimpleMethod(
 		"unescape_html", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Unescapes a string so that entities like `&lt;` become `<`. It unescapes a larger range of entities than `escape_html` escapes. For example, `&aacute;` unescapes to `á`, as does `&#225;` and `&xE1;`.",
+		"Converts HTML entities back to their original characters. Handles named entities (`&amp;`, `&lt;`), decimal (`&#225;`), and hexadecimal (`&xE1;`) formats. Use for processing HTML content or decoding HTML-escaped data.",
 		NewExampleSpec("",
 			`root.unescaped = this.value.unescape_html()`,
 			`{"value":"foo &amp; bar"}`,
 			`{"unescaped":"foo & bar"}`,
+		),
+		NewExampleSpec("",
+			`root.text = this.html.unescape_html()`,
+			`{"html":"&lt;p&gt;Hello &amp; goodbye&lt;/p&gt;"}`,
+			`{"text":"<p>Hello & goodbye</p>"}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -579,11 +594,16 @@ var _ = registerSimpleMethod(
 		"escape_url_query", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Escapes a string so that it can be safely placed within a URL query.",
+		"Encodes a string for safe use in URL query parameters. Converts spaces to `+` and special characters to percent-encoded values. Use when building URLs with dynamic query parameters.",
 		NewExampleSpec("",
 			`root.escaped = this.value.escape_url_query()`,
 			`{"value":"foo & bar"}`,
 			`{"escaped":"foo+%26+bar"}`,
+		),
+		NewExampleSpec("",
+			`root.url = "https://example.com?search=" + this.query.escape_url_query()`,
+			`{"query":"hello world!"}`,
+			`{"url":"https://example.com?search=hello+world%21"}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -600,11 +620,16 @@ var _ = registerSimpleMethod(
 		"unescape_url_query", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Expands escape sequences from a URL query string.",
+		"Decodes URL query parameter encoding, converting `+` to spaces and percent-encoded characters to their original values. Use for parsing URL query parameters.",
 		NewExampleSpec("",
 			`root.unescaped = this.value.unescape_url_query()`,
 			`{"value":"foo+%26+bar"}`,
 			`{"unescaped":"foo & bar"}`,
+		),
+		NewExampleSpec("",
+			`root.search = this.param.unescape_url_query()`,
+			`{"param":"hello+world%21"}`,
+			`{"search":"hello world!"}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -621,7 +646,7 @@ var _ = registerSimpleMethod(
 		"filepath_join", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Joins an array of path elements into a single file path. The separator depends on the operating system of the machine.",
+		"Combines an array of path components into a single OS-specific file path using the correct separator (`/` on Unix, `\\` on Windows). Use for constructing file paths from components.",
 		NewExampleSpec("",
 			`root.path = this.path_elements.filepath_join()`,
 			strings.ReplaceAll(`{"path_elements":["/foo/","bar.txt"]}`, "/", string(filepath.Separator)),
@@ -652,7 +677,7 @@ var _ = registerSimpleMethod(
 		"filepath_split", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Splits a file path immediately following the final Separator, separating it into a directory and file name component returned as a two element array of strings. If there is no Separator in the path, the first element will be empty and the second will contain the path. The separator depends on the operating system of the machine.",
+		"Separates a file path into directory and filename components, returning a two-element array `[directory, filename]`. Use for extracting the filename or directory from a full path.",
 		NewExampleSpec("",
 			`root.path_sep = this.path.filepath_split()`,
 			strings.ReplaceAll(`{"path":"/foo/bar.txt"}`, "/", string(filepath.Separator)),
@@ -676,11 +701,16 @@ var _ = registerSimpleMethod(
 		"format", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Use a value string as a format specifier in order to produce a new string, using any number of provided arguments. Please refer to the Go https://pkg.go.dev/fmt[`fmt` package documentation^] for the list of valid format verbs.",
+		"Formats a string using Go's printf-style formatting with the string as the format template. Supports all Go format verbs (`%s`, `%d`, `%v`, etc.). Use for building formatted strings from dynamic values.",
 		NewExampleSpec("",
 			`root.foo = "%s(%v): %v".format(this.name, this.age, this.fingers)`,
 			`{"name":"lance","age":37,"fingers":13}`,
 			`{"foo":"lance(37): 13"}`,
+		),
+		NewExampleSpec("",
+			`root.message = "User %s has %v points".format(this.username, this.score)`,
+			`{"username":"alice","score":100}`,
+			`{"message":"User alice has 100 points"}`,
 		),
 	).VariadicParams(),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -697,7 +727,7 @@ var _ = registerSimpleMethod(
 		"has_prefix", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Checks whether a string has a prefix argument and returns a bool.",
+		"Tests if a string starts with a specified prefix. Returns `true` if the string begins with the prefix, `false` otherwise. Use for conditional logic based on string patterns.",
 		NewExampleSpec("",
 			`root.t1 = this.v1.has_prefix("foo")
 root.t2 = this.v2.has_prefix("foo")`,
@@ -730,7 +760,7 @@ var _ = registerSimpleMethod(
 		"has_suffix", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Checks whether a string has a suffix argument and returns a bool.",
+		"Tests if a string ends with a specified suffix. Returns `true` if the string ends with the suffix, `false` otherwise. Use for filtering or routing based on file extensions or string patterns.",
 		NewExampleSpec("",
 			`root.t1 = this.v1.has_suffix("foo")
 root.t2 = this.v2.has_suffix("foo")`,
@@ -966,7 +996,7 @@ var _ = registerSimpleMethod(
 		"join", "",
 	).InCategory(
 		MethodCategoryObjectAndArray,
-		"Join an array of strings with an optional delimiter into a single string.",
+		"Concatenates an array of strings into a single string with an optional delimiter between elements. Use for building CSV strings, URLs, or combining text fragments.",
 		NewExampleSpec("",
 			`root.joined_words = this.words.join()
 root.joined_numbers = this.numbers.map_each(this.string()).join(",")`,
@@ -1015,11 +1045,16 @@ var _ = registerSimpleMethod(
 		"uppercase", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Convert a string value into uppercase.",
+		"Converts all letters in a string to uppercase. Use for case-insensitive comparisons or formatting output.",
 		NewExampleSpec("",
 			`root.foo = this.foo.uppercase()`,
 			`{"foo":"hello world"}`,
 			`{"foo":"HELLO WORLD"}`,
+		),
+		NewExampleSpec("",
+			`root.code = this.product_code.uppercase()`,
+			`{"product_code":"abc-123"}`,
+			`{"code":"ABC-123"}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -1043,11 +1078,16 @@ var _ = registerSimpleMethod(
 		"lowercase", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Convert a string value into lowercase.",
+		"Converts all letters in a string to lowercase. Use for case-insensitive comparisons, normalization, or formatting output.",
 		NewExampleSpec("",
 			`root.foo = this.foo.lowercase()`,
 			`{"foo":"HELLO WORLD"}`,
 			`{"foo":"hello world"}`,
+		),
+		NewExampleSpec("",
+			`root.email = this.user_email.lowercase()`,
+			`{"user_email":"User@Example.COM"}`,
+			`{"email":"user@example.com"}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -1441,7 +1481,7 @@ var _ = registerSimpleMethod(
 		"reverse", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Returns the target string in reverse order.",
+		"Reverses the order of characters in a string. Unicode-aware for proper handling of multi-byte characters. Use for creating palindrome checks or reversing text data.",
 		NewExampleSpec("",
 			`root.reversed = this.thing.reverse()`,
 			`{"thing":"backwards"}`,
@@ -1482,11 +1522,16 @@ var _ = registerSimpleMethod(
 		"quote", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Quotes a target string using escape sequences (`\\t`, `\\n`, `\\xFF`, `\\u0100`) for control characters and non-printable characters.",
+		"Wraps a string in double quotes and escapes special characters (newlines, tabs, etc.) using Go escape sequences. Use for generating string literals or preparing strings for JSON-like formats.",
 		NewExampleSpec("",
 			`root.quoted = this.thing.quote()`,
 			`{"thing":"foo\nbar"}`,
 			`{"quoted":"\"foo\\nbar\""}`,
+		),
+		NewExampleSpec("",
+			`root.literal = this.text.quote()`,
+			`{"text":"hello\tworld"}`,
+			`{"literal":"\"hello\\tworld\""}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -1503,11 +1548,16 @@ var _ = registerSimpleMethod(
 		"unquote", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Unquotes a target string, expanding any escape sequences (`\\t`, `\\n`, `\\xFF`, `\\u0100`) for control characters and non-printable characters.",
+		"Removes surrounding quotes and interprets escape sequences (`\\n`, `\\t`, etc.) to their literal characters. Use for parsing quoted string literals.",
 		NewExampleSpec("",
 			`root.unquoted = this.thing.unquote()`,
 			`{"thing":"\"foo\\nbar\""}`,
 			`{"unquoted":"foo\nbar"}`,
+		),
+		NewExampleSpec("",
+			`root.text = this.literal.unquote()`,
+			`{"literal":"\"hello\\tworld\""}`,
+			`{"text":"hello\tworld"}`,
 		),
 	),
 	func(*ParsedParams) (simpleMethod, error) {
@@ -1531,11 +1581,16 @@ var _ = registerSimpleMethod(
 		"replace_all", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Replaces all occurrences of the first argument in a target string with the second argument.",
+		"Replaces all occurrences of a substring with another string. Use for text transformation, cleaning data, or normalizing strings.",
 		NewExampleSpec("",
 			`root.new_value = this.value.replace_all("foo","dog")`,
 			`{"value":"The foo ate my homework"}`,
 			`{"new_value":"The dog ate my homework"}`,
+		),
+		NewExampleSpec("",
+			`root.clean = this.text.replace_all("  ", " ")`,
+			`{"text":"hello  world  foo"}`,
+			`{"clean":"hello world foo"}`,
 		),
 	).
 		Param(ParamString("old", "A string to match against.")).
@@ -1577,7 +1632,7 @@ var _ = registerSimpleMethod(
 		"replace_all_many", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"For each pair of strings in an argument array, replaces all occurrences of the first item of the pair with the second. This is a more compact way of chaining a series of `replace_all` methods.",
+		"Performs multiple find-and-replace operations in sequence using an array of `[old, new]` pairs. More efficient than chaining multiple `replace_all` calls. Use for bulk text transformations.",
 		NewExampleSpec("",
 			`root.new_value = this.value.replace_all_many([
   "<b>", "&lt;b&gt;",
@@ -1641,11 +1696,16 @@ var _ = registerSimpleMethod(
 		"re_find_all", "",
 	).InCategory(
 		MethodCategoryRegexp,
-		"Returns an array containing all successive matches of a regular expression in a string.",
+		"Finds all matches of a regular expression in a string and returns them as an array. Use for extracting multiple patterns or validating repeating structures.",
 		NewExampleSpec("",
 			`root.matches = this.value.re_find_all("a.")`,
 			`{"value":"paranormal"}`,
 			`{"matches":["ar","an","al"]}`,
+		),
+		NewExampleSpec("",
+			`root.numbers = this.text.re_find_all("[0-9]+")`,
+			`{"text":"I have 2 apples and 15 oranges"}`,
+			`{"numbers":["2","15"]}`,
 		),
 	).Param(ParamString("pattern", "The pattern to match against.")),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -1687,11 +1747,16 @@ var _ = registerSimpleMethod(
 		"re_find_all_submatch", "",
 	).InCategory(
 		MethodCategoryRegexp,
-		"Returns an array of arrays containing all successive matches of the regular expression in a string and the matches, if any, of its subexpressions.",
+		"Finds all regex matches and their capture groups, returning an array of arrays where each inner array contains the full match and captured subgroups. Use for extracting structured data with capture groups.",
 		NewExampleSpec("",
 			`root.matches = this.value.re_find_all_submatch("a(x*)b")`,
 			`{"value":"-axxb-ab-"}`,
 			`{"matches":[["axxb","xx"],["ab",""]]}`,
+		),
+		NewExampleSpec("",
+			`root.emails = this.text.re_find_all_submatch("(\\w+)@(\\w+\\.\\w+)")`,
+			`{"text":"Contact: alice@example.com or bob@test.org"}`,
+			`{"emails":[["alice@example.com","alice","example.com"],["bob@test.org","bob","test.org"]]}`,
 		),
 	).Param(ParamString("pattern", "The pattern to match against.")),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -1741,7 +1806,7 @@ var _ = registerSimpleMethod(
 		"re_find_object", "",
 	).InCategory(
 		MethodCategoryRegexp,
-		"Returns an object containing the first match of the regular expression and the matches of its subexpressions. The key of each match value is the name of the group when specified, otherwise it is the index of the matching group, starting with the expression as a whole at 0.",
+		"Finds the first regex match and returns an object with named capture groups as keys (or numeric indices for unnamed groups). The key \"0\" contains the full match. Use for parsing structured text into fields.",
 		NewExampleSpec("",
 			`root.matches = this.value.re_find_object("a(?P<foo>x*)b")`,
 			`{"value":"-axxb-ab-"}`,
@@ -1798,7 +1863,7 @@ var _ = registerSimpleMethod(
 		"re_find_all_object", "",
 	).InCategory(
 		MethodCategoryRegexp,
-		"Returns an array of objects containing all matches of the regular expression and the matches of its subexpressions. The key of each match value is the name of the group when specified, otherwise it is the index of the matching group, starting with the expression as a whole at 0.",
+		"Finds all regex matches and returns an array of objects with named capture groups as keys. Each object represents one match with its captured groups. Use for parsing multiple structured records from text.",
 		NewExampleSpec("",
 			`root.matches = this.value.re_find_all_object("a(?P<foo>x*)b")`,
 			`{"value":"-axxb-ab-"}`,
@@ -1865,7 +1930,7 @@ var _ = registerSimpleMethod(
 		"re_match", "",
 	).InCategory(
 		MethodCategoryRegexp,
-		"Checks whether a regular expression matches against any part of a string and returns a boolean.",
+		"Tests if a regular expression matches anywhere in a string, returning `true` or `false`. Use for validation or conditional routing based on patterns.",
 		NewExampleSpec("",
 			`root.matches = this.value.re_match("[0-9]")`,
 			`{"value":"there are 10 puppies"}`,
@@ -1912,11 +1977,16 @@ var _ = registerSimpleMethod(
 		"re_replace_all", "",
 	).InCategory(
 		MethodCategoryRegexp,
-		"Replaces all occurrences of the argument regular expression in a string with a value. Inside the value $ signs are interpreted as submatch expansions, e.g. `$1` represents the text of the first submatch.",
+		"Replaces all regex matches with a replacement string that can reference capture groups using `$1`, `$2`, etc. Use for pattern-based transformations or data reformatting.",
 		NewExampleSpec("",
 			`root.new_value = this.value.re_replace_all("ADD ([0-9]+)","+($1)")`,
 			`{"value":"foo ADD 70"}`,
 			`{"new_value":"foo +(70)"}`,
+		),
+		NewExampleSpec("",
+			`root.masked = this.email.re_replace_all("(\\w{2})\\w+@", "$1***@")`,
+			`{"email":"alice@example.com"}`,
+			`{"masked":"al***@example.com"}`,
 		),
 	).
 		Param(ParamString("pattern", "The pattern to match against.")).
@@ -1959,11 +2029,16 @@ var _ = registerSimpleMethod(
 		"split", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Split a string value into an array of strings by splitting it on a string separator.",
+		"Splits a string into an array of substrings using a delimiter. Use for parsing CSV-like data, splitting paths, or breaking text into tokens.",
 		NewExampleSpec("",
 			`root.new_value = this.value.split(",")`,
 			`{"value":"foo,bar,baz"}`,
 			`{"new_value":["foo","bar","baz"]}`,
+		),
+		NewExampleSpec("",
+			`root.words = this.sentence.split(" ")`,
+			`{"sentence":"hello world from bloblang"}`,
+			`{"words":["hello","world","from","bloblang"]}`,
 		),
 	).Param(ParamString("delimiter", "The delimiter to split with.")),
 	func(args *ParsedParams) (simpleMethod, error) {
@@ -2001,7 +2076,7 @@ var _ = registerSimpleMethod(
 		"string", "",
 	).InCategory(
 		MethodCategoryCoercion,
-		"Marshal a value into a string. If the value is already a string it is unchanged.",
+		"Converts any value to its string representation. Numbers, booleans, and objects are converted to strings; existing strings are unchanged. Use for type coercion or creating string representations.",
 		NewExampleSpec("",
 			`root.nested_json = this.string()`,
 			`{"foo":"bar"}`,
@@ -2027,7 +2102,7 @@ var _ = registerSimpleMethod(
 		"trim", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Remove all leading and trailing characters from a string that are contained within an argument cutset. If no arguments are provided then whitespace is removed.",
+		"Removes leading and trailing characters from a string. Without arguments, removes whitespace. With a cutset argument, removes any characters in the cutset. Use for cleaning user input or normalizing strings.",
 		NewExampleSpec("",
 			`root.title = this.title.trim("!?")
 root.description = this.description.trim()`,
@@ -2063,7 +2138,7 @@ var _ = registerSimpleMethod(
 		"trim_prefix", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Remove the provided leading prefix substring from a string. If the string does not have the prefix substring, it is returned unchanged.",
+		"Removes a specified prefix from the beginning of a string if present. If the string doesn't start with the prefix, returns the string unchanged. Use for stripping known prefixes from identifiers or paths.",
 		NewExampleSpec("",
 			`root.name = this.name.trim_prefix("foobar_")
 root.description = this.description.trim_prefix("foobar_")`,
@@ -2095,7 +2170,7 @@ var _ = registerSimpleMethod(
 		"trim_suffix", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Remove the provided trailing suffix substring from a string. If the string does not have the suffix substring, it is returned unchanged.",
+		"Removes a specified suffix from the end of a string if present. If the string doesn't end with the suffix, returns the string unchanged. Use for stripping file extensions or known suffixes.",
 		NewExampleSpec("",
 			`root.name = this.name.trim_suffix("_foobar")
 root.description = this.description.trim_suffix("_foobar")`,
@@ -2129,12 +2204,17 @@ var _ = registerSimpleMethod(
 		"repeat", "",
 	).InCategory(
 		MethodCategoryStrings,
-		"Repeat returns a new string consisting of count copies of the string",
+		"Creates a new string by repeating the input string a specified number of times. Use for generating padding, separators, or test data.",
 		NewExampleSpec("",
 			`root.repeated = this.name.repeat(3)
 root.not_repeated = this.name.repeat(0)`,
 			`{"name":"bob"}`,
 			`{"not_repeated":"","repeated":"bobbobbob"}`,
+		),
+		NewExampleSpec("",
+			`root.separator = "-".repeat(10)`,
+			`{}`,
+			`{"separator":"----------"}`,
 		),
 	).Param(ParamInt64("count", "The number of times to repeat the string.")),
 	func(args *ParsedParams) (simpleMethod, error) {

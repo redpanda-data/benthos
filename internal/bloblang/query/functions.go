@@ -186,9 +186,12 @@ func NewLiteralFunction(annotation string, v any) *Literal {
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "batch_index",
-		"Returns the index of the mapped message within a batch. This is useful for applying maps only on certain messages of a batch.",
+		"Returns the zero-based index of the current message within its batch. Use this to conditionally process messages based on their position, or to create sequential identifiers within a batch.",
 		NewExampleSpec("",
 			`root = if batch_index() > 0 { deleted() }`,
+		),
+		NewExampleSpec("Create a unique identifier combining batch position with timestamp.",
+			`root.id = "%v-%v".format(timestamp_unix(), batch_index())`,
 		),
 	),
 	func(ctx FunctionContext) (any, error) {
@@ -201,9 +204,12 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "batch_size",
-		"Returns the size of the message batch.",
+		"Returns the total number of messages in the current batch. Use this to determine batch boundaries or compute relative positions.",
 		NewExampleSpec("",
-			`root.foo = batch_size()`,
+			`root.total = batch_size()`,
+		),
+		NewExampleSpec("Check if processing the last message in a batch.",
+			`root.is_last = batch_index() == batch_size() - 1`,
 		),
 	),
 	func(ctx FunctionContext) (any, error) {
@@ -216,11 +222,17 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "content",
-		"Returns the full raw contents of the mapping target message as a byte array. When mapping to a JSON field the value should be encoded using the method xref:guides:bloblang/methods.adoc#encode[`encode`], or cast to a string directly using the method xref:guides:bloblang/methods.adoc#string[`string`], otherwise it will be base64 encoded by default.",
+		"Returns the raw message payload as bytes, regardless of the current mapping context. Use this to access the original message when working within nested contexts, or to store the entire message as a field.",
 		NewExampleSpec("",
 			`root.doc = content().string()`,
 			`{"foo":"bar"}`,
 			`{"doc":"{\"foo\":\"bar\"}"}`,
+		),
+		NewExampleSpec("Preserve original message while adding metadata.",
+			`root.original = content().string()
+root.processed_by = "ai"`,
+			`{"foo":"bar"}`,
+			`{"original":"{\"foo\":\"bar\"}","processed_by":"ai"}`,
 		),
 	),
 	func(ctx FunctionContext) (any, error) {
@@ -233,11 +245,14 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "tracing_span",
-		"Provides the message tracing span xref:components:tracers/about.adoc[(created via Open Telemetry APIs)] as an object serialized via text map formatting. The returned value will be `null` if the message does not have a span.",
+		"Returns the OpenTelemetry tracing span attached to the message as a text map object, or `null` if no span exists. Use this to propagate trace context to downstream systems via headers or metadata.",
 		NewExampleSpec("",
 			`root.headers.traceparent = tracing_span().traceparent`,
 			`{"some_stuff":"just can't be explained by science"}`,
 			`{"headers":{"traceparent":"00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"}}`,
+		),
+		NewExampleSpec("Forward all tracing fields to output metadata.",
+			`meta = tracing_span()`,
 		),
 	).Experimental(),
 	func(fCtx FunctionContext) (any, error) {
@@ -254,9 +269,13 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "tracing_id",
-		"Provides the message trace id. The returned value will be zeroed if the message does not contain a span.",
+		"Returns the OpenTelemetry trace ID for the message, or an empty string if no tracing span exists. Use this to correlate logs and events with distributed traces.",
 		NewExampleSpec("",
 			`meta trace_id = tracing_id()`,
+		),
+		NewExampleSpec("Add trace ID to structured logs.",
+			`root.log_entry = this
+root.log_entry.trace_id = tracing_id()`,
 		),
 	).Experimental(),
 	func(fCtx FunctionContext) (any, error) {
@@ -316,7 +335,7 @@ func countFunction(args *ParsedParams) (Function, error) {
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryGeneral, "deleted",
-		"A function that returns a result indicating that the mapping target should be deleted. Deleting, also known as dropping, messages will result in them being acknowledged as successfully processed to inputs in a Redpanda Connect pipeline. For more information about error handling patterns read xref:configuration:error_handling.adoc[].",
+		"Returns a deletion marker that removes the target field or message. When applied to root, the entire message is dropped while still being acknowledged as successfully processed. Use this to filter data or conditionally remove fields.",
 		NewExampleSpec("",
 			`root = this
 root.bar = deleted()`,
@@ -324,7 +343,7 @@ root.bar = deleted()`,
 			`{"baz":"baz_value","foo":"foo value"}`,
 		),
 		NewExampleSpec(
-			"Since the result is a value it can be used to do things like remove elements of an array within `map_each`.",
+			"Filter array elements by returning deleted for unwanted items.",
 			`root.new_nums = this.nums.map_each(num -> if num < 10 { deleted() } else { num - 10 })`,
 			`{"nums":[3,11,4,17]}`,
 			`{"new_nums":[1,7]}`,
@@ -340,9 +359,14 @@ root.bar = deleted()`,
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "error",
-		"If an error has occurred during the processing of a message this function returns the reported cause of the error as a string, otherwise `null`. For more information about error handling patterns read xref:configuration:error_handling.adoc[].",
+		"Returns the error message string if the message has failed processing, otherwise `null`. Use this in error handling pipelines to log or route failed messages based on their error details.",
 		NewExampleSpec("",
 			`root.doc.error = error()`,
+		),
+		NewExampleSpec("Route messages to different outputs based on error presence.",
+			`root = this
+root.error_msg = error()
+root.has_error = error() != null`,
 		),
 	),
 	func(ctx FunctionContext) (any, error) {
@@ -356,9 +380,12 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "errored",
-		"Returns a boolean value indicating whether an error has occurred during the processing of a message. For more information about error handling patterns read xref:configuration:error_handling.adoc[].",
+		"Returns true if the message has failed processing, false otherwise. Use this for conditional logic in error handling workflows or to route failed messages to dead letter queues.",
 		NewExampleSpec("",
 			`root.doc.status = if errored() { 400 } else { 200 }`,
+		),
+		NewExampleSpec("Send only failed messages to a separate stream.",
+			`root = if errored() { this } else { deleted() }`,
 		),
 	),
 	func(ctx FunctionContext) (any, error) {
@@ -369,9 +396,18 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "error_source_name",
-		"Returns the name of the source component which raised the error during the processing of a message. `null` is returned when the error is null or no source component is associated with it. For more information about error handling patterns read xref:configuration:error_handling.adoc[].",
+		"Returns the component name that caused the error, or `null` if the message has no error or the error has no associated component. Use this to identify which processor or component in your pipeline caused a failure.",
 		NewExampleSpec("",
 			`root.doc.error_source_name = error_source_name()`,
+		),
+		NewExampleSpec("Create detailed error logs with component information.",
+			`root.error_details = if errored() {
+  {
+    "message": error(),
+    "component": error_source_name(),
+    "timestamp": now()
+  }
+}`,
 		),
 	),
 	func(ctx FunctionContext) (any, error) {
@@ -387,9 +423,12 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "error_source_label",
-		"Returns the label of the source component which raised the error during the processing of a message or an empty string if not set. `null` is returned when the error is null or no source component is associated with it. For more information about error handling patterns read xref:configuration:error_handling.adoc[].",
+		"Returns the user-defined label of the component that caused the error, empty string if no label is set, or `null` if the message has no error. Use this for more human-readable error tracking when components have custom labels.",
 		NewExampleSpec("",
 			`root.doc.error_source_label = error_source_label()`,
+		),
+		NewExampleSpec("Route errors based on component labels.",
+			`root.error_category = error_source_label().or("unknown")`,
 		),
 	),
 	func(ctx FunctionContext) (any, error) {
@@ -405,9 +444,16 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "error_source_path",
-		"Returns the path of the source component which raised the error during the processing of a message. `null` is returned when the error is null or no source component is associated with it. For more information about error handling patterns read xref:configuration:error_handling.adoc[].",
+		"Returns the dot-separated path to the component that caused the error, or `null` if the message has no error. Use this to identify the exact location of a failed component in nested pipeline configurations.",
 		NewExampleSpec("",
 			`root.doc.error_source_path = error_source_path()`,
+		),
+		NewExampleSpec("Build comprehensive error context for debugging.",
+			`root.error_info = {
+  "path": error_source_path(),
+  "component": error_source_name(),
+  "message": error()
+}`,
 		),
 	),
 	func(ctx FunctionContext) (any, error) {
@@ -425,13 +471,21 @@ var _ = registerSimpleFunction(
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryGeneral, "range",
-		"The `range` function creates an array of integers following a range between a start, stop and optional step integer argument. If the step argument is omitted then it defaults to 1. A negative step can be provided as long as stop < start.",
+		"Creates an array of integers from start (inclusive) to stop (exclusive) with an optional step. Use this to generate sequences for iteration, indexing, or creating numbered lists.",
 		NewExampleSpec("",
 			`root.a = range(0, 10)
 root.b = range(start: 0, stop: this.max, step: 2) # Using named params
 root.c = range(0, -this.max, -2)`,
 			`{"max":10}`,
 			`{"a":[0,1,2,3,4,5,6,7,8,9],"b":[0,2,4,6,8],"c":[0,-2,-4,-6,-8]}`,
+		),
+		NewExampleSpec("Generate a sequence for batch processing.",
+			`root.pages = range(0, this.total_items, 100).map_each(offset -> {
+  "offset": offset,
+  "limit": 100
+})`,
+			`{"total_items":250}`,
+			`{"pages":[{"limit":100,"offset":0},{"limit":100,"offset":100}]}`,
 		),
 	).
 		Param(ParamInt64("start", "The start value.")).
@@ -475,14 +529,14 @@ func rangeFunction(args *ParsedParams) (Function, error) {
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "json",
-		"Returns the value of a field within a JSON message located by a [dot path][field_paths] argument. This function always targets the entire source JSON document regardless of the mapping context.",
+		"Returns a field from the original JSON message by dot path, always accessing the root document regardless of mapping context. Use this to reference the source message when working in nested contexts or to extract specific fields.",
 		NewExampleSpec("",
 			`root.mapped = json("foo.bar")`,
 			`{"foo":{"bar":"hello world"}}`,
 			`{"mapped":"hello world"}`,
 		),
 		NewExampleSpec(
-			"The path argument is optional and if omitted the entire JSON payload is returned.",
+			"Access the original message from within nested mapping contexts.",
 			`root.doc = json()`,
 			`{"foo":{"bar":"hello world"}}`,
 			`{"doc":{"foo":{"bar":"hello world"}}}`,
@@ -563,11 +617,19 @@ func NewMetaFunction(key string) Function {
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryMessage, "metadata",
-		"Returns the value of a metadata key from the input message, or `null` if the key does not exist. Since values are extracted from the read-only input message they do NOT reflect changes made from within the map, in order to query metadata mutations made within a mapping use the xref:guides:bloblang/about.adoc#metadata[`@` operator]. This function supports extracting metadata from other messages of a batch with the `from` method.",
+		"Returns metadata from the input message by key, or `null` if the key doesn't exist. This reads the original metadata; to access modified metadata during mapping, use the `@` operator instead. Use this to extract message properties like topics, headers, or timestamps.",
 		NewExampleSpec("", `root.topic = metadata("kafka_topic")`),
 		NewExampleSpec(
-			"The key parameter is optional and if omitted the entire metadata contents are returned as an object.",
+			"Retrieve all metadata as an object by omitting the key parameter.",
 			`root.all_metadata = metadata()`,
+		),
+		NewExampleSpec(
+			"Copy specific metadata fields to the message body.",
+			`root.source = {
+  "topic": metadata("kafka_topic"),
+  "partition": metadata("kafka_partition"),
+  "timestamp": metadata("kafka_timestamp_unix")
+}`,
 		),
 	).Param(ParamString("key", "An optional key of a metadata value to obtain.").Default("")),
 	func(args *ParsedParams) (Function, error) {
@@ -729,9 +791,9 @@ var _ = registerFunction(
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryGeneral, "random_int", `
-Generates a non-negative pseudo-random 64-bit integer. An optional integer argument can be provided in order to seed the random number generator.
+Generates a pseudo-random non-negative 64-bit integer. Use this for creating random IDs, sampling data, or generating test values. Provide a seed for reproducible randomness, or use a dynamic seed like `+"`timestamp_unix_nano()`"+` for unique values per mapping instance.
 
-Optional `+"`min` and `max`"+` arguments can be provided in order to only generate numbers within a range. Neither of these parameters can be set via a dynamic expression (i.e. from values taken from mapped data). Instead, for dynamic ranges extract a min and max manually using a modulo operator (`+"`random_int() % a + b`"+`).`,
+Optional `+"`min` and `max`"+` parameters constrain the output range (both inclusive). For dynamic ranges based on message data, use the modulo operator instead: `+"`random_int() % dynamic_max + dynamic_min`"+`.`,
 		NewExampleSpec("",
 			`root.first = random_int()
 root.second = random_int(1)
@@ -741,9 +803,9 @@ root.fifth = random_int(timestamp_unix_nano(), 5, 20)
 root.sixth = random_int(seed:timestamp_unix_nano(), max:20)
 `,
 		),
-		NewExampleSpec("It is possible to specify a dynamic seed argument, in which case the argument will only be resolved once during the lifetime of the mapping.",
-			`root.first = random_int(timestamp_unix_nano())`,
-			`root.second = random_int(timestamp_unix_nano(), 5, 20)`,
+		NewExampleSpec("Use a dynamic seed for unique random values per mapping instance.",
+			`root.random_id = random_int(timestamp_unix_nano())
+root.sample_percent = random_int(seed: timestamp_unix_nano(), min: 0, max: 100)`,
 		),
 	).
 		Param(ParamQuery(
@@ -809,11 +871,11 @@ func randomIntFunction(args *ParsedParams) (Function, error) {
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryEnvironment, "now",
-		"Returns the current timestamp as a string in RFC 3339 format with the local timezone. Use the method `ts_format` in order to change the format and timezone.",
+		"Returns the current timestamp as an RFC 3339 formatted string with nanosecond precision. Use this to add processing timestamps to messages or measure time between events. Chain with `ts_format` to customize the format or timezone.",
 		NewExampleSpec("",
 			`root.received_at = now()`,
 		),
-		NewExampleSpec("",
+		NewExampleSpec("Format the timestamp in a custom format and timezone.",
 			`root.received_at = now().ts_format("Mon Jan 2 15:04:05 -0700 MST 2006", "UTC")`,
 		),
 	),
@@ -827,9 +889,12 @@ var _ = registerFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryEnvironment, "timestamp_unix",
-		"Returns the current unix timestamp in seconds.",
+		"Returns the current Unix timestamp in seconds since epoch. Use this for numeric timestamps compatible with most systems, or as a seed for random number generation.",
 		NewExampleSpec("",
 			`root.received_at = timestamp_unix()`,
+		),
+		NewExampleSpec("Create a sortable ID combining timestamp with a counter.",
+			`root.id = "%v-%v".format(timestamp_unix(), batch_index())`,
 		),
 	),
 	func(_ FunctionContext) (any, error) {
@@ -840,9 +905,12 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryEnvironment, "timestamp_unix_milli",
-		"Returns the current unix timestamp in milliseconds.",
+		"Returns the current Unix timestamp in milliseconds since epoch. Use this for millisecond-precision timestamps common in web APIs and JavaScript systems.",
 		NewExampleSpec("",
 			`root.received_at = timestamp_unix_milli()`,
+		),
+		NewExampleSpec("Add processing time metadata.",
+			`meta processing_time_ms = timestamp_unix_milli()`,
 		),
 	),
 	func(_ FunctionContext) (any, error) {
@@ -853,9 +921,12 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryEnvironment, "timestamp_unix_micro",
-		"Returns the current unix timestamp in microseconds.",
+		"Returns the current Unix timestamp in microseconds since epoch. Use this for high-precision timing measurements or when microsecond resolution is required.",
 		NewExampleSpec("",
 			`root.received_at = timestamp_unix_micro()`,
+		),
+		NewExampleSpec("Measure elapsed time between events.",
+			`root.processing_duration_us = timestamp_unix_micro() - this.start_time_us`,
 		),
 	),
 	func(_ FunctionContext) (any, error) {
@@ -866,9 +937,12 @@ var _ = registerSimpleFunction(
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryEnvironment, "timestamp_unix_nano",
-		"Returns the current unix timestamp in nanoseconds.",
+		"Returns the current Unix timestamp in nanoseconds since epoch. Use this for the highest precision timing or as a unique seed value that changes on every invocation.",
 		NewExampleSpec("",
 			`root.received_at = timestamp_unix_nano()`,
+		),
+		NewExampleSpec("Generate unique random values on each mapping.",
+			`root.random_value = random_int(timestamp_unix_nano())`,
 		),
 	),
 	func(_ FunctionContext) (any, error) {
@@ -881,7 +955,7 @@ var _ = registerSimpleFunction(
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryGeneral, "throw",
-		"Throws an error similar to a regular mapping error. This is useful for abandoning a mapping entirely given certain conditions.",
+		"Immediately fails the mapping with a custom error message. Use this to halt processing when data validation fails or required fields are missing, causing the message to be routed to error handlers.",
 		NewExampleSpec("",
 			`root.doc.type = match {
   this.exists("header.id") => "foo"
@@ -893,6 +967,17 @@ root.doc.contents = (this.body.content | this.thing.body)`,
 			`{"doc":{"contents":"hello world","type":"foo"}}`,
 			`{"nothing":"matches"}`,
 			`Error("failed assignment (line 1): unknown type")`,
+		),
+		NewExampleSpec("Validate required fields before processing.",
+			`root = if this.exists("user_id") {
+  this
+} else {
+  throw("missing required field: user_id")
+}`,
+			`{"user_id":123,"name":"alice"}`,
+			`{"name":"alice","user_id":123}`,
+			`{"name":"bob"}`,
+			`Error("failed assignment (line 1): missing required field: user_id")`,
 		),
 	).Param(ParamString("why", "A string explanation for why an error was thrown, this will be added to the resulting error message.")),
 	func(args *ParsedParams) (Function, error) {
@@ -911,8 +996,12 @@ root.doc.contents = (this.body.content | this.thing.body)`,
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryGeneral, "uuid_v4",
-		"Generates a new RFC-4122 UUID each time it is invoked and prints a string representation.",
+		"Generates a random RFC-4122 version 4 UUID. Use this for creating unique identifiers that don't reveal timing information or require ordering. Each invocation produces a new globally unique ID.",
 		NewExampleSpec("", `root.id = uuid_v4()`),
+		NewExampleSpec("Add unique request IDs for tracing.",
+			`root = this
+root.request_id = uuid_v4()`,
+		),
 	),
 	func(_ FunctionContext) (any, error) {
 		u4, err := uuid.NewV4()
@@ -926,9 +1015,11 @@ var _ = registerSimpleFunction(
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryGeneral, "uuid_v7",
-		"Generates a new time ordered UUID each time it is invoked and prints a string representation.",
+		"Generates a time-ordered UUID version 7 with millisecond timestamp precision. Use this for sortable unique identifiers that maintain chronological ordering, ideal for database keys or event IDs. Optionally specify a custom timestamp.",
 		NewExampleSpec("", `root.id = uuid_v7()`),
-		NewExampleSpec("It is also possible to specify the timestamp for the uuid_v7", `root.id = uuid_v7(now().ts_sub_iso8601("PT1M"))`),
+		NewExampleSpec("Generate a UUID with a specific timestamp for backdating events.",
+			`root.id = uuid_v7(now().ts_sub_iso8601("PT1M"))`,
+		),
 	).Param(ParamTimestamp("time", "An optional timestamp to use for the time ordered portion of the UUID.").Optional()),
 	func(args *ParsedParams) (Function, error) {
 		time, err := args.FieldOptionalTimestamp("time")
@@ -957,10 +1048,10 @@ var _ = registerFunction(
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryGeneral, "nanoid",
-		"Generates a new nanoid each time it is invoked and prints a string representation.",
+		"Generates a URL-safe unique identifier using Nano ID. Use this for compact, URL-friendly IDs with good collision resistance. Customize the length (default 21) or provide a custom alphabet for specific character requirements.",
 		NewExampleSpec("", `root.id = nanoid()`),
-		NewExampleSpec("It is possible to specify an optional length parameter.", `root.id = nanoid(54)`),
-		NewExampleSpec("It is also possible to specify an optional custom alphabet after the length parameter.", `root.id = nanoid(54, "abcde")`),
+		NewExampleSpec("Generate a longer ID for additional uniqueness.", `root.id = nanoid(54)`),
+		NewExampleSpec("Use a custom alphabet for domain-specific IDs.", `root.id = nanoid(54, "abcde")`),
 	).
 		Param(ParamInt64("length", "An optional length.").Optional()).
 		Param(ParamString("alphabet", "An optional custom alphabet to use for generating IDs. When specified the field `length` must also be present.").Optional()),
@@ -995,8 +1086,15 @@ func nanoidFunction(args *ParsedParams) (Function, error) {
 var _ = registerSimpleFunction(
 	NewFunctionSpec(
 		FunctionCategoryGeneral, "ksuid",
-		"Generates a new ksuid each time it is invoked and prints a string representation.",
+		"Generates a K-Sortable Unique Identifier with built-in timestamp ordering. Use this for distributed unique IDs that sort chronologically and remain collision-resistant without coordination between generators.",
 		NewExampleSpec("", `root.id = ksuid()`),
+		NewExampleSpec("Create sortable event IDs for logging.",
+			`root.event = {
+  "id": ksuid(),
+  "type": this.event_type,
+  "data": this.payload
+}`,
+		),
 	),
 	func(_ FunctionContext) (any, error) {
 		return ksuid.New().String(), nil
@@ -1040,10 +1138,14 @@ func NewVarFunction(name string) Function {
 var _ = registerFunction(
 	NewFunctionSpec(
 		FunctionCategoryGeneral, "bytes",
-		"Create a new byte array that is zero initialized",
+		"Creates a zero-initialized byte array of specified length. Use this to allocate fixed-size byte buffers for binary data manipulation or to generate padding.",
 		NewExampleSpec("",
 			`root.data = bytes(5)`,
 			`{"data":"AAAAAAAK"}`,
+		),
+		NewExampleSpec("Create a buffer for binary operations.",
+			`root.header = bytes(16)
+root.payload = content()`,
 		),
 	).Param(ParamInt64("length", "The size of the resulting byte array.")),
 	func(args *ParsedParams) (Function, error) {
