@@ -11,22 +11,21 @@ func init() {
 	bloblang.MustRegisterMethodV2("compress",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryEncoding).
-			Description(`Compresses a string or byte array value according to a specified algorithm.`).
-			Param(bloblang.NewStringParam("algorithm").Description("One of `flate`, `gzip`, `pgzip`, `lz4`, `snappy`, `zlib`, `zstd`.")).
-			Param(bloblang.NewInt64Param("level").Description("The level of compression to use. May not be applicable to all algorithms.").Default(-1)).
-			Example("", `let long_content = range(0, 1000).map_each(content()).join(" ")
-root.a_len = $long_content.length()
-root.b_len = $long_content.compress("gzip").length()
-`,
+			Description(`Compresses a string or byte array using the specified compression algorithm. Returns compressed data as bytes. Useful for reducing payload size before transmission or storage.`).
+			Param(bloblang.NewStringParam("algorithm").Description("The compression algorithm: `flate`, `gzip`, `pgzip` (parallel gzip), `lz4`, `snappy`, `zlib`, or `zstd`.")).
+			Param(bloblang.NewInt64Param("level").Description("Compression level (default: -1 for default compression). Higher values increase compression ratio but use more CPU. Range and effect varies by algorithm.").Default(-1)).
+			Example("Compress and encode for safe transmission", `root.compressed = content().bytes().compress("gzip").encode("base64")`,
 				[2]string{
-					`hello world this is some content`,
-					`{"a_len":32999,"b_len":161}`,
+					`{"message":"hello world I love space"}`,
+					`{"compressed":"H4sIAAAJbogA/wAmANn/eyJtZXNzYWdlIjoiaGVsbG8gd29ybGQgSSBsb3ZlIHNwYWNlIn0DAHEvdwomAAAA"}`,
 				},
 			).
-			Example("", `root.compressed = content().compress("lz4").encode("base64")`,
+			Example("Compare compression ratios across algorithms", `root.original_size = content().length()
+root.gzip_size = content().compress("gzip").length()
+root.lz4_size = content().compress("lz4").length()`,
 				[2]string{
-					`hello world I love space`,
-					`{"compressed":"BCJNGGRwuRgAAIBoZWxsbyB3b3JsZCBJIGxvdmUgc3BhY2UAAAAAGoETLg=="}`,
+					`The quick brown fox jumps over the lazy dog. The quick brown fox jumps over the lazy dog.`,
+					`{"gzip_size":114,"lz4_size":85,"original_size":89}`,
 				},
 			),
 		func(args *bloblang.ParsedParams) (bloblang.Method, error) {
@@ -50,20 +49,18 @@ root.b_len = $long_content.compress("gzip").length()
 	bloblang.MustRegisterMethodV2("decompress",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryEncoding).
-			Description(`Decompresses a string or byte array value according to a specified algorithm. The result of decompression `).
-			Param(bloblang.NewStringParam("algorithm").Description("One of `gzip`, `pgzip`, `zlib`, `bzip2`, `flate`, `snappy`, `lz4`, `zstd`.")).
-			Example("", `root = this.compressed.decode("base64").decompress("lz4")`,
+			Description(`Decompresses a byte array using the specified decompression algorithm. Returns decompressed data as bytes. Use with data that was previously compressed using the corresponding algorithm.`).
+			Param(bloblang.NewStringParam("algorithm").Description("The decompression algorithm: `gzip`, `pgzip` (parallel gzip), `zlib`, `bzip2`, `flate`, `snappy`, `lz4`, or `zstd`.")).
+			Example("Decompress base64-encoded compressed data", `root = this.compressed.decode("base64").decompress("gzip")`,
 				[2]string{
-					`{"compressed":"BCJNGGRwuRgAAIBoZWxsbyB3b3JsZCBJIGxvdmUgc3BhY2UAAAAAGoETLg=="}`,
+					`{"compressed":"H4sIAN12MWkAA8tIzcnJVyjPL8pJUfBUyMkvS1UoLkhMTgUAQpDxbxgAAAA="}`,
 					`hello world I love space`,
 				},
 			).
-			Example(
-				"Use the `.string()` method in order to coerce the result into a string, this makes it possible to place the data within a JSON document without automatic base64 encoding.",
-				`root.result = this.compressed.decode("base64").decompress("lz4").string()`,
+			Example("Convert decompressed bytes to string for JSON output", `root.message = this.compressed.decode("base64").decompress("gzip").string()`,
 				[2]string{
-					`{"compressed":"BCJNGGRwuRgAAIBoZWxsbyB3b3JsZCBJIGxvdmUgc3BhY2UAAAAAGoETLg=="}`,
-					`{"result":"hello world I love space"}`,
+					`{"compressed":"H4sIAN12MWkAA8tIzcnJVyjPL8pJUfBUyMkvS1UoLkhMTgUAQpDxbxgAAAA="}`,
+					`{"message":"hello world I love space"}`,
 				},
 			),
 		func(args *bloblang.ParsedParams) (bloblang.Method, error) {

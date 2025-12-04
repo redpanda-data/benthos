@@ -28,14 +28,20 @@ func init() {
 		Beta().
 		Static().
 		Category(query.MethodCategoryTime).
-		Description(`Returns the result of rounding a timestamp to the nearest multiple of the argument duration (nanoseconds). The rounding behavior for halfway values is to round up. Timestamp values can either be a numerical unix time in seconds (with up to nanosecond precision via decimals), or a string in RFC 3339 format. The `+"<<ts_parse, `ts_parse`>>"+` method can be used in order to parse different timestamp formats.`).
+		Description(`Rounds a timestamp to the nearest multiple of the specified duration. Halfway values round up. Accepts unix timestamps (seconds with optional decimal precision) or RFC 3339 formatted strings.`).
 		Param(bloblang.NewInt64Param("duration").Description("A duration measured in nanoseconds to round by.")).
 		Version("4.2.0").
-		Example("Use the method `parse_duration` to convert a duration string into an integer argument.",
+		Example("Round timestamp to the nearest hour.",
 			`root.created_at_hour = this.created_at.ts_round("1h".parse_duration())`,
 			[2]string{
 				`{"created_at":"2020-08-14T05:54:23Z"}`,
 				`{"created_at_hour":"2020-08-14T06:00:00Z"}`,
+			}).
+		Example("Round timestamp to the nearest minute.",
+			`root.created_at_minute = this.created_at.ts_round("1m".parse_duration())`,
+			[2]string{
+				`{"created_at":"2020-08-14T05:54:23Z"}`,
+				`{"created_at_minute":"2020-08-14T05:54:00Z"}`,
 			})
 
 	tsRoundCtor := func(args *bloblang.ParsedParams) (bloblang.Method, error) {
@@ -55,14 +61,20 @@ func init() {
 		Beta().
 		Static().
 		Category(query.MethodCategoryTime).
-		Description(`Returns the result of converting a timestamp to a specified timezone. Timestamp values can either be a numerical unix time in seconds (with up to nanosecond precision via decimals), or a string in RFC 3339 format. The `+"<<ts_parse, `ts_parse`>>"+` method can be used in order to parse different timestamp formats.`).
-		Param(bloblang.NewStringParam("tz").Description(`The timezone to change to. If set to "UTC" then the timezone will be UTC. If set to "Local" then the local timezone will be used. Otherwise, the argument is taken to be a location name corresponding to a file in the IANA Time Zone database, such as "America/New_York".`)).
+		Description(`Converts a timestamp to a different timezone while preserving the moment in time. Accepts unix timestamps (seconds with optional decimal precision) or RFC 3339 formatted strings.`).
+		Param(bloblang.NewStringParam("tz").Description(`The timezone to change to. Use "UTC" for UTC, "Local" for local timezone, or an IANA Time Zone database location name like "America/New_York".`)).
 		Version("4.3.0").
-		Example("",
+		Example("Convert timestamp to UTC timezone.",
 			`root.created_at_utc = this.created_at.ts_tz("UTC")`,
 			[2]string{
 				`{"created_at":"2021-02-03T17:05:06+01:00"}`,
 				`{"created_at_utc":"2021-02-03T16:05:06Z"}`,
+			}).
+		Example("Convert timestamp to a specific timezone.",
+			`root.created_at_ny = this.created_at.ts_tz("America/New_York")`,
+			[2]string{
+				`{"created_at":"2021-02-03T16:05:06Z"}`,
+				`{"created_at_ny":"2021-02-03T11:05:06-05:00"}`,
 			})
 
 	tsTZCtor := func(args *bloblang.ParsedParams) (bloblang.Method, error) {
@@ -85,15 +97,39 @@ func init() {
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Parse parameter string as ISO 8601 period and add it to value with high precision for units larger than an hour.").
-		Param(bloblang.NewStringParam("duration").Description(`Duration in ISO 8601 format`))
+		Description("Adds an ISO 8601 duration to a timestamp with calendar-aware precision for years, months, and days. Useful when you need to add durations that account for variable month lengths or leap years.").
+		Param(bloblang.NewStringParam("duration").Description(`Duration in ISO 8601 format (e.g., "P1Y2M3D" for 1 year, 2 months, 3 days)`)).
+		Example("Add one year to a timestamp.",
+			`root.next_year = this.created_at.ts_add_iso8601("P1Y")`,
+			[2]string{
+				`{"created_at":"2020-08-14T05:54:23Z"}`,
+				`{"next_year":"2021-08-14T05:54:23Z"}`,
+			}).
+		Example("Add a complex duration with multiple units.",
+			`root.future_date = this.created_at.ts_add_iso8601("P1Y2M3DT4H5M6S")`,
+			[2]string{
+				`{"created_at":"2020-01-01T00:00:00Z"}`,
+				`{"future_date":"2021-03-04T04:05:06Z"}`,
+			})
 
 	tsSubISOSpec := bloblang.NewPluginSpec().
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Parse parameter string as ISO 8601 period and subtract it from value with high precision for units larger than an hour.").
-		Param(bloblang.NewStringParam("duration").Description(`Duration in ISO 8601 format`))
+		Description("Subtracts an ISO 8601 duration from a timestamp with calendar-aware precision for years, months, and days. Useful when you need to subtract durations that account for variable month lengths or leap years.").
+		Param(bloblang.NewStringParam("duration").Description(`Duration in ISO 8601 format (e.g., "P1Y2M3D" for 1 year, 2 months, 3 days)`)).
+		Example("Subtract one year from a timestamp.",
+			`root.last_year = this.created_at.ts_sub_iso8601("P1Y")`,
+			[2]string{
+				`{"created_at":"2020-08-14T05:54:23Z"}`,
+				`{"last_year":"2019-08-14T05:54:23Z"}`,
+			}).
+		Example("Subtract a complex duration with multiple units.",
+			`root.past_date = this.created_at.ts_sub_iso8601("P1Y2M3DT4H5M6S")`,
+			[2]string{
+				`{"created_at":"2021-03-04T04:05:06Z"}`,
+				`{"past_date":"2020-01-01T00:00:00Z"}`,
+			})
 
 	tsModifyISOCtor := func(callback func(d period.Period, t time.Time) time.Time) func(args *bloblang.ParsedParams) (bloblang.Method, error) {
 		return func(args *bloblang.ParsedParams) (bloblang.Method, error) {
@@ -128,15 +164,15 @@ func init() {
 	parseDurSpec := bloblang.NewPluginSpec().
 		Static().
 		Category(query.MethodCategoryTime).
-		Description(`Attempts to parse a string as a duration and returns an integer of nanoseconds. A duration string is a possibly signed sequence of decimal numbers, each with an optional fraction and a unit suffix, such as "300ms", "-1.5h" or "2h45m". Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".`).
-		Example("",
+		Description(`Parses a Go-style duration string into nanoseconds. A duration string is a signed sequence of decimal numbers with unit suffixes like "300ms", "-1.5h", or "2h45m". Valid units: "ns", "us" (or "µs"), "ms", "s", "m", "h".`).
+		Example("Parse microseconds to nanoseconds.",
 			`root.delay_for_ns = this.delay_for.parse_duration()`,
 			[2]string{
 				`{"delay_for":"50us"}`,
 				`{"delay_for_ns":50000}`,
 			},
 		).
-		Example("",
+		Example("Parse hours to seconds.",
 			`root.delay_for_s = this.delay_for.parse_duration() / 1000000000`,
 			[2]string{
 				`{"delay_for":"2h"}`,
@@ -160,26 +196,19 @@ func init() {
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description(`Attempts to parse a string using ISO-8601 rules as a duration and returns an integer of nanoseconds. A duration string is represented by the format "P[n]Y[n]M[n]DT[n]H[n]M[n]S" or "P[n]W". In these representations, the "[n]" is replaced by the value for each of the date and time elements that follow the "[n]". For example, "P3Y6M4DT12H30M5S" represents a duration of "three years, six months, four days, twelve hours, thirty minutes, and five seconds". The last field of the format allows fractions with one decimal place, so "P3.5S" will return 3500000000ns. Any additional decimals will be truncated.`).
-		Example("Arbitrary ISO-8601 duration string to nanoseconds:",
+		Description(`Parses an ISO 8601 duration string into nanoseconds. Format: "P[n]Y[n]M[n]DT[n]H[n]M[n]S" or "P[n]W". Example: "P3Y6M4DT12H30M5S" means 3 years, 6 months, 4 days, 12 hours, 30 minutes, 5 seconds. Supports fractional seconds with full precision (not just one decimal place).`).
+		Example("Parse complex ISO 8601 duration to nanoseconds.",
 			`root.delay_for_ns = this.delay_for.parse_duration_iso8601()`,
 			[2]string{
 				`{"delay_for":"P3Y6M4DT12H30M5S"}`,
 				`{"delay_for_ns":110839937000000000}`,
 			},
 		).
-		Example("Two hours ISO-8601 duration string to seconds:",
+		Example("Parse hours to seconds.",
 			`root.delay_for_s = this.delay_for.parse_duration_iso8601() / 1000000000`,
 			[2]string{
 				`{"delay_for":"PT2H"}`,
 				`{"delay_for_s":7200}`,
-			},
-		).
-		Example("Two and a half seconds ISO-8601 duration string to seconds:",
-			`root.delay_for_s = this.delay_for.parse_duration_iso8601() / 1000000000`,
-			[2]string{
-				`{"delay_for":"PT2.5S"}`,
-				`{"delay_for_s":2.5}`,
 			},
 		)
 
@@ -203,19 +232,24 @@ func init() {
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description(`Attempts to parse a string as a timestamp following a specified format and outputs a timestamp, which can then be fed into methods such as ` + "<<ts_format, `ts_format`>>" + `.
-
-The input format is defined by showing how the reference time, defined to be Mon Jan 2 15:04:05 -0700 MST 2006, would be displayed if it were the value. For an alternative way to specify formats check out the ` + "<<ts_strptime, `ts_strptime`>>" + ` method.`).
-		Param(bloblang.NewStringParam("format").Description("The format of the target string."))
+		Description(`Parses a timestamp string using Go's reference time format and outputs a timestamp object. The format uses "Mon Jan 2 15:04:05 -0700 MST 2006" as a reference - show how this reference time would appear in your format. Use ts_strptime for strftime-style formats instead.`).
+		Param(bloblang.NewStringParam("format").Description("The format of the input string using Go's reference time."))
 
 	parseTSSpecDep := asDeprecated(parseTSSpec)
 
 	parseTSSpec = parseTSSpec.
-		Example("",
+		Example("Parse a date with abbreviated month name.",
 			`root.doc.timestamp = this.doc.timestamp.ts_parse("2006-Jan-02")`,
 			[2]string{
 				`{"doc":{"timestamp":"2020-Aug-14"}}`,
 				`{"doc":{"timestamp":"2020-08-14T00:00:00Z"}}`,
+			},
+		).
+		Example("Parse a custom datetime format.",
+			`root.parsed = this.timestamp.ts_parse("Jan 2, 2006 at 3:04pm (MST)")`,
+			[2]string{
+				`{"timestamp":"Aug 14, 2020 at 5:54am (UTC)"}`,
+				`{"parsed":"2020-08-14T05:54:00Z"}`,
 			},
 		)
 
@@ -246,14 +280,14 @@ The input format is defined by showing how the reference time, defined to be Mon
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Attempts to parse a string as a timestamp following a specified strptime-compatible format and outputs a timestamp, which can then be fed into <<ts_format, `ts_format`>>.").
-		Param(bloblang.NewStringParam("format").Description("The format of the target string."))
+		Description("Parses a timestamp string using strptime format specifiers (like %Y, %m, %d) and outputs a timestamp object. Use ts_parse for Go-style reference time formats instead.").
+		Param(bloblang.NewStringParam("format").Description("The format string using strptime specifiers (e.g., %Y-%m-%d)."))
 
 	parseTSStrptimeSpecDep := asDeprecated(parseTSStrptimeSpec)
 
 	parseTSStrptimeSpec = parseTSStrptimeSpec.
 		Example(
-			"The format consists of zero or more conversion specifiers and ordinary characters (except `%`). All ordinary characters are copied to the output string without modification. Each conversion specification begins with a `%` character followed by the character that determines the behavior of the specifier. Please refer to https://linux.die.net/man/3/strptime[man 3 strptime] for the list of format specifiers.",
+			"Parse date with abbreviated month using strptime format.",
 			`root.doc.timestamp = this.doc.timestamp.ts_strptime("%Y-%b-%d")`,
 			[2]string{
 				`{"doc":{"timestamp":"2020-Aug-14"}}`,
@@ -261,7 +295,7 @@ The input format is defined by showing how the reference time, defined to be Mon
 			},
 		).
 		Example(
-			"As an extension provided by the underlying formatting library, https://github.com/itchyny/timefmt-go[itchyny/timefmt-go], the `%f` directive is supported for zero-padded microseconds, which originates from Python. Note that E and O modifier characters are not supported.",
+			"Parse datetime with microseconds using %f directive.",
 			`root.doc.timestamp = this.doc.timestamp.ts_strptime("%Y-%b-%d %H:%M:%S.%f")`,
 			[2]string{
 				`{"doc":{"timestamp":"2020-Aug-14 11:50:26.371000"}}`,
@@ -298,48 +332,25 @@ The input format is defined by showing how the reference time, defined to be Mon
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description(`Attempts to format a timestamp value as a string according to a specified format, or RFC 3339 by default. Timestamp values can either be a numerical unix time in seconds (with up to nanosecond precision via decimals), or a string in RFC 3339 format.
-
-The output format is defined by showing how the reference time, defined to be Mon Jan 2 15:04:05 -0700 MST 2006, would be displayed if it were the value. For an alternative way to specify formats check out the ` + "<<ts_strftime, `ts_strftime`>>" + ` method.`).
-		Param(bloblang.NewStringParam("format").Description("The output format to use.").Default(time.RFC3339Nano)).
-		Param(bloblang.NewStringParam("tz").Description("An optional timezone to use, otherwise the timezone of the input string is used, or in the case of unix timestamps the local timezone is used.").Optional())
+		Description(`Formats a timestamp as a string using Go's reference time format. Defaults to RFC 3339 if no format specified. The format uses "Mon Jan 2 15:04:05 -0700 MST 2006" as a reference. Accepts unix timestamps (with decimal precision) or RFC 3339 strings. Use ts_strftime for strftime-style formats.`).
+		Param(bloblang.NewStringParam("format").Description("The output format using Go's reference time.").Default(time.RFC3339Nano)).
+		Param(bloblang.NewStringParam("tz").Description("Optional timezone (e.g., 'UTC', 'America/New_York'). Defaults to input timezone or local time for unix timestamps.").Optional())
 
 	formatTSSpecDep := asDeprecated(formatTSSpec)
 
 	formatTSSpec = formatTSSpec.
-		Example("",
-			`root.something_at = (this.created_at + 300).ts_format()`,
-			// `{"created_at":1597405526}`,
-			// `{"something_at":"2020-08-14T11:50:26.371Z"}`,
-		).
-		Example(
-			"An optional string argument can be used in order to specify the output format of the timestamp. The format is defined by showing how the reference time, defined to be Mon Jan 2 15:04:05 -0700 MST 2006, would be displayed if it were the value.",
-			`root.something_at = (this.created_at + 300).ts_format("2006-Jan-02 15:04:05")`,
-			// `{"created_at":1597405526}`,
-			// `{"something_at":"2020-Aug-14 11:50:26"}`,
-		).
-		Example(
-			"A second optional string argument can also be used in order to specify a timezone, otherwise the timezone of the input string is used, or in the case of unix timestamps the local timezone is used.",
-			`root.something_at = this.created_at.ts_format(format: "2006-Jan-02 15:04:05", tz: "UTC")`,
-			[2]string{
-				`{"created_at":1597405526}`,
-				`{"something_at":"2020-Aug-14 11:45:26"}`,
-			},
+		Example("Format timestamp with custom format.",
+			`root.something_at = this.created_at.ts_format("2006-Jan-02 15:04:05")`,
 			[2]string{
 				`{"created_at":"2020-08-14T11:50:26.371Z"}`,
 				`{"something_at":"2020-Aug-14 11:50:26"}`,
 			},
 		).
-		Example(
-			"And `ts_format` supports up to nanosecond precision with floating point timestamp values.",
-			`root.something_at = this.created_at.ts_format("2006-Jan-02 15:04:05.999999", "UTC")`,
+		Example("Format unix timestamp with timezone specification.",
+			`root.something_at = this.created_at.ts_format(format: "2006-Jan-02 15:04:05", tz: "UTC")`,
 			[2]string{
-				`{"created_at":1597405526.123456}`,
-				`{"something_at":"2020-Aug-14 11:45:26.123456"}`,
-			},
-			[2]string{
-				`{"created_at":"2020-08-14T11:50:26.371Z"}`,
-				`{"something_at":"2020-Aug-14 11:50:26.371"}`,
+				`{"created_at":1597405526}`,
+				`{"something_at":"2020-Aug-14 11:45:26"}`,
 			},
 		)
 
@@ -374,38 +385,24 @@ The output format is defined by showing how the reference time, defined to be Mo
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Attempts to format a timestamp value as a string according to a specified strftime-compatible format. Timestamp values can either be a numerical unix time in seconds (with up to nanosecond precision via decimals), or a string in RFC 3339 format.").
-		Param(bloblang.NewStringParam("format").Description("The output format to use.")).
-		Param(bloblang.NewStringParam("tz").Description("An optional timezone to use, otherwise the timezone of the input string is used.").Optional())
+		Description("Formats a timestamp as a string using strptime format specifiers (like %Y, %m, %d). Accepts unix timestamps (with decimal precision) or RFC 3339 strings. Supports %f for microseconds. Use ts_format for Go-style reference time formats.").
+		Param(bloblang.NewStringParam("format").Description("The output format using strptime specifiers.")).
+		Param(bloblang.NewStringParam("tz").Description("Optional timezone. Defaults to input timezone or local time for unix timestamps.").Optional())
 
 	formatTSStrftimeSpecDep := asDeprecated(formatTSStrftimeSpec)
 
 	formatTSStrftimeSpec = formatTSStrftimeSpec.
 		Example(
-			"The format consists of zero or more conversion specifiers and ordinary characters (except `%`). All ordinary characters are copied to the output string without modification. Each conversion specification begins with `%` character followed by the character that determines the behavior of the specifier. Please refer to https://linux.die.net/man/3/strftime[man 3 strftime] for the list of format specifiers.",
-			`root.something_at = (this.created_at + 300).ts_strftime("%Y-%b-%d %H:%M:%S")`,
-			// `{"created_at":1597405526}`,
-			// `{"something_at":"2020-Aug-14 11:50:26"}`,
-		).
-		Example(
-			"A second optional string argument can also be used in order to specify a timezone, otherwise the timezone of the input string is used, or in the case of unix timestamps the local timezone is used.",
-			`root.something_at = this.created_at.ts_strftime("%Y-%b-%d %H:%M:%S", "UTC")`,
-			[2]string{
-				`{"created_at":1597405526}`,
-				`{"something_at":"2020-Aug-14 11:45:26"}`,
-			},
+			"Format timestamp with strftime specifiers.",
+			`root.something_at = this.created_at.ts_strftime("%Y-%b-%d %H:%M:%S")`,
 			[2]string{
 				`{"created_at":"2020-08-14T11:50:26.371Z"}`,
 				`{"something_at":"2020-Aug-14 11:50:26"}`,
 			},
 		).
 		Example(
-			"As an extension provided by the underlying formatting library, https://github.com/itchyny/timefmt-go[itchyny/timefmt-go], the `%f` directive is supported for zero-padded microseconds, which originates from Python. Note that E and O modifier characters are not supported.",
+			"Format with microseconds using %f directive.",
 			`root.something_at = this.created_at.ts_strftime("%Y-%b-%d %H:%M:%S.%f", "UTC")`,
-			[2]string{
-				`{"created_at":1597405526}`,
-				`{"something_at":"2020-Aug-14 11:45:26.000000"}`,
-			},
 			[2]string{
 				`{"created_at":"2020-08-14T11:50:26.371Z"}`,
 				`{"something_at":"2020-Aug-14 11:50:26.371000"}`,
@@ -443,16 +440,23 @@ The output format is defined by showing how the reference time, defined to be Mo
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Attempts to format a timestamp value as a unix timestamp. Timestamp values can either be a numerical unix time in seconds (with up to nanosecond precision via decimals), or a string in RFC 3339 format. The <<ts_parse, `ts_parse`>> method can be used in order to parse different timestamp formats.")
+		Description("Converts a timestamp to a unix timestamp (seconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer representing seconds.")
 
 	formatTSUnixSpecDep := asDeprecated(formatTSUnixSpec)
 
 	formatTSUnixSpec = formatTSUnixSpec.
-		Example("",
+		Example("Convert RFC 3339 timestamp to unix seconds.",
 			`root.created_at_unix = this.created_at.ts_unix()`,
 			[2]string{
 				`{"created_at":"2009-11-10T23:00:00Z"}`,
 				`{"created_at_unix":1257894000}`,
+			},
+		).
+		Example("Unix timestamp passthrough returns same value.",
+			`root.timestamp = this.ts.ts_unix()`,
+			[2]string{
+				`{"ts":1257894000}`,
+				`{"timestamp":1257894000}`,
 			},
 		)
 
@@ -470,16 +474,23 @@ The output format is defined by showing how the reference time, defined to be Mo
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Attempts to format a timestamp value as a unix timestamp with millisecond precision. Timestamp values can either be a numerical unix time in seconds (with up to nanosecond precision via decimals), or a string in RFC 3339 format. The <<ts_parse, `ts_parse`>> method can be used in order to parse different timestamp formats.")
+		Description("Converts a timestamp to a unix timestamp with millisecond precision (milliseconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer representing milliseconds.")
 
 	formatTSUnixMilliSpecDep := asDeprecated(formatTSUnixMilliSpec)
 
 	formatTSUnixMilliSpec = formatTSUnixMilliSpec.
-		Example("",
+		Example("Convert timestamp to milliseconds since epoch.",
 			`root.created_at_unix = this.created_at.ts_unix_milli()`,
 			[2]string{
 				`{"created_at":"2009-11-10T23:00:00Z"}`,
 				`{"created_at_unix":1257894000000}`,
+			},
+		).
+		Example("Useful for JavaScript timestamp compatibility.",
+			`root.js_timestamp = this.event_time.ts_unix_milli()`,
+			[2]string{
+				`{"event_time":"2020-08-14T11:45:26.123Z"}`,
+				`{"js_timestamp":1597405526123}`,
 			},
 		)
 
@@ -497,16 +508,23 @@ The output format is defined by showing how the reference time, defined to be Mo
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Attempts to format a timestamp value as a unix timestamp with microsecond precision. Timestamp values can either be a numerical unix time in seconds (with up to nanosecond precision via decimals), or a string in RFC 3339 format. The <<ts_parse, `ts_parse`>> method can be used in order to parse different timestamp formats.")
+		Description("Converts a timestamp to a unix timestamp with microsecond precision (microseconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer representing microseconds.")
 
 	formatTSUnixMicroSpecDep := asDeprecated(formatTSUnixMicroSpec)
 
 	formatTSUnixMicroSpec = formatTSUnixMicroSpec.
-		Example("",
+		Example("Convert timestamp to microseconds since epoch.",
 			`root.created_at_unix = this.created_at.ts_unix_micro()`,
 			[2]string{
 				`{"created_at":"2009-11-10T23:00:00Z"}`,
 				`{"created_at_unix":1257894000000000}`,
+			},
+		).
+		Example("Preserve microsecond precision from timestamp.",
+			`root.precise_time = this.timestamp.ts_unix_micro()`,
+			[2]string{
+				`{"timestamp":"2020-08-14T11:45:26.123456Z"}`,
+				`{"precise_time":1597405526123456}`,
 			},
 		)
 
@@ -524,16 +542,23 @@ The output format is defined by showing how the reference time, defined to be Mo
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Attempts to format a timestamp value as a unix timestamp with nanosecond precision. Timestamp values can either be a numerical unix time in seconds (with up to nanosecond precision via decimals), or a string in RFC 3339 format. The <<ts_parse, `ts_parse`>> method can be used in order to parse different timestamp formats.")
+		Description("Converts a timestamp to a unix timestamp with nanosecond precision (nanoseconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer representing nanoseconds.")
 
 	formatTSUnixNanoSpecDep := asDeprecated(formatTSUnixNanoSpec)
 
 	formatTSUnixNanoSpec = formatTSUnixNanoSpec.
-		Example("",
+		Example("Convert timestamp to nanoseconds since epoch.",
 			`root.created_at_unix = this.created_at.ts_unix_nano()`,
 			[2]string{
 				`{"created_at":"2009-11-10T23:00:00Z"}`,
 				`{"created_at_unix":1257894000000000000}`,
+			},
+		).
+		Example("Preserve full nanosecond precision.",
+			`root.precise_time = this.timestamp.ts_unix_nano()`,
+			[2]string{
+				`{"timestamp":"2020-08-14T11:45:26.123456789Z"}`,
+				`{"precise_time":1597405526123456789}`,
 			},
 		)
 
@@ -551,14 +576,20 @@ The output format is defined by showing how the reference time, defined to be Mo
 		Beta().
 		Static().
 		Category(query.MethodCategoryTime).
-		Description(`Returns the difference in nanoseconds between the target timestamp (t1) and the timestamp provided as a parameter (t2). The `+"<<ts_parse, `ts_parse`>>"+` method can be used in order to parse different timestamp formats.`).
-		Param(bloblang.NewTimestampParam("t2").Description("The second timestamp to be subtracted from the method target.")).
+		Description(`Calculates the duration in nanoseconds between two timestamps (t1 - t2). Returns a signed integer: positive if t1 is after t2, negative if t1 is before t2. Use .abs() for absolute duration.`).
+		Param(bloblang.NewTimestampParam("t2").Description("The timestamp to subtract from the target timestamp.")).
 		Version("4.23.0").
-		Example("Use the `.abs()` method in order to calculate an absolute duration between two timestamps.",
+		Example("Calculate absolute duration between two timestamps.",
 			`root.between = this.started_at.ts_sub("2020-08-14T05:54:23Z").abs()`,
 			[2]string{
 				`{"started_at":"2020-08-13T05:54:23Z"}`,
 				`{"between":86400000000000}`,
+			}).
+		Example("Calculate signed duration (can be negative).",
+			`root.duration_ns = this.end_time.ts_sub(this.start_time)`,
+			[2]string{
+				`{"start_time":"2020-08-14T10:00:00Z","end_time":"2020-08-14T11:30:00Z"}`,
+				`{"duration_ns":5400000000000}`,
 			})
 
 	tsSubCtor := func(args *bloblang.ParsedParams) (bloblang.Method, error) {
