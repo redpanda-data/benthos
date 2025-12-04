@@ -23,7 +23,7 @@ var errConnectionTestNotSupported = errors.New("this component does not support 
 
 // ConnectionTestResult represents the result of a connection test.
 type ConnectionTestResult struct {
-	label string
+	Label string
 	path  []string
 	Err   error
 }
@@ -39,6 +39,14 @@ func (r ConnectionTestResults) intoInternal(o component.Observability) component
 	return l
 }
 
+func connectionTestResultsFromInternal(r component.ConnectionTestResults) ConnectionTestResults {
+	l := make(ConnectionTestResults, len(r))
+	for i, c := range r {
+		l[i] = connectionTestResultFromInternal(c)
+	}
+	return l
+}
+
 // AsList returns an aggregated list of connection results containing only the
 // target. This is convenient for components that only have one connection to
 // test.
@@ -49,13 +57,21 @@ func (c *ConnectionTestResult) AsList() ConnectionTestResults {
 func (c *ConnectionTestResult) intoInternal(o component.Observability) *component.ConnectionTestResult {
 	i := &component.ConnectionTestResult{Err: c.Err}
 	if len(c.path) > 0 {
-		i.Label = c.label
+		i.Label = c.Label
 		i.Path = c.path
 	} else {
 		i.Label = o.Label()
 		i.Path = o.Path()
 	}
 	return i
+}
+
+func connectionTestResultFromInternal(c *component.ConnectionTestResult) *ConnectionTestResult {
+	return &ConnectionTestResult{
+		Err:   c.Err,
+		Label: c.Label,
+		path:  c.Path,
+	}
 }
 
 // ConnectionTestFailed returns a failed connection test result.

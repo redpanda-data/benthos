@@ -257,6 +257,88 @@ file:
 	outMut.Unlock()
 }
 
+func TestStreamBuilderConnectionTests(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	realFilePath := filepath.Join(tmpDir, "in.txt")
+	require.NoError(t, os.WriteFile(realFilePath, []byte(`HELLO WORLD 1
+HELLO WORLD 2
+HELLO WORLD 3`), 0o755))
+
+	_ = realFilePath
+
+	type testConnResult struct {
+		label string
+		err   string
+	}
+
+	for _, test := range []struct {
+		name     string
+		config   string
+		expected []testConnResult
+	}{
+		{
+			name: "input and output can connect",
+			config: `
+input:
+  label: foo
+  generate:
+    count: 1
+    mapping: foo = "hello"
+
+output:
+  label: bar
+  drop: {}
+`,
+			expected: []testConnResult{
+				{label: "foo"},
+				{label: "bar"},
+			},
+		},
+		{
+			name: "input and output cant connect",
+			config: `
+input:
+  label: foo
+  file:
+    paths: [ /im/sorry/but/this/doesnt/exist/probably.uh ]
+
+output:
+  label: bar
+  websocket:
+    url: ws://127.0.0.1:1234/nope/this/is/not/real
+`,
+			expected: []testConnResult{
+				{label: "foo", err: "meow"},
+				{label: "bar", err: "dial"},
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			b := service.NewStreamBuilder()
+			require.NoError(t, b.SetLoggerYAML("level: NONE"))
+			require.NoError(t, b.SetYAML(test.config))
+
+			strm, err := b.Build()
+			require.NoError(t, err)
+
+			results, err := strm.ConnectionTest(t.Context())
+			require.NoError(t, err)
+
+			require.Len(t, results, len(test.expected))
+			for i, r := range test.expected {
+				assert.Equal(t, r.label, results[i].Label, i)
+				if r.err == "" {
+					require.NoError(t, results[i].Err, i)
+				} else {
+					require.Error(t, results[i].Err, i)
+					assert.Contains(t, results[i].Err.Error(), r.err, i)
+				}
+			}
+		})
+	}
+}
+
 func TestStreamBuilderConsumerFuncInlineProcs(t *testing.T) {
 	tmpDir := t.TempDir()
 

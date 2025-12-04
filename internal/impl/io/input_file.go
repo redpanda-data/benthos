@@ -125,6 +125,18 @@ func fileConsumerFromParsed(conf *service.ParsedConfig, nm *service.Resources) (
 	}, nil
 }
 
+func (f *fileConsumer) ConnectionTest(ctx context.Context) service.ConnectionTestResults {
+	if len(f.paths) == 0 {
+		return service.ConnectionTestNotSupported().AsList()
+	}
+
+	_, err := f.nm.FS().Stat(f.paths[0])
+	if err != nil {
+		return service.ConnectionTestFailed(err).AsList()
+	}
+	return service.ConnectionTestSucceeded().AsList()
+}
+
 func (f *fileConsumer) Connect(ctx context.Context) error {
 	return nil
 }

@@ -196,6 +196,21 @@ func (s *Stream) Stop(ctx context.Context) (err error) {
 
 //------------------------------------------------------------------------------
 
+// ConnectionTest attempts to test the connections of each configured component
+// within the stream without actually starting the stream itself. This is safe
+// to call before Run.
+func (s *Stream) ConnectionTest(ctx context.Context) (ConnectionTestResults, error) {
+	s.strmMut.Lock()
+	strm, err := stream.New(s.conf, s.mgr)
+	if err != nil {
+		return nil, err
+	}
+	s.strmMut.Unlock()
+	return connectionTestResultsFromInternal(strm.ConnectionTest(ctx)), nil
+}
+
+//------------------------------------------------------------------------------
+
 // RunningStreamSummary represents a running stream and provides access to
 // information such as the connectivity status of the plugins running within.
 type RunningStreamSummary struct {
