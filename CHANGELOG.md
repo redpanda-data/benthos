@@ -3,6 +3,22 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.62.0 - TBD
+
+### Added
+
+- CLI: Add support for listing bloblang functions and methods with jsonschema. (@mmatczuk)
+- CLI: Add input field to `blobl` command. (@mmatczuk)
+
+### Changed
+
+- Bloblang: Create category general and register functions without category under a proper category. (@mmatczuk)
+- Bloblang: Function and method descriptions and examples overhaul. (@mmatczuk)
+
+### Fixed
+
+- CLI: Fix data race in `blobl` command where program exits before printing output. (@mmatczuk)
+
 ## 4.61.0 - 2025-11-21
 
 ### Added
