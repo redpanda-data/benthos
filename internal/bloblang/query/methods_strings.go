@@ -1570,7 +1570,9 @@ var _ = registerSimpleMethod(
 //------------------------------------------------------------------------------
 
 var _ = registerSimpleMethod(
-	NewHiddenMethodSpec("replace").
+	NewMethodSpec("replace", "Replaces all occurrences of a substring with another string. Use for text transformation, cleaning data, or normalizing strings.").InCategory(
+		MethodCategoryStrings, "",
+	).
 		Param(ParamString("old", "A string to match against.")).
 		Param(ParamString("new", "A string to replace with.")),
 	replaceAllImpl,
@@ -1622,7 +1624,9 @@ func replaceAllImpl(args *ParsedParams) (simpleMethod, error) {
 //------------------------------------------------------------------------------
 
 var _ = registerSimpleMethod(
-	NewHiddenMethodSpec("replace_many").
+	NewMethodSpec("replace_many", "Performs multiple find-and-replace operations in sequence using an array of `[old, new]` pairs. More efficient than chaining multiple `replace_all` calls. Use for bulk text transformations.").InCategory(
+		MethodCategoryStrings, "",
+	).
 		Param(ParamArray("values", "An array of values, each even value will be replaced with the following odd value.")),
 	replaceAllManyImpl,
 )
@@ -1966,7 +1970,9 @@ var _ = registerSimpleMethod(
 //------------------------------------------------------------------------------
 
 var _ = registerSimpleMethod(
-	NewHiddenMethodSpec("re_replace").
+	NewMethodSpec("re_replace", "Replaces all regex matches with a replacement string that can reference capture groups using `$1`, `$2`, etc. Use for pattern-based transformations or data reformatting.").InCategory(
+		MethodCategoryRegexp, "",
+	).
 		Param(ParamString("pattern", "The pattern to match against.")).
 		Param(ParamString("value", "The value to replace with.")),
 	reReplaceAllImpl,
