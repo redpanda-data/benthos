@@ -190,9 +190,14 @@ func TestForceTimelyNacksBatchedNoAck(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		readerImpl.ackRcvdMut.Lock()
-		ackLen := len(readerImpl.ackRcvd)
-		readerImpl.ackRcvdMut.Unlock()
-		return ackLen >= 1
+		defer readerImpl.ackRcvdMut.Unlock()
+		if len(readerImpl.ackRcvd) < 1 {
+			return false
+		}
+		// Wait for the timeout to actually fire and update the error
+		// The initial value is errors.New("ack not received"), but after
+		// timeout fires it should be errForceTimelyNacks
+		return readerImpl.ackRcvd[0] != nil && readerImpl.ackRcvd[0].Error() == "message acknowledgement exceeded maximum wait duration and has been rejected"
 	}, time.Second, time.Millisecond*10)
 
 	readerImpl.ackRcvdMut.Lock()
