@@ -450,6 +450,7 @@ func (r *sequenceInput) createNextTarget() (input.Streamed, bool, error) {
 	var err error
 
 	r.targetMut.Lock()
+	defer r.targetMut.Unlock()
 	r.target = nil
 	if len(r.remaining) > 0 {
 		next := r.remaining[0]
@@ -466,7 +467,6 @@ func (r *sequenceInput) createNextTarget() (input.Streamed, bool, error) {
 		r.target = target
 	}
 	final := len(r.remaining) == 0
-	r.targetMut.Unlock()
 
 	return target, final, err
 }
