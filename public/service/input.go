@@ -241,6 +241,11 @@ func (o *OwnedInput) BatchedWith(b *Batcher) *OwnedInput {
 	}
 }
 
+// ConnectionTest attempts to run a connection test on the owned input.
+func (o *OwnedInput) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	return connectionTestResultsFromInternal(o.i.ConnectionTest(ctx))
+}
+
 // ReadBatch attempts to read a message batch from the input, along with a
 // function to be called once the entire batch can be either acked (successfully
 // sent or intentionally filtered) or nacked (failed to be processed or

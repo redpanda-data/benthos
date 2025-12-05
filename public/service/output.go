@@ -215,6 +215,11 @@ func (o *OwnedOutput) BatchedWith(b *Batcher) *OwnedOutput {
 	}
 }
 
+// ConnectionTest attempts to run a connection test on the owned output.
+func (o *OwnedOutput) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	return connectionTestResultsFromInternal(o.o.ConnectionTest(ctx))
+}
+
 // Prime attempts to establish the output connection ready for consuming data.
 // This is done automatically once data is written. However, pre-emptively
 // priming the connection before data is received is generally a better idea for

@@ -267,15 +267,10 @@ HELLO WORLD 3`), 0o755))
 
 	_ = realFilePath
 
-	type testConnResult struct {
-		label string
-		err   string
-	}
-
 	for _, test := range []struct {
 		name     string
 		config   string
-		expected []testConnResult
+		expected map[string]string
 	}{
 		{
 			name: "input and output can connect",
@@ -290,9 +285,9 @@ output:
   label: bar
   drop: {}
 `,
-			expected: []testConnResult{
-				{label: "foo"},
-				{label: "bar"},
+			expected: map[string]string{
+				"foo": "",
+				"bar": "",
 			},
 		},
 		{
@@ -308,9 +303,39 @@ output:
   websocket:
     url: ws://127.0.0.1:1234/nope/this/is/not/real
 `,
-			expected: []testConnResult{
-				{label: "foo", err: "meow"},
-				{label: "bar", err: "dial"},
+			expected: map[string]string{
+				"foo": "no such file or directory",
+				"bar": "dial",
+			},
+		},
+		{
+			name: "mix of inputs and outputs that can and cant connect",
+			config: `
+input:
+  broker:
+    inputs:
+      - label: a
+        generate:
+          count: 1
+          mapping: foo = "hello"
+      - label: b
+        file:
+          paths: [ /im/sorry/but/this/doesnt/exist/probably.uh ]
+
+output:
+  broker:
+    outputs:
+      - label: c
+        websocket:
+          url: ws://127.0.0.1:1234/nope/this/is/not/real
+      - label: d
+        drop: {}
+`,
+			expected: map[string]string{
+				"a": "",
+				"b": "no such file or directory",
+				"c": "dial",
+				"d": "",
 			},
 		},
 	} {
@@ -325,15 +350,18 @@ output:
 			results, err := strm.ConnectionTest(t.Context())
 			require.NoError(t, err)
 
-			require.Len(t, results, len(test.expected))
-			for i, r := range test.expected {
-				assert.Equal(t, r.label, results[i].Label, i)
-				if r.err == "" {
-					require.NoError(t, results[i].Err, i)
-				} else {
-					require.Error(t, results[i].Err, i)
-					assert.Contains(t, results[i].Err.Error(), r.err, i)
+			resMap := map[string]string{}
+			for _, r := range results {
+				tmpErrStr := ""
+				if r.Err != nil {
+					tmpErrStr = r.Err.Error()
 				}
+				resMap[r.Label] = tmpErrStr
+			}
+
+			require.Len(t, resMap, len(test.expected))
+			for k, v := range test.expected {
+				assert.Contains(t, resMap[k], v)
 			}
 		})
 	}

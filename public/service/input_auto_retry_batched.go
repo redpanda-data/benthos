@@ -103,6 +103,14 @@ type autoRetryInputBatched struct {
 	inputClosed int32
 }
 
+func (i *autoRetryInputBatched) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	t, ok := i.child.(ConnectionTestable)
+	if !ok {
+		return ConnectionTestNotSupported().AsList()
+	}
+	return t.ConnectionTest(ctx)
+}
+
 func (i *autoRetryInputBatched) Connect(ctx context.Context) error {
 	err := i.child.Connect(ctx)
 	// If our source has finished but we still have messages in flight then
