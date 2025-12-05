@@ -5,9 +5,16 @@ package io_test
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
+	"math/big"
 	"mime"
 	"mime/multipart"
 	"net"
@@ -15,6 +22,7 @@ import (
 	"net/http/httptest"
 	"net/textproto"
 	"net/url"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -1202,7 +1210,6 @@ http_server:
       Content-Type: application/json
       foo: '${!json("field1")}'
 `)
-
 	h, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
@@ -1337,4 +1344,126 @@ http_server:
 
 	assert.Equal(t, "200 OK", resp.Status)
 	assert.Equal(t, "foo", resp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+func TestHTTPServerInputTLSParameters(t *testing.T) {
+	tCtx, done := context.WithTimeout(context.Background(), time.Minute)
+	defer done()
+
+	freePort := getFreePort(t)
+	certFile, keyFile, caCert, err := createCertFiles()
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		os.Remove(certFile.Name())
+		os.Remove(keyFile.Name())
+	})
+
+	conf := parseYAMLInputConf(t, `
+http_server:
+  address: 0.0.0.0:%v
+  path: /test/tls
+  allowed_verbs: [ POST ]
+  tls:
+    enabled: true
+    server_certs:
+      - cert_file: %s
+        key_file: %s
+`, freePort, certFile.Name(), keyFile.Name())
+	server, err := mock.NewManager().NewInput(conf)
+	require.NoError(t, err)
+
+	defer func() {
+		server.TriggerStopConsuming()
+		assert.NoError(t, server.WaitForClose(tCtx))
+	}()
+
+	rootCA := x509.NewCertPool()
+	rootCA.AddCert(caCert)
+	httpClient := http.DefaultClient
+	httpClient.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			RootCAs: rootCA,
+		},
+	}
+	var resp *http.Response
+	inputData := "a bunch of jolly leprechauns await"
+	go func() {
+		require.Eventually(t, func() (succeeded bool) {
+			req, cerr := http.NewRequest(http.MethodPost, fmt.Sprintf("https://localhost:%v/test/tls", freePort), bytes.NewBufferString(inputData))
+			require.NoError(t, cerr)
+			req.Header.Set("Content-Type", "text/plain")
+			if resp, cerr = httpClient.Do(req); cerr == nil {
+				succeeded = true
+				assert.Equal(t, "200 OK", resp.Status)
+				resp.Body.Close()
+			}
+			return
+		}, time.Second, 50*time.Millisecond)
+	}()
+
+	readNextMsg := func() (message.Batch, error) {
+		var tran message.Transaction
+		select {
+		case tran = <-server.TransactionChan():
+			require.NoError(t, tran.Ack(tCtx, nil))
+		case <-time.After(time.Second):
+			return nil, errors.New("timed out")
+		}
+		return tran.Payload, nil
+	}
+
+	msg, err := readNextMsg()
+	require.NoError(t, err)
+	assert.Equal(t, inputData, string(message.GetAllBytes(msg)[0]))
+}
+
+// createCACertificate generates a CA certificate.
+func createCertFiles() (certFile, keyFile *os.File, caCert *x509.Certificate, err error) {
+	caKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	caTemplate := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "localhost"},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(10 * 365 * 24 * time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+		DNSNames:              []string{"localhost"},
+	}
+
+	caCertBytes, err := x509.CreateCertificate(rand.Reader, caTemplate, caTemplate, &caKey.PublicKey, caKey)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	caCertPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: caCertBytes})
+	caKeyPEM := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(caKey)})
+
+	caCert, err = x509.ParseCertificate(caCertBytes)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	certFile, err = os.CreateTemp("", "ca.pem")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	_, err = certFile.Write(caCertPEM)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	keyFile, err = os.CreateTemp("", "key.pem")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	_, err = keyFile.Write(caKeyPEM)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return certFile, keyFile, caCert, err
 }
