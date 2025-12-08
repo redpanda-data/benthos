@@ -106,7 +106,7 @@ func templateFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) (*
 		return nil, errors.New("code or files param must be specified")
 	}
 
-	t := &tmplProc{tmpl: &template.Template{}}
+	t := &tmplProc{tmpl: template.New("root")}
 	if len(files) > 0 {
 		for _, f := range files {
 			if t.tmpl, err = t.tmpl.ParseGlob(f); err != nil {
