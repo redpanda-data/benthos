@@ -103,7 +103,7 @@ func templateFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) (*
 	}
 
 	if code == "" && len(files) == 0 {
-		return nil, errors.New("code or files param must be specified")
+		return nil, errors.New("at least one of 'code' or 'files' fields must be specified")
 	}
 
 	t := &tmplProc{tmpl: template.New("root")}
