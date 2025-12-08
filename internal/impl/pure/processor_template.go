@@ -161,7 +161,5 @@ func (t *tmplProc) Process(ctx context.Context, msg *service.Message) (service.M
 }
 
 func (t *tmplProc) Close(ctx context.Context) error {
-	_, err := t.tmpl.Clone()
-
-	return err
+	return nil
 }
