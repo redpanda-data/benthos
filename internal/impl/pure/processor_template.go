@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"text/template"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
@@ -116,7 +115,7 @@ func templateFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) (*
 		return nil, err
 	}
 
-	option = fmt.Sprintf("missingkey=%s", option)
+	option = "missingkey=" + option
 
 	if code == "" && len(files) == 0 {
 		return nil, errors.New("at least one of 'code' or 'files' fields must be specified")
