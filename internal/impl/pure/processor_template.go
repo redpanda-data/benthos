@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"text/template"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
@@ -76,6 +77,10 @@ input:
 			service.NewBloblangField("mapping").
 				Description("An optional xref:guides:bloblang/about.adoc[Bloblang] mapping to apply to the message before executing the template. This allows you to transform the data structure before templating.").
 				Optional(),
+			service.NewStringEnumField("missing_key", "default", "invalid", "zero", "error").
+				Description("Control the behavior during execution if a map is indexed with a key that is not present in the map.").
+				Default("default").
+				Optional(),
 		)
 }
 
@@ -106,11 +111,18 @@ func templateFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) (*
 		return nil, err
 	}
 
+	option, err := conf.FieldString("missing_key")
+	if err != nil {
+		return nil, err
+	}
+
+	option = fmt.Sprintf("missingkey=%s", option)
+
 	if code == "" && len(files) == 0 {
 		return nil, errors.New("at least one of 'code' or 'files' fields must be specified")
 	}
 
-	t := &tmplProc{tmpl: template.New("root")}
+	t := &tmplProc{tmpl: template.New("root").Option(option)}
 	if len(files) > 0 {
 		for _, f := range files {
 			if t.tmpl, err = t.tmpl.ParseGlob(f); err != nil {
