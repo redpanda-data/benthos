@@ -969,7 +969,7 @@ var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"map_each", "",
 	).InCategory(
-		MethodCategoryObjectAndArray, "",
+		MethodCategoryObjectAndArray, "Applies a mapping query to each element of an array or each value in an object. Returns a new collection with the transformed values.",
 		NewExampleSpec(`##### On arrays
 
 Transforms each array element using a query. Return deleted() to remove an element, or the new value to replace it.`,
