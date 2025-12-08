@@ -3,11 +3,12 @@ package pure
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTemplate(t *testing.T) {
