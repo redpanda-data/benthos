@@ -30,6 +30,8 @@ input:
   generate:
     count: 1
     mapping: root.foo = "bar"
+
+pipeline:
   processors:
     - template:
         code: "{{ .foo }}"
@@ -42,6 +44,8 @@ input:
   generate:
     count: 1
     mapping: root.foo = "bar"
+
+pipeline:
   processors:
     - template:
         code: "{{ .value }}"
