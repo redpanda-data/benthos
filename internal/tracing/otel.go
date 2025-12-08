@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	name = "benthos"
+	name = "redpanda-connect"
 )
 
 // GetSpan returns a span attached to a message part. Returns nil if the part
