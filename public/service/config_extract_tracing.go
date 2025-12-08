@@ -115,7 +115,7 @@ func (s *spanInjectBatchInput) ReadBatch(ctx context.Context) (MessageBatch, Ack
 	textProp := otel.GetTextMapPropagator()
 	for i, p := range m {
 		ctx := textProp.Extract(p.Context(), c)
-		pCtx, _ := prov.Tracer("benthos").Start(ctx, operationName)
+		pCtx, _ := prov.Tracer("redpanda-connect").Start(ctx, operationName)
 		m[i] = p.WithContext(pCtx)
 	}
 	return m, afn, nil
