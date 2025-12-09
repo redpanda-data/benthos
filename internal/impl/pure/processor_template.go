@@ -59,11 +59,28 @@ input:
   generate:
     count: 1
     mapping: root.foo = "bar"
+
+pipeline:
   processors:
     - template:
         code: |
           {{ template "greeting" . }}
         files: ["./templates/greeting.tmpl"]
+`).
+		Example(
+			"Execute template on array",
+			`This example uses a xref:components:inputs/generate.adoc[`+"`generate`"+` input] to make payload for the template.`,
+			`
+input:
+  generate:
+    count: 1
+    mapping: root = [1, 2, 3]
+
+pipeline:
+  processors:
+    - template:
+        missing_key: error
+        code: "{{ range . }}{{ . }}\n{{ end }}"
 `).
 		Fields(
 			service.NewStringField("code").
