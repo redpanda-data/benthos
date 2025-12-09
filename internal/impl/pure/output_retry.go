@@ -247,6 +247,10 @@ func (r *indefiniteRetry) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (r *indefiniteRetry) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return r.wrapped.ConnectionTest(ctx)
+}
+
 func (r *indefiniteRetry) ConnectionStatus() component.ConnectionStatuses {
 	return r.wrapped.ConnectionStatus()
 }

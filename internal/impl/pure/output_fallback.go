@@ -145,6 +145,13 @@ func (t *fallbackBroker) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (t *fallbackBroker) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	for _, out := range t.outputs {
+		s = append(s, out.ConnectionTest(ctx)...)
+	}
+	return
+}
+
 func (t *fallbackBroker) ConnectionStatus() (s component.ConnectionStatuses) {
 	for _, out := range t.outputs {
 		s = append(s, out.ConnectionStatus()...)

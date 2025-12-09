@@ -285,6 +285,10 @@ func (d *dropOnWriter) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (d *dropOnWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return d.wrapped.ConnectionTest(ctx)
+}
+
 func (d *dropOnWriter) ConnectionStatus() component.ConnectionStatuses {
 	return d.wrapped.ConnectionStatus()
 }

@@ -135,6 +135,10 @@ func (t *rejectErroredBroker) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (t *rejectErroredBroker) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return t.output.ConnectionTest(ctx)
+}
+
 func (t *rejectErroredBroker) ConnectionStatus() component.ConnectionStatuses {
 	return t.output.ConnectionStatus()
 }

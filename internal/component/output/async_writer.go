@@ -26,6 +26,11 @@ import (
 // the protocol supports a form of acknowledgement then it will be returned by
 // the call to Write.
 type AsyncSink interface {
+	// ConnectionTest attempts to establish whether the component is capable of
+	// creating a connection. This will potentially require and test network
+	// connectivity, but does not require the component to be initialized.
+	ConnectionTest(ctx context.Context) component.ConnectionTestResults
+
 	// Connect attempts to establish a connection to the sink, if
 	// unsuccessful returns an error. If the attempt is successful (or not
 	// necessary) returns nil.
@@ -259,6 +264,13 @@ func (w *AsyncWriter) Consume(ts <-chan message.Transaction) error {
 	}
 	w.transactions = ts
 	return nil
+}
+
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (w *AsyncWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return w.writer.ConnectionTest(ctx)
 }
 
 // ConnectionStatus returns the status of the given output connection.

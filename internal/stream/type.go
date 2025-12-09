@@ -138,6 +138,14 @@ func (t *Type) ConnectionStatus() (s component.ConnectionStatuses) {
 	return
 }
 
+// ConnectionTest returns the aggregate connection test results of all inputs
+// and outputs of the stream.
+func (t *Type) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	s = append(s, t.inputLayer.ConnectionTest(ctx)...)
+	s = append(s, t.outputLayer.ConnectionTest(ctx)...)
+	return
+}
+
 func (t *Type) init() (err error) {
 	// Constructors
 	iMgr := t.manager.IntoPath("input")

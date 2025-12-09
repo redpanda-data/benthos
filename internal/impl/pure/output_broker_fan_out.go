@@ -50,6 +50,13 @@ func (o *fanOutOutputBroker) Consume(transactions <-chan message.Transaction) er
 	return nil
 }
 
+func (o *fanOutOutputBroker) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	for _, out := range o.outputs {
+		s = append(s, out.ConnectionTest(ctx)...)
+	}
+	return
+}
+
 func (o *fanOutOutputBroker) ConnectionStatus() (s component.ConnectionStatuses) {
 	for _, out := range o.outputs {
 		s = append(s, out.ConnectionStatus()...)

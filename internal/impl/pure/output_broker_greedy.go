@@ -29,6 +29,13 @@ func (g *greedyOutputBroker) Consume(ts <-chan message.Transaction) error {
 	return nil
 }
 
+func (g *greedyOutputBroker) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	for _, out := range g.outputs {
+		s = append(s, out.ConnectionTest(ctx)...)
+	}
+	return
+}
+
 func (g *greedyOutputBroker) ConnectionStatus() (s component.ConnectionStatuses) {
 	for _, out := range g.outputs {
 		s = append(s, out.ConnectionStatus()...)

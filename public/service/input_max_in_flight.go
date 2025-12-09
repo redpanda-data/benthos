@@ -37,6 +37,14 @@ type maxInFlight struct {
 	ackSema *semaphore.Weighted
 }
 
+func (m *maxInFlight) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	t, ok := m.i.(ConnectionTestable)
+	if !ok {
+		return ConnectionTestNotSupported().AsList()
+	}
+	return t.ConnectionTest(ctx)
+}
+
 func (m *maxInFlight) Connect(ctx context.Context) error {
 	return m.i.Connect(ctx)
 }
@@ -80,6 +88,14 @@ func InputBatchedWithMaxInFlight(n int, i BatchInput) BatchInput {
 type maxInFlightBatched struct {
 	i       BatchInput
 	ackSema *semaphore.Weighted
+}
+
+func (m *maxInFlightBatched) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	t, ok := m.i.(ConnectionTestable)
+	if !ok {
+		return ConnectionTestNotSupported().AsList()
+	}
+	return t.ConnectionTest(ctx)
 }
 
 func (m *maxInFlightBatched) Connect(ctx context.Context) error {

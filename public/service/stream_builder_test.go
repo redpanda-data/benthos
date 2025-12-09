@@ -257,6 +257,116 @@ file:
 	outMut.Unlock()
 }
 
+func TestStreamBuilderConnectionTests(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	realFilePath := filepath.Join(tmpDir, "in.txt")
+	require.NoError(t, os.WriteFile(realFilePath, []byte(`HELLO WORLD 1
+HELLO WORLD 2
+HELLO WORLD 3`), 0o755))
+
+	_ = realFilePath
+
+	for _, test := range []struct {
+		name     string
+		config   string
+		expected map[string]string
+	}{
+		{
+			name: "input and output can connect",
+			config: `
+input:
+  label: foo
+  generate:
+    count: 1
+    mapping: foo = "hello"
+
+output:
+  label: bar
+  drop: {}
+`,
+			expected: map[string]string{
+				"foo": "",
+				"bar": "",
+			},
+		},
+		{
+			name: "input and output cant connect",
+			config: `
+input:
+  label: foo
+  file:
+    paths: [ /im/sorry/but/this/doesnt/exist/probably.uh ]
+
+output:
+  label: bar
+  websocket:
+    url: ws://127.0.0.1:1234/nope/this/is/not/real
+`,
+			expected: map[string]string{
+				"foo": "no such file or directory",
+				"bar": "dial",
+			},
+		},
+		{
+			name: "mix of inputs and outputs that can and cant connect",
+			config: `
+input:
+  broker:
+    inputs:
+      - label: a
+        generate:
+          count: 1
+          mapping: foo = "hello"
+      - label: b
+        file:
+          paths: [ /im/sorry/but/this/doesnt/exist/probably.uh ]
+
+output:
+  broker:
+    outputs:
+      - label: c
+        websocket:
+          url: ws://127.0.0.1:1234/nope/this/is/not/real
+      - label: d
+        drop: {}
+`,
+			expected: map[string]string{
+				"a": "",
+				"b": "no such file or directory",
+				"c": "dial",
+				"d": "",
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			b := service.NewStreamBuilder()
+			require.NoError(t, b.SetLoggerYAML("level: NONE"))
+			require.NoError(t, b.SetYAML(test.config))
+
+			strm, err := b.Build()
+			require.NoError(t, err)
+
+			results, err := strm.ConnectionTest(t.Context())
+			require.NoError(t, err)
+
+			resMap := map[string]string{}
+			for _, r := range results {
+				tmpErrStr := ""
+				if r.Err != nil {
+					tmpErrStr = r.Err.Error()
+				}
+				resMap[r.Label] = tmpErrStr
+			}
+
+			require.Len(t, resMap, len(test.expected))
+			for k, v := range test.expected {
+				assert.Contains(t, resMap[k], v)
+			}
+		})
+	}
+}
+
 func TestStreamBuilderConsumerFuncInlineProcs(t *testing.T) {
 	tmpDir := t.TempDir()
 

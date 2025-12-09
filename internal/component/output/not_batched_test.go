@@ -28,6 +28,10 @@ type mockNBWriter struct {
 	mut         sync.Mutex
 }
 
+func (m *mockNBWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return nil
+}
+
 func (m *mockNBWriter) Connect(context.Context) error {
 	return nil
 }

@@ -118,6 +118,8 @@ func (e *streamTestEnvironment) initMgr(t testing.TB, pConf *docs.ParsedConfig) 
 	e.mgr, err = manager.New(mConf, manager.OptSetLogger(e.log), manager.OptSetMetrics(e.stats))
 	require.NoError(t, err)
 
+	require.NoError(t, e.mgr.TriggerStartConsuming(t.Context()))
+
 	if e.onMgrInit != nil {
 		require.NoError(t, e.onMgrInit(e.mgr))
 	}
@@ -446,6 +448,8 @@ func initOutput(t testing.TB, trans <-chan message.Transaction, env *streamTestE
 	require.NoError(t, err)
 
 	require.NoError(t, output.Consume(trans))
+
+	output.TriggerStartConsuming()
 
 	if env.sleepAfterOutput > 0 {
 		time.Sleep(env.sleepAfterOutput)

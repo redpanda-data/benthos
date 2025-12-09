@@ -31,6 +31,10 @@ func newAsyncMockWriter() *mockAsyncWriter {
 	}
 }
 
+func (w *mockAsyncWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return nil
+}
+
 func (w *mockAsyncWriter) Connect(ctx context.Context) error {
 	return <-w.connChan
 }
@@ -43,6 +47,10 @@ func (w *mockAsyncWriter) Close(context.Context) error { return nil }
 
 type writerCantConnect struct{}
 
+func (w writerCantConnect) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return nil
+}
+
 func (w writerCantConnect) Connect(ctx context.Context) error {
 	return component.ErrNotConnected
 }
@@ -54,6 +62,10 @@ func (w writerCantConnect) Close(context.Context) error { return nil }
 
 type writerCantSend struct {
 	connected int
+}
+
+func (w *writerCantSend) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return nil
 }
 
 func (w *writerCantSend) Connect(ctx context.Context) error {

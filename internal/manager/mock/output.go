@@ -17,6 +17,15 @@ func (o OutputWriter) WriteTransaction(ctx context.Context, t message.Transactio
 	return o(ctx, t)
 }
 
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (o OutputWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestResults{
+		component.ConnectionTestNotSupported(component.NoopObservability()),
+	}
+}
+
 // ConnectionStatus returns the current status of the given component
 // connection. The result is a slice in order to accommodate higher order
 // components that wrap several others.
@@ -43,6 +52,15 @@ func (o OutputWriter) WaitForClose(ctx context.Context) error {
 // transaction channel.
 type OutputChanneled struct {
 	TChan <-chan message.Transaction
+}
+
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (o *OutputChanneled) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestResults{
+		component.ConnectionTestNotSupported(component.NoopObservability()),
+	}
 }
 
 // ConnectionStatus returns the current status of the given component

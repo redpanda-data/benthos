@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/component/output/batcher"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -76,11 +78,20 @@ type BatchOutput interface {
 
 // Implements output.AsyncSink.
 type airGapWriter struct {
+	o bundle.NewManagement
 	w Output
 }
 
-func newAirGapWriter(w Output) output.AsyncSink {
-	return &airGapWriter{w: w}
+func newAirGapWriter(o bundle.NewManagement, w Output) output.AsyncSink {
+	return &airGapWriter{w: w, o: o}
+}
+
+func (a *airGapWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	t, ok := a.w.(ConnectionTestable)
+	if !ok {
+		return component.ConnectionTestNotSupported(a.o).AsList()
+	}
+	return t.ConnectionTest(ctx).intoInternal(a.o)
 }
 
 func (a *airGapWriter) Connect(ctx context.Context) error {
@@ -99,11 +110,20 @@ func (a *airGapWriter) Close(ctx context.Context) error {
 
 // Implements output.AsyncSink.
 type airGapBatchWriter struct {
+	o bundle.NewManagement
 	w BatchOutput
 }
 
-func newAirGapBatchWriter(w BatchOutput) output.AsyncSink {
-	return &airGapBatchWriter{w: w}
+func newAirGapBatchWriter(o bundle.NewManagement, w BatchOutput) output.AsyncSink {
+	return &airGapBatchWriter{w: w, o: o}
+}
+
+func (a *airGapBatchWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	t, ok := a.w.(ConnectionTestable)
+	if !ok {
+		return component.ConnectionTestNotSupported(a.o).AsList()
+	}
+	return t.ConnectionTest(ctx).intoInternal(a.o)
 }
 
 func (a *airGapBatchWriter) Connect(ctx context.Context) error {
@@ -193,6 +213,11 @@ func (o *OwnedOutput) BatchedWith(b *Batcher) *OwnedOutput {
 	return &OwnedOutput{
 		o: batcher.New(b.p, o.o, b.mgr),
 	}
+}
+
+// ConnectionTest attempts to run a connection test on the owned output.
+func (o *OwnedOutput) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	return connectionTestResultsFromInternal(o.o.ConnectionTest(ctx))
 }
 
 // Prime attempts to establish the output connection ready for consuming data.
