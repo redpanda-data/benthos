@@ -3,21 +3,26 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.62.0 - TBD
+## 4.62.0 - 2025-12-09
 
 ### Added
 
 - CLI: Add support for listing bloblang functions and methods with jsonschema. (@mmatczuk)
 - CLI: Add input field to `blobl` command. (@mmatczuk)
+- socket_server: Add new listener options. (@alextreichler)
 
 ### Changed
 
 - Bloblang: Create category general and register functions without category under a proper category. (@mmatczuk)
 - Bloblang: Function and method descriptions and examples overhaul. (@mmatczuk)
+- OpenTelemetry: Update tracer name. (@rockwotj)
 
 ### Fixed
 
 - CLI: Fix data race in `blobl` command where program exits before printing output. (@mmatczuk)
+- OpenTelemetry: Fix missed instance of benthos reference. (@rockwotj)
+- Service: Fix race condition in TestForceTimelyNacksBatchedNoAck. (@mmatczuk)
+- sequence: Fix input hanging when input fails. (@eduardodbr)
 
 ## 4.61.0 - 2025-11-21
 
