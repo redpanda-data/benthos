@@ -193,6 +193,11 @@ func newResourceInput(i input.Streamed) *ResourceInput {
 	return &ResourceInput{i: i}
 }
 
+// ConnectionTest attempts to run a connection test on the owned input.
+func (r *ResourceInput) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	return connectionTestResultsFromInternal(r.i.ConnectionTest(ctx))
+}
+
 // ReadBatch attempts to read a message batch from the input, along with a
 // function to be called once the entire batch can be either acked (successfully
 // sent or intentionally filtered) or nacked (failed to be processed or
@@ -201,6 +206,8 @@ func newResourceInput(i input.Streamed) *ResourceInput {
 // If this method returns ErrEndOfInput then that indicates that the input has
 // finished and will no longer yield new messages.
 func (r *ResourceInput) ReadBatch(ctx context.Context) (MessageBatch, AckFunc, error) {
+	r.i.TriggerStartConsuming()
+
 	var tran message.Transaction
 	var open bool
 	select {

@@ -35,6 +35,10 @@ func (o OutputWriter) ConnectionStatus() component.ConnectionStatuses {
 	}
 }
 
+// TriggerStartConsuming does nothing.
+func (o OutputWriter) TriggerStartConsuming() {
+}
+
 // TriggerStopConsuming does nothing.
 func (o OutputWriter) TriggerStopConsuming() {
 }

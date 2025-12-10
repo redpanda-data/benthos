@@ -25,6 +25,10 @@ type Sync interface {
 	// components that wrap several others.
 	ConnectionStatus() component.ConnectionStatuses
 
+	// TriggerStartConsuming instructs the output to establish connections and
+	// begin consuming data.
+	TriggerStartConsuming()
+
 	// TriggerStopConsuming instructs the output to start shutting down
 	// resources once all pending messages are delivered and acknowledged.
 	TriggerStopConsuming()

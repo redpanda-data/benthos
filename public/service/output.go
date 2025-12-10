@@ -154,6 +154,11 @@ func newResourceOutput(o output.Sync) *ResourceOutput {
 	return &ResourceOutput{o: o}
 }
 
+// ConnectionTest attempts to run a connection test on the resource output.
+func (r *ResourceOutput) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	return connectionTestResultsFromInternal(r.o.ConnectionTest(ctx))
+}
+
 // Write a message to the output, or return an error either if delivery is not
 // possible or the context is cancelled.
 func (o *ResourceOutput) Write(ctx context.Context, m *Message) error {
@@ -172,6 +177,8 @@ func (o *ResourceOutput) WriteBatch(ctx context.Context, b MessageBatch) error {
 }
 
 func (o *ResourceOutput) writeMsg(ctx context.Context, payload message.Batch) error {
+	o.o.TriggerStartConsuming()
+
 	var wg sync.WaitGroup
 	var ackErr error
 	wg.Add(1)
