@@ -97,6 +97,8 @@ func TestManagerResourceCRUD(t *testing.T) {
 	mgr, err := manager.New(conf)
 	require.NoError(t, err)
 
+	_ = mgr.TriggerStartConsuming(t.Context())
+
 	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
