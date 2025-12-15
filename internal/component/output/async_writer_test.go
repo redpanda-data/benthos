@@ -31,6 +31,10 @@ func newAsyncMockWriter() *mockAsyncWriter {
 	}
 }
 
+func (w *mockAsyncWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return nil
+}
+
 func (w *mockAsyncWriter) Connect(ctx context.Context) error {
 	return <-w.connChan
 }
@@ -43,6 +47,10 @@ func (w *mockAsyncWriter) Close(context.Context) error { return nil }
 
 type writerCantConnect struct{}
 
+func (w writerCantConnect) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return nil
+}
+
 func (w writerCantConnect) Connect(ctx context.Context) error {
 	return component.ErrNotConnected
 }
@@ -54,6 +62,10 @@ func (w writerCantConnect) Close(context.Context) error { return nil }
 
 type writerCantSend struct {
 	connected int
+}
+
+func (w *writerCantSend) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return nil
 }
 
 func (w *writerCantSend) Connect(ctx context.Context) error {
@@ -83,6 +95,8 @@ func TestAsyncWriterCantConnect(t *testing.T) {
 		t.Error("Expected error from duplicate receiver call")
 	}
 
+	w.TriggerStartConsuming()
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
@@ -110,6 +124,8 @@ func TestAsyncWriterCantSendClosed(t *testing.T) {
 		t.Error(err)
 	}
 
+	w.TriggerStartConsuming()
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
 
@@ -133,6 +149,8 @@ func TestAsyncWriterCantSendClosedChan(t *testing.T) {
 	if err = w.Consume(msgChan); err != nil {
 		t.Error(err)
 	}
+
+	w.TriggerStartConsuming()
 
 	close(msgChan)
 
@@ -160,6 +178,8 @@ func TestAsyncWriterStartClosed(t *testing.T) {
 	if err = w.Consume(msgChan); err != nil {
 		t.Error(err)
 	}
+
+	w.TriggerStartConsuming()
 
 	select {
 	case writerImpl.connChan <- component.ErrTypeClosed:
@@ -190,6 +210,8 @@ func TestAsyncWriterClosesOnReconn(t *testing.T) {
 	if err = w.Consume(msgChan); err != nil {
 		t.Error(err)
 	}
+
+	w.TriggerStartConsuming()
 
 	select {
 	case writerImpl.connChan <- nil:
@@ -239,6 +261,8 @@ func TestAsyncWriterClosesOnResend(t *testing.T) {
 	if err = w.Consume(msgChan); err != nil {
 		t.Error(err)
 	}
+
+	w.TriggerStartConsuming()
 
 	select {
 	case writerImpl.connChan <- nil:
@@ -295,6 +319,8 @@ func TestAsyncWriterCanReconnect(t *testing.T) {
 	if err = w.Consume(msgChan); err != nil {
 		t.Error(err)
 	}
+
+	w.TriggerStartConsuming()
 
 	select {
 	case writerImpl.connChan <- nil:
@@ -361,6 +387,8 @@ func TestAsyncWriterCanReconnectAsync(t *testing.T) {
 	if err = w.Consume(msgChan); err != nil {
 		t.Error(err)
 	}
+
+	w.TriggerStartConsuming()
 
 	select {
 	case writerImpl.connChan <- nil:
@@ -468,6 +496,8 @@ func TestAsyncWriterCantReconnect(t *testing.T) {
 		t.Error(err)
 	}
 
+	w.TriggerStartConsuming()
+
 	go func() {
 		select {
 		case msgChan <- message.NewTransaction(message.QuickBatch(nil), resChan):
@@ -528,6 +558,8 @@ func TestAsyncWriterHappyPath(t *testing.T) {
 	if err = w.Consume(msgChan); err != nil {
 		t.Error(err)
 	}
+
+	w.TriggerStartConsuming()
 
 	go func() {
 		select {
@@ -591,6 +623,8 @@ func TestAsyncWriterSadPath(t *testing.T) {
 	if err = w.Consume(msgChan); err != nil {
 		t.Error(err)
 	}
+
+	w.TriggerStartConsuming()
 
 	go func() {
 		select {

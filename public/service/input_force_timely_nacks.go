@@ -40,6 +40,14 @@ type forceTimelyNacksInputBatched struct {
 	inner           BatchInput
 }
 
+func (i *forceTimelyNacksInputBatched) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	t, ok := i.inner.(ConnectionTestable)
+	if !ok {
+		return ConnectionTestNotSupported().AsList()
+	}
+	return t.ConnectionTest(ctx)
+}
+
 func (i *forceTimelyNacksInputBatched) Connect(ctx context.Context) error {
 	return i.inner.Connect(ctx)
 }

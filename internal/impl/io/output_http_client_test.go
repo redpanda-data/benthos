@@ -72,6 +72,8 @@ http_client:
 	tChan := make(chan message.Transaction)
 	require.NoError(t, h.Consume(tChan))
 
+	h.TriggerStartConsuming()
+
 	resChan := make(chan error)
 	select {
 	case tChan <- message.NewTransaction(message.QuickBatch([][]byte{
@@ -131,6 +133,8 @@ http_client:
 	tChan := make(chan message.Transaction)
 	require.NoError(t, h.Consume(tChan))
 
+	h.TriggerStartConsuming()
+
 	resChan := make(chan error)
 	select {
 	case tChan <- message.NewTransaction(message.QuickBatch([][]byte{
@@ -171,6 +175,8 @@ func writeBatchToStreamed(ctx context.Context, t *testing.T, batch message.Batch
 
 	tChan := make(chan message.Transaction)
 	require.NoError(t, out.Consume(tChan))
+
+	out.TriggerStartConsuming()
 
 	return writeBatchToChan(ctx, t, batch, tChan)
 }
@@ -258,6 +264,8 @@ http_client:
 	tChan := make(chan message.Transaction)
 	require.NoError(t, h.Consume(tChan))
 
+	h.TriggerStartConsuming()
+
 	for i := 0; i < nTestLoops; i++ {
 		testStr := fmt.Sprintf("test%v", i)
 		testMsg := message.QuickBatch([][]byte{[]byte(testStr)})
@@ -318,6 +326,8 @@ http_client:
 	tChan := make(chan message.Transaction)
 	require.NoError(t, h.Consume(tChan))
 
+	h.TriggerStartConsuming()
+
 	for i := 0; i < nTestLoops; i++ {
 		testStr := fmt.Sprintf("test%v", i)
 
@@ -372,6 +382,8 @@ http_client:
 
 	tChan := make(chan message.Transaction)
 	require.NoError(t, h.Consume(tChan))
+
+	h.TriggerStartConsuming()
 
 	for i := 0; i < nTestLoops; i++ {
 		testStr := fmt.Sprintf("test%v", i)
@@ -455,6 +467,8 @@ http_client:
 
 	tChan := make(chan message.Transaction)
 	require.NoError(t, h.Consume(tChan))
+
+	h.TriggerStartConsuming()
 
 	for i := 0; i < nTestLoops; i++ {
 		testStr := fmt.Sprintf("test%v", i)
@@ -549,6 +563,8 @@ http_client:
 
 	tChan := make(chan message.Transaction)
 	require.NoError(t, h.Consume(tChan))
+
+	h.TriggerStartConsuming()
 
 	for i := 0; i < nTestLoops; i++ {
 		require.NoError(t, writeBatchToChan(ctx, t, message.QuickBatch([][]byte{[]byte("test")}), tChan))

@@ -59,6 +59,8 @@ socket:
   address: %v
 `, ln.Addr().Network(), ln.Addr().String())
 
+	rdr.TriggerStartConsuming()
+
 	defer func() {
 		rdr.TriggerStopConsuming()
 		if err := rdr.WaitForClose(ctx); err != nil {
@@ -145,6 +147,8 @@ socket:
   network: %v
   address: %v
 `, ln.Addr().Network(), ln.Addr().String())
+
+	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -238,6 +242,8 @@ socket:
   address: %v
   open_message_mapping: root = (1 + 2).string() + "\n"
 `, ln.Addr().Network(), ln.Addr().String())
+
+	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -336,6 +342,8 @@ socket:
   codec: lines/multipart
 `, ln.Addr().Network(), ln.Addr().String())
 
+	rdr.TriggerStartConsuming()
+
 	defer func() {
 		rdr.TriggerStopConsuming()
 		if err := rdr.WaitForClose(ctx); err != nil {
@@ -418,6 +426,8 @@ socket:
   address: %v
   codec: delim:@/multipart
 `, ln.Addr().Network(), ln.Addr().String())
+
+	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -502,6 +512,8 @@ socket:
   codec: lines/multipart
 `, ln.Addr().Network(), ln.Addr().String())
 
+	rdr.TriggerStartConsuming()
+
 	defer func() {
 		rdr.TriggerStopConsuming()
 		if err := rdr.WaitForClose(ctx); err != nil {
@@ -583,6 +595,8 @@ socket:
   network: tcp
   address: %v
 `, ln.Addr().String())
+
+	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -670,6 +684,8 @@ socket:
   network: tcp
   address: %v
 `, ln.Addr().String())
+
+	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -765,6 +781,8 @@ socket:
   codec: lines/multipart
 `, ln.Addr().String())
 
+	rdr.TriggerStartConsuming()
+
 	defer func() {
 		rdr.TriggerStopConsuming()
 		if err := rdr.WaitForClose(ctx); err != nil {
@@ -848,6 +866,8 @@ socket:
   codec: delim:@/multipart
 `, ln.Addr().String())
 
+	rdr.TriggerStartConsuming()
+
 	defer func() {
 		rdr.TriggerStopConsuming()
 		if err := rdr.WaitForClose(ctx); err != nil {
@@ -930,6 +950,8 @@ socket:
   address: %v
   codec: lines/multipart
 `, ln.Addr().String())
+
+	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -1020,6 +1042,8 @@ socket:
     enabled: true
     skip_cert_verify: true
 `, ln.Addr().String())
+
+	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()
@@ -1143,6 +1167,8 @@ socket:
   address: %v
 `, ln.Addr().String())
 
+	rdr.TriggerStartConsuming()
+
 	defer func() {
 		rdr.TriggerStopConsuming()
 		assert.NoError(b, rdr.WaitForClose(ctx))
@@ -1208,6 +1234,8 @@ socket:
   network: tcp
   address: %v
 `, ln.Addr().String())
+
+	rdr.TriggerStartConsuming()
 
 	defer func() {
 		rdr.TriggerStopConsuming()

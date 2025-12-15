@@ -39,6 +39,8 @@ func TestBasicFanOut(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
 
+	oTM.TriggerStartConsuming()
+
 	assert.True(t, oTM.ConnectionStatus().AllActive())
 
 	tCtx, done := context.WithTimeout(t.Context(), time.Second*10)
@@ -96,6 +98,8 @@ func TestBasicFanOutMutations(t *testing.T) {
 	oTM, err := newFanOutOutputBroker(outputs)
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
+
+	oTM.TriggerStartConsuming()
 
 	assert.True(t, oTM.ConnectionStatus().AllActive())
 
@@ -171,6 +175,8 @@ func TestFanOutBackPressure(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
 
+	oTM.TriggerStartConsuming()
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
 
@@ -220,6 +226,8 @@ func TestFanOutShutDownFromReceive(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
 
+	oTM.TriggerStartConsuming()
+
 	select {
 	case readChan <- message.NewTransaction(message.QuickBatch(nil), resChan):
 	case <-time.After(time.Second):
@@ -258,6 +266,8 @@ func TestFanOutShutDownFromSend(t *testing.T) {
 	oTM, err := newFanOutOutputBroker(outputs)
 	require.NoError(t, err)
 	require.NoError(t, oTM.Consume(readChan))
+
+	oTM.TriggerStartConsuming()
 
 	select {
 	case readChan <- message.NewTransaction(message.QuickBatch(nil), resChan):
@@ -301,6 +311,8 @@ func BenchmarkBasicFanOut(b *testing.B) {
 	oTM, err := newFanOutOutputBroker(outputs)
 	require.NoError(b, err)
 	require.NoError(b, oTM.Consume(readChan))
+
+	oTM.TriggerStartConsuming()
 
 	content := [][]byte{[]byte("hello world")}
 	rFnSlice := make([]func(context.Context, error) error, nOutputs)

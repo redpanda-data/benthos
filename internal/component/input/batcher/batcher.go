@@ -26,7 +26,8 @@ type Impl struct {
 
 	messagesOut chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 // New creates a new Batcher around an input.
@@ -38,7 +39,6 @@ func New(batcher *policy.Batcher, child input.Streamed, log log.Modular) input.S
 		messagesOut: make(chan message.Transaction),
 		shutSig:     shutdown.NewSignaller(),
 	}
-	go b.loop()
 	return &b
 }
 
@@ -152,6 +152,21 @@ func (m *Impl) loop() {
 			flushBatchFn()
 		}
 	}
+}
+
+// TriggerStartConsuming kicks off the consumption of data.
+func (m *Impl) TriggerStartConsuming() {
+	m.startOnce.Do(func() {
+		go m.loop()
+		m.child.TriggerStartConsuming()
+	})
+}
+
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (m *Impl) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return m.child.ConnectionTest(ctx)
 }
 
 // ConnectionStatus returns the current status of the given component

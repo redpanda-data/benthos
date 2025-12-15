@@ -5,6 +5,7 @@ package pure
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Jeffail/shutdown"
@@ -91,7 +92,8 @@ type resourceOutput struct {
 
 	transactions <-chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func (r *resourceOutput) loop() {
@@ -140,8 +142,16 @@ func (r *resourceOutput) Consume(ts <-chan message.Transaction) error {
 		return component.ErrAlreadyStarted
 	}
 	r.transactions = ts
-	go r.loop()
 	return nil
+}
+
+func (r *resourceOutput) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	if err := r.mgr.AccessOutput(context.Background(), r.name, func(o output.Sync) {
+		s = o.ConnectionTest(ctx)
+	}); err != nil {
+		return component.ConnectionTestFailed(r.mgr, err).AsList()
+	}
+	return
 }
 
 func (r *resourceOutput) ConnectionStatus() (s component.ConnectionStatuses) {
@@ -153,6 +163,12 @@ func (r *resourceOutput) ConnectionStatus() (s component.ConnectionStatuses) {
 		}
 	}
 	return
+}
+
+func (r *resourceOutput) TriggerStartConsuming() {
+	r.startOnce.Do(func() {
+		go r.loop()
+	})
 }
 
 func (r *resourceOutput) TriggerCloseNow() {

@@ -168,6 +168,8 @@ func (m *Type) Create(id string, conf stream.Config) error {
 		return err
 	}
 
+	strm.TriggerStartConsuming()
+
 	wrapper.setStream(strm)
 	m.streams[id] = wrapper
 	return nil

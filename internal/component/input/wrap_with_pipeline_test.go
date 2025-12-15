@@ -14,6 +14,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	iprocessor "github.com/redpanda-data/benthos/v4/internal/component/processor"
+	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 	"github.com/redpanda-data/benthos/v4/internal/pipeline"
 
@@ -29,10 +30,17 @@ func (m *mockInput) TransactionChan() <-chan message.Transaction {
 	return m.ts
 }
 
+func (m *mockInput) ConnectionTest(context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
+}
+
 func (m *mockInput) ConnectionStatus() component.ConnectionStatuses {
 	return component.ConnectionStatuses{
 		component.ConnectionActive(component.NoopObservability()),
 	}
+}
+
+func (m *mockInput) TriggerStartConsuming() {
 }
 
 func (m *mockInput) TriggerStopConsuming() {
@@ -94,6 +102,8 @@ func TestBasicWrapPipeline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	newInput.TriggerStartConsuming()
 
 	if newInput.TransactionChan() != mockPi.ts {
 		t.Error("Wrong transaction chan in new input type")
@@ -159,6 +169,8 @@ func TestBasicWrapMultiPipelines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	newInput.TriggerStartConsuming()
 
 	if newInput.TransactionChan() != mockPi2.ts {
 		t.Error("Wrong message chan in new input type")

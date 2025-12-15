@@ -112,7 +112,8 @@ type indefiniteRetry struct {
 	transactionsIn  <-chan message.Transaction
 	transactionsOut chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func (r *indefiniteRetry) loop() {
@@ -243,12 +244,22 @@ func (r *indefiniteRetry) Consume(ts <-chan message.Transaction) error {
 		return err
 	}
 	r.transactionsIn = ts
-	go r.loop()
 	return nil
+}
+
+func (r *indefiniteRetry) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return r.wrapped.ConnectionTest(ctx)
 }
 
 func (r *indefiniteRetry) ConnectionStatus() component.ConnectionStatuses {
 	return r.wrapped.ConnectionStatus()
+}
+
+func (r *indefiniteRetry) TriggerStartConsuming() {
+	r.startOnce.Do(func() {
+		r.wrapped.TriggerStartConsuming()
+		go r.loop()
+	})
 }
 
 // CloseAsync shuts down the Retry input and stops processing requests.

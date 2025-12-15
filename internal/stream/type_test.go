@@ -40,6 +40,8 @@ output:
 	strm, err := stream.New(conf, newMgr)
 	require.NoError(t, err)
 
+	strm.TriggerStartConsuming()
+
 	ctx, done := context.WithTimeout(t.Context(), time.Minute)
 	defer done()
 
@@ -50,6 +52,8 @@ output:
 
 	strm, err = stream.New(conf, newMgr)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
 
 	require.NoError(t, strm.Stop(ctx))
 }
@@ -72,6 +76,8 @@ output:
 
 	strm, err := stream.New(conf, newMgr)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
 
 	tChan, err := newMgr.GetPipe("foo")
 	require.NoError(t, err)
@@ -114,10 +120,16 @@ output:
 
 	strm, err := stream.New(conf, newMgr)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
+
 	assert.NoError(t, strm.StopGracefully(ctx))
 
 	strm, err = stream.New(conf, newMgr)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
+
 	assert.NoError(t, strm.StopGracefully(ctx))
 
 	conf.Pipeline.Processors = []processor.Config{
@@ -126,6 +138,9 @@ output:
 
 	strm, err = stream.New(conf, newMgr)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
+
 	assert.NoError(t, strm.StopGracefully(ctx))
 }
 
@@ -149,10 +164,16 @@ output:
 
 	strm, err := stream.New(conf, newMgr)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
+
 	assert.NoError(t, strm.StopUnordered(ctx))
 
 	strm, err = stream.New(conf, newMgr)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
+
 	assert.NoError(t, strm.StopUnordered(ctx))
 
 	conf.Pipeline.Processors = []processor.Config{
@@ -161,6 +182,9 @@ output:
 
 	strm, err = stream.New(conf, newMgr)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
+
 	assert.NoError(t, strm.StopUnordered(ctx))
 }
 
@@ -215,6 +239,8 @@ output:
 
 	strm, err := stream.New(conf, newMgr)
 	require.NoError(t, err)
+
+	strm.TriggerStartConsuming()
 
 	ctx, done := context.WithTimeout(t.Context(), 100*time.Millisecond)
 	defer done()

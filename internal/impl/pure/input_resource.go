@@ -5,6 +5,7 @@ package pure
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Jeffail/shutdown"
@@ -83,7 +84,6 @@ func init() {
 			tChan:   make(chan message.Transaction),
 			shutSig: shutdown.NewSignaller(),
 		}
-		go ri.loop()
 		return interop.NewUnwrapInternalInput(ri), nil
 	})
 }
@@ -91,11 +91,12 @@ func init() {
 //------------------------------------------------------------------------------
 
 type resourceInput struct {
-	mgr     bundle.NewManagement
-	tChan   chan message.Transaction
-	name    string
-	log     log.Modular
-	shutSig *shutdown.Signaller
+	mgr       bundle.NewManagement
+	tChan     chan message.Transaction
+	name      string
+	log       log.Modular
+	shutSig   *shutdown.Signaller
+	startOnce sync.Once
 }
 
 func (r *resourceInput) loop() {
@@ -143,6 +144,19 @@ func (r *resourceInput) TransactionChan() (tChan <-chan message.Transaction) {
 	return r.tChan
 }
 
+// ConnectionTest attempts to find the target resource and executes a connection
+// test on it.
+func (r *resourceInput) ConnectionTest(ctx context.Context) (res component.ConnectionTestResults) {
+	if err := r.mgr.AccessInput(context.Background(), r.name, func(i input.Streamed) {
+		res = i.ConnectionTest(ctx)
+	}); err != nil {
+		return component.ConnectionTestResults{
+			component.ConnectionTestFailed(r.mgr, err),
+		}
+	}
+	return
+}
+
 func (r *resourceInput) ConnectionStatus() (s component.ConnectionStatuses) {
 	if err := r.mgr.AccessInput(context.Background(), r.name, func(i input.Streamed) {
 		s = i.ConnectionStatus()
@@ -152,6 +166,12 @@ func (r *resourceInput) ConnectionStatus() (s component.ConnectionStatuses) {
 		}
 	}
 	return
+}
+
+func (r *resourceInput) TriggerStartConsuming() {
+	r.startOnce.Do(func() {
+		go r.loop()
+	})
 }
 
 func (r *resourceInput) TriggerStopConsuming() {

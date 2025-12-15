@@ -14,7 +14,95 @@ package service
 
 import (
 	"context"
+	"errors"
+
+	"github.com/redpanda-data/benthos/v4/internal/component"
 )
+
+var errConnectionTestNotSupported = errors.New("this component does not support testing connections")
+
+// ConnectionTestResult represents the result of a connection test.
+type ConnectionTestResult struct {
+	Label string
+	path  []string
+	Err   error
+}
+
+// ConnectionTestResults represents an aggregate of connection test results.
+type ConnectionTestResults []*ConnectionTestResult
+
+func (r ConnectionTestResults) intoInternal(o component.Observability) component.ConnectionTestResults {
+	l := make(component.ConnectionTestResults, len(r))
+	for i, c := range r {
+		l[i] = c.intoInternal(o)
+	}
+	return l
+}
+
+func connectionTestResultsFromInternal(r component.ConnectionTestResults) ConnectionTestResults {
+	l := make(ConnectionTestResults, len(r))
+	for i, c := range r {
+		l[i] = connectionTestResultFromInternal(c)
+	}
+	return l
+}
+
+// AsList returns an aggregated list of connection results containing only the
+// target. This is convenient for components that only have one connection to
+// test.
+func (c *ConnectionTestResult) AsList() ConnectionTestResults {
+	return ConnectionTestResults{c}
+}
+
+func (c *ConnectionTestResult) intoInternal(o component.Observability) *component.ConnectionTestResult {
+	i := &component.ConnectionTestResult{Err: c.Err}
+	if len(c.path) > 0 {
+		i.Label = c.Label
+		i.Path = c.path
+	} else {
+		i.Label = o.Label()
+		i.Path = o.Path()
+	}
+	return i
+}
+
+func connectionTestResultFromInternal(c *component.ConnectionTestResult) *ConnectionTestResult {
+	return &ConnectionTestResult{
+		Err:   c.Err,
+		Label: c.Label,
+		path:  c.Path,
+	}
+}
+
+// ConnectionTestFailed returns a failed connection test result.
+func ConnectionTestFailed(err error) *ConnectionTestResult {
+	return &ConnectionTestResult{
+		Err: err,
+	}
+}
+
+// ConnectionTestSucceeded returns a successful connection test result.
+func ConnectionTestSucceeded() *ConnectionTestResult {
+	return &ConnectionTestResult{}
+}
+
+// ConnectionTestNotSupported returns a test result indicating that the
+// component does not support testing connections.
+func ConnectionTestNotSupported() *ConnectionTestResult {
+	return &ConnectionTestResult{
+		Err: errConnectionTestNotSupported,
+	}
+}
+
+// ConnectionTestable is implemented by components that support testing the
+// underlying connection separately to regular operation. This connection
+// check can occur before and during normal operation.
+type ConnectionTestable interface {
+	// ConnectionTest attempts to establish whether the component is capable of
+	// creating a connection. This will potentially require and test network
+	// connectivity, but does not require the component to be initialized.
+	ConnectionTest(ctx context.Context) ConnectionTestResults
+}
 
 // Closer is implemented by components that support stopping and cleaning up
 // their underlying resources.

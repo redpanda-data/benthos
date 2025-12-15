@@ -52,6 +52,8 @@ http_server:
 		t.Error("Expected error from double listen")
 	}
 
+	h.TriggerStartConsuming()
+
 	<-time.After(time.Millisecond * 100)
 
 	// Test both single and multipart messages.
@@ -113,6 +115,8 @@ http_server:
 		return
 	}
 
+	h.TriggerStartConsuming()
+
 	<-time.After(time.Millisecond * 100)
 
 	h.TriggerCloseNow()
@@ -145,6 +149,8 @@ http_server:
 		t.Error(err)
 		return
 	}
+
+	h.TriggerStartConsuming()
 
 	<-time.After(time.Millisecond * 100)
 

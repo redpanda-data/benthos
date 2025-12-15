@@ -197,6 +197,7 @@ type httpServerOutput struct {
 	mStreamBatchSent metrics.StatCounter
 	mStreamError     metrics.StatCounter
 
+	startServerOnce sync.Once
 	closeServerOnce sync.Once
 	shutSig         *shutdown.Signaller
 }
@@ -444,40 +445,48 @@ func (h *httpServerOutput) Consume(ts <-chan message.Transaction) error {
 		return component.ErrAlreadyStarted
 	}
 	h.transactions = ts
-
-	if h.server != nil {
-		go func() {
-			if h.conf.KeyFile != "" || h.conf.CertFile != "" {
-				h.log.Info(
-					"Serving messages through HTTPS GET request at: https://%s\n",
-					h.conf.Address+h.conf.Path,
-				)
-				if err := h.server.ListenAndServeTLS(
-					h.conf.CertFile, h.conf.KeyFile,
-				); err != http.ErrServerClosed {
-					h.log.Error("Server error: %v\n", err)
-				}
-			} else {
-				h.log.Info(
-					"Serving messages through HTTP GET request at: http://%s\n",
-					h.conf.Address+h.conf.Path,
-				)
-				if err := h.server.ListenAndServe(); err != http.ErrServerClosed {
-					h.log.Error("Server error: %v\n", err)
-				}
-			}
-
-			h.shutSig.TriggerSoftStop()
-			h.shutSig.TriggerHasStopped()
-		}()
-	}
 	return nil
+}
+
+func (h *httpServerOutput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(h.mgr).AsList()
 }
 
 func (h *httpServerOutput) ConnectionStatus() component.ConnectionStatuses {
 	return component.ConnectionStatuses{
 		component.ConnectionActive(h.mgr),
 	}
+}
+
+func (h *httpServerOutput) TriggerStartConsuming() {
+	h.startServerOnce.Do(func() {
+		if h.server != nil {
+			go func() {
+				if h.conf.KeyFile != "" || h.conf.CertFile != "" {
+					h.log.Info(
+						"Serving messages through HTTPS GET request at: https://%s\n",
+						h.conf.Address+h.conf.Path,
+					)
+					if err := h.server.ListenAndServeTLS(
+						h.conf.CertFile, h.conf.KeyFile,
+					); err != http.ErrServerClosed {
+						h.log.Error("Server error: %v\n", err)
+					}
+				} else {
+					h.log.Info(
+						"Serving messages through HTTP GET request at: http://%s\n",
+						h.conf.Address+h.conf.Path,
+					)
+					if err := h.server.ListenAndServe(); err != http.ErrServerClosed {
+						h.log.Error("Server error: %v\n", err)
+					}
+				}
+
+				h.shutSig.TriggerSoftStop()
+				h.shutSig.TriggerHasStopped()
+			}()
+		}
+	})
 }
 
 func (h *httpServerOutput) TriggerCloseNow() {

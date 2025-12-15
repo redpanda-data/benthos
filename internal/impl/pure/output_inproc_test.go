@@ -38,6 +38,8 @@ func TestInproc(t *testing.T) {
 	tinchan := make(chan message.Transaction)
 	require.NoError(t, ip.Consume(tinchan))
 
+	ip.TriggerStartConsuming()
+
 	select {
 	case tinchan <- message.NewTransaction(nil, nil):
 	case <-time.After(time.Second):

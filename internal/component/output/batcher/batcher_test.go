@@ -37,7 +37,9 @@ func TestBatcherEarlyTermination(t *testing.T) {
 	b := batcher.New(batchPol, out, mock.NewManager())
 	require.NoError(t, b.Consume(tInChan))
 
-	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
+	b.TriggerStartConsuming()
+
+	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	done()
 
 	require.Error(t, b.WaitForClose(ctx))
@@ -48,7 +50,7 @@ func TestBatcherEarlyTermination(t *testing.T) {
 		t.Error("unexpected")
 	}
 
-	ctx, done = context.WithTimeout(t.Context(), time.Second*30)
+	ctx, done = context.WithTimeout(t.Context(), time.Second)
 	defer done()
 
 	require.Error(t, b.WaitForClose(ctx))
@@ -67,6 +69,8 @@ func TestBatcherBasic(t *testing.T) {
 
 	b := batcher.New(batchPol, out, mock.NewManager())
 	require.NoError(t, b.Consume(tInChan))
+
+	b.TriggerStartConsuming()
 
 	tOutChan := out.TChan
 
@@ -206,6 +210,8 @@ func TestBatcherMaxInFlight(t *testing.T) {
 	b := batcher.New(batchPol, out, mock.NewManager())
 	require.NoError(t, b.Consume(tInChan))
 
+	b.TriggerStartConsuming()
+
 	tOutChan := out.TChan
 	resChanOne, resChanTwo := make(chan error), make(chan error)
 
@@ -282,6 +288,8 @@ func TestBatcherBatchError(t *testing.T) {
 
 	b := batcher.New(batchPol, out, mock.NewManager())
 	require.NoError(t, b.Consume(tInChan))
+
+	b.TriggerStartConsuming()
 
 	tOutChan := out.TChan
 
@@ -366,6 +374,8 @@ func TestBatcherTimed(t *testing.T) {
 	if err := b.Consume(tInChan); err != nil {
 		t.Fatal(err)
 	}
+
+	b.TriggerStartConsuming()
 
 	tOutChan := out.TChan
 

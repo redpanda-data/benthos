@@ -67,8 +67,19 @@ func (t *tracedInput) loop() {
 	}
 }
 
+func (t *tracedInput) TriggerStartConsuming() {
+	// Note: we aren't performing any connections within this component, and so
+	// it is fine to push this signal through to the child with our own loop
+	// already initialized.
+	t.wrapped.TriggerStartConsuming()
+}
+
 func (t *tracedInput) TransactionChan() <-chan message.Transaction {
 	return t.tChan
+}
+
+func (t *tracedInput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return t.wrapped.ConnectionTest(ctx)
 }
 
 func (t *tracedInput) ConnectionStatus() component.ConnectionStatuses {

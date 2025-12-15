@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/benthos/v4/internal/component"
+	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 )
 
@@ -38,7 +39,7 @@ func (f *fnOutput) Close(ctx context.Context) error {
 
 func TestOutputAirGapShutdown(t *testing.T) {
 	o := &fnOutput{}
-	agi := newAirGapWriter(o)
+	agi := newAirGapWriter(mock.NewManager(), o)
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
@@ -56,7 +57,7 @@ func TestOutputAirGapSad(t *testing.T) {
 			return errors.New("bad read")
 		},
 	}
-	agi := newAirGapWriter(o)
+	agi := newAirGapWriter(mock.NewManager(), o)
 
 	err := agi.Connect(t.Context())
 	assert.EqualError(t, err, "bad connect")
@@ -84,7 +85,7 @@ func TestOutputAirGapHappy(t *testing.T) {
 			return nil
 		},
 	}
-	agi := newAirGapWriter(o)
+	agi := newAirGapWriter(mock.NewManager(), o)
 
 	err := agi.Connect(t.Context())
 	assert.NoError(t, err)
@@ -118,7 +119,7 @@ func (f *fnBatchOutput) Close(ctx context.Context) error {
 
 func TestBatchOutputAirGapShutdown(t *testing.T) {
 	o := &fnBatchOutput{}
-	agi := newAirGapBatchWriter(o)
+	agi := newAirGapBatchWriter(mock.NewManager(), o)
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
@@ -136,7 +137,7 @@ func TestBatchOutputAirGapSad(t *testing.T) {
 			return errors.New("bad read")
 		},
 	}
-	agi := newAirGapBatchWriter(o)
+	agi := newAirGapBatchWriter(mock.NewManager(), o)
 
 	err := agi.Connect(t.Context())
 	assert.EqualError(t, err, "bad connect")
@@ -164,7 +165,7 @@ func TestBatchOutputAirGapHappy(t *testing.T) {
 			return nil
 		},
 	}
-	agi := newAirGapBatchWriter(o)
+	agi := newAirGapBatchWriter(mock.NewManager(), o)
 
 	err := agi.Connect(t.Context())
 	assert.NoError(t, err)

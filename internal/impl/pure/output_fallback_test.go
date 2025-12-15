@@ -65,6 +65,8 @@ fallback:
 	resChan := make(chan error)
 	require.NoError(t, s.Consume(sendChan))
 
+	s.TriggerStartConsuming()
+
 	t.Cleanup(func() {
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
 		s.TriggerCloseNow()
@@ -154,6 +156,8 @@ func TestFallbackHappyPath(t *testing.T) {
 		return
 	}
 
+	oTM.TriggerStartConsuming()
+
 	for i := 0; i < 10; i++ {
 		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
 		select {
@@ -220,6 +224,8 @@ func TestFallbackHappyishPath(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, oTM.Consume(readChan))
+
+	oTM.TriggerStartConsuming()
 
 	for i := 0; i < 10; i++ {
 		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
@@ -311,6 +317,8 @@ func TestFallbackAllFail(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	oTM.TriggerStartConsuming()
+
 	for i := 0; i < 10; i++ {
 		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
 		select {
@@ -382,6 +390,8 @@ func TestFallbackAllFailParallel(t *testing.T) {
 	if err = oTM.Consume(readChan); err != nil {
 		t.Fatal(err)
 	}
+
+	oTM.TriggerStartConsuming()
 
 	resChans := make([]chan error, 10)
 	for i := range resChans {

@@ -260,7 +260,7 @@ func (e *Environment) RegisterInput(name string, spec *ConfigSpec, ctor InputCon
 		if err != nil {
 			return nil, err
 		}
-		rdr := newAirGapReader(i)
+		rdr := newAirGapReader(nm, i)
 		return input.NewAsyncReader(conf.Type, rdr, nm)
 	}), componentSpec)
 }
@@ -292,7 +292,7 @@ func (e *Environment) RegisterBatchInput(name string, spec *ConfigSpec, ctor Bat
 		}); ok {
 			return u.Unwrap(), nil
 		}
-		rdr := newAirGapBatchReader(i)
+		rdr := newAirGapBatchReader(nm, i)
 		return input.NewAsyncReader(conf.Type, rdr, nm)
 	}), componentSpec)
 }
@@ -343,7 +343,7 @@ func (e *Environment) RegisterOutput(name string, spec *ConfigSpec, ctor OutputC
 			if maxInFlight < 1 {
 				return nil, fmt.Errorf("invalid maxInFlight parameter: %v", maxInFlight)
 			}
-			w := newAirGapWriter(op)
+			w := newAirGapWriter(nm, op)
 			o, err := output.NewAsyncWriter(conf.Type, maxInFlight, w, nm)
 			if err != nil {
 				return nil, err
@@ -389,7 +389,7 @@ func (e *Environment) RegisterBatchOutput(name string, spec *ConfigSpec, ctor Ba
 				return nil, fmt.Errorf("invalid maxInFlight parameter: %v", maxInFlight)
 			}
 
-			w := newAirGapBatchWriter(op)
+			w := newAirGapBatchWriter(nm, op)
 			o, err := output.NewAsyncWriter(conf.Type, maxInFlight, w, nm)
 			if err != nil {
 				return nil, err

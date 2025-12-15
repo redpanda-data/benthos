@@ -44,6 +44,8 @@ generate:
 	in, err := mgr.NewInput(inConfig)
 	require.NoError(t, err)
 
+	in.TriggerStartConsuming()
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	for i := 0; i < 10; i++ {
@@ -94,6 +96,8 @@ generate:
 
 	in, err := mgr.NewInput(inConfig)
 	require.NoError(t, err)
+
+	in.TriggerStartConsuming()
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
@@ -147,6 +151,8 @@ generate:
 	in, err = mgr.NewInput(inConfig)
 	require.NoError(t, err)
 
+	in.TriggerStartConsuming()
+
 	for i := 0; i < 5; i++ {
 		select {
 		case tran := <-in.TransactionChan():
@@ -193,6 +199,8 @@ generate:
 	in, err := mgr.NewInput(inConfig)
 	require.NoError(t, err)
 
+	in.TriggerStartConsuming()
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
 	for i := 0; i < 10; i++ {
@@ -236,6 +244,8 @@ func TestBundleOutputTracing(t *testing.T) {
 
 	tranChan := make(chan message.Transaction)
 	require.NoError(t, out.Consume(tranChan))
+
+	out.TriggerStartConsuming()
 
 	for i := 0; i < 10; i++ {
 		resChan := make(chan error)
@@ -294,6 +304,8 @@ func TestBundleOutputTracingDisabled(t *testing.T) {
 	tranChan := make(chan message.Transaction)
 	require.NoError(t, out.Consume(tranChan))
 
+	out.TriggerStartConsuming()
+
 	for i := 0; i < 10; i++ {
 		resChan := make(chan error)
 		tran := message.NewTransaction(message.QuickBatch([][]byte{[]byte(strconv.Itoa(i))}), resChan)
@@ -349,6 +361,8 @@ func TestBundleOutputWithProcessorsTracing(t *testing.T) {
 
 	tranChan := make(chan message.Transaction)
 	require.NoError(t, out.Consume(tranChan))
+
+	out.TriggerStartConsuming()
 
 	for i := 0; i < 10; i++ {
 		resChan := make(chan error)
@@ -431,6 +445,8 @@ broker:
 
 	tranChan := make(chan message.Transaction)
 	require.NoError(t, out.Consume(tranChan))
+
+	out.TriggerStartConsuming()
 
 	for i := 0; i < 5; i++ {
 		resChan := make(chan error)

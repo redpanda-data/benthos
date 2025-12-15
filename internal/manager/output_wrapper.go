@@ -47,8 +47,16 @@ func (w *outputWrapper) WriteTransaction(ctx context.Context, t message.Transact
 	return nil
 }
 
+func (w *outputWrapper) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return w.output.ConnectionTest(ctx)
+}
+
 func (w *outputWrapper) ConnectionStatus() component.ConnectionStatuses {
 	return w.output.ConnectionStatus()
+}
+
+func (w *outputWrapper) TriggerStartConsuming() {
+	w.output.TriggerStartConsuming()
 }
 
 func (w *outputWrapper) TriggerStopConsuming() {

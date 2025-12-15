@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"path"
 	"sync"
+	"sync/atomic"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
@@ -91,6 +92,10 @@ type Type struct {
 	processors *liveResources[processor.V1]
 	outputs    *liveResources[*outputWrapper]
 	rateLimits *liveResources[ratelimit.V1]
+
+	// Tracks whether the manager has been instructed to begin consuming, and if
+	// so any newly added components must also be triggered once initialized.
+	consumeTriggered *atomic.Bool
 
 	// Collections of component constructors
 	env      *bundle.Environment
@@ -215,6 +220,8 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 
 		fs: ifs.OS(),
 
+		consumeTriggered: &atomic.Bool{},
+
 		pipes:    map[string]<-chan message.Transaction{},
 		pipeLock: &sync.RWMutex{},
 
@@ -248,7 +255,7 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 				return nil, err
 			}
 
-			ni := WrapInput(newInput)
+			ni := WrapInput(newInput, t)
 			return &ni, nil
 		})
 	}
@@ -635,8 +642,11 @@ func (t *Type) StoreInput(ctx context.Context, name string, conf input.Config) e
 		if i != nil {
 			(*i).SwapInput(newInput)
 		} else {
-			ni := WrapInput(newInput)
+			ni := WrapInput(newInput, t)
 			set(&ni)
+			if t.consumeTriggered.Load() {
+				ni.TriggerStartConsuming()
+			}
 		}
 	}); err != nil {
 		return err
@@ -803,6 +813,9 @@ func (t *Type) StoreOutput(ctx context.Context, name string, conf output.Config)
 			return
 		}
 
+		if t.consumeTriggered.Load() {
+			wrappedOutput.TriggerStartConsuming()
+		}
 		set(&wrappedOutput)
 	}); err != nil {
 		return err
@@ -932,6 +945,30 @@ func (t *Type) CloseObservability(ctx context.Context) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// TriggerStartConsuming instructs the manager to start resource inputs
+// consuming data. This call blocks if there are lazily evaluated inputs..
+func (t *Type) TriggerStartConsuming(ctx context.Context) error {
+	// Set this immediately so that all new components are triggered, as it is
+	// safe to call consume trigger multiple times.
+	t.consumeTriggered.Store(true)
+
+	if err := t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
+		i.TriggerStartConsuming()
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	if err := t.outputs.RWalk(ctx, func(name string, o *outputWrapper) error {
+		o.TriggerStartConsuming()
+		return nil
+	}); err != nil {
+		return err
+	}
+
 	return nil
 }
 

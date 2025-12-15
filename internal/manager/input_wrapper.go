@@ -19,7 +19,12 @@ var _ input.Streamed = &InputWrapper{}
 
 type inputCtrl struct {
 	input         input.Streamed
+	startOnce     sync.Once
 	closedForSwap *int32
+}
+
+func (i *inputCtrl) ensureInit() {
+	i.input.TriggerStartConsuming()
 }
 
 // InputWrapper is a wrapper for a streamed input.
@@ -27,22 +32,26 @@ type InputWrapper struct {
 	ctrl      *inputCtrl
 	inputLock sync.Mutex
 
-	tranChan chan message.Transaction
-	shutSig  *shutdown.Signaller
+	o component.Observability
+
+	startOnce sync.Once
+	tranChan  chan message.Transaction
+	shutSig   *shutdown.Signaller
 }
 
 // WrapInput wraps a streamed input and starts the transaction processing loop.
-func WrapInput(i input.Streamed) *InputWrapper {
+func WrapInput(i input.Streamed, o component.Observability) *InputWrapper {
 	var s int32
 	w := &InputWrapper{
 		ctrl: &inputCtrl{
 			input:         i,
+			startOnce:     sync.Once{},
 			closedForSwap: &s,
 		},
+		o:        o,
 		tranChan: make(chan message.Transaction),
 		shutSig:  shutdown.NewSignaller(),
 	}
-	go w.loop()
 	return w
 }
 
@@ -72,15 +81,35 @@ func (w *InputWrapper) SwapInput(i input.Streamed) {
 	w.inputLock.Lock()
 	w.ctrl = &inputCtrl{
 		input:         i,
+		startOnce:     sync.Once{},
 		closedForSwap: &s,
 	}
 	w.inputLock.Unlock()
 }
 
+// TriggerStartConsuming signals that data should be consumed.
+func (w *InputWrapper) TriggerStartConsuming() {
+	w.startOnce.Do(func() {
+		go w.loop()
+	})
+}
+
 // TransactionChan returns a transactions channel for consuming messages from
-// the wrapped input\.
+// the wrapped input.
 func (w *InputWrapper) TransactionChan() <-chan message.Transaction {
 	return w.tranChan
+}
+
+// ConnectionTest returns a status after testing the underlying connection.
+func (w *InputWrapper) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	w.inputLock.Lock()
+	if w.ctrl.input != nil {
+		s = w.ctrl.input.ConnectionTest(ctx)
+	} else {
+		s = component.ConnectionTestNotSupported(w.o).AsList()
+	}
+	w.inputLock.Unlock()
+	return
 }
 
 // ConnectionStatus returns the current status of the given component
@@ -118,6 +147,7 @@ func (w *InputWrapper) loop() {
 		if w.ctrl.input != nil {
 			tChan = w.ctrl.input.TransactionChan()
 			closedForSwap = w.ctrl.closedForSwap
+			w.ctrl.ensureInit()
 		}
 		w.inputLock.Unlock()
 
@@ -173,6 +203,10 @@ func (w *InputWrapper) TriggerCloseNow() {
 // WaitForClose is a blocking call to wait until the wrapped input has finished
 // shutting down and cleaning up resources.
 func (w *InputWrapper) WaitForClose(ctx context.Context) error {
+	w.startOnce.Do(func() {
+		// If we hit here then we haven't been restarted
+		w.shutSig.TriggerHasStopped()
+	})
 	select {
 	case <-w.shutSig.HasStoppedChan():
 	case <-ctx.Done():

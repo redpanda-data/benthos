@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	"github.com/redpanda-data/benthos/v4/internal/component/output/batcher"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -76,11 +78,20 @@ type BatchOutput interface {
 
 // Implements output.AsyncSink.
 type airGapWriter struct {
+	o bundle.NewManagement
 	w Output
 }
 
-func newAirGapWriter(w Output) output.AsyncSink {
-	return &airGapWriter{w: w}
+func newAirGapWriter(o bundle.NewManagement, w Output) output.AsyncSink {
+	return &airGapWriter{w: w, o: o}
+}
+
+func (a *airGapWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	t, ok := a.w.(ConnectionTestable)
+	if !ok {
+		return component.ConnectionTestNotSupported(a.o).AsList()
+	}
+	return t.ConnectionTest(ctx).intoInternal(a.o)
 }
 
 func (a *airGapWriter) Connect(ctx context.Context) error {
@@ -99,11 +110,20 @@ func (a *airGapWriter) Close(ctx context.Context) error {
 
 // Implements output.AsyncSink.
 type airGapBatchWriter struct {
+	o bundle.NewManagement
 	w BatchOutput
 }
 
-func newAirGapBatchWriter(w BatchOutput) output.AsyncSink {
-	return &airGapBatchWriter{w: w}
+func newAirGapBatchWriter(o bundle.NewManagement, w BatchOutput) output.AsyncSink {
+	return &airGapBatchWriter{w: w, o: o}
+}
+
+func (a *airGapBatchWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	t, ok := a.w.(ConnectionTestable)
+	if !ok {
+		return component.ConnectionTestNotSupported(a.o).AsList()
+	}
+	return t.ConnectionTest(ctx).intoInternal(a.o)
 }
 
 func (a *airGapBatchWriter) Connect(ctx context.Context) error {
@@ -134,6 +154,11 @@ func newResourceOutput(o output.Sync) *ResourceOutput {
 	return &ResourceOutput{o: o}
 }
 
+// ConnectionTest attempts to run a connection test on the resource output.
+func (r *ResourceOutput) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	return connectionTestResultsFromInternal(r.o.ConnectionTest(ctx))
+}
+
 // Write a message to the output, or return an error either if delivery is not
 // possible or the context is cancelled.
 func (o *ResourceOutput) Write(ctx context.Context, m *Message) error {
@@ -152,6 +177,8 @@ func (o *ResourceOutput) WriteBatch(ctx context.Context, b MessageBatch) error {
 }
 
 func (o *ResourceOutput) writeMsg(ctx context.Context, payload message.Batch) error {
+	o.o.TriggerStartConsuming()
+
 	var wg sync.WaitGroup
 	var ackErr error
 	wg.Add(1)
@@ -195,6 +222,11 @@ func (o *OwnedOutput) BatchedWith(b *Batcher) *OwnedOutput {
 	}
 }
 
+// ConnectionTest attempts to run a connection test on the owned output.
+func (o *OwnedOutput) ConnectionTest(ctx context.Context) ConnectionTestResults {
+	return connectionTestResultsFromInternal(o.o.ConnectionTest(ctx))
+}
+
 // Prime attempts to establish the output connection ready for consuming data.
 // This is done automatically once data is written. However, pre-emptively
 // priming the connection before data is received is generally a better idea for
@@ -207,6 +239,9 @@ func (o *OwnedOutput) Prime() error {
 	if err := o.o.Consume(tChan); err != nil {
 		return err
 	}
+
+	o.o.TriggerStartConsuming() // This is safe to call multiple times
+
 	o.t.Store(&tChan)
 	return nil
 }
@@ -224,6 +259,9 @@ func (o *OwnedOutput) PrimeBuffered(n int) error {
 	if err := o.o.Consume(tChan); err != nil {
 		return err
 	}
+
+	o.o.TriggerStartConsuming() // This is safe to call multiple times
+
 	o.t.Store(&tChan)
 	return nil
 }

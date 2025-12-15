@@ -107,34 +107,29 @@ func (w *websocketWriter) getWS() *websocket.Conn {
 	return ws
 }
 
-func (w *websocketWriter) Connect(ctx context.Context) error {
-	w.lock.Lock()
-	defer w.lock.Unlock()
-
-	if w.client != nil {
-		return nil
+func (w *websocketWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	conn, res, err := w.dial(ctx)
+	if err != nil {
+		return component.ConnectionTestFailed(w.mgr, err).AsList()
 	}
 
+	if res != nil {
+		_ = res.Body.Close()
+	}
+
+	_ = conn.Close()
+	return component.ConnectionTestSucceeded(w.mgr).AsList()
+}
+
+func (w *websocketWriter) dial(ctx context.Context) (conn *websocket.Conn, res *http.Response, err error) {
 	headers := http.Header{}
 
-	err := w.reqSigner(w.mgr.FS(), &http.Request{
+	if err = w.reqSigner(w.mgr.FS(), &http.Request{
 		URL:    w.urlParsed,
 		Header: headers,
-	})
-	if err != nil {
-		return err
+	}); err != nil {
+		return
 	}
-
-	var (
-		client *websocket.Conn
-		res    *http.Response
-	)
-
-	defer func() {
-		if res != nil {
-			res.Body.Close()
-		}
-	}()
 
 	dialer := *websocket.DefaultDialer
 	if w.proxyURLParsed != nil {
@@ -143,10 +138,31 @@ func (w *websocketWriter) Connect(ctx context.Context) error {
 
 	if w.tlsEnabled {
 		dialer.TLSClientConfig = w.tlsConf
-		if client, res, err = dialer.Dial(w.urlStr, headers); err != nil {
-			return err
+		if conn, res, err = dialer.Dial(w.urlStr, headers); err != nil {
+			return
 		}
-	} else if client, res, err = dialer.Dial(w.urlStr, headers); err != nil {
+	} else if conn, res, err = dialer.Dial(w.urlStr, headers); err != nil {
+		return
+	}
+
+	return
+}
+
+func (w *websocketWriter) Connect(ctx context.Context) error {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+
+	if w.client != nil {
+		return nil
+	}
+
+	client, res, err := w.dial(ctx)
+	defer func() {
+		if res != nil {
+			res.Body.Close()
+		}
+	}()
+	if err != nil {
 		return err
 	}
 

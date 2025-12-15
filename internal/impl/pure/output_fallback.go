@@ -111,7 +111,8 @@ type fallbackBroker struct {
 	outputTSChans []chan message.Transaction
 	outputs       []output.Streamed
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newFallbackBroker(outputs []output.Streamed) (*fallbackBroker, error) {
@@ -141,9 +142,14 @@ func (t *fallbackBroker) Consume(ts <-chan message.Transaction) error {
 		return component.ErrAlreadyStarted
 	}
 	t.transactions = ts
-
-	go t.loop()
 	return nil
+}
+
+func (t *fallbackBroker) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	for _, out := range t.outputs {
+		s = append(s, out.ConnectionTest(ctx)...)
+	}
+	return
 }
 
 func (t *fallbackBroker) ConnectionStatus() (s component.ConnectionStatuses) {
@@ -251,6 +257,15 @@ func (t *fallbackBroker) loop() {
 			return
 		}
 	}
+}
+
+func (t *fallbackBroker) TriggerStartConsuming() {
+	t.startOnce.Do(func() {
+		for _, out := range t.outputs {
+			out.TriggerStartConsuming()
+		}
+		go t.loop()
+	})
 }
 
 func (t *fallbackBroker) TriggerCloseNow() {

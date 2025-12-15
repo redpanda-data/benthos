@@ -26,6 +26,11 @@ import (
 // the protocol supports a form of acknowledgement then it will be returned by
 // the call to Write.
 type AsyncSink interface {
+	// ConnectionTest attempts to establish whether the component is capable of
+	// creating a connection. This will potentially require and test network
+	// connectivity, but does not require the component to be initialized.
+	ConnectionTest(ctx context.Context) component.ConnectionTestResults
+
 	// Connect attempts to establish a connection to the sink, if
 	// unsuccessful returns an error. If the attempt is successful (or not
 	// necessary) returns nil.
@@ -56,7 +61,8 @@ type AsyncWriter struct {
 
 	transactions <-chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 // NewAsyncWriter creates a Streamed implementation around an AsyncSink.
@@ -257,8 +263,14 @@ func (w *AsyncWriter) Consume(ts <-chan message.Transaction) error {
 		return component.ErrAlreadyStarted
 	}
 	w.transactions = ts
-	go w.loop()
 	return nil
+}
+
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (w *AsyncWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return w.writer.ConnectionTest(ctx)
 }
 
 // ConnectionStatus returns the status of the given output connection.
@@ -266,6 +278,13 @@ func (w *AsyncWriter) ConnectionStatus() component.ConnectionStatuses {
 	return component.ConnectionStatuses{
 		w.connection.Load(),
 	}
+}
+
+// TriggerStartConsuming initiates async connection and consumption.
+func (w *AsyncWriter) TriggerStartConsuming() {
+	w.startOnce.Do(func() {
+		go w.loop()
+	})
 }
 
 // TriggerCloseNow shuts down the output and stops processing messages.

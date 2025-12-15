@@ -4,6 +4,7 @@ package pure
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Jeffail/shutdown"
 
@@ -51,7 +52,8 @@ type inprocOutput struct {
 	transactionsOut chan message.Transaction
 	transactionsIn  <-chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newInprocOutput(id string, mgr bundle.NewManagement) (output.Streamed, error) {
@@ -100,14 +102,23 @@ func (i *inprocOutput) Consume(ts <-chan message.Transaction) error {
 		return component.ErrAlreadyStarted
 	}
 	i.transactionsIn = ts
-	go i.loop()
 	return nil
+}
+
+func (i *inprocOutput) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestSucceeded(i.mgr).AsList()
 }
 
 func (i *inprocOutput) ConnectionStatus() component.ConnectionStatuses {
 	return component.ConnectionStatuses{
 		component.ConnectionActive(i.mgr),
 	}
+}
+
+func (i *inprocOutput) TriggerStartConsuming() {
+	i.startOnce.Do(func() {
+		go i.loop()
+	})
 }
 
 func (i *inprocOutput) TriggerCloseNow() {

@@ -206,13 +206,18 @@ func initNormalMode(
 	stoppedChan = make(chan struct{})
 	var closeOnce sync.Once
 	streamInit := func() (RunningStream, error) {
-		return stream.New(conf.Config, mgr, stream.OptOnClose(func() {
+		s, err := stream.New(conf.Config, mgr, stream.OptOnClose(func() {
 			if !watching {
 				closeOnce.Do(func() {
 					close(stoppedChan)
 				})
 			}
 		}))
+		if err != nil {
+			return nil, err
+		}
+		s.TriggerStartConsuming()
+		return s, nil
 	}
 
 	initStream, err := streamInit()

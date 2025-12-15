@@ -5,6 +5,7 @@ package batcher
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Jeffail/shutdown"
@@ -31,7 +32,8 @@ type Impl struct {
 	messagesIn  <-chan message.Transaction
 	messagesOut chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 // NewFromConfig creates a new output preceded by a batching mechanism that
@@ -161,6 +163,13 @@ func (m *Impl) loop() {
 	}
 }
 
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (m *Impl) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return m.child.ConnectionTest(ctx)
+}
+
 // ConnectionStatus returns the current status of the given component
 // connection. The result is a slice in order to accommodate higher order
 // components that wrap several others.
@@ -177,8 +186,15 @@ func (m *Impl) Consume(msgs <-chan message.Transaction) error {
 		return err
 	}
 	m.messagesIn = msgs
-	go m.loop()
 	return nil
+}
+
+// TriggerStartConsuming initiates async connection and consumption.
+func (m *Impl) TriggerStartConsuming() {
+	m.startOnce.Do(func() {
+		go m.loop()
+		m.child.TriggerStartConsuming()
+	})
 }
 
 // TriggerCloseNow shuts down the Batcher and stops processing messages.

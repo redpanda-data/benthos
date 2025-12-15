@@ -82,6 +82,8 @@ retry:
 		t.Fatal(err)
 	}
 
+	ret.TriggerStartConsuming()
+
 	testMsg := message.QuickBatch(nil)
 	go func() {
 		select {
@@ -146,6 +148,8 @@ retry:
 	if err = ret.Consume(tChan); err != nil {
 		t.Fatal(err)
 	}
+
+	ret.TriggerStartConsuming()
 
 	testMsg := message.QuickBatch(nil)
 	tran := message.NewTransaction(testMsg, resChan)
@@ -298,6 +302,8 @@ retry:
 		t.Fatal(err)
 	}
 
+	ret.TriggerStartConsuming()
+
 	resChan1, resChan2 := make(chan error), make(chan error)
 	sendForRetry("first", tChan, resChan1, t)
 	expectFromRetry(component.ErrFailedSend, mOut.TChan, t, "first")
@@ -350,6 +356,8 @@ retry:
 
 	readChan := make(chan message.Transaction)
 	require.NoError(t, ret.Consume(readChan))
+
+	ret.TriggerStartConsuming()
 
 	tCtx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()

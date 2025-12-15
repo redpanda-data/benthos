@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/benthos/v4/internal/component"
+	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 )
 
@@ -36,7 +37,7 @@ func (f *fnInput) Close(ctx context.Context) error {
 
 func TestInputAirGapShutdown(t *testing.T) {
 	i := &fnInput{}
-	agi := newAirGapReader(i)
+	agi := newAirGapReader(mock.NewManager(), i)
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
@@ -54,7 +55,7 @@ func TestInputAirGapSad(t *testing.T) {
 			return nil, nil, errors.New("bad read")
 		},
 	}
-	agi := newAirGapReader(i)
+	agi := newAirGapReader(mock.NewManager(), i)
 
 	err := agi.Connect(t.Context())
 	assert.EqualError(t, err, "bad connect")
@@ -94,7 +95,7 @@ func TestInputAirGapHappy(t *testing.T) {
 			return m, ackFn, nil
 		},
 	}
-	agi := newAirGapReader(i)
+	agi := newAirGapReader(mock.NewManager(), i)
 
 	err := agi.Connect(t.Context())
 	assert.NoError(t, err)
@@ -129,7 +130,7 @@ func (f *fnBatchInput) Close(ctx context.Context) error {
 
 func TestBatchInputAirGapShutdown(t *testing.T) {
 	i := &fnBatchInput{}
-	agi := newAirGapBatchReader(i)
+	agi := newAirGapBatchReader(mock.NewManager(), i)
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
 	defer done()
@@ -147,7 +148,7 @@ func TestBatchInputAirGapSad(t *testing.T) {
 			return nil, nil, errors.New("bad read")
 		},
 	}
-	agi := newAirGapBatchReader(i)
+	agi := newAirGapBatchReader(mock.NewManager(), i)
 
 	err := agi.Connect(t.Context())
 	assert.EqualError(t, err, "bad connect")
@@ -179,7 +180,7 @@ func TestBatchInputAirGapSadWithBackOff(t *testing.T) {
 			return nil, nil, NewErrBackOff(errors.New("bad read"), time.Second*3)
 		},
 	}
-	agi := newAirGapBatchReader(i)
+	agi := newAirGapBatchReader(mock.NewManager(), i)
 
 	err := agi.Connect(t.Context())
 	assert.EqualError(t, err, "bad connect")
@@ -235,7 +236,7 @@ func TestBatchInputAirGapHappy(t *testing.T) {
 			return m, ackFn, nil
 		},
 	}
-	agi := newAirGapBatchReader(i)
+	agi := newAirGapBatchReader(mock.NewManager(), i)
 
 	err := agi.Connect(t.Context())
 	assert.NoError(t, err)

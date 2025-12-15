@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"sync"
 	"time"
 
 	"github.com/Jeffail/shutdown"
@@ -111,7 +112,8 @@ type dropOnWriter struct {
 	transactionsIn  <-chan message.Transaction
 	transactionsOut chan message.Transaction
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newDropOnWriter(conf *service.ParsedConfig, log log.Modular) (*dropOnWriter, error) {
@@ -280,12 +282,22 @@ func (d *dropOnWriter) Consume(ts <-chan message.Transaction) error {
 		return err
 	}
 	d.transactionsIn = ts
-	go d.loop()
 	return nil
+}
+
+func (d *dropOnWriter) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return d.wrapped.ConnectionTest(ctx)
 }
 
 func (d *dropOnWriter) ConnectionStatus() component.ConnectionStatuses {
 	return d.wrapped.ConnectionStatus()
+}
+
+func (d *dropOnWriter) TriggerStartConsuming() {
+	d.startOnce.Do(func() {
+		d.wrapped.TriggerStartConsuming()
+		go d.loop()
+	})
 }
 
 func (d *dropOnWriter) TriggerCloseNow() {

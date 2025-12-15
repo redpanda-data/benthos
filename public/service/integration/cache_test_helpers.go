@@ -208,6 +208,8 @@ func initCache(t *testing.T, env *cacheTestEnvironment) cache.V1 {
 	manager, err := manager.New(conf, manager.OptSetLogger(env.log), manager.OptSetMetrics(env.stats))
 	require.NoError(t, err)
 
+	require.NoError(t, manager.TriggerStartConsuming(t.Context()))
+
 	var c cache.V1
 	require.NoError(t, manager.AccessCache(env.ctx, "testcache", func(v cache.V1) {
 		c = v
@@ -216,5 +218,5 @@ func initCache(t *testing.T, env *cacheTestEnvironment) cache.V1 {
 }
 
 func closeCache(t *testing.T, cache cache.V1) {
-	require.NoError(t, cache.Close(t.Context()))
+	require.NoError(t, cache.Close(context.TODO()))
 }

@@ -66,13 +66,19 @@ func (s *Stream) Resources() *Resources {
 // has gracefully come to a stop, or the provided context is cancelled.
 func (s *Stream) Run(ctx context.Context) (err error) {
 	s.strmMut.Lock()
+	if err = s.mgr.TriggerStartConsuming(ctx); err != nil {
+		return
+	}
+
 	if s.strm != nil {
 		err = errors.New("stream has already been run")
 	} else {
-		s.strm, err = stream.New(s.conf, s.mgr,
+		if s.strm, err = stream.New(s.conf, s.mgr,
 			stream.OptOnClose(func() {
 				s.shutSig.TriggerHasStopped()
-			}))
+			})); err == nil {
+			s.strm.TriggerStartConsuming()
+		}
 	}
 	s.strmMut.Unlock()
 	if err != nil {
@@ -186,6 +192,21 @@ func (s *Stream) Stop(ctx context.Context) (err error) {
 
 	err = closeHTTP(ctx)
 	return
+}
+
+//------------------------------------------------------------------------------
+
+// ConnectionTest attempts to test the connections of each configured component
+// within the stream without actually starting the stream itself. This is safe
+// to call before Run.
+func (s *Stream) ConnectionTest(ctx context.Context) (ConnectionTestResults, error) {
+	s.strmMut.Lock()
+	strm, err := stream.New(s.conf, s.mgr)
+	if err != nil {
+		return nil, err
+	}
+	s.strmMut.Unlock()
+	return connectionTestResultsFromInternal(strm.ConnectionTest(ctx)), nil
 }
 
 //------------------------------------------------------------------------------

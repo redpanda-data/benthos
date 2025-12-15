@@ -95,6 +95,8 @@ mapping: |
 	strm, err := mgr.NewInput(conf)
 	require.NoError(t, err)
 
+	strm.TriggerStartConsuming()
+
 	var tran message.Transaction
 	var open bool
 	select {
@@ -155,6 +157,8 @@ mapping: |
 
 	tInChan := make(chan message.Transaction)
 	require.NoError(t, strm.Consume(tInChan))
+
+	strm.TriggerStartConsuming()
 
 	tOutChan, err := mgr.GetPipe("foos")
 	require.NoError(t, err)

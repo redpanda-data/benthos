@@ -54,6 +54,13 @@ func (i *WithPipeline) Consume(tsChan <-chan message.Transaction) error {
 	return i.pipe.Consume(tsChan)
 }
 
+// ConnectionTest attempts to establish whether the component is capable of
+// creating a connection. This will potentially require and test network
+// connectivity, but does not require the component to be initialized.
+func (i *WithPipeline) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
+	return i.out.ConnectionTest(ctx)
+}
+
 // ConnectionStatus returns the current status of the given component
 // connection. The result is a slice in order to accommodate higher order
 // components that wrap several others.
@@ -62,6 +69,11 @@ func (i *WithPipeline) ConnectionStatus() component.ConnectionStatuses {
 }
 
 //------------------------------------------------------------------------------
+
+// TriggerStartConsuming initiates async connection and consumption.
+func (i *WithPipeline) TriggerStartConsuming() {
+	i.out.TriggerStartConsuming()
+}
 
 // TriggerCloseNow triggers a closure of this object but does not block.
 func (i *WithPipeline) TriggerCloseNow() {

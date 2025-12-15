@@ -114,6 +114,10 @@ func CreateManager(
 		return
 	}
 
+	if err = mgr.TriggerStartConsuming(c.Context); err != nil {
+		return
+	}
+
 	stoppableMgr = newStoppableManager(httpServer, mgr)
 	return
 }

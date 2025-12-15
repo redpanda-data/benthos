@@ -38,6 +38,7 @@ func TestBatcherStandard(t *testing.T) {
 	}
 
 	batcher := batcher.New(batchPol, mockInput, log.Noop())
+	batcher.TriggerStartConsuming()
 
 	testMsgs := []string{}
 	testResChans := []chan error{}
@@ -187,6 +188,8 @@ func TestBatcherErrorTracking(t *testing.T) {
 		testResChans = append(testResChans, make(chan error))
 	}
 
+	batcher.TriggerStartConsuming()
+
 	resErrs := []error{}
 	doneReadsChan := make(chan struct{})
 	go func() {
@@ -249,6 +252,7 @@ func TestBatcherTiming(t *testing.T) {
 	}
 
 	batcher := batcher.New(batchPol, mockInput, log.Noop())
+	batcher.TriggerStartConsuming()
 
 	resChan := make(chan error)
 	select {
@@ -333,6 +337,8 @@ func TestBatcherFinalFlush(t *testing.T) {
 	require.NoError(t, err)
 
 	batcher := batcher.New(batchPol, mockInput, log.Noop())
+
+	batcher.TriggerStartConsuming()
 
 	resChan := make(chan error, 1)
 	select {

@@ -51,6 +51,8 @@ broker:
 		t.Fatal(err)
 	}
 
+	s.TriggerStartConsuming()
+
 	defer func() {
 		s.TriggerCloseNow()
 
@@ -130,6 +132,8 @@ broker:
 	if err = s.Consume(sendChan); err != nil {
 		t.Fatal(err)
 	}
+
+	s.TriggerStartConsuming()
 
 	t.Cleanup(func() {
 		s.TriggerCloseNow()
@@ -212,6 +216,8 @@ broker:
 	if err = s.Consume(sendChan); err != nil {
 		t.Fatal(err)
 	}
+
+	s.TriggerStartConsuming()
 
 	defer func() {
 		close(sendChan)

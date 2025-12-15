@@ -308,61 +308,45 @@ func (r *ResourceBuilder) AddRateLimitYAML(conf string) error {
 // and also a function that closes and cleans up all resources once they're
 // finished with.
 func (r *ResourceBuilder) Build() (*Resources, func(context.Context) error, error) {
-	engVer := r.engineVersion
-	if engVer == "" {
-		engVer = cli.Version
-	}
-
-	// This temporary manager is a very lazy way of instantiating a manager that
-	// restricts the bloblang and component environments to custom plugins.
-	// Ideally we would break out the constructor for our general purpose
-	// manager to allow for a two-tier initialisation where we can defer
-	// resource constructors until after this metrics exporter is initialised.
-	tmpMgr, err := manager.New(
-		manager.NewResourceConfig(),
-		manager.OptSetEngineVersion(engVer),
-		manager.OptSetEnvironment(r.env.internal),
-		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
-	)
+	mgr, err := r.buildNotStarted()
 	if err != nil {
 		return nil, nil, err
 	}
 
+	if err := mgr.TriggerStartConsuming(context.TODO()); err != nil {
+		return nil, nil, err
+	}
+
+	res := newResourcesFromManager(mgr)
 	for _, f := range r.onMgrInit {
-		if err := f(newResourcesFromManager(tmpMgr)); err != nil {
+		if err := f(res); err != nil {
 			return nil, nil, err
 		}
 	}
 
-	tracer, err := r.env.internal.TracersInit(r.tracer, tmpMgr)
-	if err != nil {
-		return nil, nil, err
-	}
+	return res, func(ctx context.Context) error {
+		mgr.TriggerStopConsuming()
+		if err := mgr.WaitForClose(ctx); err != nil {
+			mgr.TriggerCloseNow()
+			return err
+		}
+		if err := mgr.CloseObservability(ctx); err != nil {
+			return err
+		}
+		return nil
+	}, nil
+}
 
-	stats, err := r.env.internal.MetricsInit(r.metrics, tmpMgr)
-	if err != nil {
-		return nil, nil, err
-	}
-	if hler := stats.HandlerFunc(); r.apiMut != nil && hler != nil {
-		r.apiMut.RegisterEndpoint("/stats", "Exposes service-wide metrics in the format configured.", hler)
-		r.apiMut.RegisterEndpoint("/metrics", "Exposes service-wide metrics in the format configured.", hler)
-	}
-
-	opts := []manager.OptFunc{
-		manager.OptSetEngineVersion(engVer),
-		manager.OptSetMetrics(stats),
-		manager.OptSetTracer(tracer),
-		manager.OptSetAPIReg(r.apiMut),
-		manager.OptSetEnvironment(r.env.internal),
-		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
-		manager.OptSetFS(r.env.fs),
-	}
-
-	if r.customLogger != nil {
-		opts = append(opts, manager.OptSetLogger(r.customLogger))
-	}
-
-	mgr, err := manager.New(r.resources, opts...)
+// BuildSuspended attempts to create a collection of resources from the config
+// provided, and also a function that closes and cleans up all resources once
+// they're finished with.
+//
+// However, unlike the standard Build method this one suspends any configured
+// resources so that they do not seek to connect and consume data. This is
+// useful in cases where we only wish to test configs and connectivity in
+// isolation.
+func (r *ResourceBuilder) BuildSuspended() (*Resources, func(context.Context) error, error) {
+	mgr, err := r.buildNotStarted()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -385,6 +369,69 @@ func (r *ResourceBuilder) Build() (*Resources, func(context.Context) error, erro
 		}
 		return nil
 	}, nil
+}
+
+func (r *ResourceBuilder) buildNotStarted() (*manager.Type, error) {
+	engVer := r.engineVersion
+	if engVer == "" {
+		engVer = cli.Version
+	}
+
+	// This temporary manager is a very lazy way of instantiating a manager that
+	// restricts the bloblang and component environments to custom plugins.
+	// Ideally we would break out the constructor for our general purpose
+	// manager to allow for a two-tier initialisation where we can defer
+	// resource constructors until after this metrics exporter is initialised.
+	tmpMgr, err := manager.New(
+		manager.NewResourceConfig(),
+		manager.OptSetEngineVersion(engVer),
+		manager.OptSetEnvironment(r.env.internal),
+		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, f := range r.onMgrInit {
+		if err := f(newResourcesFromManager(tmpMgr)); err != nil {
+			return nil, err
+		}
+	}
+
+	tracer, err := r.env.internal.TracersInit(r.tracer, tmpMgr)
+	if err != nil {
+		return nil, err
+	}
+
+	stats, err := r.env.internal.MetricsInit(r.metrics, tmpMgr)
+	if err != nil {
+		return nil, err
+	}
+	if hler := stats.HandlerFunc(); r.apiMut != nil && hler != nil {
+		r.apiMut.RegisterEndpoint("/stats", "Exposes service-wide metrics in the format configured.", hler)
+		r.apiMut.RegisterEndpoint("/metrics", "Exposes service-wide metrics in the format configured.", hler)
+	}
+
+	opts := []manager.OptFunc{
+		manager.OptSetEngineVersion(engVer),
+		manager.OptSetMetrics(stats),
+		manager.OptSetTracer(tracer),
+		manager.OptSetAPIReg(r.apiMut),
+		manager.OptSetEnvironment(r.env.internal),
+		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
+		manager.OptSetFS(r.env.fs),
+	}
+
+	if r.customLogger != nil {
+		opts = append(opts, manager.OptSetLogger(r.customLogger))
+	}
+
+	mgr, err := manager.New(r.resources, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return mgr, nil
 }
 
 //------------------------------------------------------------------------------

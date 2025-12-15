@@ -5,6 +5,7 @@ package pure
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -21,7 +22,8 @@ type fanOutSequentialOutputBroker struct {
 	outputTSChans []chan message.Transaction
 	outputs       []output.Streamed
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func newFanOutSequentialOutputBroker(outputs []output.Streamed) (*fanOutSequentialOutputBroker, error) {
@@ -46,9 +48,14 @@ func (o *fanOutSequentialOutputBroker) Consume(transactions <-chan message.Trans
 		return component.ErrAlreadyStarted
 	}
 	o.transactions = transactions
-
-	go o.loop()
 	return nil
+}
+
+func (o *fanOutSequentialOutputBroker) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	for _, out := range o.outputs {
+		s = append(s, out.ConnectionTest(ctx)...)
+	}
+	return
 }
 
 func (o *fanOutSequentialOutputBroker) ConnectionStatus() (s component.ConnectionStatuses) {
@@ -122,6 +129,15 @@ func (o *fanOutSequentialOutputBroker) loop() {
 			return
 		}
 	}
+}
+
+func (o *fanOutSequentialOutputBroker) TriggerStartConsuming() {
+	o.startOnce.Do(func() {
+		for _, to := range o.outputs {
+			to.TriggerStartConsuming()
+		}
+		go o.loop()
+	})
 }
 
 func (o *fanOutSequentialOutputBroker) TriggerCloseNow() {

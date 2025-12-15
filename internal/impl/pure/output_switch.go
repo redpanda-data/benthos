@@ -189,7 +189,8 @@ type switchOutput struct {
 	continues     []bool
 	fallthroughs  []bool
 
-	shutSig *shutdown.Signaller
+	startOnce sync.Once
+	shutSig   *shutdown.Signaller
 }
 
 func switchOutputFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) (*switchOutput, error) {
@@ -266,9 +267,14 @@ func (o *switchOutput) Consume(transactions <-chan message.Transaction) error {
 		return component.ErrAlreadyStarted
 	}
 	o.transactions = transactions
-
-	go o.loop()
 	return nil
+}
+
+func (o *switchOutput) ConnectionTest(ctx context.Context) (s component.ConnectionTestResults) {
+	for _, out := range o.outputs {
+		s = append(s, out.ConnectionTest(ctx)...)
+	}
+	return
 }
 
 func (o *switchOutput) ConnectionStatus() (s component.ConnectionStatuses) {
@@ -465,6 +471,15 @@ func (o *switchOutput) loop() {
 			return ackErr
 		})
 	}
+}
+
+func (o *switchOutput) TriggerStartConsuming() {
+	o.startOnce.Do(func() {
+		for _, to := range o.outputs {
+			to.TriggerStartConsuming()
+		}
+		go o.loop()
+	})
 }
 
 func (o *switchOutput) TriggerCloseNow() {
