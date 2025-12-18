@@ -299,6 +299,9 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 				return nil, err
 			}
 
+			if t.consumeTriggered.Load() {
+				wrappedOutput.TriggerStartConsuming()
+			}
 			return &wrappedOutput, nil
 		})
 	}

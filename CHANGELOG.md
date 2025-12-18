@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.63.0 - 2025-12-18
+
+### Added
+
+- New connectivity testing APIs added to the resources builder and stream builder APIs. (@Jeffail)
+
 ## 4.62.0 - 2025-12-09
 
 ### Added
