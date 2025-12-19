@@ -23,7 +23,7 @@ func listCliCommand(opts *common.CLIOpts) *cli.Command {
 		&cli.StringFlag{
 			Name:  "format",
 			Value: "text",
-			Usage: "Print the component list in a specific format. Options are text, json, jsonschema, or cue.",
+			Usage: "Print the component list in a specific format. Options are text, json, jsonschema, jsonschema-draft-07, or cue.",
 		},
 		&cli.StringFlag{
 			Name:  "status",
@@ -181,6 +181,58 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 			panic(err)
 		}
 		fmt.Fprintln(opts.Stdout, string(jsonSchemaBytes))
+	case "jsonschema-draft-07":
+		// Special handling for bloblang functions and methods
+		if _, isFunctions := ofTypes["bloblang-functions"]; isFunctions {
+			functions := schema.BloblangFunctions
+
+			// Filter by specific function names if provided
+			if len(ofTypes) > 1 {
+				filtered := []query.FunctionSpec{}
+				for _, fn := range functions {
+					if _, requested := ofTypes[fn.Name]; requested {
+						filtered = append(filtered, fn)
+					}
+				}
+				functions = filtered
+			}
+
+			outputBloblangJSON(opts, "bloblang-functions", functions)
+			return
+		}
+		if _, isMethods := ofTypes["bloblang-methods"]; isMethods {
+			methods := schema.BloblangMethods
+
+			// Filter by specific method names if provided
+			if len(ofTypes) > 1 {
+				filtered := []query.MethodSpec{}
+				for _, method := range methods {
+					if _, requested := ofTypes[method.Name]; requested {
+						filtered = append(filtered, method)
+					}
+				}
+				methods = filtered
+			}
+
+			outputBloblangJSON(opts, "bloblang-methods", methods)
+			return
+		}
+
+		// Default: Component jsonschema with draft-07 specification
+		jsonSchemaBytes, err := jsonschema.Marshal(schema.Config, opts.Environment)
+		if err != nil {
+			panic(err)
+		}
+		var schemaMap map[string]any
+		if err := json.Unmarshal(jsonSchemaBytes, &schemaMap); err != nil {
+			panic(err)
+		}
+		schemaMap["$schema"] = "http://json-schema.org/draft-07/schema#"
+		draft07Bytes, err := json.Marshal(schemaMap)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Fprintln(opts.Stdout, string(draft07Bytes))
 	case "cue":
 		source, err := cuegen.GenerateSchema(schema)
 		if err != nil {

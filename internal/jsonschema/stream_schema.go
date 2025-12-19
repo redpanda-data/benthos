@@ -17,12 +17,19 @@ func compSpecsToDefinition(specs []docs.ComponentSpec, typeFields map[string]doc
 
 	var componentDefs []any
 	for _, s := range specs {
-		componentDefs = append(componentDefs, map[string]any{
+		componentDef := map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				s.Name: s.Config.JSONSchema(),
 			},
-		})
+		}
+		// Add description from component spec
+		if s.Summary != "" {
+			componentDef["description"] = s.Summary
+		} else if s.Description != "" {
+			componentDef["description"] = s.Description
+		}
+		componentDefs = append(componentDefs, componentDef)
 	}
 
 	return map[string]any{
