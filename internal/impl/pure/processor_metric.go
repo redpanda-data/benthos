@@ -327,6 +327,18 @@ func withNumberStr(val string, ifn func(i int64) error, ffn func(f float64) erro
 	return ffn(f)
 }
 
+func withRelaxedNumberStr(val string, ifn func(i int64) error, ffn func(f float64) error) error {
+	if i, err := strconv.ParseInt(val, 10, 64); err == nil {
+		return ifn(i)
+	}
+
+	f, err := strconv.ParseFloat(val, 64)
+	if err != nil {
+		return err
+	}
+	return ffn(f)
+}
+
 func (m *metricProcessor) handleCounterBy(val string, index int, msg message.Batch) error {
 	if len(m.labels) > 0 {
 		labelValues, err := m.labels.values(index, msg)
@@ -356,7 +368,7 @@ func (m *metricProcessor) handleGauge(val string, index int, msg message.Batch) 
 		if err != nil {
 			return err
 		}
-		return withNumberStr(val, func(i int64) error {
+		return withRelaxedNumberStr(val, func(i int64) error {
 			m.mGaugeVec.With(labelValues...).Set(i)
 			return nil
 		}, func(f float64) error {
@@ -364,7 +376,7 @@ func (m *metricProcessor) handleGauge(val string, index int, msg message.Batch) 
 			return nil
 		})
 	}
-	return withNumberStr(val, func(i int64) error {
+	return withRelaxedNumberStr(val, func(i int64) error {
 		m.mGauge.Set(i)
 		return nil
 	}, func(f float64) error {
