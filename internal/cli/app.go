@@ -13,6 +13,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/blobl"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
+	"github.com/redpanda-data/benthos/v4/internal/cli/lsp"
 	"github.com/redpanda-data/benthos/v4/internal/cli/studio"
 	clitemplate "github.com/redpanda-data/benthos/v4/internal/cli/template"
 	"github.com/redpanda-data/benthos/v4/internal/cli/test"
@@ -123,6 +124,11 @@ func App(opts *common.CLIOpts) *cli.App {
 	for _, c := range commands {
 		commandNames[c.Name] = struct{}{}
 	}
+
+	go func() error {
+		lsp.Start()
+		return nil
+	}()
 
 	// Standard commands are part of the engine for now, but tools are able to
 	// replace any of these with their own custom variants.
