@@ -25,6 +25,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/public/service"
 	"github.com/redpanda-data/benthos/v4/public/service/codec"
+	"github.com/redpanda-data/benthos/v4/public/service/securetls"
 	"github.com/redpanda-data/benthos/v4/public/utils/netutil"
 )
 
@@ -189,10 +190,9 @@ func (t *socketServerInput) Connect(ctx context.Context) error {
 		if cert, err = loadOrCreateCertificate(t.tlsCert, t.tlsKey, t.tlsSelfSigned); err != nil {
 			return err
 		}
-		config := &tls.Config{
-			Certificates: []tls.Certificate{cert},
-			ClientAuth:   t.tlsClientAuth,
-		}
+		config := securetls.NewConfig(securetls.SecurityLevelLax)
+		config.Certificates = []tls.Certificate{cert}
+		config.ClientAuth = t.tlsClientAuth
 		var baseListener net.Listener
 		baseListener, err = lc.Listen(ctx, "tcp", t.address)
 		if err != nil {

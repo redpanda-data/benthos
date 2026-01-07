@@ -13,6 +13,7 @@ import (
 	"github.com/youmark/pkcs8"
 
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
+	"github.com/redpanda-data/benthos/v4/public/service/securetls"
 )
 
 // ClientCertConfig contains config fields for a client certificate.
@@ -49,9 +50,8 @@ func NewConfig() Config {
 //------------------------------------------------------------------------------
 
 func defaultTLSConfig() *tls.Config {
-	return &tls.Config{
-		MinVersion: tls.VersionTLS12,
-	}
+	// Default to lax security level (customer-facing) for broadest compatibility
+	return securetls.NewConfig(securetls.SecurityLevelLax)
 }
 
 // GetNonToggled returns a valid *tls.Config based on the configuration values
