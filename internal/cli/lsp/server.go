@@ -19,9 +19,14 @@ var (
 func Start() {
 	commonlog.Configure(2, nil)
 	handler = protocol.Handler{
-		Initialize:             initialize,
+		Initialize: initialize,
+		Initialized: func(context *glsp.Context, params *protocol.InitializedParams) error {
+			return nil
+		},
 		Shutdown:               shutdown,
 		TextDocumentCompletion: TextDocumentCompletion,
+		TextDocumentDidOpen:    TextDocumentDidOpen,
+		TextDocumentDidClose:   TextDocumentDidClose,
 	}
 	server := server.NewServer(&handler, lsName, true)
 	// server.RunStdio()
@@ -31,6 +36,7 @@ func Start() {
 func initialize(context *glsp.Context, params *protocol.InitializeParams) (any, error) {
 	commonlog.NewInfoMessage(0, "Initializing Redpanda Connect LSP...")
 	capabilities := handler.CreateServerCapabilities()
+	capabilities.TextDocumentSync = 1 // full
 
 	trueVar := true
 	capabilities.CompletionProvider = &protocol.CompletionOptions{

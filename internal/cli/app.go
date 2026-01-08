@@ -125,9 +125,9 @@ func App(opts *common.CLIOpts) *cli.App {
 		commandNames[c.Name] = struct{}{}
 	}
 
-	go func() error {
+	go func() {
 		lsp.Start()
-		return nil
+		// return nil
 	}()
 
 	// Standard commands are part of the engine for now, but tools are able to
