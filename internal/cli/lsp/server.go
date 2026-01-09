@@ -25,8 +25,10 @@ func Start() {
 		},
 		Shutdown:               shutdown,
 		TextDocumentCompletion: TextDocumentCompletion,
+		TextDocumentDidChange:  TextDocumentDidChange,
 		TextDocumentDidOpen:    TextDocumentDidOpen,
 		TextDocumentDidClose:   TextDocumentDidClose,
+		TextDocumentHover:      TextDocumentHover,
 	}
 	server := server.NewServer(&handler, lsName, true)
 	// server.RunStdio()
@@ -37,6 +39,7 @@ func initialize(context *glsp.Context, params *protocol.InitializeParams) (any, 
 	commonlog.NewInfoMessage(0, "Initializing Redpanda Connect LSP...")
 	capabilities := handler.CreateServerCapabilities()
 	capabilities.TextDocumentSync = 1 // full
+	capabilities.HoverProvider = true
 
 	trueVar := true
 	capabilities.CompletionProvider = &protocol.CompletionOptions{

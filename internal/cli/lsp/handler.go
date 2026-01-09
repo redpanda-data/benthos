@@ -44,6 +44,11 @@ func TextDocumentDidClose(context *glsp.Context, params *protocol.DidCloseTextDo
 	return nil
 }
 
+func TextDocumentDidChange(context *glsp.Context, params *protocol.DidChangeTextDocumentParams) error {
+	fmt.Printf("did change: %s", params.TextDocument.URI)
+	return nil
+}
+
 func TextDocumentCompletion(ctx *glsp.Context, params *protocol.CompletionParams) (any, error) {
 	var completionItems []protocol.CompletionItem
 

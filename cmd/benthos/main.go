@@ -14,5 +14,6 @@ import (
 )
 
 func main() {
+	// :DlvDebug -- -config /home/jwoodward/code/benthos/cmd/connect.yaml
 	service.RunCLI(context.Background())
 }

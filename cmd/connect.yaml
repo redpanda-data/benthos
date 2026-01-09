@@ -1,0 +1,7 @@
+input:
+  generate:
+    interval: 1s
+    mapping: root = "hello world"
+
+output:
+  drop: {}
