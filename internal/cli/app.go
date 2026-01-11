@@ -125,11 +125,6 @@ func App(opts *common.CLIOpts) *cli.App {
 		commandNames[c.Name] = struct{}{}
 	}
 
-	go func() {
-		lsp.Start()
-		// return nil
-	}()
-
 	// Standard commands are part of the engine for now, but tools are able to
 	// replace any of these with their own custom variants.
 	for _, c := range []*cli.Command{
@@ -150,6 +145,10 @@ func App(opts *common.CLIOpts) *cli.App {
 			commands = append(commands, c)
 		}
 	}
+
+	go func() {
+		lsp.Start(opts)
+	}()
 
 	// Update usage and description strings with our templates.
 	var execNestedTemplates func([]*cli.Command)

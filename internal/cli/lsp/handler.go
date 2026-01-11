@@ -34,22 +34,22 @@ func Decode(v string) ([]byte, error) {
 	return []byte(strings.Join(ret, "\n")), nil
 }
 
-func TextDocumentDidOpen(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
+func textDocumentDidOpen(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
 	fmt.Printf("opened: %s", params.TextDocument.URI)
 	return nil
 }
 
-func TextDocumentDidClose(context *glsp.Context, params *protocol.DidCloseTextDocumentParams) error {
+func textDocumentDidClose(context *glsp.Context, params *protocol.DidCloseTextDocumentParams) error {
 	fmt.Printf("closed %s", params.TextDocument.URI)
 	return nil
 }
 
-func TextDocumentDidChange(context *glsp.Context, params *protocol.DidChangeTextDocumentParams) error {
+func textDocumentDidChange(context *glsp.Context, params *protocol.DidChangeTextDocumentParams) error {
 	fmt.Printf("did change: %s", params.TextDocument.URI)
 	return nil
 }
 
-func TextDocumentCompletion(ctx *glsp.Context, params *protocol.CompletionParams) (any, error) {
+func textDocumentCompletion(ctx *glsp.Context, params *protocol.CompletionParams) (any, error) {
 	var completionItems []protocol.CompletionItem
 
 	// filePath := params.TextDocumentPositionParams.TextDocument.URI
