@@ -190,7 +190,7 @@ func (t *socketServerInput) Connect(ctx context.Context) error {
 		if cert, err = loadOrCreateCertificate(t.tlsCert, t.tlsKey, t.tlsSelfSigned); err != nil {
 			return err
 		}
-		config := securetls.NewConfig(securetls.SecurityLevelLax)
+		config := securetls.NewConfig(securetls.SecurityLevelNormal)
 		config.Certificates = []tls.Certificate{cert}
 		config.ClientAuth = t.tlsClientAuth
 		var baseListener net.Listener

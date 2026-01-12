@@ -50,8 +50,8 @@ func NewConfig() Config {
 //------------------------------------------------------------------------------
 
 func defaultTLSConfig() *tls.Config {
-	// Default to lax security level (customer-facing) for broadest compatibility
-	return securetls.NewConfig(securetls.SecurityLevelLax)
+	// Default to normal security level (customer-facing) for broadest compatibility
+	return securetls.NewConfig(securetls.SecurityLevelNormal)
 }
 
 // GetNonToggled returns a valid *tls.Config based on the configuration values

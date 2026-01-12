@@ -28,8 +28,8 @@ func TestNewConfig(t *testing.T) {
 			},
 		},
 		{
-			name:               "lax security level",
-			level:              SecurityLevelLax,
+			name:               "normal security level",
+			level:              SecurityLevelNormal,
 			expectedMinVersion: tls.VersionTLS12,
 			expectedSuites: []uint16{
 				tls.TLS_AES_256_GCM_SHA384,
@@ -44,7 +44,7 @@ func TestNewConfig(t *testing.T) {
 			},
 		},
 		{
-			name:               "unspecified security level defaults to lax",
+			name:               "unspecified security level defaults to normal",
 			level:              SecurityLevel(""),
 			expectedMinVersion: tls.VersionTLS12,
 			expectedSuites: []uint16{
@@ -88,8 +88,8 @@ func TestWithInsecureSkipVerify(t *testing.T) {
 			level: SecurityLevelStrict,
 		},
 		{
-			name:  "lax with skip verify",
-			level: SecurityLevelLax,
+			name:  "normal with skip verify",
+			level: SecurityLevelNormal,
 		},
 	}
 
@@ -128,8 +128,8 @@ func TestCipherSuiteCompliance(t *testing.T) {
 		}
 	})
 
-	t.Run("lax suites include TLS 1.2 compatibility", func(t *testing.T) {
-		suites := getLaxCipherSuites()
+	t.Run("normal suites include TLS 1.2 compatibility", func(t *testing.T) {
+		suites := getNormalCipherSuites()
 		require.NotEmpty(t, suites)
 
 		// Should include at least one TLS 1.2 suite for compatibility
@@ -143,12 +143,12 @@ func TestCipherSuiteCompliance(t *testing.T) {
 		}
 
 		assert.True(t, hasTLS12Suite,
-			"Lax suites should include TLS 1.2 compatibility")
+			"Normal suites should include TLS 1.2 compatibility")
 	})
 
 	t.Run("no weak cipher suites", func(t *testing.T) {
 		// Test both strict and lax
-		allSuites := append(getStrictCipherSuites(), getLaxCipherSuites()...)
+		allSuites := append(getStrictCipherSuites(), getNormalCipherSuites()...)
 
 		// Weak suites that should NOT be present
 		weakSuites := map[uint16]string{
@@ -172,7 +172,7 @@ func TestCipherSuiteCompliance(t *testing.T) {
 	})
 
 	t.Run("all suites use AEAD or are TLS 1.3", func(t *testing.T) {
-		allSuites := append(getStrictCipherSuites(), getLaxCipherSuites()...)
+		allSuites := append(getStrictCipherSuites(), getNormalCipherSuites()...)
 
 		// AEAD suites (GCM, CHACHA20-POLY1305) or TLS 1.3
 		aeadSuites := map[uint16]bool{
@@ -198,7 +198,7 @@ func TestCipherSuiteCompliance(t *testing.T) {
 
 func TestMinVersionCompliance(t *testing.T) {
 	t.Run("all configs enforce TLS 1.2 minimum", func(t *testing.T) {
-		levels := []SecurityLevel{SecurityLevelStrict, SecurityLevelLax, SecurityLevel("")}
+		levels := []SecurityLevel{SecurityLevelStrict, SecurityLevelNormal, SecurityLevel("")}
 
 		for _, level := range levels {
 			conf := NewConfig(level)
@@ -208,7 +208,7 @@ func TestMinVersionCompliance(t *testing.T) {
 	})
 
 	t.Run("insecure skip verify still enforces TLS 1.2", func(t *testing.T) {
-		conf := WithInsecureSkipVerify(SecurityLevelLax)
+		conf := WithInsecureSkipVerify(SecurityLevelNormal)
 		assert.Equal(t, uint16(tls.VersionTLS12), conf.MinVersion,
 			"Even with InsecureSkipVerify, MinVersion should be TLS 1.2")
 	})
@@ -216,7 +216,7 @@ func TestMinVersionCompliance(t *testing.T) {
 
 func TestConfigModifiability(t *testing.T) {
 	t.Run("config can be modified after creation", func(t *testing.T) {
-		conf := NewConfig(SecurityLevelLax)
+		conf := NewConfig(SecurityLevelNormal)
 
 		// Should be able to add certificates
 		conf.Certificates = []tls.Certificate{{}}

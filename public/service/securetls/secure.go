@@ -15,9 +15,9 @@ const (
 	// Uses TLS 1.3 only with a restricted set of cipher suites for maximum security.
 	SecurityLevelStrict SecurityLevel = "strict"
 
-	// SecurityLevelLax is for external Redpanda-to-customer communication.
+	// SecurityLevelNormal is for external Redpanda-to-customer communication.
 	// Uses TLS 1.2+ with a broader set of cipher suites for compatibility.
-	SecurityLevelLax SecurityLevel = "lax"
+	SecurityLevelNormal SecurityLevel = "normal"
 )
 
 // NewConfig creates a *tls.Config that complies with Redpanda Transport
@@ -29,8 +29,8 @@ const (
 //	// For internal Redpanda-to-Redpanda communication (strict security)
 //	tlsConf := securetls.NewConfig(securetls.SecurityLevelStrict)
 //
-//	// For external customer-facing services (lax for compatibility)
-//	tlsConf := securetls.NewConfig(securetls.SecurityLevelLax)
+//	For external customer-facing services (normal for compatibility)
+//	tlsConf := securetls.NewConfig(securetls.SecurityLevelNormal)
 //	tlsConf.Certificates = []tls.Certificate{cert}
 func NewConfig(level SecurityLevel) *tls.Config {
 	conf := &tls.Config{
@@ -40,11 +40,11 @@ func NewConfig(level SecurityLevel) *tls.Config {
 	switch level {
 	case SecurityLevelStrict:
 		conf.CipherSuites = getStrictCipherSuites()
-	case SecurityLevelLax:
-		conf.CipherSuites = getLaxCipherSuites()
+	case SecurityLevelNormal:
+		conf.CipherSuites = getNormalCipherSuites()
 	default:
-		// Default to lax (more permissive) if security level is unspecified
-		conf.CipherSuites = getLaxCipherSuites()
+		// Default to normal (more permissive) if security level is unspecified
+		conf.CipherSuites = getNormalCipherSuites()
 	}
 
 	return conf
@@ -72,7 +72,7 @@ func getStrictCipherSuites() []uint16 {
 	}
 }
 
-// getLaxCipherSuites returns cipher suites for lax security level
+// getNormalCipherSuites returns cipher suites for normal security level
 // (external Redpanda-to-customer communication) per Transport Security Guidelines.
 //
 // NOTE: TLS 1.3 cipher suites listed here are for documentation only - Go's
@@ -81,7 +81,7 @@ func getStrictCipherSuites() []uint16 {
 // suites below are actually configured and enforced.
 //
 // Includes TLS 1.2 suites for backward compatibility with various client types.
-func getLaxCipherSuites() []uint16 {
+func getNormalCipherSuites() []uint16 {
 	return []uint16{
 		// TLS 1.3 suites (for documentation only - Go ignores these)
 		tls.TLS_AES_256_GCM_SHA384,
