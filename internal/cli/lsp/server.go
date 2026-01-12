@@ -3,12 +3,13 @@ package lsp
 import (
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config/schema"
+
+	"github.com/goccy/go-yaml/parser"
 	"github.com/tliron/commonlog"
+	_ "github.com/tliron/commonlog/simple"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	"github.com/tliron/glsp/server"
-
-	_ "github.com/tliron/commonlog/simple"
 )
 
 const lsName = "Redpanda Connect Language Server"
@@ -96,6 +97,22 @@ func (s *state) updateDocument(uri, text string) {
 
 // func (s *state) onHover(id int, uri string, position protocol.Position) {
 func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*protocol.Hover, error) {
-	h := &protocol.Hover{Contents: s.schema.Config[0].Description}
+	doc, ok := s.documents[params.TextDocument.URI]
+	if !ok {
+		return nil, nil
+	}
+
+	file, err := parser.ParseBytes([]byte(doc), parser.ParseComments)
+	if err != nil {
+		return nil, nil
+	}
+	token := findTokenAtPosition(file, int(params.Position.Line+1), int(params.Position.Character))
+	_ = token
+	// 1. Parse yaml config
+	// 2. find symbol in s.schema.Config
+	// h := &protocol.Hover{Contents: s.schema.Config[0].Description}
+	sch := s.schema.Config
+	_ = sch
+	h := &protocol.Hover{Contents: token.Value}
 	return h, nil
 }
