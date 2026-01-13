@@ -1,4 +1,4 @@
-//go:build !wasm
+//go:build wasm
 
 // Copyright 2025 Redpanda Data, Inc.
 
@@ -41,7 +41,6 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/tracing"
 	"github.com/redpanda-data/benthos/v4/internal/transaction"
 	"github.com/redpanda-data/benthos/v4/public/service"
-	"github.com/redpanda-data/benthos/v4/public/utils/netutil"
 )
 
 const (
@@ -77,7 +76,6 @@ type hsiConfig struct {
 	KeyFile            string
 	CORS               httpserver.CORSConfig
 	Response           hsiResponseConfig
-	ListenerConfig     netutil.ListenerConfig
 }
 
 type hsiResponseConfig struct {
@@ -132,9 +130,6 @@ func hsiConfigFromParsed(pConf *service.ParsedConfig) (conf hsiConfig, err error
 		return
 	}
 	if conf.Response, err = hsiResponseConfigFromParsed(pConf.Namespace(hsiFieldResponse)); err != nil {
-		return
-	}
-	if conf.ListenerConfig, err = netutil.ListenerConfigFromParsed(pConf.Namespace("tcp")); err != nil {
 		return
 	}
 	return
@@ -277,9 +272,6 @@ You can access these metadata fields using xref:configuration:interpolation.adoc
 			).
 				Description("Customize messages returned via xref:guides:sync_responses.adoc[synchronous responses].").
 				Advanced(),
-			netutil.ListenerConfigSpec().
-				Description("TCP listener configuration for the HTTP server. Only valid with a custom `address`.").
-				Advanced(),
 		).
 		Example(
 			"Path Switching",
@@ -364,9 +356,8 @@ type httpServerInput struct {
 	log  log.Modular
 	mgr  bundle.NewManagement
 
-	mux      *mux.Router
-	server   *http.Server
-	listener net.Listener
+	mux    *mux.Router
+	server *http.Server
 
 	handlerWG    sync.WaitGroup
 	transactions chan message.Transaction
@@ -382,7 +373,6 @@ type httpServerInput struct {
 func newHTTPServerInput(conf hsiConfig, mgr bundle.NewManagement) (input.Streamed, error) {
 	var gMux *mux.Router
 	var server *http.Server
-	var listener net.Listener
 
 	var err error
 	if conf.Address != "" {
@@ -390,17 +380,6 @@ func newHTTPServerInput(conf hsiConfig, mgr bundle.NewManagement) (input.Streame
 		server = &http.Server{Addr: conf.Address}
 		if server.Handler, err = conf.CORS.WrapHandler(gMux); err != nil {
 			return nil, fmt.Errorf("bad CORS configuration: %w", err)
-		}
-
-		// Create listener synchronously to ensure port binding succeeds before returning
-		var lc net.ListenConfig
-		if err := netutil.DecorateListenerConfig(&lc, conf.ListenerConfig); err != nil {
-			return nil, fmt.Errorf("failed to configure listener: %w", err)
-		}
-
-		listener, err = lc.Listen(context.Background(), "tcp", conf.Address)
-		if err != nil {
-			return nil, fmt.Errorf("failed to bind to address %s: %w", conf.Address, err)
 		}
 	}
 
@@ -412,7 +391,6 @@ func newHTTPServerInput(conf hsiConfig, mgr bundle.NewManagement) (input.Streame
 		mgr:          mgr,
 		mux:          gMux,
 		server:       server,
-		listener:     listener,
 		transactions: make(chan message.Transaction),
 
 		mLatency:  mgr.Metrics().GetTimer("input_latency_ns"),
@@ -866,8 +844,6 @@ func (h *httpServerInput) loop() {
 			if err := h.server.Shutdown(context.Background()); err != nil {
 				h.log.Error("Failed to gracefully terminate http_server: %v\n", err)
 			}
-			h.server = nil
-			h.listener = nil
 		} else {
 			// We are using the service-wide HTTP server. In order to prevent
 			// situations where a slow shutdown results in serving an abundance
@@ -902,32 +878,24 @@ func (h *httpServerInput) loop() {
 
 	if h.server != nil {
 		go func() {
-			listener := h.listener
 			if h.conf.KeyFile != "" || h.conf.CertFile != "" {
 				h.log.Info(
 					"Receiving HTTPS messages at: https://%s\n",
 					h.conf.Address+h.conf.Path,
 				)
-				// Wrap listener with TLS
-				cert, err := tls.LoadX509KeyPair(h.conf.CertFile, h.conf.KeyFile)
-				if err != nil {
-					h.log.Error("Failed to load TLS certificates: %v\n", err)
-					return
+				if err := h.server.ListenAndServeTLS(
+					h.conf.CertFile, h.conf.KeyFile,
+				); err != http.ErrServerClosed {
+					h.log.Error("Server error: %v\n", err)
 				}
-				tlsConfig := &tls.Config{
-					Certificates: []tls.Certificate{cert},
-				}
-				listener = tls.NewListener(listener, tlsConfig)
 			} else {
 				h.log.Info(
 					"Receiving HTTP messages at: http://%s\n",
 					h.conf.Address+h.conf.Path,
 				)
-			}
-
-			// Use Serve with pre-bound listener
-			if err := h.server.Serve(listener); err != http.ErrServerClosed {
-				h.log.Error("Server error: %v\n", err)
+				if err := h.server.ListenAndServe(); err != http.ErrServerClosed {
+					h.log.Error("Server error: %v\n", err)
+				}
 			}
 		}()
 	}
