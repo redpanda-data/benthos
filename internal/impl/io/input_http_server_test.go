@@ -1368,3 +1368,119 @@ http_server:
 	assert.Equal(t, "200 OK", resp.Status)
 	assert.Equal(t, "foo", resp.Header.Get("Access-Control-Allow-Origin"))
 }
+
+// TestHTTPServerReload tests that the server can be closed and recreated on the same port
+// without getting stuck in a "not ready" state. This simulates config reload behavior.
+func TestHTTPServerReload(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	t.Parallel()
+
+	// First server instance
+	mgr1, err := manager.New(manager.ResourceConfig{})
+	require.NoError(t, err)
+
+	conf1 := parseYAMLInputConf(t, `
+http_server:
+  address: "127.0.0.1:19284"
+  path: /testpost
+  tcp:
+    reuse_port: true
+`)
+
+	h1, err := mgr1.NewInput(conf1)
+	require.NoError(t, err)
+
+	// Start consuming (which binds the port)
+	h1.TriggerStartConsuming()
+
+	// Give server time to start listening
+	time.Sleep(100 * time.Millisecond)
+
+	// Send request to first server (in goroutine to avoid blocking)
+	go func() {
+		res, err := http.Post(
+			"http://127.0.0.1:19284/testpost",
+			"application/octet-stream",
+			bytes.NewBufferString("test message 1"),
+		)
+		if err != nil {
+			t.Logf("Failed to send first request: %v", err)
+			return
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 200 {
+			t.Logf("First request returned status: %d", res.StatusCode)
+		}
+	}()
+
+	// Consume the message to unblock the request
+	select {
+	case ts := <-h1.TransactionChan():
+		require.NoError(t, transaction.SetAsResponse(ts.Payload))
+		require.NoError(t, ts.Ack(tCtx, nil))
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for first message")
+	}
+
+	// Close first server (simulating reload)
+	closeCtx, closeDone := context.WithTimeout(context.Background(), 5*time.Second)
+	defer closeDone()
+	h1.TriggerStopConsuming()
+	require.NoError(t, h1.WaitForClose(closeCtx))
+
+	// Small delay to ensure port is fully released
+	time.Sleep(100 * time.Millisecond)
+
+	// Create second server instance on the same address (simulating reload)
+	mgr2, err := manager.New(manager.ResourceConfig{})
+	require.NoError(t, err)
+
+	conf2 := parseYAMLInputConf(t, `
+http_server:
+  address: "127.0.0.1:19284"
+  path: /testpost
+  tcp:
+    reuse_port: true
+`)
+
+	h2, err := mgr2.NewInput(conf2)
+	require.NoError(t, err, "Failed to create second http_server on same port - this is the bug we're fixing")
+
+	// Start consuming (which should successfully bind to the same port)
+	h2.TriggerStartConsuming()
+
+	// Give server time to start listening
+	time.Sleep(100 * time.Millisecond)
+
+	// Send request to second server to verify it's working (in goroutine to avoid blocking)
+	go func() {
+		res, err := http.Post(
+			"http://127.0.0.1:19284/testpost",
+			"application/octet-stream",
+			bytes.NewBufferString("test message 2"),
+		)
+		if err != nil {
+			t.Logf("Failed to send second request: %v", err)
+			return
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 200 {
+			t.Logf("Second request returned status: %d", res.StatusCode)
+		}
+	}()
+
+	// Consume the message to unblock the request
+	select {
+	case ts := <-h2.TransactionChan():
+		require.NoError(t, transaction.SetAsResponse(ts.Payload))
+		require.NoError(t, ts.Ack(tCtx, nil))
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for second message")
+	}
+
+	// Clean up
+	h2.TriggerStopConsuming()
+	require.NoError(t, h2.WaitForClose(tCtx))
+}
