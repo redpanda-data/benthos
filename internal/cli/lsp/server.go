@@ -163,9 +163,11 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 		if cnt == len(path) {
 			switch node {
 			case fs.Name:
-				return &protocol.Hover{Contents: fs.Description}, nil
+				content := fmt.Sprintf("Field: %s (%s)\n-----------------------------\n%s\n-----------------------------\nExamples: %s", fs.Name, fs.Type, fs.Description, fs.Examples[0])
+				return &protocol.Hover{Contents: content}, nil
 			case cs.Name:
-				return &protocol.Hover{Contents: cs.Description}, nil
+				content := fmt.Sprintf("Field: %s (%s)\n-----------------------------\n%s\n-----------------------------\nExamples: %s", cs.Name, cs.Type, cs.Description, cs.Examples[0])
+				return &protocol.Hover{Contents: content}, nil
 			}
 		}
 	}
