@@ -123,8 +123,14 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 
 	// $.input.generate.interval
 	// $.input.generate.mapping
-	var sp docs.ComponentSpec
-	for _, node := range path[1:] {
+	var (
+		cs docs.ComponentSpec
+		fs docs.FieldSpec
+	)
+	path = path[1:]
+	cnt := 0
+	for _, node := range path {
+		cnt++
 		fmt.Println(node)
 
 		switch node {
@@ -136,14 +142,33 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 			components = s.schema.Processors
 		}
 
+		// components
 		for _, spec := range components {
 			if node == spec.Name {
-				sp = spec
+				cs = spec
 				break
 			}
 		}
 
+		// children
+		if len(cs.Config.Children) > 0 {
+			for _, c := range cs.Config.Children {
+				if node == c.Name {
+					fs = c
+					break
+				}
+			}
+		}
+
+		if cnt == len(path) {
+			switch node {
+			case fs.Name:
+				return &protocol.Hover{Contents: fs.Description}, nil
+			case cs.Name:
+				return &protocol.Hover{Contents: cs.Description}, nil
+			}
+		}
 	}
 
-	return &protocol.Hover{Contents: sp.Description}, nil
+	return &protocol.Hover{}, nil
 }
