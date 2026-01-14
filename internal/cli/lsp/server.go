@@ -1,8 +1,12 @@
 package lsp
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config/schema"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
 
 	"github.com/goccy/go-yaml/parser"
 	"github.com/tliron/commonlog"
@@ -107,12 +111,39 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 		return nil, nil
 	}
 	token := findTokenAtPosition(file, int(params.Position.Line+1), int(params.Position.Character))
-	_ = token
-	// 1. Parse yaml config
-	// 2. find symbol in s.schema.Config
-	// h := &protocol.Hover{Contents: s.schema.Config[0].Description}
-	sch := s.schema.Config
-	_ = sch
-	h := &protocol.Hover{Contents: token.Value}
-	return h, nil
+	path := strings.Split(token.Path, ".")
+
+	if path[0] != "$" {
+		return &protocol.Hover{}, nil
+	}
+
+	var (
+		components []docs.ComponentSpec
+	)
+
+	// $.input.generate.interval
+	// $.input.generate.mapping
+	var sp docs.ComponentSpec
+	for _, node := range path[1:] {
+		fmt.Println(node)
+
+		switch node {
+		case "input":
+			components = s.schema.Inputs
+		case "outputs":
+			components = s.schema.Outputs
+		case "processors":
+			components = s.schema.Processors
+		}
+
+		for _, spec := range components {
+			if node == spec.Name {
+				sp = spec
+				break
+			}
+		}
+
+	}
+
+	return &protocol.Hover{Contents: sp.Description}, nil
 }

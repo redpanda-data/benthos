@@ -1,14 +1,18 @@
 package lsp
 
 import (
-	// "go/token"
-
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/token"
 )
 
-func findTokenAtPosition(file *ast.File, line, column int) *token.Token {
-	var result *token.Token
+// TokenWithPath holds a token and its path in the YAML document
+type TokenWithPath struct {
+	Token *token.Token
+	Path  string
+}
+
+func findTokenAtPosition(file *ast.File, line, column int) *TokenWithPath {
+	var result *TokenWithPath
 
 	// Walk each document in the file
 	for _, doc := range file.Docs {
@@ -29,7 +33,7 @@ func findTokenAtPosition(file *ast.File, line, column int) *token.Token {
 type visitor struct {
 	targetLine   int
 	targetColumn int
-	result       **token.Token
+	result       **TokenWithPath
 }
 
 func (v *visitor) Visit(node ast.Node) ast.Visitor {
@@ -49,7 +53,10 @@ func (v *visitor) Visit(node ast.Node) ast.Visitor {
 			endCol := startCol + len(tok.Value)
 
 			if v.targetColumn >= startCol && v.targetColumn < endCol {
-				*v.result = tok
+				*v.result = &TokenWithPath{
+					Token: tok,
+					Path:  node.GetPath(),
+				}
 			}
 		}
 	}
