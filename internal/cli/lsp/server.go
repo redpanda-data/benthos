@@ -114,7 +114,7 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 	path := strings.Split(token.Path, ".")
 
 	if path[0] != "$" {
-		return &protocol.Hover{}, nil
+		return &protocol.Hover{Contents: ""}, nil
 	}
 
 	var (
@@ -136,10 +136,14 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 		switch node {
 		case "input":
 			components = s.schema.Inputs
-		case "outputs":
+		case "output":
 			components = s.schema.Outputs
 		case "processors":
 			components = s.schema.Processors
+		case "cache":
+			components = s.schema.Caches
+		case "buffer":
+			components = s.schema.Caches
 		}
 
 		// components
@@ -163,14 +167,20 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 		if cnt == len(path) {
 			switch node {
 			case fs.Name:
-				content := fmt.Sprintf("Field: %s (%s)\n-----------------------------\n%s\n-----------------------------\nExamples: %s", fs.Name, fs.Type, fs.Description, fs.Examples[0])
+				content := fmt.Sprintf("Field: %s (%s)\n-----------------------------\n%s\n", fs.Name, fs.Type, fs.Description)
+				if len(fs.Examples) > 0 {
+					content += fmt.Sprintf("-----------------------------\nExample:\n%s", fs.Examples[0])
+				}
 				return &protocol.Hover{Contents: content}, nil
 			case cs.Name:
-				content := fmt.Sprintf("Field: %s (%s)\n-----------------------------\n%s\n-----------------------------\nExamples: %s", cs.Name, cs.Type, cs.Description, cs.Examples[0])
+				content := fmt.Sprintf("Field: %s (%s)\n-----------------------------\n%s\n", cs.Name, cs.Type, cs.Description)
+				if len(cs.Examples) > 0 {
+					content += fmt.Sprintf("-----------------------------\nExample:\n%s", cs.Examples[0])
+				}
 				return &protocol.Hover{Contents: content}, nil
 			}
 		}
 	}
 
-	return &protocol.Hover{}, nil
+	return &protocol.Hover{Contents: ""}, nil
 }
