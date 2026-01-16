@@ -147,14 +147,13 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 	cnt := 0
 	for _, node := range path {
 		cnt++
-		fmt.Println(node)
 
 		switch node {
 		case "input":
 			components = s.schema.Inputs
 		case "output":
 			components = s.schema.Outputs
-		case "processors":
+		case "processors", "processors[0]":
 			components = s.schema.Processors
 		case "cache":
 			components = s.schema.Caches
@@ -183,13 +182,13 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 		if cnt == len(path) {
 			switch node {
 			case fs.Name:
-				content := fmt.Sprintf("Field: %s (%s)\n-----------------------------\n%s\n", fs.Name, fs.Type, fs.Description)
+				content := fmt.Sprintf("# Field: %s (%s)\n-----------------------------\n%s\n", fs.Name, fs.Type, fs.Description)
 				if len(fs.Examples) > 0 {
 					content += fmt.Sprintf("-----------------------------\nExample:\n%s", fs.Examples[0])
 				}
 				return &protocol.Hover{Contents: content}, nil
 			case cs.Name:
-				content := fmt.Sprintf("Field: %s (%s)\n-----------------------------\n%s\n", cs.Name, cs.Type, cs.Description)
+				content := fmt.Sprintf("# Field: %s (%s)\n-----------------------------\n%s\n", cs.Name, cs.Type, cs.Description)
 				if len(cs.Examples) > 0 {
 					content += fmt.Sprintf("-----------------------------\nExample:\n%s", cs.Examples[0])
 				}
