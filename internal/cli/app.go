@@ -138,6 +138,7 @@ func App(opts *common.CLIOpts) *cli.App {
 		clitemplate.CliCommand(opts),
 		blobl.CliCommand(opts),
 		studio.CliCommand(opts),
+		lsp.CliCommand(opts),
 	} {
 		if _, exists := commandNames[c.Name]; !exists {
 			// Only add standard commands that haven't been replaced with a
@@ -145,10 +146,6 @@ func App(opts *common.CLIOpts) *cli.App {
 			commands = append(commands, c)
 		}
 	}
-
-	go func() {
-		lsp.Start(opts)
-	}()
 
 	// Update usage and description strings with our templates.
 	var execNestedTemplates func([]*cli.Command)

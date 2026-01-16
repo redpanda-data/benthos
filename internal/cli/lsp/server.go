@@ -14,6 +14,7 @@ import (
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 	"github.com/tliron/glsp/server"
+	"github.com/urfave/cli/v2"
 )
 
 const lsName = "Redpanda Connect Language Server"
@@ -22,6 +23,21 @@ var (
 	version string = "0.0.1"
 	handler protocol.Handler
 )
+
+// CliCommand returns the CLI command for running the LSP server.
+func CliCommand(opts *common.CLIOpts) *cli.Command {
+	return &cli.Command{
+		Name:  "lsp",
+		Usage: "Run the Language Server Protocol (LSP) server",
+		Description: `
+Starts the Redpanda Connect Language Server Protocol (LSP) server.
+This provides IDE features like autocompletion and hover documentation.`,
+		Action: func(c *cli.Context) error {
+			Start(opts)
+			return nil
+		},
+	}
+}
 
 func Start(opts *common.CLIOpts) {
 	commonlog.Configure(2, nil)
@@ -40,8 +56,8 @@ func Start(opts *common.CLIOpts) {
 		TextDocumentHover:      state.onHover,
 	}
 	server := server.NewServer(&handler, lsName, true)
-	// server.RunStdio()
-	server.RunTCP("127.0.0.1:8085")
+	server.RunStdio()
+	// server.RunTCP("127.0.0.1:8085")
 }
 
 func initialize(context *glsp.Context, params *protocol.InitializeParams) (any, error) {
