@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.63.1 - 2026-01-16
+
+### Fixed
+
+- http_server: Use `SO_REUSEADDR` to avoid being blocked by `TIME_WAIT` upon connector restart. (@vuldin)
+
 ## 4.63.0 - 2025-12-18
 
 ### Added
