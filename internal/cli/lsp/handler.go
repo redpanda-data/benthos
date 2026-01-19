@@ -1,38 +1,12 @@
 package lsp
 
 import (
-	"errors"
 	"fmt"
-	"io"
-	"strings"
-
-	"github.com/goccy/go-json"
-	"github.com/goccy/go-yaml"
 
 	_ "github.com/tliron/commonlog/simple"
 	"github.com/tliron/glsp"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 )
-
-func Decode(v string) ([]byte, error) {
-	var ret []string
-	dec := yaml.NewDecoder(strings.NewReader(v))
-	for {
-		var v any
-		if err := dec.Decode(&v); err != nil {
-			if err == io.EOF {
-				break
-			}
-			return nil, errors.New(yaml.FormatError(err, true, true))
-		}
-		got, err := json.MarshalIndentWithOption(v, "", "  ", json.Colorize(json.DefaultColorScheme))
-		if err != nil {
-			return nil, err
-		}
-		ret = append(ret, string(got))
-	}
-	return []byte(strings.Join(ret, "\n")), nil
-}
 
 func textDocumentDidOpen(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
 	fmt.Printf("opened: %s", params.TextDocument.URI)

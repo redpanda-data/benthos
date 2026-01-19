@@ -56,8 +56,8 @@ func Start(opts *common.CLIOpts) {
 		TextDocumentHover:      state.onHover,
 	}
 	server := server.NewServer(&handler, lsName, true)
-	server.RunStdio()
-	// server.RunTCP("127.0.0.1:8085")
+	// server.RunStdio()
+	server.RunTCP("127.0.0.1:8085")
 }
 
 func initialize(context *glsp.Context, params *protocol.InitializeParams) (any, error) {
@@ -107,7 +107,11 @@ func (s *state) openDocument(context *glsp.Context, params *protocol.DidOpenText
 }
 
 func (s *state) closeDocument(context *glsp.Context, params *protocol.DidCloseTextDocumentParams) error {
-	//TODO: Remove document
+	doc := params.TextDocument.URI
+	if _, ok := s.documents[doc]; ok {
+		fmt.Printf("Closing document %s", doc)
+		delete(s.documents, params.TextDocument.URI)
+	}
 	return nil
 }
 
