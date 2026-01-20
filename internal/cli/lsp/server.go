@@ -8,6 +8,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/config/schema"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 
+	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/parser"
 	"github.com/tliron/commonlog"
 	_ "github.com/tliron/commonlog/simple"
@@ -126,12 +127,21 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 		return nil, nil
 	}
 
-	file, err := parser.ParseBytes([]byte(doc), parser.ParseComments)
-	if err != nil {
-		return nil, nil
+	var (
+		file *ast.File
+		err  error
+	)
+	if file, err = parser.ParseBytes([]byte(doc), parser.ParseComments); err != nil {
+		return nil, err
 	}
-	token := findTokenAtPosition(file, int(params.Position.Line+1), int(params.Position.Character))
+
+	var token *TokenWithPath
+	if token, err = findTokenAtPosition(file, int(params.Position.Line+1), int(params.Position.Character+1)); err != nil {
+		return nil, err
+	}
+
 	path := strings.Split(token.Path, ".")
+	fmt.Printf("Token path: %s\n", token.Path)
 
 	if path[0] != "$" {
 		return &protocol.Hover{Contents: ""}, nil
@@ -163,6 +173,8 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 			components = s.schema.Caches
 		case "buffer":
 			components = s.schema.Caches
+		case "metrics":
+			components = s.schema.Metrics
 		}
 
 		// components
@@ -187,15 +199,15 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 			switch node {
 			case fs.Name:
 				content := fmt.Sprintf("# Field: %s (%s)\n-----------------------------\n%s\n", fs.Name, fs.Type, fs.Description)
-				if len(fs.Examples) > 0 {
-					content += fmt.Sprintf("-----------------------------\nExample:\n%s", fs.Examples[0])
-				}
+				// if len(fs.Examples) > 0 {
+				// 	content += fmt.Sprintf("-----------------------------\nExample:\n%s", fs.Examples[0])
+				// }
 				return &protocol.Hover{Contents: content}, nil
 			case cs.Name:
 				content := fmt.Sprintf("# Field: %s (%s)\n-----------------------------\n%s\n", cs.Name, cs.Type, cs.Description)
-				if len(cs.Examples) > 0 {
-					content += fmt.Sprintf("-----------------------------\nExample:\n%s", cs.Examples[0])
-				}
+				// if len(cs.Examples) > 0 {
+				// 	content += fmt.Sprintf("-----------------------------\nExample:\n%s", cs.Examples[0])
+				// }
 				return &protocol.Hover{Contents: content}, nil
 			}
 		}

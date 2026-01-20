@@ -1,6 +1,8 @@
 package lsp
 
 import (
+	"fmt"
+
 	"github.com/goccy/go-yaml/ast"
 	"github.com/goccy/go-yaml/token"
 )
@@ -11,7 +13,7 @@ type TokenWithPath struct {
 	Path  string
 }
 
-func findTokenAtPosition(file *ast.File, line, column int) *TokenWithPath {
+func findTokenAtPosition(file *ast.File, line, column int) (*TokenWithPath, error) {
 	var result *TokenWithPath
 
 	// Walk each document in the file
@@ -27,7 +29,11 @@ func findTokenAtPosition(file *ast.File, line, column int) *TokenWithPath {
 		}
 	}
 
-	return result
+	if result != nil {
+		return result, nil
+	}
+
+	return nil, fmt.Errorf("token not found at line %d, column %d", line, column)
 }
 
 type visitor struct {
