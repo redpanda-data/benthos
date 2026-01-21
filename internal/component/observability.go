@@ -48,3 +48,20 @@ func (m mockObs) Label() string {
 func NoopObservability() Observability {
 	return mockObs{}
 }
+
+type mockObsExt struct {
+	mockObs
+	tp trace.TracerProvider
+}
+
+// MockObservabilityWithTracerProvider returns an implementation of Observability
+// that uses the provided TracerProvider. All other methods are no-ops.
+func MockObservabilityWithTracerProvider(tp trace.TracerProvider) Observability {
+	return mockObsExt{
+		tp: tp,
+	}
+}
+
+func (m mockObsExt) Tracer() trace.TracerProvider {
+	return m.tp
+}
