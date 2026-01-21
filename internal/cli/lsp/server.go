@@ -121,23 +121,84 @@ func (s *state) completion(context *glsp.Context, params *protocol.CompletionPar
 		return nil, err
 	}
 
+	// $.input.generate.mapping
 	var token *TokenWithPath
 	if token, err = findTokenAtPosition(file, int(params.Position.Line+1), int(params.Position.Character+1)); err != nil {
 		return nil, err
 	}
 
-	_ = token
+	path := strings.Split(token.Path, ".")
+	fmt.Printf("Token path: %s\n", token.Path)
+
+	if path[0] != "$" {
+		return &protocol.Hover{Contents: ""}, nil
+	}
+
+	var (
+		components []docs.ComponentSpec
+	)
+
+	var (
+		cs docs.ComponentSpec
+		fs docs.FieldSpec
+	)
+	path = path[1:]
+	cnt := 0
+	for _, node := range path {
+		cnt++
+
+		switch node {
+		case "input":
+			components = s.schema.Inputs
+		case "output":
+			components = s.schema.Outputs
+		case "processors", "processors[0]":
+			components = s.schema.Processors
+		case "cache":
+			components = s.schema.Caches
+		case "buffer":
+			components = s.schema.Caches
+		case "metrics":
+			components = s.schema.Metrics
+		}
+
+		// components
+		for _, spec := range components {
+			if node == spec.Name {
+				cs = spec
+				break
+			}
+		}
+
+		// children
+		if len(cs.Config.Children) > 0 {
+			for _, c := range cs.Config.Children {
+				if node == c.Name {
+					fs = c
+					break
+				}
+			}
+		}
+	}
+
+	_ = fs
+	_ = cs
 
 	var completionItems []protocol.CompletionItem
-
-	for word, entry := range rpConnectMapper {
-		term := entry.Term
-		description := entry.Description
-		detail := fmt.Sprintf("%s\n%s", term, description)
+	for _, opt := range cs.Config.Children {
+		var insertText string
+		if opt.Type == "string" {
+			insertText = fmt.Sprintf("%s: %s", opt.Name, `""`)
+		} else {
+			insertText = fmt.Sprintf("%s: ", opt.Name)
+		}
+		kind := protocol.CompletionItemKind(5)
 		completionItems = append(completionItems, protocol.CompletionItem{
-			Label:      word,
-			Detail:     &detail,
-			InsertText: &term,
+			Label:         opt.Name,
+			Kind:          &kind,
+			Deprecated:    &opt.IsDeprecated,
+			Documentation: opt.Description,
+			InsertText:    &insertText,
 		})
 	}
 
@@ -177,6 +238,7 @@ func (s *state) onHover(context *glsp.Context, params *protocol.HoverParams) (*p
 		return nil, err
 	}
 
+	// $.input.generate.interval
 	var token *TokenWithPath
 	if token, err = findTokenAtPosition(file, int(params.Position.Line+1), int(params.Position.Character+1)); err != nil {
 		return nil, err
