@@ -50,8 +50,8 @@ func Start(opts *common.CLIOpts) {
 			return nil
 		},
 		Shutdown:               shutdown,
-		TextDocumentCompletion: textDocumentCompletion,
-		TextDocumentDidChange:  textDocumentDidChange,
+		TextDocumentCompletion: state.completion,
+		TextDocumentDidChange:  state.didChange,
 		TextDocumentDidOpen:    state.openDocument,
 		TextDocumentDidClose:   state.closeDocument,
 		TextDocumentHover:      state.onHover,
@@ -100,6 +100,48 @@ func newState(opts *common.CLIOpts) state {
 		opts:      opts,
 		schema:    schema,
 	}
+}
+
+func (s *state) didChange(context *glsp.Context, params *protocol.DidChangeTextDocumentParams) error {
+	// s.documents[params.TextDocument.URI] = params.TextDocument.TextDocumentIdentifier.
+	return nil
+}
+
+func (s *state) completion(context *glsp.Context, params *protocol.CompletionParams) (any, error) {
+	doc, ok := s.documents[params.TextDocument.URI]
+	if !ok {
+		return nil, nil
+	}
+
+	var (
+		file *ast.File
+		err  error
+	)
+	if file, err = parser.ParseBytes([]byte(doc), parser.ParseComments); err != nil {
+		return nil, err
+	}
+
+	var token *TokenWithPath
+	if token, err = findTokenAtPosition(file, int(params.Position.Line+1), int(params.Position.Character+1)); err != nil {
+		return nil, err
+	}
+
+	_ = token
+
+	var completionItems []protocol.CompletionItem
+
+	for word, entry := range rpConnectMapper {
+		term := entry.Term
+		description := entry.Description
+		detail := fmt.Sprintf("%s\n%s", term, description)
+		completionItems = append(completionItems, protocol.CompletionItem{
+			Label:      word,
+			Detail:     &detail,
+			InsertText: &term,
+		})
+	}
+
+	return completionItems, nil
 }
 
 func (s *state) openDocument(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {

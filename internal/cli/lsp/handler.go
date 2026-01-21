@@ -8,16 +8,6 @@ import (
 	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
-func textDocumentDidOpen(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
-	fmt.Printf("opened: %s", params.TextDocument.URI)
-	return nil
-}
-
-func textDocumentDidClose(context *glsp.Context, params *protocol.DidCloseTextDocumentParams) error {
-	fmt.Printf("closed %s", params.TextDocument.URI)
-	return nil
-}
-
 func textDocumentDidChange(context *glsp.Context, params *protocol.DidChangeTextDocumentParams) error {
 	fmt.Printf("did change: %s", params.TextDocument.URI)
 	return nil
