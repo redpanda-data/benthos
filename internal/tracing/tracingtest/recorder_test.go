@@ -112,4 +112,19 @@ func TestRecordingTracerProviderNestedSpans(t *testing.T) {
 	assert.Equal(t, "child", spans[1].Name)
 	assert.True(t, spans[0].Ended)
 	assert.True(t, spans[1].Ended)
+
+	// Verify parent-child relationship
+	parentRecorded := tp.FindSpan("parent")
+	childRecorded := tp.FindSpan("child")
+	require.NotNil(t, parentRecorded)
+	require.NotNil(t, childRecorded)
+
+	assert.True(t, parentRecorded.IsRoot(), "Parent span should be a root span")
+	assert.True(t, childRecorded.HasParent(), "Child span should have a parent")
+	assert.True(t, childRecorded.IsChildOf(parentRecorded), "Child should be a child of parent")
+
+	// Verify GetChildren helper
+	children := tp.GetChildren(parentRecorded)
+	require.Len(t, children, 1)
+	assert.Equal(t, "child", children[0].Name)
 }
