@@ -18,6 +18,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/internal/tracing/tracingtest"
 )
 
 func parseYAMLProcConf(t testing.TB, formatStr string, args ...any) (conf processor.Config) {
@@ -431,5 +432,120 @@ http:
 		if exp, act := "200", msgs[0].Get(i).MetaGetStr("http_status_code"); exp != act {
 			t.Errorf("Wrong response code metadata: %v != %v", act, exp)
 		}
+	}
+}
+
+func TestHTTPProcessorTracing(t *testing.T) {
+	tp := tracingtest.NewInMemoryRecordingTracerProvider()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte("response body"))
+	}))
+	defer ts.Close()
+
+	conf := parseYAMLProcConf(t, `
+http:
+  url: %v/test
+`, ts.URL)
+
+	mgr := mock.NewManager()
+	mgr.T = tp
+
+	h, err := mgr.NewProcessor(conf)
+	require.NoError(t, err)
+
+	inMsg := message.NewPart([]byte("test message"))
+	inBatch := message.Batch{inMsg}
+
+	outBatches, res := h.ProcessBatch(t.Context(), inBatch)
+	require.NoError(t, res)
+	require.Len(t, outBatches, 1)
+	require.Len(t, outBatches[0], 1)
+
+	// Verify the HTTP request worked
+	assert.Equal(t, "response body", string(outBatches[0][0].AsBytes()))
+	assert.Equal(t, "200", outBatches[0][0].MetaGetStr("http_status_code"))
+
+	// Verify spans were created with correct names and finished
+	// There should be two spans: one for the processor and one for the HTTP request
+	spans := tp.Spans()
+	require.Len(t, spans, 2)
+	assert.Equal(t, "http", spans[0].Name)
+	assert.True(t, spans[0].Ended)
+	assert.Equal(t, "http_request", spans[1].Name)
+	assert.True(t, spans[1].Ended)
+
+	// Verify proper nesting: http_request should be nested within http
+	// Child span should start after parent and end before parent ends
+	assert.True(t, spans[1].StartTime.After(spans[0].StartTime) || spans[1].StartTime.Equal(spans[0].StartTime),
+		"Child span should start after or at the same time as parent")
+	assert.True(t, spans[1].EndTime.Before(spans[0].EndTime) || spans[1].EndTime.Equal(spans[0].EndTime),
+		"Child span should end before or at the same time as parent")
+}
+
+func TestHTTPProcessorTracingBatch(t *testing.T) {
+	tp := tracingtest.NewInMemoryRecordingTracerProvider()
+	var requestCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := requestCount.Add(1)
+		_, _ = fmt.Fprintf(w, "response %d", count)
+	}))
+	defer ts.Close()
+
+	conf := parseYAMLProcConf(t, `
+http:
+  url: %v/test
+`, ts.URL)
+
+	mgr := mock.NewManager()
+	mgr.T = tp
+
+	h, err := mgr.NewProcessor(conf)
+	require.NoError(t, err)
+
+	// Create batch with multiple messages
+	inBatch := message.Batch{
+		message.NewPart([]byte("message 1")),
+		message.NewPart([]byte("message 2")),
+		message.NewPart([]byte("message 3")),
+	}
+
+	outBatches, res := h.ProcessBatch(t.Context(), inBatch)
+	require.NoError(t, res)
+	require.Len(t, outBatches, 1)
+	require.Len(t, outBatches[0], 3)
+
+	// Verify each message was processed
+	for i := range 3 {
+		assert.Contains(t, string(outBatches[0][i].AsBytes()), "response")
+		assert.Equal(t, "200", outBatches[0][i].MetaGetStr("http_status_code"))
+	}
+
+	// Verify spans were created for each message in the batch
+	// There should be 6 spans total: 3 processor spans (one per message) and 3 HTTP request spans (one per message)
+	spans := tp.Spans()
+	require.Len(t, spans, 6)
+
+	// Verify first 3 spans are processor spans
+	for i := range 3 {
+		assert.Equal(t, "http", spans[i].Name)
+		assert.True(t, spans[i].Ended)
+	}
+
+	// Verify next 3 spans are HTTP request spans
+	for i := range 3 {
+		assert.Equal(t, "http_request", spans[i+3].Name)
+		assert.True(t, spans[i+3].Ended)
+	}
+
+	// Verify proper nesting: each http_request span should be nested within its
+	// corresponding http span
+	for i := range 3 {
+		processorSpan := spans[i]
+		httpRequestSpan := spans[i+3]
+
+		assert.True(t, httpRequestSpan.StartTime.After(processorSpan.StartTime) || httpRequestSpan.StartTime.Equal(processorSpan.StartTime),
+			"HTTP request span %d should start after or at the same time as processor span %d", i, i)
+		assert.True(t, httpRequestSpan.EndTime.Before(processorSpan.EndTime) || httpRequestSpan.EndTime.Equal(processorSpan.EndTime),
+			"HTTP request span %d should end before or at the same time as processor span %d", i, i)
 	}
 }
