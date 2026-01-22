@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.64.0 - TBD
+
+### Added
+
+- The `command` processor now emits the `exit_code` metadata field. (@mihaitodor)
+
 ## 4.63.1 - 2026-01-16
 
 ### Fixed
