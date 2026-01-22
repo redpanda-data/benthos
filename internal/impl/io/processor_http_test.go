@@ -469,17 +469,30 @@ http:
 	// There should be two spans: one for the processor and one for the HTTP request
 	spans := tp.Spans()
 	require.Len(t, spans, 2)
-	assert.Equal(t, "http", spans[0].Name)
-	assert.True(t, spans[0].Ended)
-	assert.Equal(t, "http_request", spans[1].Name)
-	assert.True(t, spans[1].Ended)
 
-	// Verify proper nesting: http_request should be nested within http
-	// Child span should start after parent and end before parent ends
-	assert.True(t, spans[1].StartTime.After(spans[0].StartTime) || spans[1].StartTime.Equal(spans[0].StartTime),
-		"Child span should start after or at the same time as parent")
-	assert.True(t, spans[1].EndTime.Before(spans[0].EndTime) || spans[1].EndTime.Equal(spans[0].EndTime),
-		"Child span should end before or at the same time as parent")
+	// Find the spans by name
+	httpSpan := tp.FindSpan("http")
+	httpRequestSpan := tp.FindSpan("http_request")
+	require.NotNil(t, httpSpan, "http span should exist")
+	require.NotNil(t, httpRequestSpan, "http_request span should exist")
+
+	// Verify spans are ended
+	assert.True(t, httpSpan.Ended, "http span should be ended")
+	assert.True(t, httpRequestSpan.Ended, "http_request span should be ended")
+
+	// Verify proper nesting: http_request should be a child of http
+	assert.True(t, httpRequestSpan.IsChildOf(httpSpan),
+		"http_request span should be a child of http span")
+	assert.True(t, httpSpan.IsRoot(),
+		"http span should be a root span")
+
+	// Verify OpenTelemetry semantic convention attributes
+	assert.Equal(t, "POST", httpRequestSpan.GetStringAttribute("http.request.method"))
+	assert.Contains(t, httpRequestSpan.GetStringAttribute("url.full"), ts.URL)
+	assert.Contains(t, httpRequestSpan.GetStringAttribute("url.full"), "/test")
+	assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("server.address"))
+	assert.Equal(t, 200, httpRequestSpan.GetIntAttribute("http.response.status_code"))
+	assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("network.protocol.version"))
 }
 
 func TestHTTPProcessorTracingBatch(t *testing.T) {
@@ -525,27 +538,125 @@ http:
 	spans := tp.Spans()
 	require.Len(t, spans, 6)
 
-	// Verify first 3 spans are processor spans
-	for i := range 3 {
-		assert.Equal(t, "http", spans[i].Name)
-		assert.True(t, spans[i].Ended)
+	// Find all http and http_request spans
+	httpSpans := tp.FindSpansByName("http")
+	httpRequestSpans := tp.FindSpansByName("http_request")
+	require.Len(t, httpSpans, 3, "should have 3 http processor spans")
+	require.Len(t, httpRequestSpans, 3, "should have 3 http_request spans")
+
+	// Verify all spans are ended
+	for i, span := range httpSpans {
+		assert.True(t, span.Ended, "http span %d should be ended", i)
+	}
+	for i, span := range httpRequestSpans {
+		assert.True(t, span.Ended, "http_request span %d should be ended", i)
 	}
 
-	// Verify next 3 spans are HTTP request spans
+	// Verify proper nesting: each http_request span should be a child of an http span
+	// Since spans are processed serially (not in parallel mode), we can match them by order
 	for i := range 3 {
-		assert.Equal(t, "http_request", spans[i+3].Name)
-		assert.True(t, spans[i+3].Ended)
+		httpSpan := httpSpans[i]
+		httpRequestSpan := httpRequestSpans[i]
+
+		assert.True(t, httpRequestSpan.IsChildOf(httpSpan),
+			"http_request span %d should be a child of http span %d", i, i)
+
+		// Verify each http span has exactly one child
+		children := tp.GetChildren(httpSpan)
+		assert.Len(t, children, 1, "http span %d should have exactly one child", i)
+		assert.Equal(t, "http_request", children[0].Name)
 	}
 
-	// Verify proper nesting: each http_request span should be nested within its
-	// corresponding http span
-	for i := range 3 {
-		processorSpan := spans[i]
-		httpRequestSpan := spans[i+3]
-
-		assert.True(t, httpRequestSpan.StartTime.After(processorSpan.StartTime) || httpRequestSpan.StartTime.Equal(processorSpan.StartTime),
-			"HTTP request span %d should start after or at the same time as processor span %d", i, i)
-		assert.True(t, httpRequestSpan.EndTime.Before(processorSpan.EndTime) || httpRequestSpan.EndTime.Equal(processorSpan.EndTime),
-			"HTTP request span %d should end before or at the same time as processor span %d", i, i)
+	// Verify each http_request span has the correct attributes
+	for i, httpRequestSpan := range httpRequestSpans {
+		assert.Equal(t, "POST", httpRequestSpan.GetStringAttribute("http.request.method"),
+			"span %d should have http.request.method", i)
+		assert.Equal(t, 200, httpRequestSpan.GetIntAttribute("http.response.status_code"),
+			"span %d should have http.response.status_code", i)
+		assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("url.full"),
+			"span %d should have url.full", i)
 	}
+}
+
+func TestHTTPProcessorTracingWithErrors(t *testing.T) {
+	tp := tracingtest.NewInMemoryRecordingTracerProvider()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("not found"))
+	}))
+	defer ts.Close()
+
+	conf := parseYAMLProcConf(t, `
+http:
+  url: %v/test
+  retries: 0
+`, ts.URL)
+
+	mgr := mock.NewManager()
+	mgr.T = tp
+
+	h, err := mgr.NewProcessor(conf)
+	require.NoError(t, err)
+
+	inMsg := message.NewPart([]byte("test message"))
+	inBatch := message.Batch{inMsg}
+
+	outBatches, res := h.ProcessBatch(t.Context(), inBatch)
+	require.NoError(t, res)
+	require.Len(t, outBatches, 1)
+
+	// Verify error handling
+	httpRequestSpan := tp.FindSpan("http_request")
+	require.NotNil(t, httpRequestSpan)
+
+	// Verify error attributes
+	assert.Equal(t, 404, httpRequestSpan.GetIntAttribute("http.response.status_code"))
+	assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("error.type"))
+	// Check that error event was logged (the event name is in the Events slice)
+	require.NotEmpty(t, httpRequestSpan.Events, "should have at least one event")
+	assert.Contains(t, httpRequestSpan.Events[0], "event")
+}
+
+func TestHTTPProcessorTracingWithRetries(t *testing.T) {
+	tp := tracingtest.NewInMemoryRecordingTracerProvider()
+	var attemptCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := attemptCount.Add(1)
+		if count < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("success"))
+	}))
+	defer ts.Close()
+
+	conf := parseYAMLProcConf(t, `
+http:
+  url: %v/test
+  retries: 3
+  retry_period: 1ms
+  backoff_on: [503]
+`, ts.URL)
+
+	mgr := mock.NewManager()
+	mgr.T = tp
+
+	h, err := mgr.NewProcessor(conf)
+	require.NoError(t, err)
+
+	inMsg := message.NewPart([]byte("test message"))
+	inBatch := message.Batch{inMsg}
+
+	outBatches, res := h.ProcessBatch(t.Context(), inBatch)
+	require.NoError(t, res)
+	require.Len(t, outBatches, 1)
+
+	// Verify retry count attribute
+	httpRequestSpan := tp.FindSpan("http_request")
+	require.NotNil(t, httpRequestSpan)
+
+	// Should have retried twice before succeeding
+	assert.Equal(t, 2, httpRequestSpan.GetIntAttribute("http.request.resend_count"))
+	assert.Equal(t, 200, httpRequestSpan.GetIntAttribute("http.response.status_code"))
 }

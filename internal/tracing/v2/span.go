@@ -53,6 +53,14 @@ func (s *Span) SetTag(key, value string) {
 	s.w.SetAttributes(attribute.String(key, value))
 }
 
+// SetTagInt sets a given tag to an integer value.
+func (s *Span) SetTagInt(key string, value int) {
+	if s == nil {
+		return
+	}
+	s.w.SetAttributes(attribute.Int(key, value))
+}
+
 // Finish the span.
 func (s *Span) Finish() {
 	if s == nil {

@@ -7,17 +7,21 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // RecordedSpan captures span information for testing.
 type RecordedSpan struct {
-	Name      string
-	Ended     bool
-	Events    []string
-	StartTime time.Time
-	EndTime   time.Time
+	Name       string
+	SpanID     string
+	Parent     *RecordedSpan
+	StartTime  time.Time
+	EndTime    time.Time
+	Ended      bool
+	Events     []string
+	Attributes map[string]any
 }
 
 // Duration returns the duration of the span. If the span has not ended, it returns 0.
@@ -26,6 +30,53 @@ func (rs *RecordedSpan) Duration() time.Duration {
 		return 0
 	}
 	return rs.EndTime.Sub(rs.StartTime)
+}
+
+// IsChildOf returns true if this span is a direct child of the given parent span.
+func (rs *RecordedSpan) IsChildOf(parent *RecordedSpan) bool {
+	return rs.Parent == parent
+}
+
+// HasParent returns true if this span has a parent span.
+func (rs *RecordedSpan) HasParent() bool {
+	return rs.Parent != nil
+}
+
+// IsRoot returns true if this span has no parent (is a root span).
+func (rs *RecordedSpan) IsRoot() bool {
+	return rs.Parent == nil
+}
+
+// GetAttribute returns the value of an attribute by key, or nil if not found.
+func (rs *RecordedSpan) GetAttribute(key string) any {
+	if rs.Attributes == nil {
+		return nil
+	}
+	return rs.Attributes[key]
+}
+
+// GetStringAttribute returns a string attribute value, or empty string if not found.
+func (rs *RecordedSpan) GetStringAttribute(key string) string {
+	if v := rs.GetAttribute(key); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// GetIntAttribute returns an int attribute value, or 0 if not found.
+func (rs *RecordedSpan) GetIntAttribute(key string) int {
+	if v := rs.GetAttribute(key); v != nil {
+		if i, ok := v.(int); ok {
+			return i
+		}
+		// Handle int64 from OTel attribute values
+		if i64, ok := v.(int64); ok {
+			return int(i64)
+		}
+	}
+	return 0
 }
 
 // SpanRecorder records spans for testing purposes.
@@ -41,15 +92,18 @@ func NewSpanRecorder() *SpanRecorder {
 	}
 }
 
-func (sr *SpanRecorder) record(name string) *RecordedSpan {
+func (sr *SpanRecorder) record(name, spanID string, parent *RecordedSpan) *RecordedSpan {
 	sr.mu.Lock()
 	defer sr.mu.Unlock()
 
 	span := &RecordedSpan{
-		Name:      name,
-		Ended:     false,
-		Events:    make([]string, 0),
-		StartTime: time.Now(),
+		Name:       name,
+		SpanID:     spanID,
+		Parent:     parent,
+		StartTime:  time.Now(),
+		Ended:      false,
+		Events:     make([]string, 0),
+		Attributes: make(map[string]any),
 	}
 	sr.spans = append(sr.spans, span)
 	return span
@@ -73,10 +127,48 @@ func (sr *SpanRecorder) Reset() {
 	sr.spans = make([]*RecordedSpan, 0)
 }
 
+// FindSpansByName returns all recorded spans with the given name.
+func (sr *SpanRecorder) FindSpansByName(name string) []*RecordedSpan {
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+
+	var result []*RecordedSpan
+	for _, span := range sr.spans {
+		if span.Name == name {
+			result = append(result, span)
+		}
+	}
+	return result
+}
+
+// FindSpan returns the first recorded span with the given name, or nil if not found.
+func (sr *SpanRecorder) FindSpan(name string) *RecordedSpan {
+	spans := sr.FindSpansByName(name)
+	if len(spans) > 0 {
+		return spans[0]
+	}
+	return nil
+}
+
+// GetChildren returns all child spans of the given parent span.
+func (sr *SpanRecorder) GetChildren(parent *RecordedSpan) []*RecordedSpan {
+	sr.mu.Lock()
+	defer sr.mu.Unlock()
+
+	var result []*RecordedSpan
+	for _, span := range sr.spans {
+		if span.Parent == parent {
+			result = append(result, span)
+		}
+	}
+	return result
+}
+
 // recordingSpan wraps a trace.Span to record its lifecycle.
 type recordingSpan struct {
 	trace.Span
 	recorded *RecordedSpan
+	ctx      context.Context
 }
 
 func (rs *recordingSpan) End(options ...trace.SpanEndOption) {
@@ -94,6 +186,15 @@ func (rs *recordingSpan) AddEvent(name string, options ...trace.EventOption) {
 	}
 }
 
+func (rs *recordingSpan) SetAttributes(kv ...attribute.KeyValue) {
+	for _, attr := range kv {
+		rs.recorded.Attributes[string(attr.Key)] = attr.Value.AsInterface()
+	}
+	if rs.Span != nil {
+		rs.Span.SetAttributes(kv...)
+	}
+}
+
 // recordingTracer wraps a tracer to record span creation.
 type recordingTracer struct {
 	trace.Tracer
@@ -101,7 +202,12 @@ type recordingTracer struct {
 }
 
 func (rt *recordingTracer) Start(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	recorded := rt.recorder.record(spanName)
+	var parent *RecordedSpan
+	if p := trace.SpanFromContext(ctx); p != nil {
+		if s, ok := p.(*recordingSpan); ok {
+			parent = s.recorded
+		}
+	}
 
 	var (
 		baseCtx  context.Context
@@ -114,16 +220,25 @@ func (rt *recordingTracer) Start(ctx context.Context, spanName string, opts ...t
 		baseSpan = trace.SpanFromContext(ctx)
 	}
 
-	return baseCtx, &recordingSpan{
-		Span:     baseSpan,
-		recorded: recorded,
+	// Generate a span ID from the span context if available
+	spanID := ""
+	if baseSpan != nil && baseSpan.SpanContext().IsValid() {
+		spanID = baseSpan.SpanContext().SpanID().String()
 	}
+
+	newSpan := &recordingSpan{
+		Span:     baseSpan,
+		recorded: rt.recorder.record(spanName, spanID, parent),
+		ctx:      baseCtx,
+	}
+
+	return trace.ContextWithSpan(baseCtx, newSpan), newSpan
 }
 
 // RecordingTracerProvider is a TracerProvider that records all spans for testing.
 type RecordingTracerProvider struct {
 	trace.TracerProvider
-	recorder *SpanRecorder
+	*SpanRecorder
 }
 
 // NewInMemoryRecordingTracerProvider creates a new noop tracer provider for
@@ -132,7 +247,7 @@ type RecordingTracerProvider struct {
 func NewInMemoryRecordingTracerProvider() *RecordingTracerProvider {
 	return &RecordingTracerProvider{
 		TracerProvider: noop.NewTracerProvider(),
-		recorder:       NewSpanRecorder(),
+		SpanRecorder:   NewSpanRecorder(),
 	}
 }
 
@@ -145,16 +260,6 @@ func (p *RecordingTracerProvider) Tracer(name string, options ...trace.TracerOpt
 
 	return &recordingTracer{
 		Tracer:   baseTracer,
-		recorder: p.recorder,
+		recorder: p.SpanRecorder,
 	}
-}
-
-// Spans returns a copy of all recorded spans.
-func (p *RecordingTracerProvider) Spans() []*RecordedSpan {
-	return p.recorder.Spans()
-}
-
-// Reset clears all recorded spans.
-func (p *RecordingTracerProvider) Reset() {
-	p.recorder.Reset()
 }
