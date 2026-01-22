@@ -7,19 +7,21 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // RecordedSpan captures span information for testing.
 type RecordedSpan struct {
-	Name      string
-	SpanID    string
-	Parent    *RecordedSpan
-	StartTime time.Time
-	EndTime   time.Time
-	Ended     bool
-	Events    []string
+	Name       string
+	SpanID     string
+	Parent     *RecordedSpan
+	StartTime  time.Time
+	EndTime    time.Time
+	Ended      bool
+	Events     []string
+	Attributes map[string]any
 }
 
 // Duration returns the duration of the span. If the span has not ended, it returns 0.
@@ -45,6 +47,38 @@ func (rs *RecordedSpan) IsRoot() bool {
 	return rs.Parent == nil
 }
 
+// GetAttribute returns the value of an attribute by key, or nil if not found.
+func (rs *RecordedSpan) GetAttribute(key string) any {
+	if rs.Attributes == nil {
+		return nil
+	}
+	return rs.Attributes[key]
+}
+
+// GetStringAttribute returns a string attribute value, or empty string if not found.
+func (rs *RecordedSpan) GetStringAttribute(key string) string {
+	if v := rs.GetAttribute(key); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
+// GetIntAttribute returns an int attribute value, or 0 if not found.
+func (rs *RecordedSpan) GetIntAttribute(key string) int {
+	if v := rs.GetAttribute(key); v != nil {
+		if i, ok := v.(int); ok {
+			return i
+		}
+		// Handle int64 from OTel attribute values
+		if i64, ok := v.(int64); ok {
+			return int(i64)
+		}
+	}
+	return 0
+}
+
 // SpanRecorder records spans for testing purposes.
 type SpanRecorder struct {
 	mu    sync.Mutex
@@ -63,12 +97,13 @@ func (sr *SpanRecorder) record(name, spanID string, parent *RecordedSpan) *Recor
 	defer sr.mu.Unlock()
 
 	span := &RecordedSpan{
-		Name:      name,
-		SpanID:    spanID,
-		Parent:    parent,
-		StartTime: time.Now(),
-		Ended:     false,
-		Events:    make([]string, 0),
+		Name:       name,
+		SpanID:     spanID,
+		Parent:     parent,
+		StartTime:  time.Now(),
+		Ended:      false,
+		Events:     make([]string, 0),
+		Attributes: make(map[string]any),
 	}
 	sr.spans = append(sr.spans, span)
 	return span
@@ -148,6 +183,15 @@ func (rs *recordingSpan) AddEvent(name string, options ...trace.EventOption) {
 	rs.recorded.Events = append(rs.recorded.Events, name)
 	if rs.Span != nil {
 		rs.Span.AddEvent(name, options...)
+	}
+}
+
+func (rs *recordingSpan) SetAttributes(kv ...attribute.KeyValue) {
+	for _, attr := range kv {
+		rs.recorded.Attributes[string(attr.Key)] = attr.Value.AsInterface()
+	}
+	if rs.Span != nil {
+		rs.Span.SetAttributes(kv...)
 	}
 }
 
