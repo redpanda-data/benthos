@@ -485,6 +485,14 @@ http:
 		"http_request span should be a child of http span")
 	assert.True(t, httpSpan.IsRoot(),
 		"http span should be a root span")
+
+	// Verify OpenTelemetry semantic convention attributes
+	assert.Equal(t, "POST", httpRequestSpan.GetStringAttribute("http.request.method"))
+	assert.Contains(t, httpRequestSpan.GetStringAttribute("url.full"), ts.URL)
+	assert.Contains(t, httpRequestSpan.GetStringAttribute("url.full"), "/test")
+	assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("server.address"))
+	assert.Equal(t, 200, httpRequestSpan.GetIntAttribute("http.response.status_code"))
+	assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("network.protocol.version"))
 }
 
 func TestHTTPProcessorTracingBatch(t *testing.T) {
@@ -558,4 +566,97 @@ http:
 		assert.Len(t, children, 1, "http span %d should have exactly one child", i)
 		assert.Equal(t, "http_request", children[0].Name)
 	}
+
+	// Verify each http_request span has the correct attributes
+	for i, httpRequestSpan := range httpRequestSpans {
+		assert.Equal(t, "POST", httpRequestSpan.GetStringAttribute("http.request.method"),
+			"span %d should have http.request.method", i)
+		assert.Equal(t, 200, httpRequestSpan.GetIntAttribute("http.response.status_code"),
+			"span %d should have http.response.status_code", i)
+		assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("url.full"),
+			"span %d should have url.full", i)
+	}
+}
+
+func TestHTTPProcessorTracingWithErrors(t *testing.T) {
+	tp := tracingtest.NewInMemoryRecordingTracerProvider()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("not found"))
+	}))
+	defer ts.Close()
+
+	conf := parseYAMLProcConf(t, `
+http:
+  url: %v/test
+  retries: 0
+`, ts.URL)
+
+	mgr := mock.NewManager()
+	mgr.T = tp
+
+	h, err := mgr.NewProcessor(conf)
+	require.NoError(t, err)
+
+	inMsg := message.NewPart([]byte("test message"))
+	inBatch := message.Batch{inMsg}
+
+	outBatches, res := h.ProcessBatch(t.Context(), inBatch)
+	require.NoError(t, res)
+	require.Len(t, outBatches, 1)
+
+	// Verify error handling
+	httpRequestSpan := tp.FindSpan("http_request")
+	require.NotNil(t, httpRequestSpan)
+
+	// Verify error attributes
+	assert.Equal(t, 404, httpRequestSpan.GetIntAttribute("http.response.status_code"))
+	assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("error.type"))
+	// Check that error event was logged (the event name is in the Events slice)
+	require.NotEmpty(t, httpRequestSpan.Events, "should have at least one event")
+	assert.Contains(t, httpRequestSpan.Events[0], "event")
+}
+
+func TestHTTPProcessorTracingWithRetries(t *testing.T) {
+	tp := tracingtest.NewInMemoryRecordingTracerProvider()
+	var attemptCount atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := attemptCount.Add(1)
+		if count < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("success"))
+	}))
+	defer ts.Close()
+
+	conf := parseYAMLProcConf(t, `
+http:
+  url: %v/test
+  retries: 3
+  retry_period: 1ms
+  backoff_on: [503]
+`, ts.URL)
+
+	mgr := mock.NewManager()
+	mgr.T = tp
+
+	h, err := mgr.NewProcessor(conf)
+	require.NoError(t, err)
+
+	inMsg := message.NewPart([]byte("test message"))
+	inBatch := message.Batch{inMsg}
+
+	outBatches, res := h.ProcessBatch(t.Context(), inBatch)
+	require.NoError(t, res)
+	require.Len(t, outBatches, 1)
+
+	// Verify retry count attribute
+	httpRequestSpan := tp.FindSpan("http_request")
+	require.NotNil(t, httpRequestSpan)
+
+	// Should have retried twice before succeeding
+	assert.Equal(t, 2, httpRequestSpan.GetIntAttribute("http.request.resend_count"))
+	assert.Equal(t, 200, httpRequestSpan.GetIntAttribute("http.response.status_code"))
 }

@@ -13,6 +13,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -329,6 +330,21 @@ func (h *Client) checkStatus(code int) (succeeded bool, retStrat retryStrategy) 
 
 var errTimedOut = errors.New("timed out waiting for next request")
 
+// errorType extracts a semantic error type from an error for tracing.
+func errorType(err error) string {
+	var hErr ErrUnexpectedHTTPRes
+	if errors.As(err, &hErr) {
+		return strconv.Itoa(hErr.Code)
+	}
+	if errors.Is(err, context.Canceled) {
+		return "canceled"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	return "request_error"
+}
+
 // SendToResponse attempts to create an HTTP request from a provided message,
 // performs it, and then returns the *http.Response, allowing the raw response
 // to be consumed.
@@ -348,6 +364,7 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 				"event", "error",
 				"type", e.Error(),
 			)
+			s.SetTag("error.type", errorType(e))
 		}
 	}
 
@@ -356,6 +373,24 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 		logErr(err)
 		return nil, err
 	}
+
+	for _, s := range spans {
+		s.SetTag("http.request.method", req.Method)
+		s.SetTag("url.full", req.URL.String())
+		s.SetTag("server.address", req.URL.Hostname())
+		if req.URL.Port() != "" {
+			if port, err := strconv.Atoi(req.URL.Port()); err == nil {
+				s.SetTagInt("server.port", port)
+			}
+		}
+		s.SetTag("network.protocol.version", req.Proto)
+		s.SetTag("url.scheme", req.URL.Scheme)
+
+		if userAgent := req.Header.Get("User-Agent"); userAgent != "" {
+			s.SetTag("user_agent.original", userAgent)
+		}
+	}
+
 	// Make sure we log the actual request URL
 	defer func() {
 		if err != nil {
@@ -376,6 +411,10 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 	startedAt := time.Now()
 	if res, err = h.client.Do(req.WithContext(ctx)); err == nil {
 		h.incrCode(res.StatusCode)
+		for _, s := range spans {
+			s.SetTagInt("http.response.status_code", res.StatusCode)
+		}
+
 		if resolved, retryStrat := h.checkStatus(res.StatusCode); !resolved {
 			rateLimited = retryStrat == retryBackoff
 			if retryStrat == noRetry {
@@ -392,6 +431,9 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 	i, j := 0, numRetries
 	for i < j && err != nil {
 		logErr(err)
+		for _, s := range spans {
+			s.SetTagInt("http.request.resend_count", i+1)
+		}
 		if req, err = h.reqCreator.Create(sendMsg); err != nil {
 			continue
 		}
@@ -421,6 +463,9 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 		startedAt = time.Now()
 		if res, err = h.client.Do(req.WithContext(ctx)); err == nil {
 			h.incrCode(res.StatusCode)
+			for _, s := range spans {
+				s.SetTagInt("http.response.status_code", res.StatusCode)
+			}
 			if resolved, retryStrat := h.checkStatus(res.StatusCode); !resolved {
 				rateLimited = retryStrat == retryBackoff
 				if retryStrat == noRetry {
