@@ -129,6 +129,7 @@ func App(opts *common.CLIOpts) *cli.App {
 	for _, c := range []*cli.Command{
 		echoCliCommand(opts),
 		lintCliCommand(opts),
+		dryRunCliCommand(opts),
 		runCliCommand(opts),
 		streamsCliCommand(opts),
 		listCliCommand(opts),
