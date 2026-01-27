@@ -54,13 +54,22 @@ type ResourceBuilder struct {
 }
 
 // NewResourceBuilder creates a new ResourceBuilder.
+func (env *Environment) NewResourceBuilder() *ResourceBuilder {
+	return newResourceBuilder(env)
+}
+
+// NewResourceBuilder creates a new ResourceBuilder.
 func NewResourceBuilder() *ResourceBuilder {
+	return newResourceBuilder(globalEnvironment)
+}
+
+func newResourceBuilder(env *Environment) *ResourceBuilder {
 	return &ResourceBuilder{
 		apiMut:    mock.NewManager(),
 		resources: manager.NewResourceConfig(),
 		metrics:   metrics.NewConfig(),
 		tracer:    tracer.NewConfig(),
-		env:       globalEnvironment,
+		env:       env,
 		envVarLookupFn: func(_ context.Context, k string) (string, bool) {
 			return os.LookupEnv(k)
 		},

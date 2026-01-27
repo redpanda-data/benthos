@@ -95,6 +95,15 @@ func NewStreamBuilder() *StreamBuilder {
 	}
 }
 
+// NewStreamBuilder creates a new StreamBuilder upon the defined environment,
+// only components known to this environment will be available to the stream
+// builder.
+func (e *Environment) NewStreamBuilder() *StreamBuilder {
+	sb := NewStreamBuilder()
+	sb.env = e
+	return sb
+}
+
 func (s *StreamBuilder) getLintContext() docs.LintContext {
 	conf := docs.NewLintConfig(s.env.internal)
 	conf.DocsProvider = s.env.internal

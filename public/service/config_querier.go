@@ -3,61 +3,105 @@
 package service
 
 import (
+	"context"
 	"errors"
+	"os"
 
+	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
+	"gopkg.in/yaml.v3"
 )
 
 // ConfigQuerier provides utilities for parsing and then querying fields in a
 // config, allowing you to analyse its structure.
 type ConfigQuerier struct {
-	env   *Environment
-	res   *Resources
-	spec  docs.FieldSpecs
-	pConf *docs.ParsedConfig
+	env  *Environment
+	res  *Resources
+	spec docs.FieldSpecs
+
+	envVarLookupFn func(context.Context, string) (string, bool)
 }
 
-// NewYAMLConfigQuerier creates a component for parsing and then querying
-// configs, allowing you to analyse the structure of a given config.
-func (s *ConfigSchema) NewYAMLConfigQuerier(yamlStr string) (*ConfigQuerier, error) {
-	rootNode, err := docs.UnmarshalYAML([]byte(yamlStr))
-	if err != nil {
-		return nil, err
-	}
-
-	pConf, err := s.fields.ParsedConfigFromAny(rootNode)
-	if err != nil {
-		return nil, err
-	}
-
+// NewConfigQuerier creates a utility for parsing and then querying configs,
+// allowing you to analyse the structure of a given config.
+func (s *ConfigSchema) NewConfigQuerier() (*ConfigQuerier, error) {
 	return &ConfigQuerier{
-		env:   s.env,
-		res:   MockResources(),
-		spec:  s.fields,
-		pConf: pConf,
+		env:  s.env,
+		res:  MockResources(),
+		spec: s.fields,
+		envVarLookupFn: func(_ context.Context, k string) (string, bool) {
+			return os.LookupEnv(k)
+		},
 	}, nil
 }
 
-// WithResources returns a copy of the querier with the specified resources.
-// This ensures that nested fields accessing resources are able to correctly
+// SetResources sets the resources to be referenced by parsed configs, this
+// ensures that nested fields accessing resources are able to correctly
 // reference them.
-func (q *ConfigQuerier) WithResources(res *Resources) *ConfigQuerier {
-	return &ConfigQuerier{
-		env:   q.env,
-		res:   res,
-		spec:  q.spec,
-		pConf: q.pConf,
-	}
+func (q *ConfigQuerier) SetResources(res *Resources) {
+	q.res = res
 }
 
-// FieldAtPath extracts are parsed field from the config at the given path.
-func (q *ConfigQuerier) FieldAtPath(path ...string) (*ParsedConfig, error) {
-	fieldDocs, err := q.spec.GetDocsForPath(q.env.internal, path...)
+// SetEnvVarLookupFunc changes the behaviour of the config querier so that
+// the value of environment variable interpolations (of the form `${FOO}`) are
+// obtained via a provided function rather than the default of os.LookupEnv.
+func (q *ConfigQuerier) SetEnvVarLookupFunc(fn func(context.Context, string) (string, bool)) {
+	q.envVarLookupFn = fn
+}
+
+// ParseYAML parses a YAML config string and returns a ConfigQueryFile that can
+// be used to query fields within the parsed config.
+func (q *ConfigQuerier) ParseYAML(confStr string) (*ConfigQueryFile, error) {
+	rootNode, err := q.getYAMLNode([]byte(confStr))
 	if err != nil {
 		return nil, err
 	}
 
-	a, exists := q.pConf.Field(path...)
+	pConf, err := q.spec.ParsedConfigFromAny(rootNode)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ConfigQueryFile{
+		res:        q.res,
+		spec:       q.spec,
+		parsedConf: pConf,
+	}, nil
+}
+
+func (q *ConfigQuerier) getYAMLNode(b []byte) (*yaml.Node, error) {
+	var err error
+	if b, err = config.NewReader("", nil, config.OptUseEnvLookupFunc(q.envVarLookupFn)).ReplaceEnvVariables(context.TODO(), b); err != nil {
+		// TODO: Allow users to specify whether they care about env variables
+		// missing, in which case we error or not based on that.
+		var errEnvMissing *config.ErrMissingEnvVars
+		if errors.As(err, &errEnvMissing) {
+			b = errEnvMissing.BestAttempt
+		} else {
+			return nil, err
+		}
+	}
+	return docs.UnmarshalYAML(b)
+}
+
+//------------------------------------------------------------------------------
+
+// ConfigQueryFile represents a parsed config file that can be queried for
+// specific fields at given paths.
+type ConfigQueryFile struct {
+	res        *Resources
+	spec       docs.FieldSpecs
+	parsedConf *docs.ParsedConfig
+}
+
+// FieldAtPath extracts a parsed field from the config at the given path.
+func (f *ConfigQueryFile) FieldAtPath(path ...string) (*ParsedConfig, error) {
+	fieldDocs, err := f.spec.GetDocsForPath(f.res.mgr.Environment(), path...)
+	if err != nil {
+		return nil, err
+	}
+
+	a, exists := f.parsedConf.Field(path...)
 	if !exists {
 		return nil, errors.New("field not found in data")
 	}
@@ -68,7 +112,7 @@ func (q *ConfigQuerier) FieldAtPath(path ...string) (*ParsedConfig, error) {
 	}
 
 	return &ParsedConfig{
-		mgr: q.res.mgr,
+		mgr: f.res.mgr,
 		i:   pConf,
 	}, nil
 }
