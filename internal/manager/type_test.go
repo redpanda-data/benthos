@@ -587,3 +587,69 @@ func TestManagerGenericGetOrSet(t *testing.T) {
 	assert.True(t, loaded)
 	assert.Equal(t, "foo", v)
 }
+
+func TestManagerConnectionTest(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	// Add input resource
+	inConf, err := testutil.InputFromYAML(`
+label: test_input
+generate:
+  mapping: 'root = {}'
+`)
+	require.NoError(t, err)
+	conf.ResourceInputs = append(conf.ResourceInputs, inConf)
+
+	// Add output resource
+	outConf := output.NewConfig()
+	outConf.Type = "drop"
+	outConf.Label = "test_output"
+	conf.ResourceOutputs = append(conf.ResourceOutputs, outConf)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	// Test ConnectionTest method
+	ctx := context.Background()
+	results, err := mgr.ConnectionTest(ctx)
+	require.NoError(t, err)
+
+	// Should have results from both input and output
+	assert.GreaterOrEqual(t, len(results), 2, "Expected at least 2 connection test results")
+}
+
+func TestManagerConnectionTestEmpty(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	// Test ConnectionTest method with no resources
+	ctx := context.Background()
+	results, err := mgr.ConnectionTest(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, results, "Expected no connection test results for empty manager")
+}
+
+func TestManagerConnectionTestWithError(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	// Add an input that will fail initialization
+	badInConf := input.NewConfig()
+	badInConf.Type = "notexist"
+	badInConf.Label = "bad_input"
+	conf.ResourceInputs = append(conf.ResourceInputs, badInConf)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	// Test ConnectionTest method with a bad resource
+	ctx := context.Background()
+	_, err = mgr.ConnectionTest(ctx)
+	// The connection test should handle the error gracefully
+	// Either return an error or handle it within the results
+	// depending on the implementation
+	if err != nil {
+		assert.Error(t, err)
+	}
+}

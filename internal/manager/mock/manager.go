@@ -393,3 +393,8 @@ func (m *Manager) GetOrSetGeneric(key, value any) (actual any, loaded bool) {
 func (m *Manager) SetGeneric(key, value any) {
 	m.genericValues.Store(key, value)
 }
+
+// ConnectionTest returns an empty list of connection test results.
+func (m *Manager) ConnectionTest(ctx context.Context) (component.ConnectionTestResults, error) {
+	return component.ConnectionTestResults{}, nil
+}

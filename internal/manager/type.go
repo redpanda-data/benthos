@@ -931,6 +931,25 @@ func (t *Type) NewScanner(conf scanner.Config) (scanner.Creator, error) {
 
 //------------------------------------------------------------------------------
 
+// ConnectionTest attempts to run connectivity tests for all resources that
+// support them, and returns the results.
+func (t *Type) ConnectionTest(ctx context.Context) (results component.ConnectionTestResults, err error) {
+	if err = t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
+		results = append(results, i.ConnectionTest(ctx)...)
+		return nil
+	}); err != nil {
+		return
+	}
+
+	if err = t.outputs.RWalk(ctx, func(name string, o *outputWrapper) error {
+		results = append(results, o.ConnectionTest(ctx)...)
+		return nil
+	}); err != nil {
+		return
+	}
+	return
+}
+
 // CloseObservability attempts to clean up observability (metrics, tracing, etc)
 // components owned by the manager. This should only be called when the manager
 // itself has finished shutting down and when it is the sole owner of the

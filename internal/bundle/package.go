@@ -20,6 +20,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/query"
+	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/component/buffer"
 	"github.com/redpanda-data/benthos/v4/internal/component/cache"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
@@ -99,6 +100,8 @@ type NewManagement interface {
 	GetGeneric(key any) (any, bool)
 	GetOrSetGeneric(key, value any) (actual any, loaded bool)
 	SetGeneric(key, value any)
+
+	ConnectionTest(ctx context.Context) (component.ConnectionTestResults, error)
 }
 
 type componentErr struct {

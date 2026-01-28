@@ -7,9 +7,10 @@ import (
 	"errors"
 	"os"
 
+	"gopkg.in/yaml.v3"
+
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
-	"gopkg.in/yaml.v3"
 )
 
 // ConfigQuerier provides utilities for parsing and then querying fields in a

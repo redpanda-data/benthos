@@ -306,6 +306,16 @@ func (r *Resources) SetGeneric(key, value any) {
 	r.mgr.SetGeneric(key, value)
 }
 
+// ConnectionTest attempts to run connectivity tests for all resources that
+// support them, and returns the results.
+func (r *Resources) ConnectionTest(ctx context.Context) ([]*ConnectionTestResult, error) {
+	results, err := r.mgr.ConnectionTest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return connectionTestResultsFromInternal(results), nil
+}
+
 //------------------------------------------------------------------------------
 
 type resourcesUnwrapper struct {
