@@ -14,8 +14,7 @@ func TestNewConfigQuerier(t *testing.T) {
 	env := NewEnvironment()
 	schema := env.CoreConfigSchema("", "")
 
-	querier, err := schema.NewConfigQuerier()
-	require.NoError(t, err)
+	querier := schema.NewConfigQuerier()
 	require.NotNil(t, querier)
 
 	assert.NotNil(t, querier.env)
@@ -28,8 +27,7 @@ func TestConfigQuerierSetResources(t *testing.T) {
 	env := NewEnvironment()
 	schema := env.CoreConfigSchema("", "")
 
-	querier, err := schema.NewConfigQuerier()
-	require.NoError(t, err)
+	querier := schema.NewConfigQuerier()
 
 	// Create new resources
 	newRes := MockResources()
@@ -45,8 +43,7 @@ func TestConfigQuerierSetEnvVarLookupFunc(t *testing.T) {
 	env := NewEnvironment()
 	schema := env.CoreConfigSchema("", "")
 
-	querier, err := schema.NewConfigQuerier()
-	require.NoError(t, err)
+	querier := schema.NewConfigQuerier()
 
 	// Track whether custom lookup was called
 	lookupCalled := false
@@ -121,8 +118,7 @@ input: [unclosed
 		t.Run(tt.name, func(t *testing.T) {
 			env := NewEnvironment()
 			schema := env.CoreConfigSchema("", "")
-			querier, err := schema.NewConfigQuerier()
-			require.NoError(t, err)
+			querier := schema.NewConfigQuerier()
 
 			queryFile, err := querier.ParseYAML(tt.yaml)
 			if tt.wantErr {
@@ -140,8 +136,7 @@ func TestConfigQuerierParseYAMLWithEnvVars(t *testing.T) {
 	env := NewEnvironment()
 	schema := env.CoreConfigSchema("", "")
 
-	querier, err := schema.NewConfigQuerier()
-	require.NoError(t, err)
+	querier := schema.NewConfigQuerier()
 
 	// Set custom env var lookup
 	querier.SetEnvVarLookupFunc(func(_ context.Context, k string) (string, bool) {
@@ -169,8 +164,7 @@ func TestConfigQuerierParseYAMLWithMissingEnvVars(t *testing.T) {
 	env := NewEnvironment()
 	schema := env.CoreConfigSchema("", "")
 
-	querier, err := schema.NewConfigQuerier()
-	require.NoError(t, err)
+	querier := schema.NewConfigQuerier()
 
 	// Set env var lookup that always returns false
 	querier.SetEnvVarLookupFunc(func(_ context.Context, k string) (string, bool) {
@@ -245,8 +239,7 @@ output:
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			querier, err := schema.NewConfigQuerier()
-			require.NoError(t, err)
+			querier := schema.NewConfigQuerier()
 
 			queryFile, err := querier.ParseYAML(tt.yaml)
 			require.NoError(t, err)
@@ -281,8 +274,7 @@ output:
 	env := NewEnvironment()
 	schema := env.CoreConfigSchema("", "")
 
-	querier, err := schema.NewConfigQuerier()
-	require.NoError(t, err)
+	querier := schema.NewConfigQuerier()
 
 	queryFile, err := querier.ParseYAML(yaml)
 	require.NoError(t, err)
@@ -307,8 +299,7 @@ func TestConfigQueryFileWithResources(t *testing.T) {
 	env := NewEnvironment()
 	schema := env.CoreConfigSchema("", "")
 
-	querier, err := schema.NewConfigQuerier()
-	require.NoError(t, err)
+	querier := schema.NewConfigQuerier()
 
 	// Set custom resources
 	customRes := MockResources()

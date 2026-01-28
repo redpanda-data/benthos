@@ -24,7 +24,7 @@ type ConfigQuerier struct {
 
 // NewConfigQuerier creates a utility for parsing and then querying configs,
 // allowing you to analyse the structure of a given config.
-func (s *ConfigSchema) NewConfigQuerier() (*ConfigQuerier, error) {
+func (s *ConfigSchema) NewConfigQuerier() *ConfigQuerier {
 	return &ConfigQuerier{
 		env:  s.env,
 		res:  MockResources(),
@@ -32,7 +32,7 @@ func (s *ConfigSchema) NewConfigQuerier() (*ConfigQuerier, error) {
 		envVarLookupFn: func(_ context.Context, k string) (string, bool) {
 			return os.LookupEnv(k)
 		},
-	}, nil
+	}
 }
 
 // SetResources sets the resources to be referenced by parsed configs, this
