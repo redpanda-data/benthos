@@ -34,37 +34,37 @@ type oauth2Config struct {
 	EndpointParams map[string][]string
 }
 
-// Client returns an http.Client with OAuth2 configured.
-func (oauth oauth2Config) Client(ctx context.Context, base *http.Client) *http.Client {
-	if !oauth.Enabled {
+// Client returns an [http.Client] with OAuth2 configured.
+func (ac oauth2Config) Client(ctx context.Context, base *http.Client) *http.Client {
+	if !ac.Enabled {
 		return base
 	}
 
 	// Support for refresh_token grant type with bootstrapped refresh token to obtain access token
-	if gt, ok := oauth.EndpointParams["grant_type"]; ok && gt[0] == "refresh_token" {
+	if gt, ok := ac.EndpointParams["grant_type"]; ok && gt[0] == "refresh_token" {
 		conf := &oauth2.Config{
-			ClientID:     oauth.ClientKey,
-			ClientSecret: oauth.ClientSecret,
+			ClientID:     ac.ClientKey,
+			ClientSecret: ac.ClientSecret,
 			Endpoint: oauth2.Endpoint{
-				TokenURL:  oauth.TokenURL,
+				TokenURL:  ac.TokenURL,
 				AuthStyle: oauth2.AuthStyleAutoDetect,
 			},
-			Scopes: oauth.Scopes,
+			Scopes: ac.Scopes,
 		}
 		// We don't consider bootstrapped access token if any as it might be expired, rather we generate a new one
 		token := &oauth2.Token{}
-		if rt, ok := oauth.EndpointParams["refresh_token"]; ok {
+		if rt, ok := ac.EndpointParams["refresh_token"]; ok {
 			token.RefreshToken = rt[0]
 		}
 		return conf.Client(context.WithValue(ctx, oauth2.HTTPClient, base), token)
 	}
 
 	conf := &clientcredentials.Config{
-		ClientID:       oauth.ClientKey,
-		ClientSecret:   oauth.ClientSecret,
-		TokenURL:       oauth.TokenURL,
-		Scopes:         oauth.Scopes,
-		EndpointParams: oauth.EndpointParams,
+		ClientID:       ac.ClientKey,
+		ClientSecret:   ac.ClientSecret,
+		TokenURL:       ac.TokenURL,
+		Scopes:         ac.Scopes,
+		EndpointParams: ac.EndpointParams,
 	}
 
 	return conf.Client(context.WithValue(ctx, oauth2.HTTPClient, base))
@@ -138,33 +138,33 @@ func oauth2ClientCtorFromParsed(conf *service.ParsedConfig) (res func(context.Co
 	}
 	conf = conf.Namespace(aFieldOAuth2)
 
-	var oldConf oauth2Config
-	if oldConf.Enabled, err = conf.FieldBool(ao2FieldEnabled); err != nil {
+	var oauthConf oauth2Config
+	if oauthConf.Enabled, err = conf.FieldBool(ao2FieldEnabled); err != nil {
 		return
 	}
-	if oldConf.ClientKey, err = conf.FieldString(ao2FieldClientKey); err != nil {
+	if oauthConf.ClientKey, err = conf.FieldString(ao2FieldClientKey); err != nil {
 		return
 	}
-	if oldConf.ClientSecret, err = conf.FieldString(ao2FieldClientSecret); err != nil {
+	if oauthConf.ClientSecret, err = conf.FieldString(ao2FieldClientSecret); err != nil {
 		return
 	}
-	if oldConf.TokenURL, err = conf.FieldString(ao2FieldTokenURL); err != nil {
+	if oauthConf.TokenURL, err = conf.FieldString(ao2FieldTokenURL); err != nil {
 		return
 	}
-	if oldConf.Scopes, err = conf.FieldStringList(ao2FieldScopes); err != nil {
+	if oauthConf.Scopes, err = conf.FieldStringList(ao2FieldScopes); err != nil {
 		return
 	}
 	var endpointParams map[string]*service.ParsedConfig
 	if endpointParams, err = conf.FieldAnyMap(ao2FieldEndpointParams); err != nil {
 		return
 	}
-	oldConf.EndpointParams = map[string][]string{}
+	oauthConf.EndpointParams = map[string][]string{}
 	for k, v := range endpointParams {
-		if oldConf.EndpointParams[k], err = v.FieldStringList(); err != nil {
+		if oauthConf.EndpointParams[k], err = v.FieldStringList(); err != nil {
 			return
 		}
 	}
 
-	res = oldConf.Client
+	res = oauthConf.Client
 	return
 }

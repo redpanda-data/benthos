@@ -122,9 +122,9 @@ func ConfigField(defaultVerb string, forOutput bool, extraChildren ...*service.C
 
 //------------------------------------------------------------------------------
 
-// ConfigFromParsed attempts to parse an http client config struct from a parsed
-// plugin config.
-func ConfigFromParsed(pConf *service.ParsedConfig) (conf OldConfig, err error) {
+// ConfigFromParsed parses an HTTP client configuration from a parsed plugin
+// config.
+func ConfigFromParsed(pConf *service.ParsedConfig) (conf Config, err error) {
 	if conf.URL, err = pConf.FieldInterpolatedString(hcFieldURL); err != nil {
 		return
 	}
@@ -182,8 +182,8 @@ func ConfigFromParsed(pConf *service.ParsedConfig) (conf OldConfig, err error) {
 	return
 }
 
-// OldConfig is a configuration struct for an HTTP client.
-type OldConfig struct {
+// Config contains HTTP client configuration parameters.
+type Config struct {
 	URL                 *service.InterpolatedString
 	Verb                string
 	Headers             map[string]*service.InterpolatedString

@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	"github.com/redpanda-data/benthos/v4/internal/component"
-	"github.com/redpanda-data/benthos/v4/internal/httpclient"
 	"github.com/redpanda-data/benthos/v4/public/service"
 	"github.com/redpanda-data/benthos/v4/public/service/codec"
+	"github.com/redpanda-data/benthos/v4/public/utils/httpclient"
 )
 
 func httpClientInputSpec() *service.ConfigSpec {
@@ -132,7 +132,7 @@ func newHTTPClientInputFromParsed(conf *service.ParsedConfig, mgr *service.Resou
 		return nil, err
 	}
 
-	client, err := httpclient.NewClientFromOldConfig(oldConf, mgr, httpclient.WithExplicitBody(payloadExpr))
+	client, err := httpclient.NewClientFromConfig(oldConf, mgr, httpclient.WithExplicitBody(payloadExpr))
 	if err != nil {
 		return nil, err
 	}

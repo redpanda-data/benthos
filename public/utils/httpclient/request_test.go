@@ -25,7 +25,7 @@ metadata:
 	oldConf, err := ConfigFromParsed(parsed)
 	require.NoError(t, err)
 
-	reqCreator, err := RequestCreatorFromOldConfig(oldConf, service.MockResources())
+	reqCreator, err := RequestCreatorFromConfig(oldConf, service.MockResources())
 	require.NoError(t, err)
 
 	part := service.NewMessage([]byte("hello world"))

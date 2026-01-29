@@ -82,7 +82,7 @@ drop_on:
 		t.Fatal("timed out")
 	}
 
-	assert.EqualError(t, res, fmt.Sprintf("%s: HTTP request returned unexpected response code (403): 403 Forbidden, Error: test error", ts.URL))
+	assert.EqualError(t, res, fmt.Sprintf("%s: HTTP request returned unexpected response code (403): 403 Forbidden, body: test error", ts.URL))
 }
 
 func TestDropOnError(t *testing.T) {

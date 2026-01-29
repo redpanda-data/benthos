@@ -5,8 +5,8 @@ package io
 import (
 	"context"
 
-	"github.com/redpanda-data/benthos/v4/internal/httpclient"
 	"github.com/redpanda-data/benthos/v4/public/service"
+	"github.com/redpanda-data/benthos/v4/public/utils/httpclient"
 )
 
 func httpClientOutputSpec() *service.ConfigSpec {
@@ -111,7 +111,7 @@ func newHTTPClientOutputFromParsed(conf *service.ParsedConfig, mgr *service.Reso
 		return nil, err
 	}
 
-	client, err := httpclient.NewClientFromOldConfig(oldHTTPConf, mgr, opts...)
+	client, err := httpclient.NewClientFromConfig(oldHTTPConf, mgr, opts...)
 	if err != nil {
 		return nil, err
 	}
