@@ -10,9 +10,9 @@ import (
 	"sync"
 
 	"github.com/redpanda-data/benthos/v4/internal/component"
-	"github.com/redpanda-data/benthos/v4/internal/httpclient"
 	"github.com/redpanda-data/benthos/v4/public/service"
 	"github.com/redpanda-data/benthos/v4/public/service/codec"
+	"github.com/redpanda-data/benthos/v4/public/utils/httpclient"
 )
 
 func httpClientInputSpec() *service.ConfigSpec {
