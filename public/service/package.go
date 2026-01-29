@@ -19,12 +19,14 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component"
 )
 
-var errConnectionTestNotSupported = errors.New("this component does not support testing connections")
+// ErrConnectionTestNotSupported is returned when a component does not support
+// testing connections.
+var ErrConnectionTestNotSupported = errors.New("this component does not support testing connections")
 
 // ConnectionTestResult represents the result of a connection test.
 type ConnectionTestResult struct {
 	Label string
-	path  []string
+	Path  []string
 	Err   error
 }
 
@@ -56,9 +58,9 @@ func (c *ConnectionTestResult) AsList() ConnectionTestResults {
 
 func (c *ConnectionTestResult) intoInternal(o component.Observability) *component.ConnectionTestResult {
 	i := &component.ConnectionTestResult{Err: c.Err}
-	if len(c.path) > 0 {
+	if len(c.Path) > 0 {
 		i.Label = c.Label
-		i.Path = c.path
+		i.Path = c.Path
 	} else {
 		i.Label = o.Label()
 		i.Path = o.Path()
@@ -67,10 +69,15 @@ func (c *ConnectionTestResult) intoInternal(o component.Observability) *componen
 }
 
 func connectionTestResultFromInternal(c *component.ConnectionTestResult) *ConnectionTestResult {
+	tmpErr := c.Err
+	if tmpErr != nil && errors.Is(tmpErr, component.ErrConnectionTestNotSupported) {
+		tmpErr = ErrConnectionTestNotSupported
+	}
+
 	return &ConnectionTestResult{
-		Err:   c.Err,
+		Err:   tmpErr,
 		Label: c.Label,
-		path:  c.Path,
+		Path:  c.Path,
 	}
 }
 
@@ -90,7 +97,7 @@ func ConnectionTestSucceeded() *ConnectionTestResult {
 // component does not support testing connections.
 func ConnectionTestNotSupported() *ConnectionTestResult {
 	return &ConnectionTestResult{
-		Err: errConnectionTestNotSupported,
+		Err: ErrConnectionTestNotSupported,
 	}
 }
 

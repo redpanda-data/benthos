@@ -54,13 +54,22 @@ type ResourceBuilder struct {
 }
 
 // NewResourceBuilder creates a new ResourceBuilder.
+func (env *Environment) NewResourceBuilder() *ResourceBuilder {
+	return newResourceBuilder(env)
+}
+
+// NewResourceBuilder creates a new ResourceBuilder.
 func NewResourceBuilder() *ResourceBuilder {
+	return newResourceBuilder(globalEnvironment)
+}
+
+func newResourceBuilder(env *Environment) *ResourceBuilder {
 	return &ResourceBuilder{
 		apiMut:    mock.NewManager(),
 		resources: manager.NewResourceConfig(),
 		metrics:   metrics.NewConfig(),
 		tracer:    tracer.NewConfig(),
-		env:       globalEnvironment,
+		env:       env,
 		envVarLookupFn: func(_ context.Context, k string) (string, bool) {
 			return os.LookupEnv(k)
 		},
@@ -103,10 +112,18 @@ func (r *ResourceBuilder) SetEnvVarLookupFunc(fn func(context.Context, string) (
 	r.envVarLookupFn = fn
 }
 
-// SetLogger sets a customer logger via Go's standard logging interface,
+// SetLogger sets a custom logger via Go's standard logging interface,
 // allowing you to replace the default Benthos logger with your own.
 func (r *ResourceBuilder) SetLogger(l *slog.Logger) {
 	r.customLogger = log.NewBenthosLogAdapter(l)
+}
+
+// SetBenthosLogger sets a custom logger allowing you to replace the default
+// Benthos logger with your own.
+//
+// Note: This will be removed in a future major version bump.
+func (r *ResourceBuilder) SetBenthosLogger(l *Logger) {
+	r.customLogger = l.m
 }
 
 // OnResourceInit adds a closure function to be called on built Resources once
