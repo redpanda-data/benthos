@@ -112,10 +112,18 @@ func (r *ResourceBuilder) SetEnvVarLookupFunc(fn func(context.Context, string) (
 	r.envVarLookupFn = fn
 }
 
-// SetLogger sets a customer logger via Go's standard logging interface,
+// SetLogger sets a custom logger via Go's standard logging interface,
 // allowing you to replace the default Benthos logger with your own.
 func (r *ResourceBuilder) SetLogger(l *slog.Logger) {
 	r.customLogger = log.NewBenthosLogAdapter(l)
+}
+
+// SetBenthosLogger sets a custom logger allowing you to replace the default
+// Benthos logger with your own.
+//
+// Note: This will be removed in a future major version bump.
+func (r *ResourceBuilder) SetBenthosLogger(l *Logger) {
+	r.customLogger = l.m
 }
 
 // OnResourceInit adds a closure function to be called on built Resources once
