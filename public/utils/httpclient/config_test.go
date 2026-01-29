@@ -17,7 +17,7 @@ func TestNewStyleConfigs(t *testing.T) {
 		verbOverride string
 		forOutput    bool
 		inputYAML    string
-		validator    func(t *testing.T, c *OldConfig)
+		validator    func(t *testing.T, c *Config)
 	}{
 		{
 			name: "basic fields",
@@ -28,7 +28,7 @@ headers:
   foo1: bar1
   foo2: bar2
 `,
-			validator: func(t *testing.T, o *OldConfig) {
+			validator: func(t *testing.T, o *Config) {
 				sURL, _ := o.URL.Static()
 				assert.Equal(t, "example.com/foo1", sURL)
 				assert.Equal(t, "PUT", o.Verb)
@@ -50,7 +50,7 @@ url: example.com/foo2
 rate_limit: nah
 `,
 			verbOverride: "GET",
-			validator: func(t *testing.T, o *OldConfig) {
+			validator: func(t *testing.T, o *Config) {
 				sURL, _ := o.URL.Static()
 				assert.Equal(t, "example.com/foo2", sURL)
 				assert.Equal(t, "GET", o.Verb)
@@ -65,7 +65,7 @@ successful_on: [ 1, 2, 3 ]
 backoff_on: [ 4, 5, 6 ]
 drop_on: [ 7, 8, 9 ]
 `,
-			validator: func(t *testing.T, o *OldConfig) {
+			validator: func(t *testing.T, o *Config) {
 				sURL, _ := o.URL.Static()
 				assert.Equal(t, "example.com/foo3", sURL)
 				assert.Equal(t, []int{1, 2, 3}, o.SuccessfulOn)

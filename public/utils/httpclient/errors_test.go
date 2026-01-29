@@ -11,7 +11,7 @@ func TestHTTPError(t *testing.T) {
 		Body: []byte("test body str"),
 	}
 
-	exp, act := `HTTP request returned unexpected response code (0): test str, Error: test body str`, err.Error()
+	exp, act := `HTTP request returned unexpected response code (0): test str, body: test body str`, err.Error()
 	if exp != act {
 		t.Errorf("Wrong Error() from ErrUnexpectedHTTPRes: %v != %v", exp, act)
 	}

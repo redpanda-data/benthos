@@ -25,7 +25,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
-func clientConfig(t testing.TB, confStr string, args ...any) OldConfig {
+func clientConfig(t testing.TB, confStr string, args ...any) Config {
 	t.Helper()
 
 	spec := service.NewConfigSpec().Field(ConfigField("GET", false))
@@ -51,7 +51,7 @@ retry_period: 1ms
 retries: 3
 `, ts.URL+"/testpost")
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 	defer h.Close(t.Context())
 
@@ -68,7 +68,7 @@ retry_period: 1ms
 retries: 3
 `)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	_, err = h.Send(t.Context(), service.MessageBatch{service.NewMessage([]byte("test"))})
@@ -96,7 +96,7 @@ func TestHTTPClientSendBasic(t *testing.T) {
 url: %v
 `, ts.URL+"/testpost")
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	for i := 0; i < nTestLoops; i++ {
@@ -131,7 +131,7 @@ func TestHTTPClientBadContentType(t *testing.T) {
 url: %v
 `, ts.URL+"/testpost")
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	testMsg := service.MessageBatch{service.NewMessage([]byte("hello world"))}
@@ -158,7 +158,7 @@ url: %v
 drop_on: [ 400 ]
 `, ts.URL+"/testpost")
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	testMsg := service.MessageBatch{service.NewMessage([]byte(`{"bar":"baz"}`))}
@@ -181,7 +181,7 @@ url: %v
 successful_on: [ 400 ]
 `, ts.URL+"/testpost")
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	testMsg := service.MessageBatch{service.NewMessage([]byte(`{"bar":"baz"}`))}
@@ -223,7 +223,7 @@ headers:
   "Host": "simpleHost.com"
 `, ts.URL+`/${! json("foo.bar") }`)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	for i := 0; i < nTestLoops; i++ {
@@ -282,7 +282,7 @@ func TestHTTPClientSendMultipart(t *testing.T) {
 url: %v
 `, ts.URL+"/testpost")
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	for i := 0; i < nTestLoops; i++ {
@@ -323,7 +323,7 @@ func TestHTTPClientReceive(t *testing.T) {
 url: %v
 `, ts.URL+"/testpost")
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	for i := 0; i < nTestLoops; i++ {
@@ -367,7 +367,7 @@ metadata:
   include_prefixes: [ "foo_" ]
 `, ts.URL+"/testpost")
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	sendMsg := service.MessageBatch{service.NewMessage([]byte("hello world"))}
@@ -448,7 +448,7 @@ extract_headers:
   include_patterns: %v
 `, url, gabs.Wrap(tt.includePrefixes).String(), gabs.Wrap(tt.includePatterns).String())
 
-		h, err := NewClientFromOldConfig(conf, service.MockResources())
+		h, err := NewClientFromConfig(conf, service.MockResources())
 		if err != nil {
 			t.Fatalf("%s: %s", tt.name, err)
 		}
@@ -527,7 +527,7 @@ func TestHTTPClientReceiveMultipart(t *testing.T) {
 url: %v
 `, ts.URL)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	for i := 0; i < nTestLoops; i++ {
@@ -572,7 +572,7 @@ url: %v
 retries: 0
 `, ts.URL)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	_, err = h.Send(t.Context(), service.MessageBatch{
@@ -600,7 +600,7 @@ url: %v
 proxy_url: %v
 `, ts.URL+"/testpost", tsProxy.URL)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	resBatch, err := h.Send(t.Context(), service.MessageBatch{
@@ -636,7 +636,7 @@ tls:
 proxy_url: %v
 `, ts.URL+"/testpost", tsProxy.URL)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	resBatch, err := h.Send(t.Context(), service.MessageBatch{
@@ -677,7 +677,7 @@ oauth2:
   client_secret: foosecret
 `, ts.URL+"/testpost", tsOAuth2.URL)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	resBatch, err := h.Send(t.Context(), service.MessageBatch{
@@ -723,7 +723,7 @@ oauth2:
       - foorefresh
 `, ts.URL+"/testpost", tsOAuth2.URL)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	resBatch, err := h.Send(t.Context(), service.MessageBatch{
@@ -767,7 +767,7 @@ oauth2:
       - refresh_token
 `, ts.URL+"/testpost", tsOAuth2.URL)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	_, err = h.Send(t.Context(), service.MessageBatch{
@@ -806,7 +806,7 @@ tls:
   skip_cert_verify: true
 `, ts.URL+"/testpost", tsOAuth2.URL)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	resBatch, err := h.Send(t.Context(), service.MessageBatch{
@@ -834,7 +834,7 @@ extract_headers:
   - '^location$'
 `, ts.URL)
 
-	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	h, err := NewClientFromConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
 	resBatch, err := h.Send(t.Context(), service.MessageBatch{
@@ -891,7 +891,7 @@ tls:
   skip_cert_verify: true
 `, ts.URL, test.disableHTTP2)
 
-			h, err := NewClientFromOldConfig(conf, service.MockResources())
+			h, err := NewClientFromConfig(conf, service.MockResources())
 			require.NoError(t, err)
 
 			dummyMsg := "hello world"

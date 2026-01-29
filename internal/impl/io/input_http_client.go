@@ -132,7 +132,7 @@ func newHTTPClientInputFromParsed(conf *service.ParsedConfig, mgr *service.Resou
 		return nil, err
 	}
 
-	client, err := httpclient.NewClientFromOldConfig(oldConf, mgr, httpclient.WithExplicitBody(payloadExpr))
+	client, err := httpclient.NewClientFromConfig(oldConf, mgr, httpclient.WithExplicitBody(payloadExpr))
 	if err != nil {
 		return nil, err
 	}

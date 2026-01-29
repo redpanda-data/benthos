@@ -53,16 +53,15 @@ type Client struct {
 	codesMut sync.RWMutex
 }
 
-// NewClientFromOldConfig creates a new request creator from an old struct style
-// config. Eventually I'd like to phase these out for the more dynamic service
-// style parses, but it'll take a while so we have this for now.
-func NewClientFromOldConfig(conf OldConfig, mgr *service.Resources, opts ...RequestOpt) (*Client, error) {
-	reqCreator, err := RequestCreatorFromOldConfig(conf, mgr, opts...)
+// NewClientFromConfig creates a new HTTP client from the provided
+// configuration.
+func NewClientFromConfig(conf Config, mgr *service.Resources, opts ...RequestOpt) (*Client, error) {
+	reqCreator, err := RequestCreatorFromConfig(conf, mgr, opts...)
 	if err != nil {
 		return nil, err
 	}
 
-	h := Client{
+	c := Client{
 		reqCreator:        reqCreator,
 		client:            &http.Client{},
 		metaExtractFilter: conf.ExtractMetadata,
@@ -74,26 +73,26 @@ func NewClientFromOldConfig(conf OldConfig, mgr *service.Resources, opts ...Requ
 		mgr: mgr,
 		log: mgr.Logger(),
 	}
-	h.clientCtx, h.clientCancel = context.WithCancel(context.Background())
+	c.clientCtx, c.clientCancel = context.WithCancel(context.Background())
 
 	if conf.Timeout > 0 {
-		h.client.Timeout = conf.Timeout
+		c.client.Timeout = conf.Timeout
 	}
 
-	h.followRedirects = conf.FollowRedirects
-	if !h.followRedirects {
-		h.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	c.followRedirects = conf.FollowRedirects
+	if !c.followRedirects {
+		c.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 	}
 
 	if conf.TLSEnabled && conf.TLSConf != nil {
-		if c, ok := http.DefaultTransport.(*http.Transport); ok {
-			cloned := c.Clone()
+		if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+			cloned := transport.Clone()
 			cloned.TLSClientConfig = conf.TLSConf
-			h.client.Transport = cloned
+			c.client.Transport = cloned
 		} else {
-			h.client.Transport = &http.Transport{
+			c.client.Transport = &http.Transport{
 				TLSClientConfig: conf.TLSConf,
 			}
 		}
@@ -102,69 +101,69 @@ func NewClientFromOldConfig(conf OldConfig, mgr *service.Resources, opts ...Requ
 	if conf.ProxyURL != "" {
 		proxyURL, err := url.Parse(conf.ProxyURL)
 		if err != nil {
-			return nil, fmt.Errorf("failed to parse proxy_url string: %v", err)
+			return nil, fmt.Errorf("failed to parse proxy_url string: %w", err)
 		}
-		if h.client.Transport != nil {
-			if tr, ok := h.client.Transport.(*http.Transport); ok {
+		if c.client.Transport != nil {
+			if tr, ok := c.client.Transport.(*http.Transport); ok {
 				tr.Proxy = http.ProxyURL(proxyURL)
 			} else {
-				return nil, fmt.Errorf("unable to apply proxy_url to transport, unexpected type %T", h.client.Transport)
+				return nil, fmt.Errorf("unable to apply proxy_url to transport, unexpected type %T", c.client.Transport)
 			}
 		} else {
-			h.client.Transport = &http.Transport{
+			c.client.Transport = &http.Transport{
 				Proxy: http.ProxyURL(proxyURL),
 			}
 		}
 	}
 
-	h.client.Transport, err = newRequestLog(h.client.Transport, h.log, conf.DumpRequestLogLevel)
+	c.client.Transport, err = newRequestLog(c.client.Transport, c.log, conf.DumpRequestLogLevel)
 	if err != nil {
-		return nil, fmt.Errorf("failed to config logger for request dump: %v", err)
+		return nil, fmt.Errorf("failed to config logger for request dump: %w", err)
 	}
 
 	if conf.DisableHTTP2 {
-		if c, ok := h.client.Transport.(*http.Transport); ok {
-			c.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+		if transport, ok := c.client.Transport.(*http.Transport); ok {
+			transport.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
 		}
 	}
 
-	h.client = conf.clientCtor(h.clientCtx, h.client)
+	c.client = conf.clientCtor(c.clientCtx, c.client)
 
-	for _, c := range conf.BackoffOn {
-		h.backoffOn[c] = struct{}{}
+	for _, code := range conf.BackoffOn {
+		c.backoffOn[code] = struct{}{}
 	}
-	for _, c := range conf.DropOn {
-		h.dropOn[c] = struct{}{}
+	for _, code := range conf.DropOn {
+		c.dropOn[code] = struct{}{}
 	}
-	for _, c := range conf.SuccessfulOn {
-		h.successOn[c] = struct{}{}
+	for _, code := range conf.SuccessfulOn {
+		c.successOn[code] = struct{}{}
 	}
 
-	h.mLatency = h.mgr.Metrics().NewTimer("http_request_latency_ns")
-	h.mCodes = map[int]*service.MetricCounter{}
+	c.mLatency = c.mgr.Metrics().NewTimer("http_request_latency_ns")
+	c.mCodes = map[int]*service.MetricCounter{}
 
-	if h.rateLimit = conf.RateLimit; h.rateLimit != "" {
-		if !h.mgr.HasRateLimit(h.rateLimit) {
-			return nil, fmt.Errorf("rate limit resource '%v' was not found", h.rateLimit)
+	if c.rateLimit = conf.RateLimit; c.rateLimit != "" {
+		if !c.mgr.HasRateLimit(c.rateLimit) {
+			return nil, fmt.Errorf("rate limit resource %q was not found", c.rateLimit)
 		}
 	}
 
-	h.numRetries = conf.NumRetries
-	h.retryThrottle = throttle.New(
+	c.numRetries = conf.NumRetries
+	c.retryThrottle = throttle.New(
 		throttle.OptMaxUnthrottledRetries(0),
 		throttle.OptThrottlePeriod(conf.Retry),
 		throttle.OptMaxExponentPeriod(conf.MaxBackoff),
 	)
 
-	return &h, nil
+	return &c, nil
 }
 
 //------------------------------------------------------------------------------
 
-func (h *Client) incrCode(code int) {
-	h.codesMut.RLock()
-	ctr, exists := h.mCodes[code]
-	h.codesMut.RUnlock()
+func (c *Client) incrCode(code int) {
+	c.codesMut.RLock()
+	ctr, exists := c.mCodes[code]
+	c.codesMut.RUnlock()
 
 	if exists {
 		ctr.Incr(1)
@@ -175,28 +174,28 @@ func (h *Client) incrCode(code int) {
 	if tier < 0 || tier > 5 {
 		return
 	}
-	ctr = h.mgr.Metrics().NewCounter(fmt.Sprintf("http_request_code_%vxx", tier))
+	ctr = c.mgr.Metrics().NewCounter(fmt.Sprintf("http_request_code_%vxx", tier))
 	ctr.Incr(1)
 
-	h.codesMut.Lock()
-	h.mCodes[code] = ctr
-	h.codesMut.Unlock()
+	c.codesMut.Lock()
+	c.mCodes[code] = ctr
+	c.codesMut.Unlock()
 }
 
-func (h *Client) waitForAccess(ctx context.Context) bool {
-	if h.rateLimit == "" {
+func (c *Client) waitForAccess(ctx context.Context) bool {
+	if c.rateLimit == "" {
 		return true
 	}
 	for {
 		var period time.Duration
 		var err error
-		if rerr := h.mgr.AccessRateLimit(ctx, h.rateLimit, func(rl service.RateLimit) {
+		if rerr := c.mgr.AccessRateLimit(ctx, c.rateLimit, func(rl service.RateLimit) {
 			period, err = rl.Access(ctx)
 		}); rerr != nil {
 			err = rerr
 		}
 		if err != nil {
-			h.log.Errorf("Rate limit error: %v\n", err)
+			c.log.Errorf("Rate limit error: %v\n", err)
 			period = time.Second
 		}
 
@@ -213,15 +212,15 @@ func (h *Client) waitForAccess(ctx context.Context) bool {
 }
 
 // ResponseToBatch attempts to parse an HTTP response into a 2D slice of bytes.
-func (h *Client) ResponseToBatch(res *http.Response) (service.MessageBatch, error) {
+func (c *Client) ResponseToBatch(res *http.Response) (service.MessageBatch, error) {
 	var resMsg service.MessageBatch
 
 	annotatePart := func(p *service.Message) {
 		p.MetaSetMut("http_status_code", res.StatusCode)
-		if !h.metaExtractFilter.IsEmpty() {
+		if !c.metaExtractFilter.IsEmpty() {
 			for k, values := range res.Header {
 				normalisedHeader := strings.ToLower(k)
-				if len(values) > 0 && h.metaExtractFilter.Match(normalisedHeader) {
+				if len(values) > 0 && c.metaExtractFilter.Match(normalisedHeader) {
 					if len(values) == 1 {
 						p.MetaSetMut(normalisedHeader, values[0])
 					} else {
@@ -249,7 +248,7 @@ func (h *Client) ResponseToBatch(res *http.Response) (service.MessageBatch, erro
 	var err error
 	if contentType := res.Header.Get("Content-Type"); contentType != "" {
 		if mediaType, params, err = mime.ParseMediaType(contentType); err != nil {
-			h.log.Warnf("Failed to parse media type from Content-Type header: %v\n", err)
+			c.log.Warnf("Failed to parse media type from Content-Type header: %v\n", err)
 		}
 	}
 
@@ -257,7 +256,7 @@ func (h *Client) ResponseToBatch(res *http.Response) (service.MessageBatch, erro
 	if !strings.HasPrefix(mediaType, "multipart/") {
 		var bytesRead int64
 		if bytesRead, err = buffer.ReadFrom(res.Body); err != nil {
-			h.log.Errorf("Failed to read response: %v\n", err)
+			c.log.Errorf("Failed to read response: %v\n", err)
 			return resMsg, err
 		}
 
@@ -284,7 +283,7 @@ func (h *Client) ResponseToBatch(res *http.Response) (service.MessageBatch, erro
 
 		var bytesRead int64
 		if bytesRead, err = buffer.ReadFrom(p); err != nil {
-			h.log.Errorf("Failed to read response: %v\n", err)
+			c.log.Errorf("Failed to read response: %v\n", err)
 			return resMsg, err
 		}
 
@@ -309,17 +308,17 @@ const (
 // checkStatus compares a returned status code against configured logic
 // determining whether the send succeeded, and if not what the retry strategy
 // should be.
-func (h *Client) checkStatus(code int) (succeeded bool, retStrat retryStrategy) {
-	if _, exists := h.dropOn[code]; exists {
+func (c *Client) checkStatus(code int) (succeeded bool, retStrat retryStrategy) {
+	if _, exists := c.dropOn[code]; exists {
 		return false, noRetry
 	}
-	if _, exists := h.backoffOn[code]; exists {
+	if _, exists := c.backoffOn[code]; exists {
 		return false, retryBackoff
 	}
-	if _, exists := h.successOn[code]; exists {
+	if _, exists := c.successOn[code]; exists {
 		return true, noRetry
 	}
-	if !h.followRedirects && code >= 300 && code <= 399 {
+	if !c.followRedirects && code >= 300 && code <= 399 {
 		return true, noRetry
 	}
 	if code < 200 || code > 299 {
@@ -348,10 +347,10 @@ func errorType(err error) string {
 // SendToResponse attempts to create an HTTP request from a provided message,
 // performs it, and then returns the *http.Response, allowing the raw response
 // to be consumed.
-func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatch) (res *http.Response, err error) {
+func (c *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatch) (res *http.Response, err error) {
 	var spans []*tracing.Span
 	if sendMsg != nil {
-		sendMsg, spans = tracing.WithChildSpans(h.mgr.OtelTracer(), "http_request", sendMsg)
+		sendMsg, spans = tracing.WithChildSpans(c.mgr.OtelTracer(), "http_request", sendMsg)
 		defer func() {
 			for _, s := range spans {
 				s.Finish()
@@ -369,7 +368,7 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 	}
 
 	var req *http.Request
-	if req, err = h.reqCreator.Create(sendMsg); err != nil {
+	if req, err = c.reqCreator.Create(sendMsg); err != nil {
 		logErr(err)
 		return nil, err
 	}
@@ -398,7 +397,7 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 		}
 	}()
 
-	if !h.waitForAccess(ctx) {
+	if !c.waitForAccess(ctx) {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -406,16 +405,16 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 	}
 
 	rateLimited := false
-	numRetries := h.numRetries
+	numRetries := c.numRetries
 
 	startedAt := time.Now()
-	if res, err = h.client.Do(req.WithContext(ctx)); err == nil {
-		h.incrCode(res.StatusCode)
+	if res, err = c.client.Do(req.WithContext(ctx)); err == nil {
+		c.incrCode(res.StatusCode)
 		for _, s := range spans {
 			s.SetTagInt("http.response.status_code", res.StatusCode)
 		}
 
-		if resolved, retryStrat := h.checkStatus(res.StatusCode); !resolved {
+		if resolved, retryStrat := c.checkStatus(res.StatusCode); !resolved {
 			rateLimited = retryStrat == retryBackoff
 			if retryStrat == noRetry {
 				numRetries = 0
@@ -426,7 +425,7 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 			}
 		}
 	}
-	h.mLatency.Timing(time.Since(startedAt).Nanoseconds())
+	c.mLatency.Timing(time.Since(startedAt).Nanoseconds())
 
 	i, j := 0, numRetries
 	for i < j && err != nil {
@@ -434,25 +433,25 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 		for _, s := range spans {
 			s.SetTagInt("http.request.resend_count", i+1)
 		}
-		if req, err = h.reqCreator.Create(sendMsg); err != nil {
+		if req, err = c.reqCreator.Create(sendMsg); err != nil {
 			continue
 		}
 		if rateLimited {
-			if !h.retryThrottle.ExponentialRetryWithContext(ctx) {
+			if !c.retryThrottle.ExponentialRetryWithContext(ctx) {
 				if ctx.Err() != nil {
 					return nil, ctx.Err()
 				}
 				return nil, errTimedOut
 			}
 		} else {
-			if !h.retryThrottle.RetryWithContext(ctx) {
+			if !c.retryThrottle.RetryWithContext(ctx) {
 				if ctx.Err() != nil {
 					return nil, ctx.Err()
 				}
 				return nil, errTimedOut
 			}
 		}
-		if !h.waitForAccess(ctx) {
+		if !c.waitForAccess(ctx) {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
@@ -461,12 +460,12 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 		rateLimited = false
 
 		startedAt = time.Now()
-		if res, err = h.client.Do(req.WithContext(ctx)); err == nil {
-			h.incrCode(res.StatusCode)
+		if res, err = c.client.Do(req.WithContext(ctx)); err == nil {
+			c.incrCode(res.StatusCode)
 			for _, s := range spans {
 				s.SetTagInt("http.response.status_code", res.StatusCode)
 			}
-			if resolved, retryStrat := h.checkStatus(res.StatusCode); !resolved {
+			if resolved, retryStrat := c.checkStatus(res.StatusCode); !resolved {
 				rateLimited = retryStrat == retryBackoff
 				if retryStrat == noRetry {
 					j = 0
@@ -477,7 +476,7 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 				}
 			}
 		}
-		h.mLatency.Timing(time.Since(startedAt).Nanoseconds())
+		c.mLatency.Timing(time.Since(startedAt).Nanoseconds())
 		i++
 	}
 	if err != nil {
@@ -485,7 +484,7 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 		return nil, err
 	}
 
-	h.retryThrottle.Reset()
+	c.retryThrottle.Reset()
 	return res, nil
 }
 
@@ -504,16 +503,16 @@ func unexpectedErr(res *http.Response) error {
 //
 // If the request is successful then the response is parsed into a message,
 // including headers added as metadata (when configured to do so).
-func (h *Client) Send(ctx context.Context, sendMsg service.MessageBatch) (service.MessageBatch, error) {
-	res, err := h.SendToResponse(ctx, sendMsg)
+func (c *Client) Send(ctx context.Context, sendMsg service.MessageBatch) (service.MessageBatch, error) {
+	res, err := c.SendToResponse(ctx, sendMsg)
 	if err != nil {
 		return nil, err
 	}
-	return h.ResponseToBatch(res)
+	return c.ResponseToBatch(res)
 }
 
-// Close the client.
-func (h *Client) Close(ctx context.Context) error {
-	h.clientCancel()
+// Close closes the client.
+func (c *Client) Close(ctx context.Context) error {
+	c.clientCancel()
 	return nil
 }

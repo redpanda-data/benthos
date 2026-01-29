@@ -111,7 +111,7 @@ func newHTTPClientOutputFromParsed(conf *service.ParsedConfig, mgr *service.Reso
 		return nil, err
 	}
 
-	client, err := httpclient.NewClientFromOldConfig(oldHTTPConf, mgr, opts...)
+	client, err := httpclient.NewClientFromConfig(oldHTTPConf, mgr, opts...)
 	if err != nil {
 		return nil, err
 	}

@@ -49,7 +49,7 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	)
 
 	var (
-		reqBodyCaptured interface{}
+		reqBodyCaptured any
 		reqBodyBuf      = &bytes.Buffer{}
 		reqBodyErr      error
 	)
@@ -80,7 +80,7 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	var (
-		respBodyCaptured interface{}
+		respBodyCaptured any
 		respBodyBuf      = &bytes.Buffer{}
 		respErrBody      error
 	)
@@ -155,11 +155,10 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return respOriginal, roundTripErr
 }
 
-var toSimpleMap = func(h http.Header) map[string]string {
+func toSimpleMap(h http.Header) map[string]string {
 	out := map[string]string{}
 	for k, v := range h {
 		out[k] = strings.Join(v, " ")
 	}
-
 	return out
 }

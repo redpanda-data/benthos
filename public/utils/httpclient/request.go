@@ -46,10 +46,9 @@ type RequestCreator struct {
 // RequestOpt represents a customisation of a request creator.
 type RequestOpt func(r *RequestCreator)
 
-// RequestCreatorFromOldConfig creates a new request creator from an old struct
-// style config. Eventually I'd like to phase these out for the more dynamic
-// service style parses, but it'll take a while so we have this for now.
-func RequestCreatorFromOldConfig(conf OldConfig, mgr *service.Resources, opts ...RequestOpt) (*RequestCreator, error) {
+// RequestCreatorFromConfig creates a new request creator from the provided
+// configuration.
+func RequestCreatorFromConfig(conf Config, mgr *service.Resources, opts ...RequestOpt) (*RequestCreator, error) {
 	r := &RequestCreator{
 		fs:               mgr.FS(),
 		url:              conf.URL,

@@ -103,7 +103,7 @@ func newHTTPProcFromParsed(conf *service.ParsedConfig, mgr *service.Resources) (
 		asMultipart: asMultipart,
 		parallel:    parallel,
 	}
-	if g.client, err = httpclient.NewClientFromOldConfig(oldConf, mgr); err != nil {
+	if g.client, err = httpclient.NewClientFromConfig(oldConf, mgr); err != nil {
 		return nil, err
 	}
 	return g, nil
