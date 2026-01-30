@@ -34,18 +34,6 @@ func (s *Span) unwrap() trace.Span {
 	return s.w
 }
 
-// LogKV adds log key/value pairs to the span.
-func (s *Span) LogKV(name string, kv ...string) {
-	if s == nil {
-		return
-	}
-	var attrs []attribute.KeyValue
-	for i := 0; i < len(kv)-1; i += 2 {
-		attrs = append(attrs, attribute.String(kv[i], kv[i+1]))
-	}
-	s.w.AddEvent(name, trace.WithAttributes(attrs...))
-}
-
 // SetTag sets a given tag to a value.
 func (s *Span) SetTag(key, value string) {
 	if s == nil {
