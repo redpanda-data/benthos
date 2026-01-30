@@ -5,7 +5,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -104,7 +106,7 @@ func (f *ConfigQueryFile) FieldAtPath(path ...string) (*ParsedConfig, error) {
 
 	a, exists := f.parsedConf.Field(path...)
 	if !exists {
-		return nil, errors.New("field not found in data")
+		return nil, fmt.Errorf("field '%v' not found in data", strings.Join(path, "."))
 	}
 
 	pConf, err := fieldDocs.ParsedConfigFromAny(a)
