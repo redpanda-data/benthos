@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -59,6 +60,14 @@ func (s *Span) SetTagInt(key string, value int) {
 		return
 	}
 	s.w.SetAttributes(attribute.Int(key, value))
+}
+
+// SetStatus sets the status of the span.
+func (s *Span) SetStatus(code codes.Code, description string) {
+	if s == nil {
+		return
+	}
+	s.w.SetStatus(code, description)
 }
 
 // Finish the span.

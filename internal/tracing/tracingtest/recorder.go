@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 )
@@ -22,6 +23,8 @@ type RecordedSpan struct {
 	Ended      bool
 	Events     []string
 	Attributes map[string]any
+	Status     codes.Code
+	StatusDesc string
 }
 
 // Duration returns the duration of the span. If the span has not ended, it returns 0.
@@ -192,6 +195,14 @@ func (rs *recordingSpan) SetAttributes(kv ...attribute.KeyValue) {
 	}
 	if rs.Span != nil {
 		rs.Span.SetAttributes(kv...)
+	}
+}
+
+func (rs *recordingSpan) SetStatus(code codes.Code, description string) {
+	rs.recorded.Status = code
+	rs.recorded.StatusDesc = description
+	if rs.Span != nil {
+		rs.Span.SetStatus(code, description)
 	}
 }
 
