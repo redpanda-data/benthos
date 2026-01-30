@@ -18,6 +18,8 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/redpanda-data/benthos/v4/internal/old/util/throttle"
 	"github.com/redpanda-data/benthos/v4/internal/tracing/v2"
 	"github.com/redpanda-data/benthos/v4/public/service"
@@ -360,11 +362,8 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 	}
 	logErr := func(e error) {
 		for _, s := range spans {
-			s.LogKV(
-				"event", "error",
-				"type", e.Error(),
-			)
 			s.SetTag("error.type", errorType(e))
+			s.SetStatus(codes.Error, e.Error())
 		}
 	}
 
@@ -483,6 +482,11 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 	if err != nil {
 		logErr(err)
 		return nil, err
+	}
+
+	// Set success status on spans
+	for _, s := range spans {
+		s.SetStatus(codes.Ok, "")
 	}
 
 	h.retryThrottle.Reset()

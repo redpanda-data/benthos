@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
@@ -493,6 +494,9 @@ http:
 	assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("server.address"))
 	assert.Equal(t, 200, httpRequestSpan.GetIntAttribute("http.response.status_code"))
 	assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("network.protocol.version"))
+
+	// Verify span status is set to Ok for successful requests
+	assert.Equal(t, codes.Ok, httpRequestSpan.Status, "span status should be Ok")
 }
 
 func TestHTTPProcessorTracingBatch(t *testing.T) {
@@ -612,9 +616,10 @@ http:
 	// Verify error attributes
 	assert.Equal(t, 404, httpRequestSpan.GetIntAttribute("http.response.status_code"))
 	assert.NotEmpty(t, httpRequestSpan.GetStringAttribute("error.type"))
-	// Check that error event was logged (the event name is in the Events slice)
-	require.NotEmpty(t, httpRequestSpan.Events, "should have at least one event")
-	assert.Contains(t, httpRequestSpan.Events[0], "event")
+
+	// Verify span status is set to error
+	assert.Equal(t, codes.Error, httpRequestSpan.Status, "span status should be Error")
+	assert.NotEmpty(t, httpRequestSpan.StatusDesc, "span status description should not be empty")
 }
 
 func TestHTTPProcessorTracingWithRetries(t *testing.T) {
@@ -659,4 +664,7 @@ http:
 	// Should have retried twice before succeeding
 	assert.Equal(t, 2, httpRequestSpan.GetIntAttribute("http.request.resend_count"))
 	assert.Equal(t, 200, httpRequestSpan.GetIntAttribute("http.response.status_code"))
+
+	// Verify span status is set to Ok after successful retry
+	assert.Equal(t, codes.Ok, httpRequestSpan.Status, "span status should be Ok after successful retry")
 }
