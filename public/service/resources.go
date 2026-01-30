@@ -90,11 +90,18 @@ func (r *Resources) EngineVersion() string {
 	return r.mgr.EngineVersion()
 }
 
-// Label returns a label that identifies the component instantiation. This could
-// be an explicit label set in config, or is otherwise a generated label based
-// on the position of the component within a config.
+// Label returns a label that identifies the component instantiation. This is
+// usually the label defined via config and should be added to any exported
+// observability data.
 func (r *Resources) Label() string {
 	return r.mgr.Label()
+}
+
+// Path returns the path of the component being instantiated within the config,
+// or an empty slice when not applicable. This should be added to any exported
+// observability data.
+func (r *Resources) Path() []string {
+	return r.mgr.Path()
 }
 
 // Logger returns a logger preset with context about the component the resources
@@ -306,6 +313,16 @@ func (r *Resources) SetGeneric(key, value any) {
 	r.mgr.SetGeneric(key, value)
 }
 
+// ConnectionTest attempts to run connectivity tests for all resources that
+// support them, and returns the results.
+func (r *Resources) ConnectionTest(ctx context.Context) ([]*ConnectionTestResult, error) {
+	results, err := r.mgr.ConnectionTest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return connectionTestResultsFromInternal(results), nil
+}
+
 //------------------------------------------------------------------------------
 
 type resourcesUnwrapper struct {
@@ -322,6 +339,15 @@ func (r *Resources) XUnwrapper() any {
 }
 
 //------------------------------------------------------------------------------
+
+// IntoPath returns a copy of Resources with the path expanded to include the
+// provided segments. This results in newly constructed managed components being
+// allocated these values for observability purposes.
+func (r *Resources) IntoPath(pathSegments ...string) *Resources {
+	tmpRes := *r
+	tmpRes.mgr = r.mgr.IntoPath(pathSegments...)
+	return &tmpRes
+}
 
 // ManagedBatchOutput takes a BatchOutput implementation and wraps it within a
 // mechanism that automatically manages QOL details such as connect/reconnect

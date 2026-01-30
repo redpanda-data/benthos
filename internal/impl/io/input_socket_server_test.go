@@ -15,6 +15,7 @@ import (
 	"math/big"
 	"net"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
 	"testing"
@@ -29,6 +30,13 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 )
+
+func skipDarwin(t *testing.T, reason string) {
+	t.Helper()
+	if runtime.GOOS == "darwin" {
+		t.Skip(reason)
+	}
+}
 
 func socketServerInputFromConf(t testing.TB, confStr string, bits ...any) (input.Streamed, string) {
 	t.Helper()
@@ -498,6 +506,8 @@ socket_server:
 }
 
 func TestUnixgramSocketServerBasic(t *testing.T) {
+	skipDarwin(t, "unixgram is not reliably supported on macOS")
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
@@ -565,6 +575,8 @@ socket_server:
 }
 
 func TestUnixgramSocketServerRetries(t *testing.T) {
+	skipDarwin(t, "unixgram is not reliably supported on macOS")
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
@@ -647,6 +659,8 @@ socket_server:
 }
 
 func TestUnixgramServerWriteToClosed(t *testing.T) {
+	skipDarwin(t, "unixgram is not reliably supported on macOS")
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
@@ -676,6 +690,8 @@ socket_server:
 }
 
 func TestUnixgramSocketServerReconnect(t *testing.T) {
+	skipDarwin(t, "unixgram is not reliably supported on macOS")
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
@@ -747,6 +763,8 @@ socket_server:
 }
 
 func TestUnixgramSocketServerCustomDelim(t *testing.T) {
+	skipDarwin(t, "unixgram is not reliably supported on macOS")
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 
@@ -823,6 +841,8 @@ socket_server:
 }
 
 func TestUnixgramSocketServerShutdown(t *testing.T) {
+	skipDarwin(t, "unixgram is not reliably supported on macOS")
+
 	ctx, done := context.WithTimeout(t.Context(), time.Second*20)
 	defer done()
 

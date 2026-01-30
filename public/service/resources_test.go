@@ -192,3 +192,56 @@ func TestResourcesGenericGetOrSet(t *testing.T) {
 	assert.True(t, loaded)
 	assert.Equal(t, "foo", v)
 }
+
+func TestResourcesConnectionTest(t *testing.T) {
+	env := service.NewEnvironment()
+
+	// Register a test component that uses ConnectionTest
+	require.NoError(t, env.RegisterBatchInput(
+		"test_conn_input", service.NewConfigSpec(),
+		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchInput, error) {
+			// Test ConnectionTest during initialization
+			ctx := context.Background()
+			results, err := mgr.ConnectionTest(ctx)
+			require.NoError(t, err)
+
+			// Should have at least results from the resource input/output
+			// The test verifies the method can be called, even if results are empty initially
+			assert.NotNil(t, results)
+
+			return fooReader{mgr: mgr}, nil
+		}))
+
+	b := env.NewStreamBuilder()
+	require.NoError(t, b.SetYAML(`
+input_resources:
+  - label: foo
+    generate:
+      count: 1
+      mapping: 'root = {}'
+
+output_resources:
+  - label: test_output
+    drop: {}
+
+input:
+  test_conn_input: {}
+
+output:
+  drop: {}
+`))
+
+	strm, err := b.Build()
+	require.NoError(t, err)
+
+	require.NoError(t, strm.Run(t.Context()))
+}
+
+func TestResourcesConnectionTestEmpty(t *testing.T) {
+	res := service.MockResources()
+
+	ctx := context.Background()
+	results, err := res.ConnectionTest(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, results, "Expected no connection test results for mock resources")
+}
