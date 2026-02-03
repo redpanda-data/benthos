@@ -42,23 +42,13 @@ func NewCache[T any](convert ConvertFunc[T]) *Cache[T] {
 	}
 }
 
-// Get retrieves a converted schema from the cache by fingerprint.
-// Returns the cached value and true if found, or the zero value and false if not found.
-func (sc *Cache[T]) Get(fingerprint string) (T, bool) {
-	sc.mu.RLock()
-	defer sc.mu.RUnlock()
-
-	val, ok := sc.cache[fingerprint]
-	return val, ok
-}
-
 // GetOrConvert retrieves a converted schema from the cache, or converts and caches it
 // if not already present. This method is thread-safe and ensures that the conversion
 // function is only called once per unique schema structure.
 //
 // The fingerprint is computed automatically from the provided schema.
 func (sc *Cache[T]) GetOrConvert(schema Common) (T, error) {
-	fingerprint := schema.Fingerprint()
+	fingerprint := schema.fingerprint()
 
 	// Fast path: check if already cached (read lock)
 	sc.mu.RLock()
@@ -146,15 +136,6 @@ func (sc *Cache[T]) GetOrConvertFromAny(anySchema any) (T, error) {
 	// but that's acceptable since we only hit this path on cache miss or when
 	// no fingerprint was provided
 	return sc.GetOrConvert(common)
-}
-
-// Put manually stores a converted schema in the cache with the given fingerprint.
-// This is useful when you want to pre-populate the cache or store a conversion
-// result obtained through other means.
-func (sc *Cache[T]) Put(fingerprint string, value T) {
-	sc.mu.Lock()
-	defer sc.mu.Unlock()
-	sc.cache[fingerprint] = value
 }
 
 // Size returns the number of cached schemas.

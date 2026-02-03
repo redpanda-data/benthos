@@ -10,7 +10,6 @@
 // To optimize performance when converting schemas between formats, this package
 // provides fingerprinting and caching mechanisms:
 //
-//   - Fingerprint(): Generates a deterministic hash identifier for schema structures
 //   - SchemaCache: A thread-safe cache for storing converted schemas
 //
 // This allows downstream components to lazily perform conversions only once per
@@ -180,7 +179,7 @@ const (
 func (c *Common) ToAny() any {
 	m := map[string]any{
 		anyFieldType:        c.Type.String(),
-		anyFieldFingerprint: c.Fingerprint(),
+		anyFieldFingerprint: c.fingerprint(),
 	}
 
 	if c.Name != "" {
@@ -256,7 +255,7 @@ func ParseFromAny(v any) (Common, error) {
 // to avoid redundant serialization and translation operations.
 //
 // The fingerprint is computed using SHA-256 and returned as a hex-encoded string.
-func (c *Common) Fingerprint() string {
+func (c *Common) fingerprint() string {
 	h := sha256.New()
 	c.writeFingerprint(h)
 	return hex.EncodeToString(h.Sum(nil))

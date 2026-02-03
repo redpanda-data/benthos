@@ -164,8 +164,8 @@ func TestFingerprint(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fp1 := tt.schema1.Fingerprint()
-			fp2 := tt.schema2.Fingerprint()
+			fp1 := tt.schema1.fingerprint()
+			fp2 := tt.schema2.fingerprint()
 
 			// Fingerprints should be non-empty
 			if fp1 == "" {
@@ -204,9 +204,9 @@ func TestFingerprintDeterministic(t *testing.T) {
 	}
 
 	// Generate fingerprint multiple times
-	fp1 := schema.Fingerprint()
-	fp2 := schema.Fingerprint()
-	fp3 := schema.Fingerprint()
+	fp1 := schema.fingerprint()
+	fp2 := schema.fingerprint()
+	fp3 := schema.fingerprint()
 
 	// All should be identical
 	if fp1 != fp2 || fp2 != fp3 {
@@ -225,7 +225,7 @@ func TestFingerprintAllTypes(t *testing.T) {
 
 	for _, typ := range types {
 		schema := Common{Type: typ, Name: "test"}
-		fp := schema.Fingerprint()
+		fp := schema.fingerprint()
 
 		if fp == "" {
 			t.Errorf("fingerprint for type %v should not be empty", typ)
@@ -323,7 +323,7 @@ func TestToAnyIncludesFingerprint(t *testing.T) {
 			}
 
 			// Verify fingerprint matches the schema's actual fingerprint
-			expectedFP := tt.schema.Fingerprint()
+			expectedFP := tt.schema.fingerprint()
 			if fpStr != expectedFP {
 				t.Errorf("fingerprint mismatch:\n  got:      %s\n  expected: %s", fpStr, expectedFP)
 			}
@@ -335,7 +335,7 @@ func TestToAnyIncludesFingerprint(t *testing.T) {
 			}
 
 			// Verify parsed schema has same fingerprint
-			parsedFP := parsedSchema.Fingerprint()
+			parsedFP := parsedSchema.fingerprint()
 			if parsedFP != expectedFP {
 				t.Errorf("parsed schema fingerprint mismatch:\n  got:      %s\n  expected: %s", parsedFP, expectedFP)
 			}
@@ -370,7 +370,7 @@ func TestToAnyAlwaysIncludesFingerprint(t *testing.T) {
 
 	// Verify fingerprint is correct
 	if fpStr, ok := fpVal.(string); ok {
-		expectedFP := schema.Fingerprint()
+		expectedFP := schema.fingerprint()
 		if fpStr != expectedFP {
 			t.Errorf("fingerprint mismatch: got %s, expected %s", fpStr, expectedFP)
 		}

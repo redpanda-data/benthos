@@ -58,60 +58,6 @@ func TestSchemaCacheBasicOperations(t *testing.T) {
 	}
 }
 
-func TestSchemaCacheGet(t *testing.T) {
-	converter := func(c Common) (mockConvertedSchema, error) {
-		return mockConvertedSchema{originalType: c.Type}, nil
-	}
-
-	cache := NewCache(converter)
-	schema := Common{Type: Int64, Name: "test"}
-	fingerprint := schema.Fingerprint()
-
-	// Get should return false before conversion
-	_, ok := cache.Get(fingerprint)
-	if ok {
-		t.Error("expected Get to return false for non-existent entry")
-	}
-
-	// Convert and cache
-	_, err := cache.GetOrConvert(schema)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Get should now return true
-	result, ok := cache.Get(fingerprint)
-	if !ok {
-		t.Error("expected Get to return true after conversion")
-	}
-	if result.originalType != Int64 {
-		t.Errorf("expected type %v, got %v", Int64, result.originalType)
-	}
-}
-
-func TestSchemaCachePut(t *testing.T) {
-	converter := func(c Common) (mockConvertedSchema, error) {
-		return mockConvertedSchema{originalType: c.Type}, nil
-	}
-
-	cache := NewCache(converter)
-	schema := Common{Type: Boolean, Name: "test"}
-	fingerprint := schema.Fingerprint()
-
-	// Manually put a value
-	manual := mockConvertedSchema{originalType: Float64, convertCount: 999}
-	cache.Put(fingerprint, manual)
-
-	// GetOrConvert should return the manually set value
-	result, err := cache.GetOrConvert(schema)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if result.convertCount != 999 {
-		t.Errorf("expected manually set value, got convertCount=%d", result.convertCount)
-	}
-}
-
 func TestSchemaCacheSize(t *testing.T) {
 	converter := func(c Common) (mockConvertedSchema, error) {
 		return mockConvertedSchema{originalType: c.Type}, nil
@@ -142,8 +88,13 @@ func TestSchemaCacheSize(t *testing.T) {
 }
 
 func TestSchemaCacheClear(t *testing.T) {
+	convertCount := 0
 	converter := func(c Common) (mockConvertedSchema, error) {
-		return mockConvertedSchema{originalType: c.Type}, nil
+		convertCount++
+		return mockConvertedSchema{
+			originalType: c.Type,
+			convertCount: convertCount,
+		}, nil
 	}
 
 	cache := NewCache(converter)
@@ -153,6 +104,9 @@ func TestSchemaCacheClear(t *testing.T) {
 	_, err := cache.GetOrConvert(schema)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if convertCount != 1 {
+		t.Errorf("expected 1 conversion, got %d", convertCount)
 	}
 
 	if cache.Size() != 1 {
@@ -166,11 +120,16 @@ func TestSchemaCacheClear(t *testing.T) {
 		t.Errorf("expected size 0 after clear, got %d", cache.Size())
 	}
 
-	// Get should fail after clear
-	fingerprint := schema.Fingerprint()
-	_, ok := cache.Get(fingerprint)
-	if ok {
-		t.Error("expected Get to return false after clear")
+	// Get should convert again after clear
+	result, err := cache.GetOrConvert(schema)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if convertCount != 2 {
+		t.Errorf("expected converter to be called again after clear, got %d", convertCount)
+	}
+	if result.originalType != String {
+		t.Errorf("expected type %v, got %v", String, result.originalType)
 	}
 }
 
@@ -258,8 +217,13 @@ func TestSchemaCacheConcurrency(t *testing.T) {
 }
 
 func TestSchemaCacheMultipleSchemas(t *testing.T) {
+	convertCount := 0
 	converter := func(c Common) (mockConvertedSchema, error) {
-		return mockConvertedSchema{originalType: c.Type}, nil
+		convertCount++
+		return mockConvertedSchema{
+			originalType: c.Type,
+			convertCount: convertCount,
+		}, nil
 	}
 
 	cache := NewCache(converter)
@@ -278,18 +242,26 @@ func TestSchemaCacheMultipleSchemas(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	}
+	expectedCount := len(schemas)
+	if convertCount != expectedCount {
+		t.Errorf("expected %d conversions, got %d", expectedCount, convertCount)
+	}
 
 	// Verify all are cached
 	if cache.Size() != len(schemas) {
 		t.Errorf("expected size %d, got %d", len(schemas), cache.Size())
 	}
 
-	// Verify each can be retrieved
+	// Verify each can be retrieved from cache
 	for _, schema := range schemas {
-		fingerprint := schema.Fingerprint()
-		result, ok := cache.Get(fingerprint)
-		if !ok {
-			t.Errorf("expected to find cached entry for schema %v", schema)
+		result, err := cache.GetOrConvert(schema)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Check that the converter was not called again
+		if convertCount != expectedCount {
+			t.Errorf("expected converter not to be called again, got %d", convertCount)
 		}
 		if result.originalType != schema.Type {
 			t.Errorf("expected type %v, got %v", schema.Type, result.originalType)
@@ -406,10 +378,12 @@ func TestSchemaCacheGetOrConvertFromAny_InvalidFingerprint(t *testing.T) {
 	}
 
 	// Verify it was cached with the correct fingerprint
-	correctFingerprint := schema.Fingerprint()
-	result2, ok := cache.Get(correctFingerprint)
-	if !ok {
-		t.Error("expected schema to be cached with correct fingerprint")
+	result2, err := cache.GetOrConvertFromAny(anySchema)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if convertCount != 1 {
+		t.Errorf("expected 1 conversion, got %d", convertCount)
 	}
 	if result2.originalType != Boolean {
 		t.Errorf("expected type %v, got %v", Boolean, result2.originalType)
