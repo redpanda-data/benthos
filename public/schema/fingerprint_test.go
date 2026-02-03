@@ -8,9 +8,9 @@ import (
 
 func TestFingerprint(t *testing.T) {
 	tests := []struct {
-		name     string
-		schema1  Common
-		schema2  Common
+		name        string
+		schema1     Common
+		schema2     Common
 		shouldMatch bool
 	}{
 		{

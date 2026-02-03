@@ -24,7 +24,7 @@ func TestSchemaCacheBasicOperations(t *testing.T) {
 		}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 
 	schema := Common{Type: String, Name: "test"}
 
@@ -63,7 +63,7 @@ func TestSchemaCacheGet(t *testing.T) {
 		return mockConvertedSchema{originalType: c.Type}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 	schema := Common{Type: Int64, Name: "test"}
 	fingerprint := schema.Fingerprint()
 
@@ -94,7 +94,7 @@ func TestSchemaCachePut(t *testing.T) {
 		return mockConvertedSchema{originalType: c.Type}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 	schema := Common{Type: Boolean, Name: "test"}
 	fingerprint := schema.Fingerprint()
 
@@ -117,7 +117,7 @@ func TestSchemaCacheSize(t *testing.T) {
 		return mockConvertedSchema{originalType: c.Type}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 
 	if cache.Size() != 0 {
 		t.Errorf("expected size 0, got %d", cache.Size())
@@ -146,7 +146,7 @@ func TestSchemaCacheClear(t *testing.T) {
 		return mockConvertedSchema{originalType: c.Type}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 	schema := Common{Type: String, Name: "test"}
 
 	// Add entry
@@ -180,7 +180,7 @@ func TestSchemaCacheConversionError(t *testing.T) {
 		return mockConvertedSchema{}, expectedErr
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 	schema := Common{Type: String, Name: "test"}
 
 	_, err := cache.GetOrConvert(schema)
@@ -212,7 +212,7 @@ func TestSchemaCacheConcurrency(t *testing.T) {
 		}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 	schema := Common{Type: Object, Name: "concurrent"}
 
 	// Run multiple goroutines trying to convert the same schema
@@ -262,7 +262,7 @@ func TestSchemaCacheMultipleSchemas(t *testing.T) {
 		return mockConvertedSchema{originalType: c.Type}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 
 	schemas := []Common{
 		{Type: String, Name: "field1"},
@@ -307,7 +307,7 @@ func TestSchemaCacheGetOrConvertFromAny_WithFingerprint(t *testing.T) {
 		}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 	schema := Common{Type: String, Name: "test"}
 
 	// First, populate cache using normal GetOrConvert
@@ -345,7 +345,7 @@ func TestSchemaCacheGetOrConvertFromAny_WithoutFingerprint(t *testing.T) {
 		}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 	schema := Common{Type: Int64, Name: "test"}
 
 	// Create Any format without fingerprint
@@ -386,7 +386,7 @@ func TestSchemaCacheGetOrConvertFromAny_InvalidFingerprint(t *testing.T) {
 		}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 	schema := Common{Type: Boolean, Name: "test"}
 
 	// Create Any format and modify to have invalid fingerprint
@@ -421,7 +421,7 @@ func TestSchemaCacheGetOrConvertFromAny_ParseError(t *testing.T) {
 		return mockConvertedSchema{originalType: c.Type}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 
 	// Invalid Any format (not a map)
 	invalidAny := "not a map"
@@ -442,7 +442,7 @@ func TestSchemaCacheGetOrConvertFromAny_EmptyCache(t *testing.T) {
 		}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 	schema := Common{Type: Float64, Name: "test"}
 
 	// Create Any format (fingerprint included automatically)
@@ -483,7 +483,7 @@ func TestSchemaCacheGetOrConvertFromAny_ComplexSchema(t *testing.T) {
 		}, nil
 	}
 
-	cache := NewSchemaCache(converter)
+	cache := NewCache(converter)
 
 	// Complex schema with nested children
 	schema := Common{

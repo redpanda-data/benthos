@@ -34,10 +34,10 @@ func convertToParquet(c schema.Common) (ParquetSchema, error) {
 	return ps, nil
 }
 
-// ExampleSchemaCache demonstrates using SchemaCache to avoid redundant conversions
-func ExampleSchemaCache() {
+// ExampleCache demonstrates using Cache to avoid redundant conversions
+func ExampleCache() {
 	// Create a cache for Parquet schema conversions
-	cache := schema.NewSchemaCache(convertToParquet)
+	cache := schema.NewCache(convertToParquet)
 
 	// Define a common schema
 	userSchema := schema.Common{
@@ -114,9 +114,9 @@ func ExampleCommon_Fingerprint() {
 	// Schema1 == Schema3: false
 }
 
-// ExampleSchemaCache_manualPut demonstrates manually populating the cache
-func ExampleSchemaCache_manualPut() {
-	cache := schema.NewSchemaCache(convertToParquet)
+// ExampleCache_manualPut demonstrates manually populating the cache
+func ExampleCache_manualPut() {
+	cache := schema.NewCache(convertToParquet)
 
 	userSchema := schema.Common{
 		Type: schema.Object,
@@ -146,9 +146,9 @@ func ExampleSchemaCache_manualPut() {
 	// Result name: user_custom, fields: 2
 }
 
-// ExampleSchemaCache_GetOrConvertFromAny demonstrates optimized cache usage with Any format
-func ExampleSchemaCache_GetOrConvertFromAny() {
-	cache := schema.NewSchemaCache(convertToParquet)
+// ExampleCache_GetOrConvertFromAny demonstrates optimized cache usage with Any format
+func ExampleCache_GetOrConvertFromAny() {
+	cache := schema.NewCache(convertToParquet)
 
 	// Define a schema
 	userSchema := schema.Common{

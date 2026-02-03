@@ -11,7 +11,7 @@ import (
 // This function is called lazily when a schema is first accessed in the cache.
 type ConvertFunc[T any] func(Common) (T, error)
 
-// SchemaCache provides a thread-safe cache for storing converted schemas.
+// Cache provides a thread-safe cache for storing converted schemas.
 // It uses schema fingerprints as keys to ensure that conversions only happen
 // once per unique schema structure, avoiding redundant ToAny/FromAny
 // serialization and expensive format translations (e.g., to Parquet).
@@ -20,23 +20,23 @@ type ConvertFunc[T any] func(Common) (T, error)
 //
 //	type ParquetSchema struct { /* ... */ }
 //
-//	cache := schema.NewSchemaCache(func(c schema.Common) (ParquetSchema, error) {
+//	cache := schema.NewCache(func(c schema.Common) (ParquetSchema, error) {
 //	    // Convert Common schema to Parquet format
 //	    return convertToParquet(c)
 //	})
 //
 //	schema := schema.Common{ /* ... */ }
 //	parquetSchema, err := cache.GetOrConvert(schema)
-type SchemaCache[T any] struct {
-	mu       sync.RWMutex
-	cache    map[string]T
-	convert  ConvertFunc[T]
+type Cache[T any] struct {
+	mu      sync.RWMutex
+	cache   map[string]T
+	convert ConvertFunc[T]
 }
 
-// NewSchemaCache creates a new SchemaCache with the provided conversion function.
+// NewCache creates a new Cache with the provided conversion function.
 // The conversion function will be called lazily when a schema is first accessed.
-func NewSchemaCache[T any](convert ConvertFunc[T]) *SchemaCache[T] {
-	return &SchemaCache[T]{
+func NewCache[T any](convert ConvertFunc[T]) *Cache[T] {
+	return &Cache[T]{
 		cache:   make(map[string]T),
 		convert: convert,
 	}
@@ -44,7 +44,7 @@ func NewSchemaCache[T any](convert ConvertFunc[T]) *SchemaCache[T] {
 
 // Get retrieves a converted schema from the cache by fingerprint.
 // Returns the cached value and true if found, or the zero value and false if not found.
-func (sc *SchemaCache[T]) Get(fingerprint string) (T, bool) {
+func (sc *Cache[T]) Get(fingerprint string) (T, bool) {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 
@@ -57,7 +57,7 @@ func (sc *SchemaCache[T]) Get(fingerprint string) (T, bool) {
 // function is only called once per unique schema structure.
 //
 // The fingerprint is computed automatically from the provided schema.
-func (sc *SchemaCache[T]) GetOrConvert(schema Common) (T, error) {
+func (sc *Cache[T]) GetOrConvert(schema Common) (T, error) {
 	fingerprint := schema.Fingerprint()
 
 	// Fast path: check if already cached (read lock)
@@ -108,13 +108,13 @@ func (sc *SchemaCache[T]) GetOrConvert(schema Common) (T, error) {
 //	// ... send anySchema over network or store it ...
 //
 //	// Consumer side: optimized cache lookup
-//	cache := schema.NewSchemaCache(convertFunc)
+//	cache := schema.NewCache(convertFunc)
 //	result, err := cache.GetOrConvertFromAny(anySchema)
 //	// Fast path: if cached, avoids ParseFromAny and Fingerprint calculation
 //
 // If the Any format does not include a fingerprint (e.g., from an older version),
 // this method falls back to parsing the schema and calling GetOrConvert normally.
-func (sc *SchemaCache[T]) GetOrConvertFromAny(anySchema any) (T, error) {
+func (sc *Cache[T]) GetOrConvertFromAny(anySchema any) (T, error) {
 	var zero T
 
 	// Extract fingerprint if present
@@ -151,21 +151,21 @@ func (sc *SchemaCache[T]) GetOrConvertFromAny(anySchema any) (T, error) {
 // Put manually stores a converted schema in the cache with the given fingerprint.
 // This is useful when you want to pre-populate the cache or store a conversion
 // result obtained through other means.
-func (sc *SchemaCache[T]) Put(fingerprint string, value T) {
+func (sc *Cache[T]) Put(fingerprint string, value T) {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	sc.cache[fingerprint] = value
 }
 
 // Size returns the number of cached schemas.
-func (sc *SchemaCache[T]) Size() int {
+func (sc *Cache[T]) Size() int {
 	sc.mu.RLock()
 	defer sc.mu.RUnlock()
 	return len(sc.cache)
 }
 
 // Clear removes all entries from the cache.
-func (sc *SchemaCache[T]) Clear() {
+func (sc *Cache[T]) Clear() {
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
 	sc.cache = make(map[string]T)
