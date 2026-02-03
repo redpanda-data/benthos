@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.65.0 - TBD
+
+### Added
+
+- Go API: Schema caching and fingerprinting support added to avoid redundant format conversions. (@Jeffail)
+
 ## 4.64.0 - 2026-01-30
 
 ### Added
