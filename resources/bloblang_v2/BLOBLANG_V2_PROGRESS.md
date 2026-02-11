@@ -125,6 +125,67 @@ output.result = if input.enabled {
 - Symmetry: `@` for metadata, `$` for variables
 - Less keywords to learn
 
+### ✅ Explicit Array Indexing with Negative Index Support
+
+**Implementation Date:** 2026-02-11
+
+**What Changed:**
+- Documented explicit array indexing syntax (already supported in grammar)
+- Added support for negative indices (Python-style)
+- Clarified error behavior and safe access patterns
+
+**Examples:**
+```bloblang
+# Positive indexing (0-based)
+output.first = input.items[0]
+output.second = input.items[1]
+
+# Negative indexing
+output.last = input.items[-1]           # Last element
+output.second_last = input.items[-2]    # Second-to-last
+
+# Dynamic indexing
+output.element = input.items[input.position]
+output.nested = input.users[$index].name
+
+# Safe access
+output.safe = input.items[0].catch(null)
+output.last_safe = input.items[-1].catch("empty")
+
+# Chained access
+output.value = input.data[2].items[5].name
+```
+
+**Negative Index Semantics:**
+- `-1` accesses the last element
+- `-n` accesses the nth element from the end
+- For array of length N, index `-i` is equivalent to `N-i`
+
+**Error Behavior:**
+- Out-of-bounds access (positive or negative) throws mapping error
+- Use `.catch()` for safe access with fallback values
+- Non-integer index throws error
+- Indexing non-array types throws error
+
+**Specification Updates:**
+- Section 3 - Enhanced array type description with indexing details
+- Section 4.1.1 (NEW) - Added comprehensive array indexing documentation
+- Section 9.1 - Added array indexing error examples
+- Section 14.5 (NEW) - Added array indexing patterns and examples
+- Section 15 - Fixed grammar to support `path[index]` without dot, added detailed notes
+- README - Added array indexing quick start example
+
+**Grammar Correction:**
+- Changed `path := base ('.' field_access)*` where `field_access` includes `'[' expr ']'`
+- To `path := base path_component*` where `path_component := '.' field_name | '[' expr ']'`
+- This correctly allows `input.foo[0]` instead of requiring `input.foo.[0]`
+
+**Rationale:**
+- Common user request for explicit element access
+- Negative indexing provides ergonomic access to array tail
+- Consistent with Python, Ruby, and other modern languages
+- Grammar was close but needed correction for proper bracket syntax
+
 **What Changed:**
 - Variables can now be declared inside `if`, `else if`, `else`, and `match` expression branches
 - Variables can be declared inside lambda bodies (multi-statement lambdas not yet implemented)

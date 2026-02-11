@@ -14,6 +14,57 @@ Paths may reference:
 - **Variables**: `$variable_name`
 - **Metadata**: `@metadata_key`
 
+### 4.1.1 Array Indexing
+
+Access array elements using square bracket notation with integer indices:
+
+```bloblang
+# Positive indexing (0-based)
+output.first = input.items[0]           # First element
+output.second = input.items[1]          # Second element
+output.tenth = input.items[9]           # Tenth element
+
+# Negative indexing (Python-style)
+output.last = input.items[-1]           # Last element
+output.second_last = input.items[-2]    # Second-to-last element
+output.third_last = input.items[-3]     # Third-to-last element
+```
+
+**Index Expressions**: The index can be any expression that evaluates to an integer:
+```bloblang
+output.element = input.items[input.position]
+output.dynamic = input.data[$index_var]
+output.computed = input.values[input.offset + 1]
+```
+
+**Chaining**: Array indexing can be chained with other path operations:
+```bloblang
+output.user_name = input.users[0].name
+output.nested = input.data[2].items[5].value
+output.mixed = input.matrix[input.row][$col_var].name.uppercase()
+```
+
+**Negative Index Semantics**:
+- `-1` accesses the last element
+- `-2` accesses the second-to-last element
+- `-n` accesses the nth element from the end
+
+For an array of length N:
+- Positive index `i` accesses element at position `i` (valid range: `0` to `N-1`)
+- Negative index `-i` accesses element at position `N-i` (equivalent to `N-i`)
+
+**Error Behavior**:
+- **Out-of-bounds access** (positive or negative) throws a mapping error
+- Use `.catch()` to provide fallback values for potentially invalid indices:
+  ```bloblang
+  output.safe = input.items[10].catch(null)       # Returns null if index out of bounds
+  output.last_safe = input.items[-1].catch("empty") # Returns "empty" if array is empty
+  ```
+
+**Type Requirements**:
+- Target must be an array type (throws error otherwise)
+- Index expression must evaluate to an integer (throws error for non-integer or null)
+
 ## 4.2 Boolean Operators
 
 - `!` - logical NOT
