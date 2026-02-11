@@ -38,7 +38,57 @@ output.results = input.items
   .join(", ")
 ```
 
-## 14.5 Recursive Tree Walking
+## 14.5 Array Indexing and Access
+
+```bloblang
+# Safe array access with fallbacks
+output.first_item = input.items[0].catch(null)
+output.last_item = input.items[-1].catch(null)
+
+# Extract specific elements
+output.top_three = {
+  "first": input.results[0],
+  "second": input.results[1],
+  "third": input.results[2]
+}
+
+# Negative indexing for tail elements
+output.recent = {
+  "latest": input.events[-1],
+  "previous": input.events[-2],
+  "before_that": input.events[-3]
+}
+
+# Dynamic indexing
+$position = input.selected_index
+output.selected = input.options[$position].catch("invalid selection")
+
+# Nested array access
+output.matrix_value = input.grid[2][3]
+output.deep = input.data[0].items[5].values[-1]
+
+# Combine with method chaining
+output.first_name = input.users[0].name.uppercase()
+output.last_email = input.contacts[-1].email.lowercase()
+
+# Safe access pattern for optional arrays
+output.primary_tag = if input.tags.type() == "array" && input.tags.length() > 0 {
+  input.tags[0]
+} else {
+  "untagged"
+}
+
+# Process head and tail
+$first = input.items[0]
+$last = input.items[-1]
+output.summary = {
+  "first_id": $first.id,
+  "last_id": $last.id,
+  "total": input.items.length()
+}
+```
+
+## 14.6 Recursive Tree Walking
 
 ```bloblang
 map walk(node) {
@@ -52,7 +102,7 @@ map walk(node) {
 output = input.apply("walk")
 ```
 
-## 14.6 Message Expansion
+## 14.7 Message Expansion
 
 ```bloblang
 $doc_root = input.without("items")
@@ -61,7 +111,7 @@ output = input.items.map_each(item -> $doc_root.merge(item))
 
 **Semantics**: Converts single message into array; downstream processors expand into multiple messages.
 
-## 14.7 Complex Conditional Transformations
+## 14.8 Complex Conditional Transformations
 
 Explicit context binding enables clear, predictable transformations:
 
@@ -121,7 +171,7 @@ output.timestamp = match input.date_format as format {
 }
 ```
 
-## 14.8 Explicit Context Transformation
+## 14.9 Explicit Context Transformation
 
 ```bloblang
 # Transform nested objects with explicit naming
