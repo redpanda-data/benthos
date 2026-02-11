@@ -7,6 +7,9 @@
 
 This document tracks the incremental development of Bloblang V2 enhancements. Each solution from PROPOSED_SOLUTIONS.md is being incorporated into the modular specification files in this directory one at a time.
 
+**Language Features:** 11 completed, 3 pending
+**Out of Scope:** 4 solutions removed (tooling concerns or unnecessary complexity)
+
 ---
 
 ## Completed Solutions
@@ -410,6 +413,49 @@ input.items.map_each(item -> {
 - Clear distinction between expressions (pure) and statements (side effects)
 - Fully backward compatible - single-expression lambdas continue to work
 
+### ✅ Enhanced Module System with Namespaced Imports
+
+**Implementation Date:** 2026-02-11
+
+**What Changed:**
+- Import syntax requires namespace: `import "path" as namespace`
+- Maps invoked as functions: `namespace.map_name(argument)`
+- All top-level maps automatically exported
+- No name collisions - namespaces prevent conflicts
+- Clear provenance - always know where maps come from
+
+**Examples:**
+```bloblang
+# user_transforms.blobl
+map extract_user(data) {
+  output.id = data.user_id
+  output.name = data.full_name
+}
+
+# main.blobl
+import "./user_transforms.blobl" as users
+
+output.user = users.extract_user(input.user_data)
+```
+
+**Benefits:**
+- **Clear provenance**: `users.extract_user()` shows where map comes from
+- **No collisions**: Multiple files can have same map names
+- **Simple implementation**: One import pattern, straightforward namespace lookup
+- **Natural encapsulation**: Variables are private, maps are public
+
+**Specification Updates:**
+- Section 7 - Maps now use function call syntax instead of `.apply()`
+- Section 8 - Complete rewrite with namespace import system
+- Section 15 - Grammar updated for `import ... as` and qualified function calls
+
+**Rationale:**
+- Addresses Solution 9 (Enhanced Module System) from proposed solutions
+- Solves name collision and provenance problems
+- Balances power, UX, and implementation simplicity
+- Function call syntax is more intuitive than `.apply()` method
+- Breaking change acceptable for V2 clean slate
+
 ### ✅ Unified Execution Model (Immutable Only)
 
 **Implementation Date:** 2026-02-11
@@ -455,47 +501,41 @@ output.count2 = input.items.length()  # Same as count1
 
 ---
 
-## Pending Solutions
+## Pending Solutions (Language Features)
 
 ### 🔄 Solution 6: String Interpolation
 **Priority:** High (Phase 1)
 **Status:** Not Started
 **Breaking Change:** No
 
-### 🔄 Solution 7: Static Analysis and Type Hints
-**Priority:** Medium (Phase 2)
-**Status:** Not Started
-**Breaking Change:** No (tooling + optional annotations)
-
 ### 🔄 Solution 8: Iteration Syntax Sugar
 **Priority:** Medium (Phase 2)
 **Status:** Not Started
 **Breaking Change:** No
 
-### 🔄 Solution 9: Enhanced Module System
-**Priority:** Medium (Phase 3)
-**Status:** Not Started
-**Breaking Change:** Yes (import syntax changes)
 
 ### 🔄 Solution 10: Destructuring Assignment
 **Priority:** Low-Medium (Phase 2)
 **Status:** Not Started
 **Breaking Change:** No
 
-### 🔄 Solution 11: Improved Documentation and Discovery
-**Priority:** High (Phase 1 - tooling only)
-**Status:** Not Started
-**Breaking Change:** No
+---
 
-### 🔄 Solution 12: Enhanced Debugging Support
-**Priority:** High (Phase 1 - tooling only)
-**Status:** Not Started
-**Breaking Change:** No
+## Out of Scope
 
-### 🔄 Solution 13: Strict Mode Option
-**Priority:** Low (Phase 4)
-**Status:** Not Started
-**Breaking Change:** No (opt-in)
+The following solutions are **not part of the V2 language specification**:
+
+### 🔧 Solution 7: Static Analysis and Type Hints
+**Reason:** Tooling concern - analyzers can be built on top of V2 without language changes
+
+### 🔧 Solution 11: Improved Documentation and Discovery
+**Reason:** Tooling concern - documentation and CLI improvements are implementation details
+
+### 🔧 Solution 12: Enhanced Debugging Support
+**Reason:** Tooling concern - debuggers can be built without language specification changes
+
+### 🚫 Solution 13: Strict Mode Option
+**Reason:** Design decision - V2 should have one consistent behavior, not multiple modes. Build it right once.
 
 ---
 

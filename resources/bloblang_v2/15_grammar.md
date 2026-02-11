@@ -6,7 +6,7 @@ statement       := assignment | var_decl | map_decl | import_stmt
 assignment      := path '=' expression
 var_decl        := '$' identifier '=' expression
 map_decl        := 'map' identifier '(' identifier ')' '{' statement* '}'
-import_stmt     := 'import' string_literal
+import_stmt     := 'import' string_literal 'as' identifier
 
 expression      := literal | path | function_call | method_chain |
                    if_expr | match_expr | binary_expr | unary_expr |
@@ -19,7 +19,8 @@ path_component  := '.' field_name | '?.' field_name | '[' expression ']' | '?[' 
 field_name      := identifier | quoted_string
 var_ref         := '$' identifier
 
-function_call   := (identifier | var_ref) '(' [arg_list] ')'
+function_call   := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
+qualified_name  := identifier '.' identifier
 method_chain    := expression ('.' identifier '(' [arg_list] ')')+
 
 if_expr         := 'if' expression '{' (expression | statement*) '}'
@@ -56,6 +57,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Metadata access** uses `@.` accessor after `input` or `output`: `input@.key` or `output@.key`
 - Input metadata (`input@.key`) is immutable; output metadata (`output@.key`) is mutable
 - The `$` prefix is used for both declaring and referencing variables
+- **Map invocation** uses function call syntax: `map_name(argument)` or `namespace.map_name(argument)` for imported maps
 - **Path components** can be:
   - Field access: `.identifier` or `."quoted"`
   - Null-safe field access: `?.identifier` or `?."quoted"`

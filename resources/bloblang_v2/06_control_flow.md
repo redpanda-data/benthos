@@ -188,10 +188,10 @@ Pattern matching executing multiple assignments:
 ```bloblang
 match input.type() as type {
   type == "object" => {
-    output = input.map_each(item -> item.value.apply("transform"))
+    output = input.map_each(item -> transform(item.value))
   }
   type == "array" => {
-    output = input.map_each(elem -> elem.apply("transform"))
+    output = input.map_each(elem -> transform(elem))
   }
   _ => {
     output = input
