@@ -4,8 +4,8 @@
 
 - **Identifiers**: `[a-zA-Z_][a-zA-Z0-9_]*`
 - **Keywords**: `output`, `input`, `if`, `else`, `match`, `as`, `map`, `deleted`, `import`, `from`
-- **Operators**: `.`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `<`, `<=`, `&&`, `||`, `=>`, `->`
-- **Delimiters**: `(`, `)`, `{`, `}`, `[`, `]`, `,`, `:`
+- **Operators**: `.`, `?.`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `<`, `<=`, `&&`, `||`, `=>`, `->`
+- **Delimiters**: `(`, `)`, `{`, `}`, `[`, `]`, `?[`, `,`, `:`
 - **Literals**: Numbers, strings, booleans, null, arrays, objects
 - **Comments**: `#` to end-of-line
 
