@@ -18,7 +18,7 @@ field_name      := identifier | quoted_string
 var_ref         := '$' identifier
 meta_ref        := '@' identifier
 
-function_call   := identifier '(' [arg_list] ')'
+function_call   := (identifier | var_ref) '(' [arg_list] ')'
 method_chain    := expression ('.' identifier '(' [arg_list] ')')+
 
 if_expr         := 'if' expression '{' (expression | statement*) '}'
@@ -35,7 +35,9 @@ binary_op       := '+' | '-' | '*' | '/' | '%' |
 unary_expr      := unary_op expression
 unary_op        := '!' | '-'
 
-lambda_expr     := identifier '->' expression
+lambda_expr     := lambda_params '->' (expression | lambda_block)
+lambda_params   := identifier | '(' identifier (',' identifier)* ')'
+lambda_block    := '{' statement* expression '}'
 
 literal         := number | string | boolean | null | array | object
 array           := '[' [expression (',' expression)*] ']'
@@ -74,3 +76,18 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
   - `input.items?[0]` returns `null` if `items` is `null`
   - Null-safe operators only handle `null`, not errors (use `.catch()` for errors)
 - **Path components can be mixed**: `input.users?[0]?.orders[-1]?.total` combines all forms
+- **Lambda expressions** are first-class values that support:
+  - Single parameter (parentheses optional): `x -> x * 2` or `(x) -> x * 2`
+  - Multiple parameters (parentheses required): `(a, b) -> a + b`
+  - Single-expression body: `x -> x * 2`
+  - Multi-statement block body: `x -> { $temp = x * 2; $temp + 1 }`
+  - The last expression in a block is the return value
+  - Can be stored in variables and invoked: `$fn = (a, b) -> a + b; $fn(1, 2)`
+- **Purity constraints**: Lambda expressions, if expressions, and match expressions cannot contain:
+  - Assignments to `output` (e.g., `output.field = value`)
+  - Assignments to metadata (e.g., `@key = value`)
+  - These constructs are pure expressions that return values, not statements with side effects
+- **Variable immutability**: Variables cannot be reassigned in the same scope, only shadowed in inner scopes
+- **Operator precedence**: See Section 4.2 for complete precedence table (field access > unary > multiplicative > additive > comparison > equality > logical AND > logical OR)
+- **Type coercion**: The `+` operator requires both operands to be the same type (both strings or both numbers). Mixed types require explicit conversion via `.string()` method (see Section 16)
+- **Null-safe operators** work with method calls: `input.text?.uppercase()` returns null if text is null

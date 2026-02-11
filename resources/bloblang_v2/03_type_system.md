@@ -8,8 +8,9 @@ Bloblang is dynamically typed with the following runtime types:
 - **Bytes**: Raw byte sequence (via `content()` function, supports indexing with `[n]` and `[-n]`)
 - **Array**: Ordered collection of heterogeneous values (supports indexing with `[n]` and `[-n]`)
 - **Object**: Unordered collection of key-value pairs
+- **Lambda**: First-class function value with parameters and body
 
-Type introspection via `.type()` method returns: `"number"`, `"string"`, `"bool"`, `"null"`, `"bytes"`, `"array"`, `"object"`.
+Type introspection via `.type()` method returns: `"number"`, `"string"`, `"bool"`, `"null"`, `"bytes"`, `"array"`, `"object"`, `"lambda"`.
 
 ## Indexable Type Details
 
@@ -61,4 +62,36 @@ $data = content()  # Raw message bytes
 output.first_byte = $data[0]     # Number 0-255
 output.last_byte = $data[-1]     # Number 0-255
 output.size = $data.length()     # Byte count
+```
+
+### Lambdas
+
+Lambdas are first-class function values:
+- Can be stored in variables
+- Can be passed as arguments (to future higher-order functions)
+- Can be invoked like regular functions
+- Support single or multiple parameters
+- Dynamic typing: parameter and return types checked at runtime
+
+Example:
+```bloblang
+# Single-parameter lambda
+$double = (x) -> x * 2
+output.doubled = $double(5)  # 10
+
+# Multi-parameter lambda
+$add = (a, b) -> a + b
+output.sum = $add(3, 7)  # 10
+
+# Complex lambda with block
+$calculate = (price, qty, rate) -> {
+  $subtotal = price * qty
+  $tax = $subtotal * rate
+  $subtotal + $tax
+}
+output.total = $calculate(100, 2, 0.1)  # 220
+
+# Type checking
+$fn = (x) -> x * 2
+output.type = $fn.type()  # "lambda"
 ```

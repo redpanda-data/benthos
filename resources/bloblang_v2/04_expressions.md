@@ -138,6 +138,24 @@ output.safe = input.user?.address?.city     # Fully null-safe
 - The entire expression short-circuits to `null` at the first null value
 - Null-safe operators only handle `null` values, not errors (use `.catch()` for errors)
 
+**With Method Calls**:
+Null-safe operators work with method chaining. If the left operand is `null`, the entire chain returns `null`:
+
+```bloblang
+# Null-safe with methods
+output.upper = input.text?.uppercase()         # null if text is null
+output.parsed = input.data?.parse_json()       # null if data is null
+output.length = input.items?[0]?.length()      # null if items is null or empty
+
+# Chaining after null-safe access
+output.result = input.user?.name?.uppercase()?.slice(0, 1)  # All null-safe
+output.value = input.optional?.field?.method().another()    # Continues chain
+
+# Mixed safe and unsafe
+output.unsafe = input.user?.name.uppercase()   # Error if name is null
+output.safe = input.user?.name?.uppercase()    # null if user or name is null
+```
+
 **Short-Circuit Behavior**:
 ```bloblang
 # If input.user is null:
@@ -191,22 +209,65 @@ output.parsed = input.data?.parse_json().catch({})
 output.value = input.required.optional?.field  # Clear which is optional
 ```
 
-## 4.2 Boolean Operators
+## 4.2 Operator Precedence
+
+Operators are evaluated according to the following precedence (highest to lowest):
+
+| Precedence | Operators | Description | Associativity |
+|------------|-----------|-------------|---------------|
+| 1 (highest) | `()` `[]` `.` `?.` `?[` | Grouping, indexing, field access | Left-to-right |
+| 2 | `!` `-` (unary) | Logical NOT, unary negation | Right-to-left |
+| 3 | `*` `/` `%` | Multiplication, division, modulo | Left-to-right |
+| 4 | `+` `-` | Addition/concatenation, subtraction | Left-to-right |
+| 5 | `<` `<=` `>` `>=` | Comparison operators | Left-to-right |
+| 6 | `==` `!=` | Equality operators | Left-to-right |
+| 7 | `&&` | Logical AND | Left-to-right |
+| 8 (lowest) | `||` | Logical OR | Left-to-right |
+
+**Examples**:
+```bloblang
+# Arithmetic precedence
+output.result = 5 + 3 * 2        # 11 (not 16, * before +)
+output.result = (5 + 3) * 2      # 16 (parentheses override)
+
+# Comparison precedence
+output.result = 10 > 5 && 3 < 7  # true (comparisons before &&)
+
+# Logical precedence
+output.result = true || false && false   # true (&& before ||)
+output.result = (true || false) && false # false (parentheses override)
+
+# Field access precedence (highest)
+output.result = input.user.age + 5       # Field access first, then addition
+output.result = input.items[0].value * 2 # Indexing/field access first
+```
+
+## 4.3 Boolean Operators
 
 - `!` - logical NOT
 - `>`, `>=`, `==`, `<`, `<=` - comparison (value and type equality)
 - `&&` - logical AND
 - `||` - logical OR
 
-## 4.3 Arithmetic Operators
+## 4.4 Arithmetic Operators
 
-- `+` - addition or string concatenation
-- `-` - subtraction
-- `*` - multiplication
-- `/` - division
-- `%` - modulo
+- `+` - addition (numbers) or concatenation (strings); **both operands must be the same type**
+- `-` - subtraction (numbers only)
+- `*` - multiplication (numbers only)
+- `/` - division (numbers only)
+- `%` - modulo (numbers only)
 
-## 4.4 Functions
+**Type Safety**: Arithmetic operators require operands of the correct type. Use `.string()` for explicit conversion:
+```bloblang
+output.sum = 5 + 3                      # 8 (both numbers)
+output.concat = "Total: " + "5"         # "Total: 5" (both strings)
+output.mixed = "Total: " + 5.string()   # "Total: 5" (explicit conversion)
+output.error = 5 + "3"                  # Error: type mismatch
+```
+
+See Section 16 for complete type coercion rules.
+
+## 4.5 Functions
 
 Functions generate or retrieve values without a target:
 ```
@@ -227,7 +288,7 @@ random_int(timestamp_unix_nano(), 1, 100)
 random_int(seed: timestamp_unix_nano(), min: 1, max: 100)
 ```
 
-## 4.5 Methods
+## 4.6 Methods
 
 Methods transform target values and support chaining:
 ```
@@ -250,10 +311,14 @@ input.name.trim().lowercase().replace_all("_", "-")
 - **Type**: `.string()`, `.number()`, `.bool()`, `.type()`, `.not_null()`, `.not_empty()`
 - **Error Handling**: `.catch()`, `.or()`
 
-## 4.6 Lambda Expressions
+## 4.7 Lambda Expressions
 
-Anonymous functions with **explicit parameter naming** for higher-order methods:
-```
+Anonymous functions with **explicit parameter naming** for higher-order methods. Lambdas are **first-class values** that can be stored in variables and passed around.
+
+### Single-Parameter Lambdas
+
+Simple lambdas with a single parameter:
+```bloblang
 input.items.filter(item -> item.score > 50)
 input.items.map_each(item -> item.name.uppercase())
 input.items.sort_by(item -> item.timestamp)
@@ -261,9 +326,178 @@ input.items.sort_by(item -> item.timestamp)
 
 **Syntax**: `parameter -> expression`
 
-**Explicit Naming**: All lambda parameters must be explicitly named. The language has no implicit context variable.
-
-**Parenthesized Context**: Use lambda expressions to capture and name contexts:
+**Parentheses Rule**: For **single parameters**, parentheses are **optional**:
+```bloblang
+# Both are valid:
+input.items.filter(item -> item.score > 50)    # Without parentheses
+input.items.filter((item) -> item.score > 50)  # With parentheses (also valid)
 ```
+
+### Multi-Parameter Lambdas
+
+Lambdas can accept multiple parameters:
+```bloblang
+# Two parameters
+input.items.reduce((acc, item) -> acc + item.price, 0)
+
+# Three parameters
+input.matrix.fold((row_acc, row, row_idx) -> {
+  row_acc + row.length()
+}, 0)
+
+# Multiple parameters with complex logic
+input.pairs.map_each((key, value) -> {
+  $formatted_key = key.uppercase()
+  $formatted_value = value.string()
+  $formatted_key + ": " + $formatted_value
+})
+```
+
+**Syntax**: `(param1, param2, ...) -> expression`
+
+**Parentheses Rule**: For **multiple parameters**, parentheses are **required**:
+```bloblang
+# Correct:
+input.items.reduce((acc, item) -> acc + item.price, 0)
+
+# Invalid:
+input.items.reduce(acc, item -> acc + item.price, 0)  # ERROR: missing parentheses
+```
+
+### Multi-Statement Lambdas
+
+Lambdas can contain multiple statements using block syntax. The **last expression** in the block is the return value:
+
+```bloblang
+# Multi-statement lambda with block
+input.items.map_each(item -> {
+  $base_value = item.price * item.quantity
+  $tax = $base_value * 0.1
+  $base_value + $tax
+})
+
+# Complex transformation
+input.records.map_each(record -> {
+  $normalized = record.value.lowercase().trim()
+  $tagged = $normalized + "_processed"
+  $final = if $tagged.length() > 50 {
+    $tagged.slice(0, 50)
+  } else {
+    $tagged
+  }
+  $final
+})
+
+# With conditional logic
+input.users.filter(user -> {
+  $score = user.activity_score.or(0)
+  $threshold = if user.premium { 50 } else { 100 }
+  $score >= $threshold
+})
+```
+
+**Block Syntax**:
+- Use curly braces `{ }` to create a multi-statement lambda body
+- Statements are separated by newlines or semicolons
+- Variables can be declared with `$variable = expression`
+- The last expression (without assignment) is the return value
+- All variables are lexically scoped to the lambda body
+
+### Purity Constraints
+
+**Lambda expressions must be pure** - they cannot modify external state:
+
+```bloblang
+# ❌ FORBIDDEN: Cannot assign to output inside lambda
+input.items.map_each(item -> {
+  output.log = item.id  # ERROR: output assignments not allowed
+  item.value
+})
+
+# ❌ FORBIDDEN: Cannot assign to metadata inside lambda
+input.items.filter(item -> {
+  @counter = @counter + 1  # ERROR: metadata assignments not allowed
+  item.active
+})
+
+# ✅ ALLOWED: Pure computations with local variables
+input.items.map_each(item -> {
+  $doubled = item.value * 2
+  $squared = $doubled * $doubled
+  $squared
+})
+```
+
+**Rationale**: Lambdas are expressions that return values, not statements that cause side effects. This ensures predictable, composable transformations.
+
+### Explicit Naming
+
+All lambda parameters must be explicitly named. The language has no implicit context variable:
+
+```bloblang
+# Each lambda parameter must be named
+input.items.map_each(item -> item.value)  # 'item' is explicit
+
+# Parenthesized context with explicit naming
 input.foo.(x -> x.bar + x.baz)  # Explicitly name context as 'x'
+```
+
+### Lambdas as First-Class Values
+
+Lambdas can be stored in variables and passed around like any other value.
+
+**Invocation Syntax**: Stored lambdas are invoked using function call syntax `$variable(args)`:
+
+```bloblang
+# Store lambda in variable
+$add = (a, b) -> a + b
+$multiply = (a, b) -> a * b
+
+# Invoke stored lambda with arguments
+output.sum = $add(input.x, input.y)           # Calls the lambda with two args
+output.product = $multiply(input.x, input.y)  # Same syntax as built-in functions
+
+# Store multi-statement lambda
+$calculate_total = (price, quantity, tax_rate) -> {
+  $subtotal = price * quantity
+  $tax = $subtotal * tax_rate
+  $subtotal + $tax
+}
+
+output.total = $calculate_total(input.price, input.qty, 0.1)
+
+# Lambda as transformation function
+$normalize = (text) -> text.lowercase().trim().replace_all(" ", "_")
+output.normalized_names = input.names.map_each($normalize)
+```
+
+### Lambda Type
+
+Lambdas are a recognized runtime type:
+
+```bloblang
+$fn = (a, b) -> a + b
+
+output.type = $fn.type()    # "lambda"
+output.is_lambda = $fn.type() == "lambda"  # true
+```
+
+**Type Introspection**:
+- `.type()` method returns `"lambda"`
+- Lambdas are distinct from other types (number, string, array, etc.)
+- Runtime type checking applies when lambda is invoked
+
+### Variable Scope
+
+Variables declared inside a lambda are scoped to that lambda body and shadow outer scope variables:
+
+```bloblang
+$outer = 10
+
+output.result = input.items.map_each(item -> {
+  $outer = item.value  # Shadows outer $outer, doesn't modify it
+  $outer * 2
+})
+
+output.outer_unchanged = $outer  # Still 10
 ```

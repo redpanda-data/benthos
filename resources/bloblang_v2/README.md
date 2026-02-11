@@ -87,10 +87,25 @@ output.sound = match input.animal as animal {
 
 ### Array Transformation
 ```bloblang
+# Simple pipeline
 output.results = input.items
   .filter(item -> item.active)
   .map_each(item -> item.name.uppercase())
   .sort()
+
+# Multi-statement lambdas
+output.enriched = input.items.map_each(item -> {
+  $base_price = item.price * item.quantity
+  $tax = $base_price * 0.1
+  $base_price + $tax
+})
+
+# Multi-parameter lambdas
+output.total = input.items.reduce((acc, item) -> acc + item.price, 0)
+
+# Stored lambda functions
+$calculate = (price, qty, rate) -> price * qty * (1 + rate)
+output.cost = $calculate(input.price, input.qty, 0.1)
 ```
 
 ### Indexing (Arrays, Strings, Bytes)
