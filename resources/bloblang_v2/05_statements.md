@@ -1,5 +1,24 @@
 # 5. Statements
 
+Statements are top-level constructs that perform actions or cause side effects. They differ from expressions, which compute and return values.
+
+## Statements vs Expressions
+
+**Statements** (cause side effects):
+- Assignment statements: `output.field = value`
+- Metadata assignments: `@key = value`
+- Variable declarations: `$var = value`
+- If statements (Section 6.2)
+- Match statements (Section 6.4)
+
+**Expressions** (return values):
+- If expressions (Section 6.1)
+- Match expressions (Section 6.3)
+- Lambda expressions (Section 4.6)
+- Path expressions, function calls, method chains, etc.
+
+**Key Distinction**: Expressions can be used anywhere a value is expected and **cannot contain assignments to `output` or metadata**. Statements execute at the top level and can modify the output document and metadata.
+
 ## 5.1 Assignment Statement
 
 Assigns expression result to output document path:
@@ -25,13 +44,32 @@ Assigns to message metadata using `@` prefix:
 
 ## 5.3 Variable Declaration
 
-Declares reusable values using `$` prefix:
+Declares **immutable** values using `$` prefix:
 ```
 $user_id = input.user.id
 $processed = $user_id.string().uppercase()
 ```
 
 **Syntax**: Variables are declared and referenced using the same `$` prefix.
+
+**Immutability**: Once declared, variables **cannot be reassigned** in the same scope:
+```bloblang
+$value = 10
+$value = 20      # ERROR: cannot reassign variable in same scope
+```
+
+**Shadowing**: Inner scopes can declare new variables with the same name, which **shadow** outer variables:
+```bloblang
+$value = 10
+output.outer = $value  # 10
+
+output.inner = if input.flag {
+  $value = 20          # NEW variable in inner scope (shadows outer)
+  $value               # Returns 20
+}
+
+output.still_outer = $value  # Still 10 (outer variable unchanged)
+```
 
 **Scope**: Variables can be declared at top-level or within blocks (`if`, `match`, lambda bodies). Block-scoped variables are only accessible within their declaring block and nested blocks.
 

@@ -291,6 +291,120 @@ output.parsed = input.data?.parse_json().catch({}) # null if data is null, {} if
 - Complements existing `.or()` and `.catch()` methods
 - Fully backward compatible - adds new syntax without breaking existing code
 
+### ✅ Enhanced Lambda Expressions (Multi-Parameter, Multi-Statement, First-Class)
+
+**Implementation Date:** 2026-02-11
+
+**What Changed:**
+- Added support for **multi-parameter lambdas**: `(a, b) -> a + b`
+- Added support for **multi-statement lambda bodies** using block syntax `{ }`
+- **Lambdas are now first-class values**: can be stored in variables and passed around
+- Added **lambda as a runtime type**: `.type()` returns `"lambda"`
+- Last expression in block is the return value
+- Variables can be declared inside lambda bodies with `$variable = value`
+- Enforced purity constraints: lambdas cannot assign to `output` or metadata
+
+**Examples:**
+```bloblang
+# Multi-parameter lambdas
+output.total = input.items.reduce((acc, item) -> acc + item.price, 0)
+output.sum = input.pairs.map_each((key, value) -> key + value)
+
+# Stored lambda functions
+$add = (a, b) -> a + b
+$multiply = (a, b) -> a * b
+output.sum = $add(input.x, input.y)
+output.product = $multiply(input.x, input.y)
+
+# Multi-statement lambda
+output.processed = input.items.map_each(item -> {
+  $base = item.price * item.quantity
+  $tax = $base * 0.1
+  $total = $base + $tax
+  $total.round(2)
+})
+
+# Complex multi-parameter lambda with block
+$calculate_total = (price, quantity, tax_rate) -> {
+  $subtotal = price * quantity
+  $tax = $subtotal * tax_rate
+  $subtotal + $tax
+}
+output.order_total = $calculate_total(input.price, input.qty, 0.1)
+
+# Lambda type
+$fn = (a, b) -> a + b
+output.type = $fn.type()  # "lambda"
+
+# Nested multi-parameter lambdas
+output.summary = input.orders.map_each(order -> {
+  $subtotal = order.items.reduce((acc, item) -> acc + item.price, 0)
+  $tax = $subtotal * 0.1
+  {
+    "order_id": order.id,
+    "subtotal": $subtotal,
+    "tax": $tax,
+    "total": $subtotal + $tax
+  }
+})
+```
+
+**Purity Constraints:**
+```bloblang
+# ❌ FORBIDDEN: Cannot assign to output inside lambda
+input.items.map_each(item -> {
+  output.log = item.id  # ERROR: output assignments not allowed
+  item.value
+})
+
+# ❌ FORBIDDEN: Cannot assign to metadata inside lambda
+input.items.filter(item -> {
+  @counter = @counter + 1  # ERROR: metadata assignments not allowed
+  item.active
+})
+
+# ✅ ALLOWED: Pure computations with local variables only
+input.items.map_each(item -> {
+  $doubled = item.value * 2
+  $squared = $doubled * $doubled
+  $squared
+})
+```
+
+**Also Applied To:**
+- **If Expressions** (Section 6.1) - Cannot contain output/metadata assignments
+- **Match Expressions** (Section 6.3) - Cannot contain output/metadata assignments
+- **Rationale**: These are expressions that return values, not statements with side effects
+
+**Specification Updates:**
+- Section 3 - Added `lambda` as a runtime type with examples
+- Section 4.6 - Complete rewrite with single/multi-parameter and single/multi-statement lambda syntax
+- Section 5 - Added "Statements vs Expressions" section clarifying the distinction
+- Section 6.1 - Added purity constraints for if expressions
+- Section 6.3 - Added purity constraints for match expressions
+- Section 14.4 - Added multi-parameter and reusable lambda examples
+- Section 15 - Updated grammar: `lambda_params := identifier | '(' identifier (',' identifier)* ')'`
+- README - Added multi-parameter and stored lambda quick start examples
+
+**Design Decisions:**
+- **Multi-parameter syntax**: `(a, b) -> a + b` (parentheses required for multiple params)
+- **First-class values**: Lambdas can be stored in variables and passed around
+- **Dynamic typing**: No generics, runtime type checking only
+- **Lambda type**: `.type()` returns `"lambda"`
+- **Keep it simple**: Generics deferred to future version if needed
+
+**Rationale:**
+- Addresses Solution 5 (Enhanced Lambda Expressions) from proposed solutions
+- Enables complex transformations within functional pipelines
+- Multi-parameter support enables reduce, fold, and other higher-order patterns
+- First-class lambdas enable reusable transformation functions
+- Maintains language purity by preventing side effects in expressions
+- Dynamic typing keeps implementation simple and consistent with rest of language
+- Block-scoped variables (already implemented) enable multi-statement bodies
+- Consistent with modern functional languages (JavaScript, Python, Ruby)
+- Clear distinction between expressions (pure) and statements (side effects)
+- Fully backward compatible - single-expression lambdas continue to work
+
 ---
 
 ## Pending Solutions
@@ -299,12 +413,6 @@ output.parsed = input.data?.parse_json().catch({}) # null if data is null, {} if
 **Priority:** High
 **Status:** Not Started
 **Breaking Change:** Yes (major architectural change)
-
-### 🔄 Solution 5: Enhanced Lambda Expressions
-**Priority:** Medium
-**Status:** Not Started
-**Breaking Change:** No
-**Dependencies:** Solution 1 (enables multi-statement lambdas with scoped variables)
 
 ### 🔄 Solution 6: String Interpolation
 **Priority:** High (Phase 1)
