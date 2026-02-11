@@ -378,7 +378,7 @@ input.items.map_each(item -> {
 
 **Specification Updates:**
 - Section 3 - Added `lambda` as a runtime type with examples
-- Section 4.6 - Complete rewrite with single/multi-parameter and single/multi-statement lambda syntax
+- Section 4.7 - Complete rewrite with single/multi-parameter and single/multi-statement lambda syntax
 - Section 5 - Added "Statements vs Expressions" section clarifying the distinction
 - Section 6.1 - Added purity constraints for if expressions
 - Section 6.3 - Added purity constraints for match expressions
@@ -405,14 +405,52 @@ input.items.map_each(item -> {
 - Clear distinction between expressions (pure) and statements (side effects)
 - Fully backward compatible - single-expression lambdas continue to work
 
+### ✅ Unified Execution Model (Immutable Only)
+
+**Implementation Date:** 2026-02-11
+
+**What Changed:**
+- V2 uses **single, immutable execution model** only
+- Input document (`input`) is **always immutable** throughout execution
+- Removed dual execution model (mapping vs mutation processors)
+- Assignment order no longer affects correctness
+
+**Semantics:**
+```bloblang
+# Input is always immutable - order doesn't matter
+output.invitees = input.invitees.filter(i -> i.mood >= 0.5)
+output.rejected = input.invitees.filter(i -> i.mood < 0.5)  # Original unchanged
+
+# Both assignments see the same input.invitees regardless of order
+output.count1 = input.items.length()
+output.filtered = input.items.filter(x -> x.active)
+output.count2 = input.items.length()  # Same as count1
+```
+
+**Benefits:**
+- **Order-independent**: No order-dependent bugs
+- **Predictable**: Input never changes during execution
+- **Easier to reason about**: Clear input → output transformation
+- **Safer**: Can't accidentally mutate input
+- **Easier to refactor**: Statements can be reordered without changing behavior
+
+**Specification Updates:**
+- Section 11 - Complete rewrite: single immutable execution model
+- Removed mutation processor documentation
+- Added assignment order independence section
+- Clarified that input is immutable, output is built incrementally
+
+**Rationale:**
+- Addresses Solution 3 (Unify Execution Models) from proposed solutions
+- Eliminates the highest-priority correctness issue
+- Simpler mental model - only one way to execute
+- Consistent with functional programming principles
+- Aligns with V2's "explicit and predictable" philosophy
+- Breaking change from V1, but V2 is a clean slate design
+
 ---
 
 ## Pending Solutions
-
-### 🔄 Solution 3: Unify Execution Models
-**Priority:** High
-**Status:** Not Started
-**Breaking Change:** Yes (major architectural change)
 
 ### 🔄 Solution 6: String Interpolation
 **Priority:** High (Phase 1)
@@ -466,7 +504,7 @@ Based on priority, impact, and dependencies:
 - Significant ergonomics improvement
 - Fully backward compatible
 - Independent of other solutions
-- Note: Solution 4 (Null-Safe Operators) completed 2026-02-11
+- Note: Solutions 3, 4, and 5 completed 2026-02-11
 
 ### Option B: Focus on Tooling Improvements
 **Next:** Solution 11 (Documentation) or Solution 12 (Debugging)
@@ -475,12 +513,11 @@ Based on priority, impact, and dependencies:
 - No language changes required
 - Can be done in parallel with language features
 
-### Option C: Address Major Design Issues
-**Next:** Solution 3 (Unify Execution Models)
-- Highest priority issue from correctness perspective
-- Requires careful design and migration planning
-- Should be addressed before too much V2 code is written
-- May influence other solution designs
+### Option C: Continue with Medium-Priority Features
+**Next:** Solution 7 (Static Analysis) or Solution 8 (Iteration Syntax)
+- Medium priority ergonomics improvements
+- Non-breaking changes
+- Add value for complex use cases
 
 ---
 
