@@ -63,35 +63,40 @@ This document tracks the incremental development of Bloblang V2 enhancements. Ea
 - More explicit and clear
 - `input` and `output` are symmetrical and intuitive
 
-### ✅ Simplified Metadata Syntax
+### ✅ Unified Metadata Syntax with Input/Output Model
 
-**Implementation Date:** 2026-02-10
+**Implementation Date:** 2026-02-11
 
 **What Changed:**
-- Removed `meta foo =` syntax → use `@foo =` instead
-- Removed `metadata("foo")` function → use `@foo` instead
-- Removed `meta` keyword entirely
-- Only one way to handle metadata: `@` prefix notation
+- Removed `meta foo =` syntax → use `output@.foo =` instead
+- Removed `metadata("foo")` function → use `input@.foo` instead
+- Removed standalone `@key` syntax
+- Unified metadata with input/output model: `input@.key` (immutable) and `output@.key` (mutable)
+- Metadata follows same immutability semantics as documents
 
 **Examples:**
 ```bloblang
-# Reading metadata
-output.topic = @kafka_topic
-output.key = @kafka_key
+# Reading input metadata (immutable)
+output.topic = input@.kafka_topic
+output.key = input@.kafka_key
 
-# Writing metadata
-@output_topic = "processed"
-@kafka_key = input.id
+# Writing output metadata (mutable)
+output@.kafka_topic = "processed"
+output@.kafka_key = input.id
+
+# Copy and modify
+output@ = input@
+output@.kafka_topic = "new-topic"
 
 # Deleting metadata
-@kafka_key = deleted()
+output@.kafka_key = deleted()
 ```
 
 **Rationale:**
-- One clear way to do things (Zen of Python)
-- Consistent syntax for reading and writing
-- Less cognitive overhead
-- Cleaner grammar
+- Explicit distinction between input (immutable) and output (mutable) metadata
+- Consistent with document model (`input.field` / `output.field`)
+- Makes immutability semantics clear
+- No ambiguity about input vs output
 
 ### ✅ Simplified Variable Syntax
 
@@ -357,9 +362,9 @@ input.items.map_each(item -> {
   item.value
 })
 
-# ❌ FORBIDDEN: Cannot assign to metadata inside lambda
+# ❌ FORBIDDEN: Cannot assign to output inside lambda
 input.items.filter(item -> {
-  @counter = @counter + 1  # ERROR: metadata assignments not allowed
+  output@.counter = output@.counter + 1  # ERROR: output assignments not allowed
   item.active
 })
 

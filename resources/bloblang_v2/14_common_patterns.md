@@ -181,7 +181,52 @@ output.summary = {
 }
 ```
 
-## 14.6 Recursive Tree Walking
+## 14.6 Metadata Patterns
+
+```bloblang
+# Copy all metadata and override specific keys
+output@ = input@
+output@.kafka_topic = "processed-topic"
+output@.processed_at = now()
+
+# Conditional metadata routing
+output@.kafka_topic = if input.priority == "high" {
+  "urgent-topic"
+} else if input.priority == "medium" {
+  "normal-topic"
+} else {
+  "low-priority-topic"
+}
+
+# Metadata-based transformations
+output.routing_info = {
+  "original_topic": input@.kafka_topic,
+  "original_partition": input@.kafka_partition,
+  "message_key": input@.kafka_key
+}
+
+# Conditional metadata preservation
+output@ = if input.preserve_metadata {
+  input@
+} else {
+  {}  # Empty metadata
+}
+output@.kafka_topic = "new-topic"  # Always set topic
+
+# Delete sensitive metadata
+output@ = input@
+output@.api_key = deleted()
+output@.auth_token = deleted()
+output@.internal_id = deleted()
+
+# Metadata enrichment from document
+output@ = input@
+output@.kafka_key = input.user_id
+output@.content_type = "application/json"
+output@.schema_version = "2.0"
+```
+
+## 14.7 Recursive Tree Walking
 
 ```bloblang
 map walk(node) {
@@ -195,7 +240,7 @@ map walk(node) {
 output = input.apply("walk")
 ```
 
-## 14.7 Message Expansion
+## 14.8 Message Expansion
 
 ```bloblang
 $doc_root = input.without("items")
@@ -204,7 +249,7 @@ output = input.items.map_each(item -> $doc_root.merge(item))
 
 **Semantics**: Converts single message into array; downstream processors expand into multiple messages.
 
-## 14.8 Complex Conditional Transformations
+## 14.9 Complex Conditional Transformations
 
 Explicit context binding enables clear, predictable transformations:
 
@@ -264,7 +309,7 @@ output.timestamp = match input.date_format as format {
 }
 ```
 
-## 14.9 Explicit Context Transformation
+## 14.10 Explicit Context Transformation
 
 ```bloblang
 # Transform nested objects with explicit naming
