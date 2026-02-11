@@ -231,13 +231,13 @@ output@.schema_version = "2.0"
 ```bloblang
 map walk(node) {
   output = match node.type() as type {
-    type == "object" => node.map_each(item -> item.value.apply("walk"))
-    type == "array" => node.map_each(elem -> elem.apply("walk"))
+    type == "object" => node.map_each(item -> walk(item.value))
+    type == "array" => node.map_each(elem -> walk(elem))
     type == "string" => node.uppercase()
     _ => node
   }
 }
-output = input.apply("walk")
+output = walk(input)
 ```
 
 ## 14.8 Message Expansion
