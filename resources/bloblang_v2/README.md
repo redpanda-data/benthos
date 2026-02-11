@@ -160,7 +160,7 @@ map extract_user(data) {
   output.email = data.contact.email
 }
 
-output.customer = input.customer_data.apply("extract_user")
+output.customer = extract_user(input.customer_data)
 ```
 
 ## Additional Resources
