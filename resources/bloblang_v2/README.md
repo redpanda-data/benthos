@@ -136,6 +136,22 @@ output.first_name = input.users?[0]?.name  # null if users is null or empty
 output.email = input.contact?.email.or("no-email@example.com")
 ```
 
+### Metadata
+```bloblang
+# Read input metadata (immutable)
+output.original_topic = input@.kafka_topic
+output.message_key = input@.kafka_key
+
+# Write output metadata (mutable)
+output@.kafka_topic = "processed-topic"
+output@.content_type = "application/json"
+output@.kafka_key = input.id
+
+# Copy and modify
+output@ = input@                           # Copy all metadata
+output@.kafka_topic = "new-topic"          # Override specific key
+```
+
 ### Named Map
 ```bloblang
 map extract_user(data) {

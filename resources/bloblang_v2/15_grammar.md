@@ -12,11 +12,12 @@ expression      := literal | path | function_call | method_chain |
                    if_expr | match_expr | binary_expr | unary_expr |
                    lambda_expr | paren_expr
 
-path            := ('output' | 'input' | var_ref | meta_ref) path_component*
+path            := context_root path_component*
+context_root    := ('output' | 'input') metadata_accessor? | var_ref
+metadata_accessor := '@.'
 path_component  := '.' field_name | '?.' field_name | '[' expression ']' | '?[' expression ']'
 field_name      := identifier | quoted_string
 var_ref         := '$' identifier
-meta_ref        := '@' identifier
 
 function_call   := (identifier | var_ref) '(' [arg_list] ')'
 method_chain    := expression ('.' identifier '(' [arg_list] ')')+
@@ -52,10 +53,9 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 ## Notes
 
 - **Variable declarations** use the `$` prefix: `$variable = expression`
-- **Metadata assignments** use the same `assignment` production with `meta_ref` on the left side
-- The `@` prefix is used for both reading and writing metadata
+- **Metadata access** uses `@.` accessor after `input` or `output`: `input@.key` or `output@.key`
+- Input metadata (`input@.key`) is immutable; output metadata (`output@.key`) is mutable
 - The `$` prefix is used for both declaring and referencing variables
-- Both metadata and variables use consistent prefix notation for declaration and reference
 - **Path components** can be:
   - Field access: `.identifier` or `."quoted"`
   - Null-safe field access: `?.identifier` or `?."quoted"`
@@ -84,8 +84,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
   - The last expression in a block is the return value
   - Can be stored in variables and invoked: `$fn = (a, b) -> a + b; $fn(1, 2)`
 - **Purity constraints**: Lambda expressions, if expressions, and match expressions cannot contain:
-  - Assignments to `output` (e.g., `output.field = value`)
-  - Assignments to metadata (e.g., `@key = value`)
+  - Assignments to `output` (e.g., `output.field = value` or `output@.key = value`)
   - These constructs are pure expressions that return values, not statements with side effects
 - **Variable immutability**: Variables cannot be reassigned in the same scope, only shadowed in inner scopes
 - **Operator precedence**: See Section 4.2 for complete precedence table (field access > unary > multiplicative > additive > comparison > equality > logical AND > logical OR)
