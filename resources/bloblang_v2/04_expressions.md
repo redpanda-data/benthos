@@ -14,20 +14,28 @@ Paths may reference:
 - **Variables**: `$variable_name`
 - **Metadata**: `@metadata_key`
 
-### 4.1.1 Array Indexing
+### 4.1.1 Indexing (Arrays, Strings, Bytes)
 
-Access array elements using square bracket notation with integer indices:
+Access array elements, string characters, or bytes using square bracket notation with integer indices:
 
 ```bloblang
-# Positive indexing (0-based)
+# Array indexing (0-based)
 output.first = input.items[0]           # First element
 output.second = input.items[1]          # Second element
 output.tenth = input.items[9]           # Tenth element
 
-# Negative indexing (Python-style)
-output.last = input.items[-1]           # Last element
-output.second_last = input.items[-2]    # Second-to-last element
-output.third_last = input.items[-3]     # Third-to-last element
+# String indexing (byte position, returns single-character string)
+output.first_char = input.text[0]       # First character
+output.third_char = input.text[2]       # Third character
+
+# Bytes indexing (returns byte value as number 0-255)
+output.first_byte = input.data[0]       # First byte as number
+output.byte_val = input.data[10]        # Byte at position 10
+
+# Negative indexing (Python-style, works for all types)
+output.last = input.items[-1]           # Last array element
+output.last_char = input.text[-1]       # Last character of string
+output.last_byte = input.data[-1]       # Last byte as number
 ```
 
 **Index Expressions**: The index can be any expression that evaluates to an integer:
@@ -37,11 +45,19 @@ output.dynamic = input.data[$index_var]
 output.computed = input.values[input.offset + 1]
 ```
 
-**Chaining**: Array indexing can be chained with other path operations:
+**Chaining**: Indexing can be chained with other path operations:
 ```bloblang
+# Array indexing with chaining
 output.user_name = input.users[0].name
 output.nested = input.data[2].items[5].value
 output.mixed = input.matrix[input.row][$col_var].name.uppercase()
+
+# String indexing with chaining
+output.first_char_upper = input.text[0].uppercase()
+output.initial = input.users[0].name[0]  # First char of first user's name
+
+# Bytes indexing (returns number, can use number methods)
+output.first_byte_hex = input.data[0].string()
 ```
 
 **Negative Index Semantics**:
@@ -54,16 +70,37 @@ For an array of length N:
 - Negative index `-i` accesses element at position `N-i` (equivalent to `N-i`)
 
 **Error Behavior**:
-- **Out-of-bounds access** (positive or negative) throws a mapping error
+- **Out-of-bounds access** (positive or negative) throws a mapping error for all types
 - Use `.catch()` to provide fallback values for potentially invalid indices:
   ```bloblang
-  output.safe = input.items[10].catch(null)       # Returns null if index out of bounds
-  output.last_safe = input.items[-1].catch("empty") # Returns "empty" if array is empty
+  # Arrays
+  output.safe = input.items[10].catch(null)         # null if index out of bounds
+  output.last_safe = input.items[-1].catch("empty") # "empty" if array is empty
+
+  # Strings
+  output.char = input.text[100].catch("")           # "" if string is shorter than 100 bytes
+  output.first = input.text[0].catch("N/A")         # "N/A" if string is empty
+
+  # Bytes
+  output.byte = input.data[50].catch(0)             # 0 if bytes has fewer than 51 bytes
   ```
 
+**Return Types**:
+- **Array indexing**: Returns the element at the specified position (any type)
+- **String indexing**: Returns a single-character string at the byte position
+- **Bytes indexing**: Returns the byte value as a number (0-255)
+
+**String Indexing Semantics**:
+- Indexing is by **byte position**, not character/rune position
+- For ASCII text, byte position equals character position
+- For UTF-8 multi-byte characters, indexing by byte may split a character
+- Returns a single-byte string (may be invalid UTF-8 if it splits a multi-byte character)
+- Use `.index(n)` method for safer character-aware indexing if needed
+
 **Type Requirements**:
-- Target must be an array type (throws error otherwise)
-- Index expression must evaluate to an integer (throws error for non-integer or null)
+- Target must be an **array**, **string**, or **bytes** type (throws error otherwise)
+- Index expression must evaluate to an **integer** (throws error for non-integer or null)
+- Out-of-bounds access throws an error for all types
 
 ### 4.1.2 Null-Safe Navigation
 
@@ -77,7 +114,14 @@ output.nested = input.a?.b?.c?.d            # null if any field is null
 
 # Null-safe array indexing
 output.first = input.items?[0]              # null if items is null
-output.last = input.data?[-1]               # null if data is null
+output.last = input.items?[-1]              # null if items is null
+
+# Null-safe string indexing
+output.first_char = input.text?[0]          # null if text is null
+output.initial = input.user?.name?[0]       # null if user or name is null
+
+# Null-safe bytes indexing
+output.first_byte = input.data?[0]          # null if data is null
 
 # Combined null-safe operations
 output.user_name = input.users?[0]?.name
@@ -119,7 +163,8 @@ output.result = input.data?.parse_json().catch({})  # null if data is null, {} i
 ```bloblang
 # These still throw errors (not handled by ?.)
 input.number?.uppercase()    # Error: can't call uppercase() on number (even though ?. used)
-input.text?[0]               # Error: can't index string with ?[] (use .index(0) method)
+input.number?[0]             # Error: can't index number (only array/string/bytes supported)
+input.object?[0]             # Error: can't index object (use .field access instead)
 ```
 
 **Comparison with `.or()` Method**:

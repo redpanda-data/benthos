@@ -125,24 +125,32 @@ output.result = if input.enabled {
 - Symmetry: `@` for metadata, `$` for variables
 - Less keywords to learn
 
-### ✅ Explicit Array Indexing with Negative Index Support
+### ✅ Explicit Indexing with Negative Index Support (Arrays, Strings, Bytes)
 
 **Implementation Date:** 2026-02-11
 
 **What Changed:**
-- Documented explicit array indexing syntax (already supported in grammar)
-- Added support for negative indices (Python-style)
+- Documented explicit indexing syntax for arrays, strings, and bytes
+- Added support for negative indices (Python-style) for all indexable types
 - Clarified error behavior and safe access patterns
+- String indexing by byte position returns single-character string
+- Bytes indexing returns numeric byte value (0-255)
 
 **Examples:**
 ```bloblang
-# Positive indexing (0-based)
+# Array indexing (0-based)
 output.first = input.items[0]
 output.second = input.items[1]
-
-# Negative indexing
 output.last = input.items[-1]           # Last element
-output.second_last = input.items[-2]    # Second-to-last
+
+# String indexing (byte position, returns single-char string)
+output.first_char = input.text[0]       # First character
+output.last_char = input.text[-1]       # Last character
+output.initial = input.name[0]          # First letter
+
+# Bytes indexing (returns number 0-255)
+output.first_byte = input.data[0]       # First byte as number
+output.last_byte = input.data[-1]       # Last byte as number
 
 # Dynamic indexing
 output.element = input.items[input.position]
@@ -150,30 +158,42 @@ output.nested = input.users[$index].name
 
 # Safe access
 output.safe = input.items[0].catch(null)
-output.last_safe = input.items[-1].catch("empty")
+output.char = input.text[5].catch("")
+output.byte = input.data[100].catch(0)
 
 # Chained access
 output.value = input.data[2].items[5].name
+output.initial = input.users[0].name[0]  # First char of first user's name
 ```
 
 **Negative Index Semantics:**
-- `-1` accesses the last element
-- `-n` accesses the nth element from the end
-- For array of length N, index `-i` is equivalent to `N-i`
+- `-1` accesses the last element/character/byte
+- `-n` accesses the nth element/character/byte from the end
+- For collection of length N, index `-i` is equivalent to `N-i`
+
+**Return Types:**
+- **Arrays**: Returns element at position (any type)
+- **Strings**: Returns single-character string at byte position
+- **Bytes**: Returns byte value as number (0-255)
+
+**String Indexing Note:**
+- Indexing is by byte position, not character/rune position
+- Multi-byte UTF-8 characters may be split if indexed in the middle
+- Returns single-byte string (may be invalid UTF-8 for multi-byte chars)
 
 **Error Behavior:**
-- Out-of-bounds access (positive or negative) throws mapping error
+- Out-of-bounds access (positive or negative) throws mapping error for all types
 - Use `.catch()` for safe access with fallback values
 - Non-integer index throws error
-- Indexing non-array types throws error
+- Indexing unsupported types (number, boolean, object) throws error
 
 **Specification Updates:**
-- Section 3 - Enhanced array type description with indexing details
-- Section 4.1.1 (NEW) - Added comprehensive array indexing documentation
-- Section 9.1 - Added array indexing error examples
-- Section 14.5 (NEW) - Added array indexing patterns and examples
-- Section 15 - Fixed grammar to support `path[index]` without dot, added detailed notes
-- README - Added array indexing quick start example
+- Section 3 - Enhanced type descriptions with indexing details for arrays, strings, and bytes
+- Section 4.1.1 (UPDATED) - Comprehensive indexing documentation for all indexable types
+- Section 9.1 - Added indexing error examples for arrays, strings, and bytes
+- Section 14.5 (UPDATED) - Added indexing patterns for all indexable types
+- Section 15 - Fixed grammar to support `path[index]` without dot, documented multi-type support
+- README - Added indexing quick start examples for arrays and strings
 
 **Grammar Correction:**
 - Changed `path := base ('.' field_access)*` where `field_access` includes `'[' expr ']'`
@@ -181,8 +201,10 @@ output.value = input.data[2].items[5].name
 - This correctly allows `input.foo[0]` instead of requiring `input.foo.[0]`
 
 **Rationale:**
-- Common user request for explicit element access
-- Negative indexing provides ergonomic access to array tail
+- Common user request for explicit element/character/byte access
+- Negative indexing provides ergonomic access to tail of collections
+- String indexing enables character extraction without methods
+- Bytes indexing provides direct numeric byte value access
 - Consistent with Python, Ruby, and other modern languages
 - Grammar was close but needed correction for proper bracket syntax
 

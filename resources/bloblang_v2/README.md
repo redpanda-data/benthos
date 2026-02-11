@@ -93,15 +93,20 @@ output.results = input.items
   .sort()
 ```
 
-### Array Indexing
+### Indexing (Arrays, Strings, Bytes)
 ```bloblang
-# Positive and negative indexing
+# Array indexing
 output.first = input.items[0]              # First element
 output.last = input.items[-1]              # Last element
 output.user_name = input.users[2].name     # Chained access
 
+# String indexing (byte position)
+output.initial = input.name[0]             # First character
+output.last_char = input.text[-1]          # Last character
+
 # Safe access with fallback
 output.safe_first = input.items[0].catch(null)
+output.safe_char = input.text[5].catch("")
 ```
 
 ### Null-Safe Navigation
