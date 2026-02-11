@@ -1,6 +1,6 @@
 # Bloblang V2 Development Progress
 
-**Last Updated:** 2026-02-10
+**Last Updated:** 2026-02-11
 **Status:** In Progress
 
 ## Overview
@@ -216,6 +216,59 @@ output.value = input.data[2].items[5].name
 5. Comprehensive test suite
 6. Documentation and examples
 
+### ✅ Null-Safe Navigation Operators
+
+**Implementation Date:** 2026-02-11
+
+**What Changed:**
+- Added `?.` operator for null-safe field access
+- Added `?[` operator for null-safe array indexing
+- Both operators short-circuit to `null` if the left operand is `null`
+
+**Examples:**
+```bloblang
+# Null-safe field access
+output.city = input.user?.address?.city           # null if any field is null
+output.email = input.contact?.primary?.email      # chains safely
+
+# Null-safe array indexing
+output.first = input.items?[0]                    # null if items is null
+output.last = input.data?[-1]                     # null if data is null
+
+# Combined operations
+output.name = input.users?[0]?.profile?.name      # null if any step is null
+output.value = input.orders?[5]?.items?[0]?.price # complex null-safe chain
+
+# Combine with .or() for defaults
+output.city = input.user?.address?.city.or("Unknown")
+
+# Combine with .catch() for error handling
+output.parsed = input.data?.parse_json().catch({}) # null if data is null, {} if parse fails
+```
+
+**Semantics:**
+- `?.` returns `null` if left operand is `null` or field doesn't exist
+- `?[` returns `null` if left operand is `null`
+- Short-circuits immediately on first `null` value
+- Only handles `null` values, not errors (use `.catch()` for errors)
+- Type errors still throw (e.g., `input.number?.uppercase()` throws error)
+
+**Specification Updates:**
+- Section 2.1 - Added `?.` operator and `?[` delimiter to tokens
+- Section 4.1.2 (NEW) - Comprehensive null-safe navigation documentation
+- Section 9.1.1 (NEW) - Comparison with `.catch()` for error handling
+- Section 9.2.1 (NEW) - Comparison with `.or()` for null handling
+- Section 14.2 - Enhanced null-safe navigation patterns and examples
+- Section 15 - Updated grammar to support `?.` and `?[`, added detailed notes
+- README - Added null-safe navigation quick start example
+
+**Rationale:**
+- Addresses Solution 4 (Null-Safe Operators) from proposed solutions
+- Dramatically reduces verbosity for optional field navigation
+- Consistent with TypeScript, Swift, C#, Kotlin, and other modern languages
+- Complements existing `.or()` and `.catch()` methods
+- Fully backward compatible - adds new syntax without breaking existing code
+
 ---
 
 ## Pending Solutions
@@ -224,11 +277,6 @@ output.value = input.data[2].items[5].name
 **Priority:** High
 **Status:** Not Started
 **Breaking Change:** Yes (major architectural change)
-
-### 🔄 Solution 4: Null-Safe Operators
-**Priority:** High (Phase 1)
-**Status:** Not Started
-**Breaking Change:** No
 
 ### 🔄 Solution 5: Enhanced Lambda Expressions
 **Priority:** Medium
@@ -283,11 +331,12 @@ output.value = input.data[2].items[5].name
 Based on priority, impact, and dependencies:
 
 ### Option A: Continue with High-Impact, Non-Breaking Changes
-**Next:** Solution 6 (String Interpolation) or Solution 4 (Null-Safe Operators)
+**Next:** Solution 6 (String Interpolation)
 - High developer demand
 - Significant ergonomics improvement
 - Fully backward compatible
 - Independent of other solutions
+- Note: Solution 4 (Null-Safe Operators) completed 2026-02-11
 
 ### Option B: Focus on Tooling Improvements
 **Next:** Solution 11 (Documentation) or Solution 12 (Debugging)
