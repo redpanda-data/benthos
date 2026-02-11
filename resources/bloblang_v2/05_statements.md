@@ -6,7 +6,7 @@ Statements are top-level constructs that perform actions or cause side effects. 
 
 **Statements** (cause side effects):
 - Assignment statements: `output.field = value`
-- Metadata assignments: `@key = value`
+- Metadata assignments: `output@.key = value`
 - Variable declarations: `$var = value`
 - If statements (Section 6.2)
 - Match statements (Section 6.4)
@@ -33,14 +33,14 @@ output."special.field" = value   # Quoted field name
 
 ## 5.2 Metadata Assignment
 
-Assigns to message metadata using `@` prefix:
+Assigns to output message metadata using `output@.key` syntax:
 ```
-@output_key = input.id
-@content_type = "application/json"
-@kafka_topic = "new-topic"
+output@.kafka_key = input.id
+output@.content_type = "application/json"
+output@.kafka_topic = "processed-topic"
 ```
 
-**Semantics**: Metadata assignments are separate from output document assignments.
+**Semantics**: Output metadata assignments are separate from output document assignments. Input metadata (`input@.key`) is immutable and read-only.
 
 ## 5.3 Variable Declaration
 

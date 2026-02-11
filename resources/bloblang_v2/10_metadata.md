@@ -1,32 +1,53 @@
 # 10. Metadata
 
-Access and modify message metadata using `@` prefix notation:
+Messages carry metadata separate from the document payload. Access metadata using `@.` notation after `input` or `output`:
 
-## Reading Metadata
+## Reading Input Metadata
+
+Input metadata is **immutable** and accessed via `input@.key`:
 
 ```bloblang
-output.topic = @kafka_topic
-output.partition = @kafka_partition
-output.key = @kafka_key
+output.topic = input@.kafka_topic
+output.partition = input@.kafka_partition
+output.key = input@.kafka_key
+
+# Null-safe access
+output.content_type = input@.content_type.or("application/json")
 ```
 
-## Writing Metadata
+## Writing Output Metadata
+
+Output metadata is **mutable** and assigned via `output@.key`:
 
 ```bloblang
-@output_topic = "processed"
-@kafka_key = input.id
-@content_type = "application/json"
+output@.kafka_topic = "processed-topic"
+output@.kafka_key = input.id
+output@.content_type = "application/json"
 ```
 
 ## Deleting Metadata
 
+Remove metadata keys using `deleted()`:
+
 ```bloblang
-@kafka_key = deleted()
+output@.kafka_key = deleted()
+```
+
+## Copy and Modify
+
+Copy all input metadata and modify specific keys:
+
+```bloblang
+output@ = input@                          # Copy all metadata
+output@.kafka_topic = "new-topic"         # Override specific key
+output@.processed_at = now()              # Add new key
+output@.internal_field = deleted()        # Remove key
 ```
 
 ## Semantics
 
-- Metadata keys are accessed and assigned using the `@` prefix
-- Metadata is separate from the document payload
-- Metadata assignments do not affect the output document
-- Use `deleted()` to remove metadata keys
+- **Input metadata** (`input@.key`): Immutable, always refers to original message metadata
+- **Output metadata** (`output@.key`): Mutable, built incrementally like the output document
+- Metadata is completely separate from document fields (`input.field` vs `input@.key`)
+- Reading undefined metadata keys returns `null`
+- Use `output@ = input@` to copy all metadata, similar to `output = input` for documents

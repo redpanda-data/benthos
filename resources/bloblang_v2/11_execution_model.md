@@ -4,12 +4,17 @@ Bloblang V2 uses a **single, immutable execution model** for predictable, order-
 
 ## 11.1 Immutable Input, Mutable Output
 
-**Input Document**: The `input` context is **immutable** throughout execution. It always refers to the original input message:
+**Input Document and Metadata**: The `input` context (both document and metadata) is **immutable** throughout execution. It always refers to the original input message:
 
 ```bloblang
 output.id = input.id
 output.invitees = input.invitees.filter(i -> i.mood >= 0.5)
 output.rejected = input.invitees.filter(i -> i.mood < 0.5)  # Original still accessible
+
+# Input metadata is also immutable:
+output.original_topic = input@.kafka_topic
+output@.kafka_topic = "processed-topic"
+output.still_original = input@.kafka_topic  # Still returns original value
 
 # Order doesn't matter - input never changes:
 output.a = input.items.length()
@@ -17,12 +22,13 @@ output.b = input.items.filter(x -> x.active)
 output.c = input.items.length()  # Still the same value as output.a
 ```
 
-**Output Document**: The `output` context is **built incrementally**. Each assignment adds or modifies fields in the output:
+**Output Document and Metadata**: The `output` context (both document and metadata) is **built incrementally**. Each assignment adds or modifies fields in the output:
 
 ```bloblang
 output.user.id = input.id         # Creates output.user.id
 output.user.name = input.name     # Adds output.user.name
 output.status = "processed"       # Adds output.status
+output@.kafka_topic = "processed" # Creates output metadata
 ```
 
 ## 11.2 Assignment Order Independence
@@ -62,8 +68,11 @@ output.total = output.price + output.tax
 To copy the input and modify specific fields:
 
 ```bloblang
-output = input                    # Copy entire input
+output = input                    # Copy entire input document
 output.password = deleted()       # Remove sensitive field
 output.processed_at = now()       # Add new field
 output.status = "processed"       # Modify field
+
+output@ = input@                  # Copy entire input metadata
+output@.kafka_topic = "processed" # Override specific metadata key
 ```

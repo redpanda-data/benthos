@@ -50,9 +50,9 @@ output.result = if input.enabled {
   "yes"
 }
 
-# ❌ FORBIDDEN: Cannot assign to metadata inside if expression
+# ❌ FORBIDDEN: Cannot assign to output inside if expression
 output.value = if input.track {
-  @counter = @counter + 1  # ERROR: metadata assignments not allowed
+  output@.counter = output@.counter + 1  # ERROR: output assignments not allowed
   input.value
 }
 
@@ -156,10 +156,10 @@ output.result = match input.type as type {
   _ => "unknown"
 }
 
-# ❌ FORBIDDEN: Cannot assign to metadata inside match expression
+# ❌ FORBIDDEN: Cannot assign to output inside match expression
 output.category = match input.level as level {
   level > 10 => {
-    @high_level_count = @high_level_count + 1  # ERROR: metadata assignments not allowed
+    output@.high_level_count = output@.high_level_count + 1  # ERROR: output assignments not allowed
     "high"
   }
   _ => "low"
