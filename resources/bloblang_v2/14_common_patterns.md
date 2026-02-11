@@ -55,12 +55,25 @@ output.results = input.items
   .join(", ")
 ```
 
-## 14.5 Array Indexing and Access
+## 14.5 Indexing (Arrays, Strings, Bytes)
 
 ```bloblang
-# Safe array access with fallbacks
+# Array access with fallbacks
 output.first_item = input.items[0].catch(null)
 output.last_item = input.items[-1].catch(null)
+
+# String indexing (byte position)
+output.first_char = input.name[0]                 # First character
+output.last_char = input.name[-1]                 # Last character
+output.initials = input.first[0] + input.last[0]  # Build initials
+output.safe_char = input.text[10].catch("")       # Safe access
+
+# Bytes indexing (returns number)
+output.header_byte = input.payload[0]             # First byte as number
+output.last_byte = input.data[-1]                 # Last byte
+output.byte_check = if input.data[0] == 255 {     # Check byte value
+  "starts_with_ff"
+}
 
 # Extract specific elements
 output.top_three = {

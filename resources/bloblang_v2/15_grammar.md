@@ -59,10 +59,14 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
   - Null-safe field access: `?.identifier` or `?."quoted"`
   - Array indexing: `[expression]`
   - Null-safe array indexing: `?[expression]`
-- **Array indexing** does not require a preceding dot: `input.foo[0]` not `input.foo.[0]`
+- **Indexing** does not require a preceding dot: `input.foo[0]` not `input.foo.[0]`
+- **Indexing works on arrays, strings, and bytes**:
+  - Arrays: Returns element at position (any type)
+  - Strings: Returns single-character string at byte position
+  - Bytes: Returns byte value as number (0-255)
 - **Negative indices** are supported (Python-style):
-  - `path[0]` accesses the first element
-  - `path[-1]` accesses the last element
+  - `path[0]` accesses the first element/character/byte
+  - `path[-1]` accesses the last element/character/byte
   - The index expression can be any expression evaluating to an integer
   - Out-of-bounds access throws an error (use `.catch()` for safe access)
 - **Null-safe operators** short-circuit to `null` if the left operand is `null`:
