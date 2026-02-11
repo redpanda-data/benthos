@@ -3,7 +3,7 @@
 ## 2.1 Tokens
 
 - **Identifiers**: `[a-zA-Z_][a-zA-Z0-9_]*`
-- **Keywords**: `output`, `input`, `if`, `else`, `match`, `as`, `map`, `deleted`, `import`, `from`
+- **Keywords**: `output`, `input`, `if`, `else`, `match`, `as`, `map`, `deleted`, `import`
 - **Operators**: `.`, `?.`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `<`, `<=`, `&&`, `||`, `=>`, `->`
 - **Delimiters**: `(`, `)`, `{`, `}`, `[`, `]`, `?[`, `,`, `:`
 - **Literals**: Numbers, strings, booleans, null, arrays, objects

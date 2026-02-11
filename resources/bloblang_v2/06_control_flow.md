@@ -39,6 +39,33 @@ output.age_years = if input.birthdate != null {
 }
 ```
 
+### Purity Constraints for If Expressions
+
+**If expressions must be pure** - they cannot modify external state (output or metadata):
+
+```bloblang
+# ❌ FORBIDDEN: Cannot assign to output inside if expression
+output.result = if input.enabled {
+  output.log = "enabled"  # ERROR: output assignments not allowed
+  "yes"
+}
+
+# ❌ FORBIDDEN: Cannot assign to metadata inside if expression
+output.value = if input.track {
+  @counter = @counter + 1  # ERROR: metadata assignments not allowed
+  input.value
+}
+
+# ✅ ALLOWED: Pure computations with local variables
+output.result = if input.enabled {
+  $value = input.amount * 2
+  $processed = $value.floor()
+  $processed
+}
+```
+
+**Rationale**: If expressions are expressions that return values, not statements that cause side effects. Use if statements (see 6.2) when you need to make output/metadata assignments.
+
 ## 6.2 If Statement
 
 Conditional execution of multiple assignments without return value:
@@ -87,21 +114,21 @@ output.formatted_price = match input.currency as currency {
   currency == "USD" => {
     $symbol = "$"
     $amount = input.amount.round(2)
-    "${symbol}${amount}"
+    $symbol + $amount.string()
   }
   currency == "EUR" => {
     $symbol = "€"
     $amount = input.amount.round(2)
-    "${amount}${symbol}"
+    $amount.string() + $symbol
   }
   currency == "JPY" => {
     $symbol = "¥"
     $amount = input.amount.floor()
-    "${symbol}${amount}"
+    $symbol + $amount.string()
   }
   _ => {
     $amount = input.amount.round(2)
-    "${currency} ${amount}"
+    currency + " " + $amount.string()
   }
 }
 ```
@@ -114,6 +141,46 @@ output.category = match {
   _ => "low"
 }
 ```
+
+### Purity Constraints for Match Expressions
+
+**Match expressions must be pure** - they cannot modify external state (output or metadata):
+
+```bloblang
+# ❌ FORBIDDEN: Cannot assign to output inside match expression
+output.result = match input.type as type {
+  type == "A" => {
+    output.log = "type A"  # ERROR: output assignments not allowed
+    "result A"
+  }
+  _ => "unknown"
+}
+
+# ❌ FORBIDDEN: Cannot assign to metadata inside match expression
+output.category = match input.level as level {
+  level > 10 => {
+    @high_level_count = @high_level_count + 1  # ERROR: metadata assignments not allowed
+    "high"
+  }
+  _ => "low"
+}
+
+# ✅ ALLOWED: Pure computations with local variables
+output.result = match input.type as type {
+  type == "A" => {
+    $base = input.value * 2
+    $adjusted = $base + 10
+    $adjusted
+  }
+  type == "B" => {
+    $base = input.value * 3
+    $base - 5
+  }
+  _ => input.value
+}
+```
+
+**Rationale**: Match expressions are expressions that return values, not statements that cause side effects. Use match statements (see 6.4) when you need to make output/metadata assignments.
 
 ## 6.4 Match Statement
 

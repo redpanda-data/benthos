@@ -1,5 +1,7 @@
 # 11. Execution Model
 
+> ⚠️ **Note**: The dual execution model (Mapping vs Mutation) described below is under review as part of V2 development (see Solution 3 in PROPOSED_SOLUTIONS.md). This section documents current behavior but may change in the final V2 release. The goal is to unify around a single, predictable execution model.
+
 ## 11.1 Mapping Processor (Immutable)
 
 Creates entirely new output document. Input document (`input`) remains immutable throughout execution:

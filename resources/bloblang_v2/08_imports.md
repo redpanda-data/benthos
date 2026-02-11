@@ -9,4 +9,4 @@ import "./transformations.blobl"
 
 **Path Resolution**: Absolute paths or relative to execution directory.
 
-**Execution from File**: `from "<path>"` executes entire mapping from file.
+**Semantics**: Imports make all maps defined in the target file available in the current mapping. Maps are merged into the global namespace.
