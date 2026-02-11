@@ -48,11 +48,74 @@ output.parsed = if input.date != null {
 ## 14.4 Array Transformation Pipeline
 
 ```bloblang
+# Simple pipeline
 output.results = input.items
   .filter(item -> item.active)
   .map_each(item -> item.name.uppercase())
   .sort()
   .join(", ")
+
+# Complex transformation with multi-statement lambdas
+output.processed_orders = input.orders
+  .filter(order -> {
+    $total = order.items.fold(0, (acc, item) -> acc + item.price)
+    $has_items = order.items.length() > 0
+    $has_items && $total > 100
+  })
+  .map_each(order -> {
+    $subtotal = order.items.fold(0, (acc, item) -> acc + item.price)
+    $tax = $subtotal * 0.1
+    $total = $subtotal + $tax
+    {
+      "order_id": order.id,
+      "customer": order.customer_name,
+      "subtotal": $subtotal.round(2),
+      "tax": $tax.round(2),
+      "total": $total.round(2),
+      "item_count": order.items.length()
+    }
+  })
+  .sort_by(order -> order.total)
+
+# Multi-parameter lambdas with reduce
+output.total_price = input.items.reduce((acc, item) -> acc + item.price, 0)
+
+output.weighted_sum = input.scores.reduce((sum, score, index) -> {
+  $weight = index + 1
+  sum + (score * $weight)
+}, 0)
+
+# Reusable lambda functions
+$calculate_total = (price, quantity, tax_rate) -> {
+  $subtotal = price * quantity
+  $tax = $subtotal * tax_rate
+  $subtotal + $tax
+}
+
+output.order_totals = input.orders.map_each(order ->
+  $calculate_total(order.price, order.qty, 0.1)
+)
+
+# Nested transformations with multi-parameter lambdas
+output.user_summary = input.users.map_each(user -> {
+  $total_spent = user.orders.reduce((acc, order) -> {
+    $order_total = order.items.reduce((sum, item) -> sum + item.price, 0)
+    acc + $order_total
+  }, 0)
+  $order_count = user.orders.length()
+  $avg_order = if $order_count > 0 {
+    $total_spent / $order_count
+  } else {
+    0
+  }
+  {
+    "user_id": user.id,
+    "name": user.name,
+    "total_spent": $total_spent.round(2),
+    "order_count": $order_count,
+    "avg_order_value": $avg_order.round(2)
+  }
+})
 ```
 
 ## 14.5 Indexing (Arrays, Strings, Bytes)
