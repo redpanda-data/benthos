@@ -13,7 +13,7 @@ expression      := literal | path | function_call | method_chain |
                    lambda_expr | paren_expr
 
 path            := ('output' | 'input' | var_ref | meta_ref) path_component*
-path_component  := '.' field_name | '[' expression ']'
+path_component  := '.' field_name | '?.' field_name | '[' expression ']' | '?[' expression ']'
 field_name      := identifier | quoted_string
 var_ref         := '$' identifier
 meta_ref        := '@' identifier
@@ -54,11 +54,19 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - The `@` prefix is used for both reading and writing metadata
 - The `$` prefix is used for both declaring and referencing variables
 - Both metadata and variables use consistent prefix notation for declaration and reference
-- **Path components** can be either field access (`.identifier` or `."quoted"`) or array indexing (`[expression]`)
+- **Path components** can be:
+  - Field access: `.identifier` or `."quoted"`
+  - Null-safe field access: `?.identifier` or `?."quoted"`
+  - Array indexing: `[expression]`
+  - Null-safe array indexing: `?[expression]`
 - **Array indexing** does not require a preceding dot: `input.foo[0]` not `input.foo.[0]`
 - **Negative indices** are supported (Python-style):
   - `path[0]` accesses the first element
   - `path[-1]` accesses the last element
   - The index expression can be any expression evaluating to an integer
   - Out-of-bounds access throws an error (use `.catch()` for safe access)
-- **Path components can be mixed**: `input.users[0].orders[-1].total` combines field access and indexing
+- **Null-safe operators** short-circuit to `null` if the left operand is `null`:
+  - `input.user?.name` returns `null` if `user` is `null`
+  - `input.items?[0]` returns `null` if `items` is `null`
+  - Null-safe operators only handle `null`, not errors (use `.catch()` for errors)
+- **Path components can be mixed**: `input.users?[0]?.orders[-1]?.total` combines all forms

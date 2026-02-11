@@ -11,8 +11,25 @@ output.updated_at = now()
 ## 14.2 Null-Safe Access
 
 ```bloblang
+# Using .or() method for final value
 output.name = input.user.name.or("anonymous")
 output.id = input.primary_id.or(input.secondary_id).or("default")
+
+# Using ?. operator for nested navigation (V2)
+output.city = input.user?.address?.city
+output.email = input.contact?.primary?.email.or("no-email@example.com")
+
+# Null-safe array access
+output.first_name = input.users?[0]?.name
+output.last_item = input.data?[-1]?.value
+
+# Complex null-safe chains
+output.product = input.order?.items?[0]?.product?.name.or("Unknown")
+output.nested = input.a?.b?.c?.d?.e.or("default")
+
+# Mixed safe and unsafe (be explicit about optionality)
+output.user_city = input.user?.address.city     # user is optional, address is required if user exists
+output.full_safe = input.user?.address?.city    # both user and address are optional
 ```
 
 ## 14.3 Error-Safe Parsing

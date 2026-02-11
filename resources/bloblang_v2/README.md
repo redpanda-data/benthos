@@ -104,6 +104,18 @@ output.user_name = input.users[2].name     # Chained access
 output.safe_first = input.items[0].catch(null)
 ```
 
+### Null-Safe Navigation
+```bloblang
+# Null-safe field access
+output.city = input.user?.address?.city    # null if any field is null
+
+# Null-safe array indexing
+output.first_name = input.users?[0]?.name  # null if users is null or empty
+
+# Combine with .or() for defaults
+output.email = input.contact?.email.or("no-email@example.com")
+```
+
 ### Named Map
 ```bloblang
 map extract_user(data) {

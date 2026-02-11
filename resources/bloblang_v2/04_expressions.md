@@ -65,6 +65,87 @@ For an array of length N:
 - Target must be an array type (throws error otherwise)
 - Index expression must evaluate to an integer (throws error for non-integer or null)
 
+### 4.1.2 Null-Safe Navigation
+
+The null-safe operators `?.` and `?[` provide concise null handling in path expressions:
+
+```bloblang
+# Null-safe field access
+output.name = input.user?.name              # null if user is null
+output.email = input.user?.profile?.email   # null if any step is null
+output.nested = input.a?.b?.c?.d            # null if any field is null
+
+# Null-safe array indexing
+output.first = input.items?[0]              # null if items is null
+output.last = input.data?[-1]               # null if data is null
+
+# Combined null-safe operations
+output.user_name = input.users?[0]?.name
+output.deep = input.orders?[5]?.items?[0]?.product?.name
+
+# Mixed safe and unsafe navigation
+output.value = input.user?.address.city     # Unsafe access to city (will error if address is null)
+output.safe = input.user?.address?.city     # Fully null-safe
+```
+
+**Semantics**:
+- `?.` returns `null` if the left operand is `null` or the field doesn't exist
+- `?[` returns `null` if the left operand is `null`
+- The entire expression short-circuits to `null` at the first null value
+- Null-safe operators only handle `null` values, not errors (use `.catch()` for errors)
+
+**Short-Circuit Behavior**:
+```bloblang
+# If input.user is null:
+input.user?.profile?.email  # Returns null immediately, never evaluates .profile or .email
+
+# If input.user exists but input.user.profile is null:
+input.user?.profile?.email  # Returns null after checking profile, never evaluates .email
+```
+
+**Null-Safe vs Error Handling**:
+```bloblang
+# Null-safe: handles null/missing fields
+output.safe = input.user?.name              # null if user is null or name is missing
+
+# Error handling: handles operation failures
+output.parsed = input.data.parse_json().catch({})  # {} if parse fails
+
+# Combined: handle both null and errors
+output.result = input.data?.parse_json().catch({})  # null if data is null, {} if parse fails
+```
+
+**Type Errors Still Throw**:
+```bloblang
+# These still throw errors (not handled by ?.)
+input.number?.uppercase()    # Error: can't call uppercase() on number (even though ?. used)
+input.text?[0]               # Error: can't index string with ?[] (use .index(0) method)
+```
+
+**Comparison with `.or()` Method**:
+```bloblang
+# Using .or() method (only handles null on the final value)
+output.name = input.user.name.or("anonymous")  # Errors if user is null
+
+# Using ?. operator (handles null at any step)
+output.name = input.user?.name.or("anonymous") # null if user is null, then .or() provides fallback
+```
+
+**Best Practices**:
+```bloblang
+# Use ?. for optional nested navigation
+output.city = input.user?.address?.city
+
+# Combine with .or() for defaults
+output.city = input.user?.address?.city.or("Unknown")
+
+# Use .catch() for operation errors
+output.parsed = input.data?.parse_json().catch({})
+
+# Don't over-use - be explicit about which fields are optional
+output.value = input.required.optional?.field  # Clear which is optional
+```
+
 ## 4.2 Boolean Operators
 
 - `!` - logical NOT
