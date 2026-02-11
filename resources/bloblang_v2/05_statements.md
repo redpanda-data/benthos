@@ -14,7 +14,7 @@ Statements are top-level constructs that perform actions or cause side effects. 
 **Expressions** (return values):
 - If expressions (Section 6.1)
 - Match expressions (Section 6.3)
-- Lambda expressions (Section 4.6)
+- Lambda expressions (Section 4.7)
 - Path expressions, function calls, method chains, etc.
 
 **Key Distinction**: Expressions can be used anywhere a value is expected and **cannot contain assignments to `output` or metadata**. Statements execute at the top level and can modify the output document and metadata.
