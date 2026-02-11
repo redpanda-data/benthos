@@ -12,7 +12,8 @@ Paths may reference:
 - **Input document**: `input.field`
 - **Output document**: `output.field`
 - **Variables**: `$variable_name`
-- **Metadata**: `@metadata_key`
+- **Input metadata**: `input@.key`
+- **Output metadata**: `output@.key`
 
 ### 4.1.1 Indexing (Arrays, Strings, Bytes)
 
@@ -414,9 +415,9 @@ input.items.map_each(item -> {
   item.value
 })
 
-# ❌ FORBIDDEN: Cannot assign to metadata inside lambda
+# ❌ FORBIDDEN: Cannot assign to output inside lambda
 input.items.filter(item -> {
-  @counter = @counter + 1  # ERROR: metadata assignments not allowed
+  output@.counter = output@.counter + 1  # ERROR: output assignments not allowed
   item.active
 })
 

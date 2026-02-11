@@ -16,7 +16,7 @@ Design and specify **Bloblang V2** - a cleaned-up version of the Bloblang mappin
 
 1. **Radical Explicitness** - No implicit context shifting, all data references must be explicit
 2. **One Clear Way** - Single obvious way to do each operation (Zen of Python)
-3. **Consistent Syntax Patterns** - Symmetrical keywords (`input`/`output`), consistent prefixes (`$` for variables, `@` for metadata)
+3. **Consistent Syntax Patterns** - Symmetrical keywords (`input`/`output`), consistent prefixes (`$` for variables), metadata unified with input/output (`input@.key` / `output@.key`)
 4. **Block-Scoped Variables** - Modern scoping with shadowing support
 5. **Fail Loudly** - Errors are explicit, not silent
 
@@ -30,8 +30,8 @@ Design and specify **Bloblang V2** - a cleaned-up version of the Bloblang mappin
 | `this.field` | `input.field` | Explicit input reference, no context confusion |
 | `root.field` | `output.field` | Symmetry with `input`, more explicit |
 | `let foo = value` | `$foo = value` | Consistent prefix for declaration and reference |
-| `meta foo = value` | `@foo = value` | Only one way to handle metadata |
-| `metadata("foo")` | `@foo` | Consistent with assignment syntax |
+| `meta foo = value` | `output@.foo = value` | Unified with input/output model |
+| `metadata("foo")` | `input@.foo` | Unified with input/output model |
 | `a \| b \| c` | `a.or(b).or(c)` | Removed pipe operator (reserved for future) |
 
 ### Semantic Changes
@@ -45,7 +45,7 @@ Design and specify **Bloblang V2** - a cleaned-up version of the Bloblang mappin
 - `this` (use `input`)
 - `root` (use `output`)
 - `let` (use `$variable =`)
-- `meta` (use `@metadata =`)
+- `meta` (use `output@.key =`)
 
 ### Keywords Added
 - `input` (explicit input document reference)
@@ -131,7 +131,8 @@ Mark the solution as completed in **BLOBLANG_V2_PROGRESS.md**:
 ### Step 4: Maintain Consistency
 Ensure all examples across all specification files reflect the change:
 - Use explicit `input`/`output` references
-- Use `$` for variables, `@` for metadata
+- Use `$` for variables
+- Use `input@.key` for reading input metadata, `output@.key` for writing output metadata
 - No `this`, `root`, `let`, `meta` keywords
 - Match expressions have `as` binding
 - Maps have explicit parameters
@@ -146,11 +147,16 @@ Context confusion: `this` changed meaning in different contexts (top-level, lamb
 ### Why remove pipe operator `|`?
 Reserved for potential future feature (e.g., Unix-style pipelining). `.or()` method chaining is explicit and consistent.
 
-### Why `$` and `@` prefixes?
+### Why `$` prefix for variables?
 - Consistent: same symbol for declaration and reference
-- Symmetrical: `$` for variables, `@` for metadata
 - Clear visual distinction from regular identifiers
 - One obvious way to declare/reference
+
+### Why `@.` for metadata?
+- Unified with input/output model: `input@.key` and `output@.key`
+- Makes immutability explicit: input metadata is immutable, output metadata is mutable
+- Consistent with document access: `input.field` for documents, `input@.key` for metadata
+- No ambiguity about whether reading input or writing output
 
 ### Why rename `root` to `output`?
 Symmetry with `input`. The pair `input`/`output` is immediately intuitive.
@@ -192,8 +198,8 @@ $user_id = input.user.id
 output.id = $user_id
 
 # Metadata read and write
-output.topic = @kafka_topic
-@output_key = input.id
+output.topic = input@.kafka_topic
+output@.kafka_key = input.id
 
 # Block-scoped variables
 output.result = if input.enabled {
