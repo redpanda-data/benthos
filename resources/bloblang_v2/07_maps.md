@@ -8,14 +8,14 @@ map extract_user(data) {
   output.email = data.contact.email
 }
 
-output.customer = input.customer_data.apply("extract_user")
+output.customer = extract_user(input.customer_data)
 ```
 
 **Syntax**: `map name(parameter) { statements }`
 
 **Parameter**: Maps declare an explicit parameter name that replaces `input` within the map body.
 
-**Invocation**: `.apply("map_name")` method
+**Invocation**: Function call syntax: `map_name(argument)`
 
 **Multiple Parameters**: Pass multiple values via object literal:
 ```bloblang
@@ -24,18 +24,18 @@ map format_output(data) {
   output.pattern = data.pattern
 }
 
-{"value": input.a, "pattern": "[%v]"}.apply("format_output")
+output.result = format_output({"value": input.a, "pattern": "[%v]"})
 ```
 
 **Recursion**: Maps may recursively invoke themselves:
 ```bloblang
 map walk_tree(node) {
   output = match node.type() as type {
-    type == "object" => node.map_each(item -> item.value.apply("walk_tree"))
-    type == "array" => node.map_each(elem -> elem.apply("walk_tree"))
+    type == "object" => node.map_each(item -> walk_tree(item.value))
+    type == "array" => node.map_each(elem -> walk_tree(elem))
     _ => node
   }
 }
 
-output = input.apply("walk_tree")
+output = walk_tree(input)
 ```
