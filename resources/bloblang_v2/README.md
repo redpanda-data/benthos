@@ -93,6 +93,17 @@ output.results = input.items
   .sort()
 ```
 
+### Array Indexing
+```bloblang
+# Positive and negative indexing
+output.first = input.items[0]              # First element
+output.last = input.items[-1]              # Last element
+output.user_name = input.users[2].name     # Chained access
+
+# Safe access with fallback
+output.safe_first = input.items[0].catch(null)
+```
+
 ### Named Map
 ```bloblang
 map extract_user(data) {

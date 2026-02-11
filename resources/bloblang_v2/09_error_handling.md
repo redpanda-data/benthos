@@ -7,9 +7,22 @@ Provides fallback value on operation failure:
 output.count = input.items.length().catch(0)
 output.parsed = input.data.parse_json().catch({})
 output.value = (input.price * input.quantity).catch(null)
+
+# Array index out of bounds
+output.first = input.items[0].catch(null)         # Null if array is empty
+output.tenth = input.items[9].catch("default")    # Fallback if fewer than 10 elements
+output.last = input.items[-1].catch(null)         # Null if array is empty
 ```
 
 **Semantics**: On error anywhere in method chain, returns fallback value and suppresses error propagation.
+
+**Common Error Scenarios**:
+- Type mismatches (e.g., calling `.uppercase()` on a number)
+- Parsing failures (e.g., `.parse_json()` on invalid JSON)
+- Array index out of bounds (positive or negative)
+- Null pointer access
+- Division by zero
+- Method not applicable to type
 
 ## 9.2 Or Method
 
