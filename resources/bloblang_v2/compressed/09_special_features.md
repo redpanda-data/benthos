@@ -2,14 +2,23 @@
 
 ## 9.1 Dynamic Field Names
 
-```bloblang
-# Dynamic field access
-$field_name = "user_id"
-output.value = input.get($field_name)
+Use string indexing for dynamic field access on objects:
 
-# Dynamic field creation
+```bloblang
+# Dynamic field read
+$field_name = "user_id"
+output.value = input[$field_name]
+
+# Dynamic field write
 $key = "dynamic_field"
-output.set($key, "value")
+output[$key] = "value"
+
+# With literals
+output.first = input["user_id"]
+output["computed_" + input.type] = input.value
+
+# Null-safe dynamic access
+output.value = input?.user?[$field_name]
 ```
 
 ## 9.2 Message Filtering & Deletion
