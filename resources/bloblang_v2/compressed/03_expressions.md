@@ -95,6 +95,8 @@ output.invalid = a < b < c    # ERROR: cannot chain comparisons
 output.valid = a < b && b < c # OK: explicit logical combination
 ```
 
+**Non-associative operator enforcement:** Chaining non-associative operators (e.g., `a < b < c`, `a == b == c`) is a parse error. Implementations must detect and reject such expressions during parsing rather than allowing them to fail at runtime.
+
 ## 3.3 Functions & Methods
 
 **Functions** (standalone):

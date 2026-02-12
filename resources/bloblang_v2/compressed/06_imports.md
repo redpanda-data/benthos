@@ -45,7 +45,7 @@ import "/etc/benthos/common.blobl" as common
 
 ## 6.4 Visibility
 
-**All top-level maps are exported automatically.**
+**All top-level maps are exported automatically.** Variables (including top-level variables) are never exported - only the importing file can access them through the namespace.
 
 For private helpers, use variables (not maps):
 ```bloblang

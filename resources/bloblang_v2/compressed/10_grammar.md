@@ -1,8 +1,9 @@
 # 10. Grammar Reference
 
 ```
-program         := statement*
-statement       := assignment | var_decl | map_decl | import_stmt | if_stmt | match_stmt
+program         := top_level_statement*
+top_level_statement := statement | map_decl | import_stmt
+statement       := assignment | var_decl | if_stmt | match_stmt
 assignment      := path '=' expression
 var_decl        := '$' identifier '=' expression
 map_decl        := 'map' identifier '(' param_list ')' '{' var_decl* expression '}'
@@ -63,6 +64,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 
 ## Key Points
 
+- **Top-level only:** Map declarations (`map_decl`) and imports (`import_stmt`) can only appear at the top level of a program, not inside statement bodies. Control flow statements (`if_stmt`, `match_stmt`) can be nested
 - **Variables:** `$var` for declaration and reference
 - **Metadata:** `input@.key` (read), `output@.key` (write)
 - **Identifiers:** Bare identifiers allowed as path roots (e.g., map parameters: `data.field`)
