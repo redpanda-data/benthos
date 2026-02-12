@@ -56,6 +56,8 @@ output@.kafka_topic = "new-topic"
 
 ## 7.4 Contexts
 
+**Top-level mapping contexts:**
+
 **Input Context:**
 - `input.field` - Document field (immutable)
 - `input@.key` - Metadata key (immutable)
@@ -69,6 +71,11 @@ output@.kafka_topic = "new-topic"
 **Variables:**
 - `$variable` - Block-scoped, immutable
 - Can shadow variables from outer scopes
+
+**Map body contexts:**
+- Parameter: Bare identifier (e.g., `data.field`)
+- Variables: `$variable` (local to map)
+- **No access** to `input` or `output` (pure functions)
 
 ## 7.5 Metadata
 
