@@ -98,8 +98,11 @@ output = walk_tree(input)
 
 ```bloblang
 map example(data) {
-  data.field              # ✅ Valid: read from parameter
-  $copy = data            # ✅ Valid: parameter in expression
+  $copy = data            # ✅ Valid: variable declaration
+  data.field              # ✅ Valid: read from parameter (final expression)
+}
+
+map invalid(data) {
   data = input.x          # ❌ Invalid: cannot assign to parameter
 }
 ```
