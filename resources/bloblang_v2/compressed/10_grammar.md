@@ -2,15 +2,16 @@
 
 ```
 program         := statement*
-statement       := assignment | var_decl | map_decl | import_stmt
+statement       := assignment | var_decl | map_decl | import_stmt | if_stmt | match_stmt
 assignment      := path '=' expression
 var_decl        := '$' identifier '=' expression
-map_decl        := 'map' identifier '(' identifier ')' '{' statement* '}'
+map_decl        := 'map' identifier '(' identifier ')' '{' var_decl* expression '}'
 import_stmt     := 'import' string_literal 'as' identifier
 
 expression      := literal | path | function_call | method_chain |
-                   if_expr | match_expr | binary_expr | unary_expr |
+                   control_expr | binary_expr | unary_expr |
                    lambda_expr | paren_expr
+control_expr    := if_expr | match_expr
 
 path            := context_root path_component*
 context_root    := ('output' | 'input') metadata_accessor? | var_ref
@@ -23,13 +24,21 @@ function_call   := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
 qualified_name  := identifier '.' identifier
 method_chain    := expression ('.' identifier '(' [arg_list] ')')+
 
-if_expr         := 'if' expression '{' (expression | statement*) '}'
-                   ('else' 'if' expression '{' (expression | statement*) '}')*
-                   ('else' '{' (expression | statement*) '}')?
+if_expr         := 'if' expression '{' expr_body '}'
+                   ('else' 'if' expression '{' expr_body '}')*
+                   ('else' '{' expr_body '}')?
+if_stmt         := 'if' expression '{' stmt_body '}'
+                   ('else' 'if' expression '{' stmt_body '}')*
+                   ('else' '{' stmt_body '}')?
+expr_body       := var_decl* expression
+stmt_body       := statement+
 
-match_expr      := 'match' expression ('as' identifier)? '{' match_case (',' match_case)* '}'
-                 | 'match' '{' match_case (',' match_case)* '}'
-match_case      := (expression | '_') '=>' (expression | '{' statement* '}')
+match_expr      := 'match' expression ('as' identifier)? '{' expr_match_case (',' expr_match_case)* '}'
+                 | 'match' '{' expr_match_case (',' expr_match_case)* '}'
+match_stmt      := 'match' expression ('as' identifier)? '{' stmt_match_case (',' stmt_match_case)* '}'
+                 | 'match' '{' stmt_match_case (',' stmt_match_case)* '}'
+expr_match_case := (expression | '_') '=>' (expression | '{' expr_body '}')
+stmt_match_case := (expression | '_') '=>' '{' stmt_body '}'
 
 binary_expr     := expression binary_op expression
 binary_op       := '+' | '-' | '*' | '/' | '%' |
@@ -39,7 +48,7 @@ unary_op        := '!' | '-'
 
 lambda_expr     := lambda_params '->' (expression | lambda_block)
 lambda_params   := identifier | '(' identifier (',' identifier)* ')'
-lambda_block    := '{' statement* expression '}'
+lambda_block    := '{' var_decl* expression '}'
 
 literal         := number | string | boolean | null | array | object
 array           := '[' [expression (',' expression)*] ']'
@@ -59,6 +68,15 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
 - **Map calls:** `name(arg)` or `namespace.name(arg)`
 - **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, block `x -> { ... }`
-- **Purity:** Expressions cannot assign to `output` or `output@`
+- **Purity:**
+  - Expressions cannot assign to `output` or `output@`
+  - Lambda blocks: Variable declarations + final expression (pure, no side effects)
+  - Map bodies: Same as lambda blocks - pure functions that return values
+  - Maps cannot reference `input` or `output` (only their parameter)
+- **Control flow forms:**
+  - `if_expr` / `match_expr`: Used in assignments, contain `expr_body` (no `output` assignments)
+  - `if_stmt` / `match_stmt`: Standalone statements, contain `stmt_body` (may assign to `output`)
+  - `expr_body`: Variable declarations + final expression (must be pure)
+  - `stmt_body`: One or more statements (no trailing expression)
 - **Type coercion:** `+` requires same types (no implicit conversion)
 - **Operator precedence:** Field access > unary > multiplicative > additive > comparison > equality > logical AND > logical OR

@@ -7,7 +7,7 @@
 output.result = if condition { value } else { other_value }
 
 # Without else: field remains unset if condition false
-output.category = if score > 80 { "high" }  # category unset if score <= 80
+output.category = if input.score > 80 { "high" }  # category unset if score <= 80
 ```
 
 **If Statement** (standalone, contains output assignments):

@@ -13,12 +13,14 @@ All maps from the file available via namespace.
 ```bloblang
 # user_transforms.blobl
 map extract_user(data) {
-  output.id = data.user_id
-  output.name = data.full_name
+  {
+    "id": data.user_id,
+    "name": data.full_name
+  }
 }
 
 map format_name(data) {
-  output = data.first_name + " " + data.last_name
+  data.first_name + " " + data.last_name
 }
 
 # main.blobl
@@ -66,7 +68,7 @@ map public_api(data) {                     # Exported
 Maps can call themselves without namespace prefix:
 ```bloblang
 map walk(node) {
-  output = match node.type() as t {
+  match node.type() as t {
     t == "object" => node.map_each(item -> walk(item.value))
     _ => node
   }
