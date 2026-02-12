@@ -21,7 +21,28 @@ output.user.name = input.name     # Adds output.user.name
 output@.kafka_topic = "processed" # Adds output metadata
 ```
 
-**Initial state:** `output` starts as empty object `{}`, so `output.field` returns `null` before assignment.
+**Initial state:** `output` starts as empty object `{}`.
+
+**Reading non-existent fields:** Accessing a field that doesn't exist returns `null` rather than erroring:
+```bloblang
+# output is initially {}
+output.field    # Returns null (field doesn't exist)
+
+# After assignment
+output.field = "value"
+output.field    # Returns "value"
+```
+
+**Unset vs Null distinction:**
+- **Non-existent field:** Field is not present in the object structure; reading it returns `null`
+- **Explicit null:** Field exists in the object with `null` as its value: `output.field = null`
+- **Practical impact:** In JSON output, non-existent fields are omitted; fields with `null` values are serialized as `"field": null`
+
+```bloblang
+output.exists_null = null               # Field present: {"exists_null": null}
+output.not_created = if false { "x" }   # Field absent: {}
+# Both return null when read, but differ structurally
+```
 
 **Scalar output:** `output` can be assigned any type (string, number, etc.):
 ```bloblang

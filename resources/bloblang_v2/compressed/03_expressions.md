@@ -12,14 +12,32 @@ Access nested data: `input.user.email`, `output.result.id`
 ```bloblang
 input.items[0]      # First element
 input.items[-1]     # Last element (negative indices)
-input.name[0]       # First character/rune (strings → single-char string)
+input.name[0]       # First codepoint (strings → single-codepoint string)
 input.data[0]       # First byte as number 0-255 (bytes)
 ```
 
 **Semantics:**
-- **Strings:** Indexed by rune position (UTF-8 character), returns single-character string
+- **Strings:** Indexed by Unicode codepoint position, returns single-codepoint string
 - **Bytes:** Indexed by byte position, returns number (0-255)
 - **Arrays:** Indexed by element position
+
+**String indexing is codepoint-based, not grapheme-based:**
+```bloblang
+# Simple characters (1 codepoint each)
+"hello"[0]       # "h"
+"café"[3]        # "é" (1 codepoint)
+
+# Emoji (1 codepoint)
+"😀"[0]          # "😀" (full emoji)
+
+# Complex graphemes (multiple codepoints)
+"👋🏽"[0]         # "👋" (base emoji only, without skin tone modifier)
+"👋🏽"[1]         # "🏽" (skin tone modifier alone)
+
+# Family emoji with ZWJ (zero-width joiners)
+"👨‍👩‍👧‍👦"[0]    # "👨" (man only, not full family)
+"👨‍👩‍👧‍👦"[1]    # Zero-width joiner (invisible character)
+```
 
 Out-of-bounds throws error. Use `.catch()` for safety.
 
@@ -45,12 +63,25 @@ input.contact?.email.or("no-email@example.com")
 7. Logical AND: `&&`
 8. Logical OR: `||`
 
+**Associativity:**
+- **Left-associative:** Arithmetic (`+`, `-`, `*`, `/`, `%`), Logical (`&&`, `||`)
+- **Non-associative:** Comparison (`>`, `>=`, `<`, `<=`), Equality (`==`, `!=`)
+
 ```bloblang
-# Examples
+# Precedence examples
 output.calc = input.a + input.b * 2          # * before +
 output.check = input.x > 10 && input.y < 20  # > before &&
 output.neg = -input.value                    # Unary minus
 output.not = !input.flag                     # Logical not
+
+# Associativity examples (left-associative)
+output.result = 10 - 5 - 2    # (10 - 5) - 2 = 3
+output.result = 20 / 4 / 2    # (20 / 4) / 2 = 2.5
+output.result = a && b && c   # (a && b) && c
+
+# Non-associative (must use parentheses)
+output.invalid = a < b < c    # ERROR: cannot chain comparisons
+output.valid = a < b && b < c # OK: explicit logical combination
 ```
 
 ## 3.3 Functions & Methods
@@ -185,6 +216,14 @@ $name = input.name.uppercase()
 
 Variables are **immutable** (cannot reassign in same scope).
 Variables are **block-scoped** with shadowing support.
+
+**Special case - variable deletion:**
+```bloblang
+$val = deleted()      # Variable is immediately removed (ceases to exist)
+$val                  # ERROR: variable does not exist
+```
+
+Assigning `deleted()` to a variable removes it entirely. This is the only operation that can remove a variable after declaration.
 
 **Metadata Assignment:**
 ```bloblang

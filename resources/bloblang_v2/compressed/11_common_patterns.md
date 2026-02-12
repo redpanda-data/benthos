@@ -98,13 +98,6 @@ map walk(node) {
 output = walk(input)
 ```
 
-## Message Expansion
-
-```bloblang
-$doc_root = input.without("items")
-output = input.items.map_each(item -> $doc_root.merge(item))
-```
-
 ## Complex Conditional Transformations
 
 ```bloblang
