@@ -155,18 +155,24 @@ output.inner = if input.flag {
   $value             # Returns 20
 }
 
-output.outer = $value  # Still 10
+output.outer = $value  # Still 10 (outer variable unchanged)
 ```
 
-## 7.6 Variable Immutability
+## 7.6 Variable Reassignment
 
-Variables cannot be reassigned in same scope:
+Variables can be reassigned in the same scope:
 ```bloblang
 $value = 10
-$value = 20      # ERROR: cannot reassign
-```
+$value = 20      # OK: reassignment
+output.x = $value  # 20
 
-Shadowing in inner scope is allowed (creates new variable).
+# Reassignment vs shadowing
+output.y = if true {
+  $value = 30    # Shadowing: new variable in inner scope
+  $value         # 30
+}
+output.z = $value  # Still 20 (inner scope doesn't affect outer)
+```
 
 ## 7.7 Evaluation Order
 
