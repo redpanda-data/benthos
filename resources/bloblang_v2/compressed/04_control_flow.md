@@ -22,6 +22,28 @@ if input.type == "user" {
 - **Expression:** Used in assignment context, contains pure expressions (no `output`/`output@` assignments)
 - **Statement:** Standalone, contains `output`/`output@` assignments, **cannot end with expression** (parse error)
 
+**Parsing disambiguation:** The syntactic context determines which form:
+- **If statement:** Top-level in mapping, or inside another statement body (where `output` assignments are allowed)
+- **If expression:** Inside assignment RHS, variable declarations, lambda bodies, map bodies, or expression contexts
+
+```bloblang
+# Statement context (top-level)
+if input.type == "user" {
+  output.role = "member"     # Statement: assigns to output
+}
+
+# Expression context (assignment RHS)
+output.value = if input.flag {
+  input.value                # Expression: returns value
+}
+
+# Expression context (variable declaration)
+$result = if input.score > 80 { "high" } else { "low" }
+
+# Expression context (lambda body)
+input.items.map_each(x -> if x > 0 { x * 2 } else { 0 })
+```
+
 **If expressions without `else`:** When the condition is false, the assignment **does not execute**. The target field is neither created nor modified.
 
 ```bloblang
@@ -84,6 +106,8 @@ match input.type() as t {
   }
 }
 ```
+
+**Parsing disambiguation:** Like `if`, the syntactic context determines statement vs expression form. Match statements are only valid at top-level or inside other statement bodies.
 
 **Context binding with `as`** is optional. When omitted, case expressions reference the original matched expression directly:
 
