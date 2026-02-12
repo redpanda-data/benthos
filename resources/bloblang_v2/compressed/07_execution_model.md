@@ -125,6 +125,46 @@ Undefined metadata keys return `null`.
 
 ## 7.5 Scoping Rules
 
+**Context Access Permissions:**
+
+| Context | Read `input` | Read `output` | Write `output`/`output@` | Read/Write `$var` |
+|---------|--------------|---------------|--------------------------|-------------------|
+| Top-level mapping | ✅ | ✅ | ✅ | ✅ |
+| Map body | ❌ | ❌ | ❌ | ✅ (own variables only) |
+| Lambda/expression (top-level) | ✅ | ✅ | ❌ | ✅ |
+| Lambda/expression (inside map) | ❌ | ❌ | ❌ | ✅ (map's variables) |
+| Match `as` binding (top-level) | ✅ | ✅ | ❌ | ✅ |
+| Match `as` binding (inside map) | ❌ | ❌ | ❌ | ✅ (map's variables) |
+
+**Key principle:** Contexts inside maps cannot access `input` or `output` at all. Lambdas and expressions at the top-level can read (but not write) `input` and `output`.
+
+**Examples:**
+```bloblang
+# Top-level: full access
+output.x = input.y                        # ✅ Read input, write output
+
+# Top-level lambda: can read input/output
+output.items = input.data.map_each(x -> {
+  $multiplier = input.config.multiplier   # ✅ Can read input
+  $base = output.base_value               # ✅ Can read output
+  x * $multiplier
+})
+
+# Map body: no input/output access
+map transform(data) {
+  $temp = input.value                     # ❌ ERROR: cannot access input
+  data.field * 2                          # ✅ OK: use parameters
+}
+
+# Lambda inside map: also no input/output access
+map process(items) {
+  items.map_each(x -> {
+    $val = input.config                   # ❌ ERROR: cannot access input
+    x * 2                                 # ✅ OK: use parameters and variables
+  })
+}
+```
+
 **Top-level scope:**
 - Variables accessible throughout mapping
 - Maps accessible globally (or via namespace if imported)
