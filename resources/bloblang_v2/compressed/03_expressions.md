@@ -4,8 +4,14 @@
 
 Access nested data: `input.user.email`, `output.result.id`
 
-**Path roots:** `input`, `output`, `$variable`
+**Path roots:**
+- **Top-level (in assignments):** `input`, `output`, or `$variable` only
+- **In expressions within maps/lambdas:** Parameters available as bare identifiers (e.g., `data.field` where `data` is a parameter). Parameters are **read-only** and can only appear in expressions, never as assignment targets.
+- **Match with `as`:** Bound variable available as bare identifier in expressions (e.g., `match input as x { x.field ... }`)
+
 **Metadata:** `input@.key`, `output@.key`
+
+**Important:** Bare identifiers (parameters and match bindings) are read-only and can only be used in expressions on the right-hand side. They cannot be assigned to.
 
 **Quoted field names:** Use `."quoted"` for fields with special characters, spaces, or any name. Dot required before quote:
 ```bloblang
@@ -19,12 +25,15 @@ data."any field"              # Can quote any field, not just special ones
 
 ```bloblang
 input.items[0]      # Array: first element
-input.items[-1]     # Array: last element (negative indices)
+input.items[-1]     # Array: last element
+input.items[-2]     # Array: second-to-last element
 input["field"]      # Object: dynamic field access
 input[$var]         # Object: dynamic field access with variable
 input.name[0]       # String: first codepoint (→ single-codepoint string)
 input.data[0]       # Bytes: first byte as number 0-255
 ```
+
+**Negative indexing:** For arrays, negative indices count from the end: `-1` is last, `-2` is second-to-last, etc. Out-of-bounds negative indices throw errors.
 
 **Semantics:**
 - **Objects:** Indexed by string, returns field value (dynamic field access)
@@ -50,7 +59,21 @@ input.data[0]       # Bytes: first byte as number 0-255
 "👨‍👩‍👧‍👦"[1]    # Zero-width joiner (invisible character)
 ```
 
-Out-of-bounds throws error. Use `.catch()` for safety.
+**All string operations are codepoint-based:**
+```bloblang
+"hello".length()     # 5 (codepoints)
+"👋🏽".length()      # 2 (codepoints: base emoji + skin tone modifier)
+"café".length()      # 4 (codepoints)
+```
+
+**Byte operations are byte-based:**
+```bloblang
+"hello".bytes()[0]          # 104 (byte value of 'h')
+"hello".bytes().length()    # 5 (bytes)
+"👋".bytes().length()       # 4 (UTF-8 encoding uses 4 bytes)
+```
+
+Out-of-bounds indexing throws error. Use `.catch()` for safety.
 
 ### Null-Safe Navigation
 
@@ -61,6 +84,8 @@ input.items?[0]?.name        # null-safe indexing
 # Mix with .or() for defaults
 input.contact?.email.or("no-email@example.com")
 ```
+
+**Note:** `?.` and `?[]` only short-circuit on `null` values. Type errors (e.g., accessing a field on a string) still throw errors.
 
 ## 3.2 Operators
 
@@ -144,9 +169,11 @@ input.value.type()          # Works on any type including null
 
 ## 3.4 Lambda Expressions
 
+Lambda parameters are **read-only** and available as bare identifiers within the lambda body.
+
 **Single parameter:**
 ```bloblang
-input.items.map_each(item -> item.value * 2)
+input.items.map_each(item -> item.value * 2)   # 'item' is read-only parameter
 input.items.filter(x -> x > 10)
 ```
 
@@ -216,11 +243,13 @@ output.sound = match input.animal as a {
 
 # Boolean match (no expression)
 output.tier = match {
-  input.score >= 100 => "gold",
-  input.score >= 50 => "silver",
+  input.score >= 100 => "gold",   # Cases evaluated in order
+  input.score >= 50 => "silver",  # First true case wins
   _ => "bronze",
 }
 ```
+
+**Boolean match semantics:** Cases are evaluated in order. The first case that yields `true` activates its expression. If a case evaluates to a non-boolean value, an error is thrown.
 
 **Purity:** Conditional expressions cannot assign to `output` or `output@`.
 

@@ -50,25 +50,54 @@ if input.flag {
 }
 ```
 
-**If expressions without `else`:** When the condition is false, the assignment **does not execute**. The target field is neither created nor modified.
+**If expressions without `else`:** When the condition is false, the behavior depends on context:
 
+**In assignments:** The assignment does not execute. The target field is neither created nor modified.
+
+**Case 1: No prior assignment**
 ```bloblang
-# Field not created if condition false
 output.category = if input.score > 80 { "high" }
-# If score <= 80: output.category not present in output object
-# Reading output.category returns null, but the field doesn't exist structurally
-
-# Preserve existing values
-output.status = "pending"
-output.status = if false { "override" }  # Assignment skipped, status unchanged
-# output.status remains "pending"
-
-# Contrast with explicit null
-output.field1 = null                    # Field exists in object, value is null
-output.field2 = if false { "value" }    # Field doesn't exist in object
+# If score <= 80: assignment skipped, field doesn't exist
+# Reading output.category returns null (field is absent)
+# JSON output: field omitted entirely
 ```
 
-**Key distinction:** Reading a non-existent field returns `null`, but this differs from a field that exists with `null` as its value. For JSON serialization, non-existent fields are simply omitted.
+**Case 2: Has prior assignment**
+```bloblang
+output.status = "pending"
+output.status = if false { "override" }  # Assignment skipped
+# output.status keeps its existing value: "pending"
+# Reading output.status returns "pending" (not null!)
+# JSON output: {"status": "pending"}
+```
+
+**Case 3: Explicit null vs non-existent**
+```bloblang
+output.field1 = null                    # Field exists with null value
+output.field2 = if false { "value" }    # Field doesn't exist (no prior assignment)
+# field1 reads as null, field2 reads as null - but differ structurally
+# JSON output: {"field1": null} (field2 omitted)
+```
+
+**In array literals:** Elements are skipped (same as `deleted()`).
+```bloblang
+output.items = [1, if false { 2 }, 3]   # Result: [1, 3]
+# Equivalent to: [1, if false { 2 } else { deleted() }, 3]
+```
+
+**In object literals:** Fields are omitted (same as `deleted()`).
+```bloblang
+output.user = {
+  "id": input.id,
+  "email": if input.verified { input.email }  # Omitted if not verified
+}
+# If not verified: {"id": ...} (no email field)
+```
+
+**Key distinction:** An if-without-else that evaluates to false skips the assignment entirely:
+- **No prior value:** Field doesn't exist (reads as `null`, omitted from JSON)
+- **Has prior value:** Field keeps its existing value (reads as that value, included in JSON)
+- **Explicit null:** Field exists with `null` value (reads as `null`, included in JSON as `"field": null`)
 
 ## 4.2 Match Expressions vs Statements
 
@@ -136,6 +165,24 @@ output.tier = match input.score as s {
 Use `as` when the matched expression is complex or used multiple times in cases.
 
 **Evaluation semantics:** The matched expression is evaluated **once** before testing any cases, regardless of whether `as` is used. The value is then compared against each case condition in order. Using `as` simply binds the evaluated value to a variable for cleaner syntax, but does not change evaluation behavior.
+
+**Boolean match (no expression):** When `match` is used without an expression, each case must be a boolean expression. Cases are evaluated in order, and the first one that yields `true` is selected. If a case evaluates to a non-boolean value, an error is thrown.
+
+```bloblang
+# Boolean match
+output.category = match {
+  input.score >= 90 => "A",
+  input.score >= 80 => "B",
+  input.score >= 70 => "C",
+  _ => "F",
+}
+
+# ERROR: non-boolean case
+output.bad = match {
+  "hello" => "result",  # ERROR: "hello" is string, not boolean
+  _ => "default",
+}
+```
 
 ## 4.3 Block-Scoped Variables
 

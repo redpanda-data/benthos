@@ -6,14 +6,18 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 
 | Type | Description | Examples |
 |------|-------------|----------|
-| `string` | UTF-8 text | `"hello"`, `""` |
+| `string` | UTF-8 text (operations are codepoint-based) | `"hello"`, `""` |
 | `number` | 64-bit float | `42`, `3.14`, `-10` |
 | `bool` | Boolean | `true`, `false` |
 | `null` | Null value | `null` |
-| `bytes` | Byte array | `"hello".bytes()` |
+| `bytes` | Byte array (operations are byte-based) | `"hello".bytes()` |
 | `array` | Ordered collection | `[1, "two", true]` |
 | `object` | Key-value map | `{"key": "value"}` |
 | `lambda` | Function value | `x -> x * 2` |
+
+**TODO:** Consider whether to expand the `number` type into distinct types (`int64`, `float64`, `uint64`, etc.) to provide better precision control and type safety, or keep the single general-purpose number type for simplicity.
+
+**Important:** String operations (indexing, `.length()`, slicing, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
 
 ## 2.2 Type Introspection
 
@@ -47,8 +51,36 @@ output.ok2 = 5 + "3".number()   # 8 (number)
 **Other Operators:**
 - Arithmetic (`-`, `*`, `/`, `%`): Require numbers (null errors)
 - Comparison (`>`, `<`, `>=`, `<=`): Require comparable same types (null errors)
-- Equality (`==`, `!=`): Work across types including null (`null == null` → `true`)
+- Equality (`==`, `!=`): Compare both type and value (see below)
 - Logical (`&&`, `||`): Require booleans
+
+**Equality Semantics:**
+
+Both type and value must match for equality to return `true`. Different types always return `false` (not an error):
+
+```bloblang
+# Different types: always false
+5 == "5"             # false (number vs string)
+true == 1            # false (bool vs number)
+null == 0            # false (null vs number)
+null == false        # false (null vs bool)
+
+# Same type, same value: true
+5 == 5               # true
+5.0 == 5             # true (both are numbers - 64-bit float)
+"hello" == "hello"   # true
+true == true         # true
+null == null         # true
+
+# Same type, different value: false
+5 == 10              # false
+"a" == "b"           # false
+
+# Collections: structural equality (value-based)
+[1, 2] == [1, 2]     # true (same contents)
+[1, 2] == [2, 1]     # false (different order)
+{"a": 1} == {"a": 1} # true (same structure and values)
+```
 
 ## 2.4 Null Handling
 
@@ -60,9 +92,9 @@ null.uppercase()     # ERROR: method doesn't support null
 null > 5             # ERROR: ordering requires comparable types
 
 # ✅ Equality comparisons work with null
-null == null         # true
+null == null         # true (same type and value)
 null != null         # false
-null == 5            # false
+null == 5            # false (different types: null vs number)
 null != 5            # true
 
 # ✅ Null-safe navigation prevents errors

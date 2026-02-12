@@ -64,6 +64,9 @@ output.field = $val             # ERROR: variable $val does not exist
 ```bloblang
 # Array literal - deleted elements omitted
 output.items = [1, deleted(), 3]              # Result: [1, 3]
+
+# if-without-else also skips elements (same as deleted)
+output.items = [1, if false { 2 }, 3]         # Result: [1, 3]
 output.mixed = ["a", if false { "b" } else { deleted() }, "c"]  # Result: ["a", "c"]
 
 # map_each - deleted elements filtered out
@@ -73,13 +76,47 @@ output.positive = input.numbers.map_each(x -> if x > 0 { x } else { deleted() })
 
 **In object literals:**
 ```bloblang
+# Using deleted() explicitly
 output.user = {
   "id": input.id,
   "email": if input.email_verified { input.email } else { deleted() },
   "phone": input.phone
 }
 # If email not verified, field "email" is omitted from object
+
+# if-without-else also omits fields (same as deleted)
+output.user = {
+  "id": input.id,
+  "email": if input.email_verified { input.email },  # Omitted if not verified
+  "phone": input.phone
+}
 ```
+
+**Nested structures (recursive deletion):**
+```bloblang
+# Nested arrays
+output.matrix = [[1, deleted(), 3], [4, 5]]
+# Result: [[1, 3], [4, 5]]
+
+# Nested objects
+output.user = {
+  "name": "Alice",
+  "contact": {
+    "email": if input.verified { input.email } else { deleted() },
+    "phone": input.phone
+  }
+}
+# If not verified: {"name": "Alice", "contact": {"phone": "..."}}
+
+# Arrays of objects
+output.users = [
+  {"name": "Alice", "email": if true { "a@example.com" }},
+  {"name": "Bob", "email": if false { "b@example.com" }}  # email omitted
+]
+# Result: [{"name": "Alice", "email": "a@example.com"}, {"name": "Bob"}]
+```
+
+`deleted()` works recursively at all nesting levels - elements are omitted wherever they appear in the structure.
 
 **In conditional expressions:**
 ```bloblang
@@ -177,7 +214,18 @@ output.user = {
   }
 }
 
-# Conditional array elements (arrays can't have deleted)
-$items = [input.a]
-$items = if input.b != null { $items.append(input.b) } else { $items }
+# Conditional array elements - if without else skips the element
+output.items = [
+  input.a,
+  if input.b != null { input.b },  # Skipped if b is null
+  input.c
+]
+# If b is null: [input.a, input.c]
+
+# Equivalent using deleted()
+output.items = [
+  input.a,
+  if input.b != null { input.b } else { deleted() },
+  input.c
+]
 ```
