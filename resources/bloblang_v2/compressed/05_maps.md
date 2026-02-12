@@ -74,10 +74,10 @@ output.total = calculate_total(subtotal: 100, tax_rate: 0.1)
 ```bloblang
 map walk_tree(node) {
   match node.type() as t {
-    t == "object" => node.map_each(item -> walk_tree(item.value))
-    t == "array" => node.map_each(elem -> walk_tree(elem))
-    t == "string" => node.uppercase()
-    _ => node
+    t == "object" => node.map_each(item -> walk_tree(item.value)),
+    t == "array" => node.map_each(elem -> walk_tree(elem)),
+    t == "string" => node.uppercase(),
+    _ => node,
   }
 }
 

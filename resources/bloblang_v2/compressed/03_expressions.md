@@ -206,17 +206,17 @@ output.age = if input.birthdate != null {
 **Match Expression:**
 ```bloblang
 output.sound = match input.animal as a {
-  a == "cat" => "meow"
-  a == "dog" => "woof"
-  a.contains("bird") => "chirp"
-  _ => "unknown"
+  a == "cat" => "meow",
+  a == "dog" => "woof",
+  a.contains("bird") => "chirp",
+  _ => "unknown",
 }
 
 # Boolean match (no expression)
 output.tier = match {
-  input.score >= 100 => "gold"
-  input.score >= 50 => "silver"
-  _ => "bronze"
+  input.score >= 100 => "gold",
+  input.score >= 50 => "silver",
+  _ => "bronze",
 }
 ```
 
@@ -236,11 +236,14 @@ output.tier = match {
 {"id": input.id, "timestamp": now()}
 {"field with spaces": "value"}
 
-# Keys can be expressions (evaluate to string)
-{$key: $value}
-{"prefix_" + input.type: input.value}
-{input.field_name: input.field_value}
+# Keys can be expressions (must evaluate to string)
+{$key: $value}                              # OK if $key is string, ERROR otherwise
+{"prefix_" + input.type: input.value}       # OK: concatenation yields string
+{input.field_name: input.field_value}       # OK if field_name is string, ERROR otherwise
+{input.count.string(): input.value}         # Explicit conversion to string
 ```
+
+**Key type requirement:** Object keys must be strings. If a key expression evaluates to a non-string type (number, boolean, null, etc.), a runtime error occurs. Use `.string()` for explicit conversion.
 
 ## 3.7 Statements
 
