@@ -10,16 +10,19 @@ Access nested data: `input.user.email`, `output.result.id`
 ### Indexing
 
 ```bloblang
-input.items[0]      # First element
-input.items[-1]     # Last element (negative indices)
-input.name[0]       # First codepoint (strings → single-codepoint string)
-input.data[0]       # First byte as number 0-255 (bytes)
+input.items[0]      # Array: first element
+input.items[-1]     # Array: last element (negative indices)
+input["field"]      # Object: dynamic field access
+input[$var]         # Object: dynamic field access with variable
+input.name[0]       # String: first codepoint (→ single-codepoint string)
+input.data[0]       # Bytes: first byte as number 0-255
 ```
 
 **Semantics:**
-- **Strings:** Indexed by Unicode codepoint position, returns single-codepoint string
-- **Bytes:** Indexed by byte position, returns number (0-255)
-- **Arrays:** Indexed by element position
+- **Objects:** Indexed by string, returns field value (dynamic field access)
+- **Arrays:** Indexed by number, returns element at position
+- **Strings:** Indexed by number (codepoint position), returns single-codepoint string
+- **Bytes:** Indexed by number (byte position), returns number (0-255)
 
 **String indexing is codepoint-based, not grapheme-based:**
 ```bloblang
