@@ -56,20 +56,58 @@ $val = deleted()                # Variable $val is deleted (ceases to exist)
 output.field = $val             # ERROR: variable $val does not exist
 ```
 
-**Type operations:** You cannot call methods on `deleted()`:
+### deleted() as a First-Class Value
+
+**Any expression can yield `deleted()`**, including maps, lambdas, if expressions, and match expressions. When `deleted()` flows through expressions and is assigned or included in a collection, it causes removal:
+
+**In array operations:**
 ```bloblang
+# Array literal - deleted elements omitted
+output.items = [1, deleted(), 3]              # Result: [1, 3]
+output.mixed = ["a", if false { "b" } else { deleted() }, "c"]  # Result: ["a", "c"]
+
+# map_each - deleted elements filtered out
+output.positive = input.numbers.map_each(x -> if x > 0 { x } else { deleted() })
+# Input: [-1, 2, -3, 4] → Output: [2, 4]
+```
+
+**In object literals:**
+```bloblang
+output.user = {
+  "id": input.id,
+  "email": if input.email_verified { input.email } else { deleted() },
+  "phone": input.phone
+}
+# If email not verified, field "email" is omitted from object
+```
+
+**In conditional expressions:**
+```bloblang
+# Field assignment skipped when expression yields deleted()
+output.category = if input.spam { deleted() } else { input.category }
+# If spam, output.category field doesn't exist (not even with null value)
+
+# Message filtering
+output = if input.spam { deleted() } else { input }
+# If spam, entire document deleted
+```
+
+**In maps and lambdas:**
+```bloblang
+map filter_negative(val) {
+  if val < 0 { deleted() } else { val }
+}
+output.result = filter_negative(input.value)  # Field deleted if value < 0
+```
+
+**Operations on `deleted()` are errors:**
+```bloblang
+deleted() + 5                   # ERROR: cannot perform arithmetic on deleted
+deleted() == deleted()          # ERROR: cannot compare deleted values
 deleted().type()                # ERROR: cannot call methods on deleted value
 ```
 
-**Practical use - message filtering:**
-```bloblang
-# Conditional filtering
-output = if input.spam {
-  deleted()
-} else {
-  input
-}
-```
+These operations result in **runtime errors** (or compile-time errors if detectable by implementation).
 
 **Metadata persistence during execution:**
 ```bloblang
