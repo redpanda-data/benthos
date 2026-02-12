@@ -263,16 +263,23 @@ $user_id = input.user.id
 $name = input.name.uppercase()
 ```
 
-Variables are **immutable** (cannot reassign in same scope).
-Variables are **block-scoped** with shadowing support.
-
-**Special case - variable deletion:**
+Variables are **mutable** and can be reassigned:
 ```bloblang
-$val = deleted()      # Variable is immediately removed (ceases to exist)
+$count = 0
+$count = $count + 1
+$count = $count * 2
+```
+
+Variables are **block-scoped** with shadowing support (inner blocks can declare new variables with the same name).
+
+**Variable deletion:**
+```bloblang
+$val = 10
+$val = deleted()      # Variable is removed (ceases to exist)
 $val                  # ERROR: variable does not exist
 ```
 
-Assigning `deleted()` to a variable removes it entirely. This is the only operation that can remove a variable after declaration.
+Assigning `deleted()` to a variable removes it entirely from the current scope.
 
 **Metadata Assignment:**
 ```bloblang
@@ -288,16 +295,32 @@ output = deleted()               # Filter entire message
 
 ## 3.8 Variable Scope & Shadowing
 
+Variables are block-scoped. Inner blocks can declare new variables that shadow outer variables:
+
 ```bloblang
 $value = 10
 output.outer = $value  # 10
 
 output.inner = if input.flag {
-  $value = 20          # Shadows outer $value
+  $value = 20          # Shadows outer $value (new variable in this scope)
   $value               # Returns 20
 }
 
-output.still_outer = $value  # Still 10 (outer unchanged)
+output.still_outer = $value  # Still 10 (outer $value unchanged by inner block)
+```
+
+**Reassignment vs Shadowing:**
+```bloblang
+$x = 1
+$x = 2              # Reassignment: same variable, now has value 2
+output.a = $x       # 2
+
+output.b = if true {
+  $x = 3            # Shadowing: NEW variable in inner scope
+  $x                # 3
+}
+
+output.c = $x       # Still 2 (inner $x doesn't affect outer)
 ```
 
 Variables declared in blocks are only accessible within that block and nested blocks.

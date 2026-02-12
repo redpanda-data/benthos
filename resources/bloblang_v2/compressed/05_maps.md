@@ -89,7 +89,8 @@ output = walk_tree(input)
 ## 5.3 Parameter Semantics
 
 - Parameters are the **only** input to the map (no access to `input` or `output`)
-- Parameters are immutable
+- Parameters themselves cannot be reassigned (they are read-only bindings)
+- Variables declared within maps can be reassigned
 - Maps are pure: same inputs always produce same output
 - Call with positional arguments (match order) or named arguments (match names)
 - **Cannot mix** positional and named arguments in the same call
