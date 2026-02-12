@@ -125,6 +125,8 @@ output@.tags = ["urgent", "customer-service"]
 output@.routing = {"region": "us-west", "priority": 10}
 ```
 
+**Note:** While the language allows any metadata type, message systems (Kafka, AMQP, etc.) often only support string metadata. In practice, implementations serialize non-string values to JSON strings when interfacing with such systems. For example, `output@.tags = ["a", "b"]` would be stored as the string `'["a","b"]'` in Kafka metadata.
+
 **Copy all metadata:**
 ```bloblang
 output@ = input@                    # Copy all
