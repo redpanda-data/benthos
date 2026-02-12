@@ -64,4 +64,11 @@ output.user = normalize_user(input.user_data)
 
 **Comments:** `#` to end-of-line
 
-**Identifiers:** `[a-zA-Z_][a-zA-Z0-9_]*`, or quoted for special characters: `."field with spaces"`
+**Identifiers:** `[a-zA-Z_][a-zA-Z0-9_]*`
+
+**Quoted fields:** Use `."quoted"` syntax for field names with special characters or spaces. Dot required before quote:
+```bloblang
+input."field with spaces"
+output."special.field".nested
+user."any-name"             # Can quote any field, not just special chars
+```

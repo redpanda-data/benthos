@@ -5,7 +5,8 @@ program         := statement*
 statement       := assignment | var_decl | map_decl | import_stmt | if_stmt | match_stmt
 assignment      := path '=' expression
 var_decl        := '$' identifier '=' expression
-map_decl        := 'map' identifier '(' identifier ')' '{' var_decl* expression '}'
+map_decl        := 'map' identifier '(' param_list ')' '{' var_decl* expression '}'
+param_list      := identifier (',' identifier)*
 import_stmt     := 'import' string_literal 'as' identifier
 
 expression      := literal | path | function_call | method_chain |
@@ -17,7 +18,7 @@ path            := context_root path_component*
 context_root    := ('output' | 'input') metadata_accessor? | var_ref | identifier
 metadata_accessor := '@.'
 path_component  := '.' field_name | '?.' field_name | '[' expression ']' | '?[' expression ']'
-field_name      := identifier | quoted_string
+field_name      := identifier | string_literal
 var_ref         := '$' identifier
 
 function_call   := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
@@ -53,7 +54,7 @@ lambda_block    := '{' var_decl* expression '}'
 literal         := number | string | boolean | null | array | object
 array           := '[' [expression (',' expression)*] ']'
 object          := '{' [key_value (',' key_value)*] '}'
-key_value       := (identifier | string) ':' expression
+key_value       := expression ':' expression
 
 arg_list        := positional_args | named_args
 positional_args := expression (',' expression)*
@@ -65,9 +66,12 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Variables:** `$var` for declaration and reference
 - **Metadata:** `input@.key` (read), `output@.key` (write)
 - **Identifiers:** Bare identifiers allowed as path roots (e.g., map parameters: `data.field`)
+- **Quoted fields:** Use `."string"` for field names (dot required before quote): `input."field name"`
+- **Object literals:** Keys are expressions that evaluate to strings: `{"key": value}` or `{$var: value}`
 - **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position), bytes (byte position). Negative indices supported for arrays.
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
-- **Map calls:** `name(arg)` or `namespace.name(arg)`
+- **Map calls:** `name(arg)` or `namespace.name(arg)` (positional or named arguments)
+- **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments
 - **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, block `x -> { ... }`
 - **Purity:**
   - Expressions cannot assign to `output` or `output@`
