@@ -60,8 +60,22 @@ map public_api(data) {                     # Exported
 
 - **File not found:** Error at import
 - **Duplicate namespace:** Error if same name used twice
-- **Circular imports:** Detected and error
+- **Circular imports:** Detected at compile time and error
 - **Map not found:** Error when calling non-existent map
+
+**Circular import detection:** Import cycles are not allowed. If file A imports B (directly or transitively through other files), then B cannot import A.
+
+```bloblang
+# a.blobl
+import "./b.blobl" as b
+map foo(x) { b.bar(x) }
+
+# b.blobl
+import "./a.blobl" as a  # ERROR: Circular import (A->B->A)
+map bar(x) { a.foo(x) }
+```
+
+This restriction prevents mutual recursion across files. Implementations must detect cycles at compile time before execution.
 
 ## 6.6 Recursion
 
