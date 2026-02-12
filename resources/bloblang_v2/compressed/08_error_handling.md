@@ -62,7 +62,13 @@ output.result = throw("error")  # Stops execution, result unset
 
 **Null-safe operators** (`?.`, `?[]`): Handle `null`, not errors
 ```bloblang
-input.user?.name    # null if user is null, error if name access fails
+input.user?.name    # null if user is null, error if user is non-object
+
+# ?.  only short-circuits on null, not type mismatches
+null?.name          # OK: returns null
+input.user?.name    # OK: returns null if user is null, or user.name if user is object
+"string"?.name      # ERROR: cannot access field on string (not null, wrong type)
+5?.name             # ERROR: cannot access field on number (not null, wrong type)
 ```
 
 **`.catch()`**: Handles errors, not `null`
@@ -107,7 +113,7 @@ input.items.first()?.uppercase()      # OK: returns null if first() returns null
 input.items.first().or("").uppercase() # OK: provides default before uppercase
 ```
 
-## 8.6 Validation Methods
+## 8.7 Validation Methods
 
 ```bloblang
 # exists() - check if field exists

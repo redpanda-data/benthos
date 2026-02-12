@@ -84,7 +84,7 @@ map walk_tree(node) {
 output = walk_tree(input)
 ```
 
-**Recursion limits:** Maximum recursion depth and stack overflow behavior are implementation-defined. Implementations should provide reasonable limits and clear error messages when limits are exceeded.
+**Recursion limits:** Maximum recursion depth and stack overflow behavior are implementation-defined. Implementations **must** support at least 1000 recursive calls to ensure basic portability. Implementations should provide clear error messages when recursion limits are exceeded.
 
 ## 5.3 Parameter Semantics
 

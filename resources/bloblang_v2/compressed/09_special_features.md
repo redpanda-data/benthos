@@ -109,6 +109,22 @@ deleted().type()                # ERROR: cannot call methods on deleted value
 
 These operations result in **runtime errors** (or compile-time errors if detectable by implementation).
 
+**When deleted() Causes Errors vs Deletion:**
+
+`deleted()` behaves differently depending on context:
+
+**Triggers deletion (no error):**
+- Assignment targets: `output.field = deleted()`, `output = deleted()`, `output@.key = deleted()`
+- Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
+- Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
+
+**Causes runtime error:**
+- Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
+- Method calls: `deleted().type()`, `deleted().uppercase()`
+- Used as function arguments (except assignment): `some_function(deleted())`
+
+The distinction: `deleted()` is a special marker that triggers deletion when flowing into an assignment or collection, but cannot be used as a normal value in computations.
+
 **Metadata persistence during execution:**
 ```bloblang
 # Metadata persists even if output is temporarily deleted

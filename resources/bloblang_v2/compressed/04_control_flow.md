@@ -135,6 +135,8 @@ output.tier = match input.score as s {
 
 Use `as` when the matched expression is complex or used multiple times in cases.
 
+**Evaluation semantics:** The matched expression is evaluated **once** before testing any cases, regardless of whether `as` is used. The value is then compared against each case condition in order. Using `as` simply binds the evaluated value to a variable for cleaner syntax, but does not change evaluation behavior.
+
 ## 4.3 Block-Scoped Variables
 
 ```bloblang
