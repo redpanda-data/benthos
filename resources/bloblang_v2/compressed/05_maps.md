@@ -5,21 +5,34 @@ Pure, reusable transformations called as functions.
 ## 5.1 Syntax
 
 ```bloblang
+# Single parameter
 map name(parameter) {
   # optional variable declarations
   # final expression (return value)
   expression
 }
 
-# Invocation
+# Multiple parameters
+map calculate(x, y, z) {
+  x + y * z
+}
+
+# Invocation - positional arguments
 output.result = name(input.data)
+output.calc = calculate(1, 2, 3)
+
+# Invocation - named arguments
+output.result = name(parameter: input.data)
+output.calc = calculate(x: 1, y: 2, z: 3)
 ```
 
-Maps are **pure functions**: they take a parameter, optionally declare variables, and return a value. They cannot reference `input` or `output`.
+Maps are **pure functions**: they take parameters, optionally declare variables, and return a value. They cannot reference `input` or `output`.
+
+**Argument styles:** Functions can be called with positional or named arguments, but not both in the same call.
 
 ## 5.2 Examples
 
-**Basic:**
+**Single parameter:**
 ```bloblang
 map extract_user(data) {
   {
@@ -30,26 +43,31 @@ map extract_user(data) {
 }
 
 output.customer = extract_user(input.customer_data)
+output.customer = extract_user(data: input.customer_data)  # Named
+```
+
+**Multiple parameters:**
+```bloblang
+map format_price(amount, currency, decimals) {
+  currency + " " + amount.round(decimals).string()
+}
+
+# Positional
+output.price = format_price(99.99, "USD", 2)
+
+# Named
+output.price = format_price(amount: 99.99, currency: "USD", decimals: 2)
 ```
 
 **With variables:**
 ```bloblang
-map calculate_total(order) {
-  $subtotal = order.items.reduce((acc, item) -> acc + item.price, 0)
-  $tax = $subtotal * 0.1
-  $subtotal + $tax
+map calculate_total(subtotal, tax_rate) {
+  $tax = subtotal * tax_rate
+  subtotal + $tax
 }
 
-output.total = calculate_total(input.order)
-```
-
-**String transformation:**
-```bloblang
-map format_name(user) {
-  user.first_name + " " + user.last_name
-}
-
-output.display_name = format_name(input.user)
+output.total = calculate_total(100, 0.1)
+output.total = calculate_total(subtotal: 100, tax_rate: 0.1)
 ```
 
 **Recursion:**
@@ -68,9 +86,11 @@ output = walk_tree(input)
 
 ## 5.3 Parameter Semantics
 
-- The parameter is the **only** input to the map (no access to `input` or `output`)
-- The parameter is immutable
-- Maps are pure: same input always produces same output
+- Parameters are the **only** input to the map (no access to `input` or `output`)
+- Parameters are immutable
+- Maps are pure: same inputs always produce same output
+- Call with positional arguments (match order) or named arguments (match names)
+- **Cannot mix** positional and named arguments in the same call
 
 ## 5.4 Purity Constraints
 

@@ -7,6 +7,14 @@ Access nested data: `input.user.email`, `output.result.id`
 **Path roots:** `input`, `output`, `$variable`
 **Metadata:** `input@.key`, `output@.key`
 
+**Quoted field names:** Use `."quoted"` for fields with special characters, spaces, or any name. Dot required before quote:
+```bloblang
+input."field with spaces"
+output."special-chars"."nested.field"
+user."123"                    # Field name that starts with number
+data."any field"              # Can quote any field, not just special ones
+```
+
 ### Indexing
 
 ```bloblang
@@ -96,11 +104,25 @@ output.time = now()
 output.random = random()
 ```
 
+**Named arguments:** Functions, user maps, and lambdas support named arguments:
+```bloblang
+# Positional (order matters)
+output.result = some_function(arg1, arg2, arg3)
+
+# Named (order doesn't matter)
+output.result = some_function(param1: arg1, param2: arg2, param3: arg3)
+output.result = some_function(param3: arg3, param1: arg1, param2: arg2)
+
+# Cannot mix positional and named
+output.result = some_function(arg1, param2: arg2)  # ERROR
+```
+
 **Methods** (chained):
 ```bloblang
 output.upper = input.text.uppercase()
 output.len = input.items.length()
 output.parsed = input.date.ts_parse("2006-01-02")
+output.parsed = input.date.ts_parse(format: "2006-01-02")  # Named
 ```
 
 **Method Chaining:**
@@ -147,8 +169,13 @@ Lambda blocks must end with an expression (the return value). Statement-only blo
 $add = (a, b) -> a + b
 $double = x -> x * 2
 
+# Positional arguments
 output.sum = $add(5, 10)
 output.doubled = input.items.map_each($double)
+
+# Named arguments
+output.sum = $add(a: 5, b: 10)
+output.sum = $add(b: 10, a: 5)  # Order doesn't matter with named args
 ```
 
 **Purity:** Lambdas cannot assign to `output` or `output@` (no side effects).
@@ -206,6 +233,12 @@ output.tier = match {
 ```bloblang
 {"name": "Alice", "age": 30}
 {"id": input.id, "timestamp": now()}
+{"field with spaces": "value"}
+
+# Keys can be expressions (evaluate to string)
+{$key: $value}
+{"prefix_" + input.type: input.value}
+{input.field_name: input.field_value}
 ```
 
 ## 3.7 Statements
@@ -214,7 +247,8 @@ output.tier = match {
 ```bloblang
 output.field = expression
 output.user.id = input.id              # Creates nested structure
-output."special.field" = value         # Quoted field names
+output."special.field" = value         # Quoted field (dot required)
+output."field with spaces" = value     # Spaces in field name
 ```
 
 **Variable Declaration:**
