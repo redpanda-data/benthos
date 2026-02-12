@@ -63,10 +63,12 @@ output.tier = match input.score as s {
   _ => "bronze"
 }
 
-# Maps (functions)
+# Maps (pure functions)
 map normalize(data) {
-  output.id = data.user_id
-  output.name = data.full_name
+  {
+    "id": data.user_id,
+    "name": data.full_name
+  }
 }
 output.user = normalize(input.user_data)
 
