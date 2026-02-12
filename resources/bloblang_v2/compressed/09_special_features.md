@@ -12,10 +12,49 @@ $key = "dynamic_field"
 output.set($key, "value")
 ```
 
-## 9.2 Message Filtering
+## 9.2 Message Filtering & Deletion
 
-**Delete document:**
+**The `deleted()` function** returns a special deletion marker that instructs assignments to remove the target.
+
+### Deletion Semantics
+
 ```bloblang
+# Delete output field
+output.field = deleted()        # Field marked for deletion
+
+# Delete entire document
+output = deleted()              # Document marked for deletion (metadata persists)
+
+# Delete metadata key
+output@.key = deleted()         # Specific key removed
+
+# Delete all metadata
+output@ = deleted()             # All metadata removed
+```
+
+**Restoration:** Reassigning to a deleted target restores it:
+```bloblang
+output = deleted()              # Document deleted
+output = "hello"                # Document restored with new value
+
+output@ = deleted()             # All metadata deleted
+output@.key = "value"           # Metadata restored with one key
+```
+
+**Variable deletion:** Assigning `deleted()` to a variable **removes the variable**:
+```bloblang
+$val = deleted()                # Variable $val is deleted (ceases to exist)
+output.field = $val             # ERROR: variable $val does not exist
+```
+
+**Type operations:** You cannot call methods on `deleted()`:
+```bloblang
+deleted().type()                # ERROR: cannot call methods on deleted value
+```
+
+**Practical use - message filtering:**
+```bloblang
+# Conditional filtering
 output = if input.spam {
   deleted()
 } else {
@@ -23,42 +62,34 @@ output = if input.spam {
 }
 ```
 
-**Behavior:**
-- `output = deleted()` marks document as deleted (metadata persists)
-- `output@ = deleted()` explicitly deletes all metadata
-- Document and metadata are independent during execution
-- Reassigning output unmarks deletion: `output = "hello"` restores document with metadata intact
-- If mapping ends with output deleted, system removes entire message (document + metadata)
-
-**Examples:**
+**Metadata persistence during execution:**
 ```bloblang
-# Delete everything
+# Metadata persists even if output is temporarily deleted
 output = deleted()
-output@ = deleted()
-
-# Delete document, keep metadata for routing
-output = deleted()
-output@.reason = "spam_detected"
-output@.kafka_topic = "dead_letter"
-
-# Conditional restore
-output = deleted()
-output = if input.override { input } else { deleted() }
+output@.kafka_topic = "processed"   # Metadata set
+output = "hello"                    # Output restored
+# At end: both output and metadata exist
 ```
 
-Downstream processors remove deleted messages from stream.
+**Important:** If output is deleted **at the end of execution**, the entire message (document + metadata) is removed from the stream. Metadata assignments are meaningless for deleted messages:
 
-## 9.3 Message Expansion
-
-Return array to expand into multiple messages:
 ```bloblang
-$doc_root = input.without("items")
-output = input.items.map_each(item -> $doc_root.merge(item))
+# INCORRECT: These metadata assignments serve no purpose
+output = deleted()
+output@.reason = "spam_detected"    # Pointless - message will be removed
+output@.kafka_topic = "dead_letter" # Pointless - message will be removed
+# Result: Entire message deleted, metadata ignored
 ```
 
-Downstream processors split array into separate messages.
+To route failed/spam messages, the output document must exist:
+```bloblang
+# CORRECT: Route spam to dead letter with document
+output = input                       # Keep document (or create error document)
+output@.reason = "spam_detected"     # Metadata for routing
+output@.kafka_topic = "dead_letter"  # Route to dead letter topic
+```
 
-## 9.4 Non-Structured Data
+## 9.3 Non-Structured Data
 
 Handle raw strings/bytes:
 ```bloblang
@@ -69,7 +100,7 @@ output.parsed = input.parse_json()
 output.decoded = input.string()
 ```
 
-## 9.5 Conditional Literals
+## 9.4 Conditional Literals
 
 Build dynamic structures:
 ```bloblang
