@@ -111,6 +111,12 @@ output.result = input.text
   .replace_all(" ", "-")
 ```
 
+**Null handling:** Methods have implementation-specific null support. Use null-safe operators to skip methods when values are null:
+```bloblang
+input.value?.uppercase()    # Skip method if value is null
+input.value.uppercase()     # Call method (may error if null not supported)
+```
+
 ## 3.4 Lambda Expressions
 
 **Single parameter:**

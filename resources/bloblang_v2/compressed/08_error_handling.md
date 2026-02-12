@@ -81,6 +81,32 @@ input.user?.age.or(0).catch(-1)
 # null-safe → default for null → fallback for errors
 ```
 
+## 8.6 Method Chaining with Null
+
+**Method behavior on null:** Methods have implementation-specific null handling. Some methods accept null (e.g., `.type()` returns `"null"`), while others error if called on null (e.g., `.uppercase()`).
+
+```bloblang
+# Method that doesn't support null
+input.value.uppercase()     # ERROR if value is null
+
+# Use null-safe operator to skip method call
+input.value?.uppercase()    # Returns null if value is null (method not called)
+
+# Method that supports null
+input.value.type()          # Returns "null" if value is null (method called)
+
+# Chaining with null-safe operators
+input.items.first()?.uppercase()      # Skip uppercase if first() returns null
+input.user?.address?.city.or("Unknown")  # Combine null-safe navigation with defaults
+```
+
+**When a method returns null:** The null propagates to the next operation:
+```bloblang
+input.items.first().uppercase()       # ERROR if first() returns null (empty array)
+input.items.first()?.uppercase()      # OK: returns null if first() returns null
+input.items.first().or("").uppercase() # OK: provides default before uppercase
+```
+
 ## 8.6 Validation Methods
 
 ```bloblang
