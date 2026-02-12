@@ -65,7 +65,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Variables:** `$var` for declaration and reference
 - **Metadata:** `input@.key` (read), `output@.key` (write)
 - **Identifiers:** Bare identifiers allowed as path roots (e.g., map parameters: `data.field`)
-- **Indexing:** `[expr]` on arrays, strings, bytes. Negative indices supported.
+- **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position), bytes (byte position). Negative indices supported for arrays.
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
 - **Map calls:** `name(arg)` or `namespace.name(arg)`
 - **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, block `x -> { ... }`
