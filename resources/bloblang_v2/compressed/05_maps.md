@@ -84,16 +84,25 @@ map walk_tree(node) {
 output = walk_tree(input)
 ```
 
-**Recursion limits:** Maximum recursion depth and stack overflow behavior are implementation-defined. Implementations **must** support at least 1000 recursive calls to ensure basic portability. Implementations should provide clear error messages when recursion limits are exceeded.
+**Recursion limits:** Maximum recursion depth is implementation-defined. Implementations **must** support at least 1000 recursive calls to ensure basic portability. Exceeding the recursion limit throws a runtime error that stops execution immediately and **cannot be caught** with `.catch()`.
 
 ## 5.3 Parameter Semantics
 
 - Parameters are the **only** input to the map (no access to `input` or `output`)
-- Parameters themselves cannot be reassigned (they are read-only bindings)
-- Variables declared within maps can be reassigned
+- Parameters are **read-only** - they cannot be reassigned or used as assignment targets
+- Parameters are available as bare identifiers within the map body (e.g., `data.field`)
+- Variables declared within maps (using `$`) can be reassigned
 - Maps are pure: same inputs always produce same output
 - Call with positional arguments (match order) or named arguments (match names)
 - **Cannot mix** positional and named arguments in the same call
+
+```bloblang
+map example(data) {
+  data.field              # ✅ Valid: read from parameter
+  $copy = data            # ✅ Valid: parameter in expression
+  data = input.x          # ❌ Invalid: cannot assign to parameter
+}
+```
 
 ## 5.4 Purity Constraints
 
