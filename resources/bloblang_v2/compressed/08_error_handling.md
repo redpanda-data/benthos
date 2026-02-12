@@ -8,8 +8,8 @@ output.parsed = input.date.ts_parse("2006-01-02")
 # Throws error if parsing fails
 
 output.sound = match input.animal {
-  "cat" => "meow"
-  "dog" => "woof"
+  "cat" => "meow",
+  "dog" => "woof",
 }
 # Throws error if animal is neither "cat" nor "dog" (non-exhaustive match)
 ```

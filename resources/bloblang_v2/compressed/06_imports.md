@@ -83,8 +83,8 @@ Maps can call themselves without namespace prefix:
 ```bloblang
 map walk(node) {
   match node.type() as t {
-    t == "object" => node.map_each(item -> walk(item.value))
-    _ => node
+    t == "object" => node.map_each(item -> walk(item.value)),
+    _ => node,
   }
 }
 ```

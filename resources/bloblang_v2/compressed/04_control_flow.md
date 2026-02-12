@@ -42,6 +42,12 @@ $result = if input.score > 80 { "high" } else { "low" }
 
 # Expression context (lambda body)
 input.items.map_each(x -> if x > 0 { x * 2 } else { 0 })
+
+# ERROR: Statement body cannot end with expression
+if input.flag {
+  $x = 10
+  $x + 5    # Parse error: trailing expression in statement context
+}
 ```
 
 **If expressions without `else`:** When the condition is false, the assignment **does not execute**. The target field is neither created nor modified.
@@ -69,9 +75,9 @@ output.field2 = if false { "value" }    # Field doesn't exist in object
 **Match Expression** (returns value):
 ```bloblang
 output.sound = match input.animal as a {
-  a == "cat" => "meow"
-  a == "dog" => "woof"
-  _ => "unknown"
+  a == "cat" => "meow",
+  a == "dog" => "woof",
+  _ => "unknown",
 }
 ```
 
@@ -80,15 +86,15 @@ output.sound = match input.animal as a {
 ```bloblang
 # Not exhaustive - will error if animal is "bird"
 output.sound = match input.animal {
-  "cat" => "meow"
-  "dog" => "woof"
+  "cat" => "meow",
+  "dog" => "woof",
 }
 
 # Exhaustive - always matches
 output.sound = match input.animal {
-  "cat" => "meow"
-  "dog" => "woof"
-  _ => "unknown"  # Catch all other values
+  "cat" => "meow",
+  "dog" => "woof",
+  _ => "unknown",  # Catch all other values
 }
 ```
 
@@ -97,13 +103,13 @@ output.sound = match input.animal {
 match input.type() as t {
   t == "object" => {
     output = input.map_each(item -> transform(item.value))
-  }
+  },
   t == "array" => {
     output = input.map_each(elem -> transform(elem))
-  }
+  },
   _ => {
     output = input
-  }
+  },
 }
 ```
 
@@ -114,16 +120,16 @@ match input.type() as t {
 ```bloblang
 # Without 'as' (repeat expression)
 output.tier = match input.score {
-  input.score >= 100 => "gold"
-  input.score >= 50 => "silver"
-  _ => "bronze"
+  input.score >= 100 => "gold",
+  input.score >= 50 => "silver",
+  _ => "bronze",
 }
 
 # With 'as' (bind to variable)
 output.tier = match input.score as s {
-  s >= 100 => "gold"
-  s >= 50 => "silver"
-  _ => "bronze"
+  s >= 100 => "gold",
+  s >= 50 => "silver",
+  _ => "bronze",
 }
 ```
 
@@ -145,10 +151,10 @@ output.formatted = match input.currency as c {
     $symbol = "$"
     $amount = input.amount.round(2)
     $symbol + $amount.string()
-  }
+  },
   _ => {
     $amount = input.amount.round(2)
     c + " " + $amount.string()
-  }
+  },
 }
 ```
