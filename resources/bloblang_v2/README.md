@@ -57,6 +57,8 @@ This V2 specification evolved from analysis of V1 language weaknesses:
 
 17. **[Built-in Functions and Methods](17_builtin_functions.md)** - Overview of available functions and methods
 
+18. **[Implementation Optimizations](18_implementation_optimizations.md)** - Optional optimization strategies (lazy evaluation, iterators, etc.)
+
 ## Quick Start Examples
 
 ### Basic Assignment
