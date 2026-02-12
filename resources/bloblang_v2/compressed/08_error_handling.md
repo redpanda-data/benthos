@@ -6,7 +6,19 @@ Errors propagate through expressions:
 ```bloblang
 output.parsed = input.date.ts_parse("2006-01-02")
 # Throws error if parsing fails
+
+output.sound = match input.animal {
+  "cat" => "meow"
+  "dog" => "woof"
+}
+# Throws error if animal is neither "cat" nor "dog" (non-exhaustive match)
 ```
+
+Common error sources:
+- Type mismatches (e.g., `5 + "text"`)
+- Failed method calls (e.g., parsing, out-of-bounds access)
+- Non-exhaustive match expressions
+- Explicit `throw()` calls
 
 ## 8.2 Catch Method
 
