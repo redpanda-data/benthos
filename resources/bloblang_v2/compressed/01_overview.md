@@ -32,17 +32,19 @@ output.category = match input.score as s {
   _ => "low"
 }
 
-# Named transformation
+# Named transformation (pure function)
 map normalize_user(data) {
-  output.id = data.user_id
-  output.name = data.full_name
+  {
+    "id": data.user_id,
+    "name": data.full_name
+  }
 }
 output.user = normalize_user(input.user_data)
 ```
 
 ## 1.3 Lexical Structure
 
-**Keywords:** `input`, `output`, `if`, `else`, `match`, `as`, `map`, `deleted`, `import`
+**Keywords:** `input`, `output`, `if`, `else`, `match`, `as`, `map`, `import`
 
 **Operators:** `.`, `?.`, `@.`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `<`, `<=`, `&&`, `||`, `=>`, `->`
 

@@ -88,7 +88,7 @@ output@.content_type = "application/json"
 
 ```bloblang
 map walk(node) {
-  output = match node.type() as t {
+  match node.type() as t {
     t == "object" => node.map_each(item -> walk(item.value))
     t == "array" => node.map_each(elem -> walk(elem))
     t == "string" => node.uppercase()

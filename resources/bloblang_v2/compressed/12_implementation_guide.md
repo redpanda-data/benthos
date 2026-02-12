@@ -13,6 +13,8 @@
 - Time: `.ts_parse()`, `.ts_format()`, `.ts_unix()`
 - Error: `.catch()`, `.or()`, `.exists()`
 
+**Note:** This list shows commonly required methods. Implementations may provide additional methods (e.g., `.get()`, `.set()`, `.without()`, `.merge()`, `.append()`, `.parse_json()`) that are useful but not required by this specification. Consult implementation documentation for complete method listing.
+
 ## 12.2 Optional Optimizations
 
 Implementations may optimize without changing observable behavior. Results must be identical with or without optimization.
