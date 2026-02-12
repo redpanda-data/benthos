@@ -81,7 +81,7 @@ output.result = utils.transform(input.data)
 
 - **Immutable input:** `input` never changes
 - **Mutable output:** `output` built incrementally
-- **Block-scoped variables:** `$var` with shadowing
+- **Mutable variables:** `$var` can be reassigned, block-scoped with shadowing
 - **Null-safe operators:** `?.` and `?[]`
 - **Explicit type coercion:** No implicit conversion
 - **Function-style maps:** Called as `name(arg)`
