@@ -14,7 +14,7 @@ expression      := literal | path | function_call | method_chain |
 control_expr    := if_expr | match_expr
 
 path            := context_root path_component*
-context_root    := ('output' | 'input') metadata_accessor? | var_ref
+context_root    := ('output' | 'input') metadata_accessor? | var_ref | identifier
 metadata_accessor := '@.'
 path_component  := '.' field_name | '?.' field_name | '[' expression ']' | '?[' expression ']'
 field_name      := identifier | quoted_string
@@ -64,6 +64,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 
 - **Variables:** `$var` for declaration and reference
 - **Metadata:** `input@.key` (read), `output@.key` (write)
+- **Identifiers:** Bare identifiers allowed as path roots (e.g., map parameters: `data.field`)
 - **Indexing:** `[expr]` on arrays, strings, bytes. Negative indices supported.
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
 - **Map calls:** `name(arg)` or `namespace.name(arg)`
