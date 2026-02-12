@@ -83,16 +83,16 @@ input.user?.age.or(0).catch(-1)
 
 ## 8.6 Method Chaining with Null
 
-**Method behavior on null:** Methods have implementation-specific null handling. Some methods accept null (e.g., `.type()` returns `"null"`), while others error if called on null (e.g., `.uppercase()`).
+**Method type requirements:** Methods work on specific types, and calling a method on an incompatible type (including null) results in an error. Some methods like `.type()` accept any type including null, while data transformation methods typically require specific types.
 
 ```bloblang
-# Method that doesn't support null
-input.value.uppercase()     # ERROR if value is null
+# Method requires specific type (string)
+input.value.uppercase()     # ERROR if value is null (or any non-string type)
 
 # Use null-safe operator to skip method call
 input.value?.uppercase()    # Returns null if value is null (method not called)
 
-# Method that supports null
+# Method accepts any type including null
 input.value.type()          # Returns "null" if value is null (method called)
 
 # Chaining with null-safe operators
