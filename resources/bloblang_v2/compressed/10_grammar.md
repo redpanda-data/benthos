@@ -67,7 +67,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Metadata:** `input@.key` (read), `output@.key` (write)
 - **Identifiers:** Bare identifiers allowed as path roots (e.g., map parameters: `data.field`)
 - **Quoted fields:** Use `."string"` for field names (dot required before quote): `input."field name"`
-- **Object literals:** Keys are expressions that evaluate to strings: `{"key": value}` or `{$var: value}`
+- **Object literals:** Keys are expressions that **must** evaluate to strings at runtime (error if not): `{"key": value}` or `{$var: value}`. Use `.string()` for explicit type conversion.
 - **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position), bytes (byte position). Negative indices supported for arrays.
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
 - **Map calls:** `name(arg)` or `namespace.name(arg)` (positional or named arguments)

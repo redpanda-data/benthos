@@ -89,10 +89,10 @@ output@.content_type = "application/json"
 ```bloblang
 map walk(node) {
   match node.type() as t {
-    t == "object" => node.map_each(item -> walk(item.value))
-    t == "array" => node.map_each(elem -> walk(elem))
-    t == "string" => node.uppercase()
-    _ => node
+    t == "object" => node.map_each(item -> walk(item.value)),
+    t == "array" => node.map_each(elem -> walk(elem)),
+    t == "string" => node.uppercase(),
+    _ => node,
   }
 }
 output = walk(input)
@@ -113,8 +113,8 @@ output.user = if input.user_type == "premium" {
 }
 
 output.timestamp = match input.date_format as f {
-  f == "iso8601" => input.date.ts_parse("2006-01-02T15:04:05Z07:00").ts_unix()
-  f == "unix" => input.date.number()
-  _ => input.date.ts_parse("2006-01-02").ts_unix()
+  f == "iso8601" => input.date.ts_parse("2006-01-02T15:04:05Z07:00").ts_unix(),
+  f == "unix" => input.date.number(),
+  _ => input.date.ts_parse("2006-01-02").ts_unix(),
 }
 ```

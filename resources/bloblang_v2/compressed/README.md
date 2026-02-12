@@ -58,9 +58,9 @@ output.results = input.items
 
 # Conditionals
 output.tier = match input.score as s {
-  s >= 100 => "gold"
-  s >= 50 => "silver"
-  _ => "bronze"
+  s >= 100 => "gold",
+  s >= 50 => "silver",
+  _ => "bronze",
 }
 
 # Maps (pure functions)

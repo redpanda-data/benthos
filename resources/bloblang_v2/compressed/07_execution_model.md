@@ -50,19 +50,7 @@ output = "foo"         # Replace object with string
 output.field           # ERROR: cannot access field of string
 ```
 
-## 7.2 Order Independence
-
-Assignment order doesn't affect correctness (input never changes):
-```bloblang
-# These produce same result regardless of order
-output.count = input.items.length()
-output.active = input.items.filter(i -> i.active)
-output.count2 = input.items.length()  # Same as count
-```
-
-**Benefit:** Easier to refactor, statements can be reordered.
-
-## 7.3 Copy-and-Modify Pattern
+## 7.2 Copy-and-Modify Pattern
 
 ```bloblang
 # Copy document
@@ -75,7 +63,7 @@ output@ = input@
 output@.kafka_topic = "new-topic"
 ```
 
-## 7.4 Contexts
+## 7.3 Contexts
 
 **Top-level mapping contexts:**
 
@@ -98,7 +86,7 @@ output@.kafka_topic = "new-topic"
 - Variables: `$variable` (local to map)
 - **No access** to `input` or `output` (pure functions)
 
-## 7.5 Metadata
+## 7.4 Metadata
 
 Messages have metadata separate from document payload.
 
@@ -135,7 +123,7 @@ output@.kafka_topic = "new-topic"   # Override specific
 
 Undefined metadata keys return `null`.
 
-## 7.6 Scoping Rules
+## 7.5 Scoping Rules
 
 **Top-level scope:**
 - Variables accessible throughout mapping
@@ -170,7 +158,7 @@ output.inner = if input.flag {
 output.outer = $value  # Still 10
 ```
 
-## 7.7 Variable Immutability
+## 7.6 Variable Immutability
 
 Variables cannot be reassigned in same scope:
 ```bloblang
@@ -180,7 +168,7 @@ $value = 20      # ERROR: cannot reassign
 
 Shadowing in inner scope is allowed (creates new variable).
 
-## 7.8 Evaluation Order
+## 7.7 Evaluation Order
 
 Statements execute sequentially, top-to-bottom.
 Variables must be declared before use.

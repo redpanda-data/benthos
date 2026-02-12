@@ -27,9 +27,9 @@ output.active_users = input.users
 
 # Pattern matching
 output.category = match input.score as s {
-  s >= 80 => "high"
-  s >= 50 => "medium"
-  _ => "low"
+  s >= 80 => "high",
+  s >= 50 => "medium",
+  _ => "low",
 }
 
 # Named transformation (pure function)
