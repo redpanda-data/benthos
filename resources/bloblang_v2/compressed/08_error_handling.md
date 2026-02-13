@@ -68,7 +68,7 @@ input.user?.name    # null if user is null, error if user is non-object
 null?.name          # OK: returns null
 input.user?.name    # OK: returns null if user is null, or user.name if user is object
 "string"?.name      # ERROR: cannot access field on string (not null, wrong type)
-5?.name             # ERROR: cannot access field on number (not null, wrong type)
+5?.name             # ERROR: cannot access field on int64 (not null, wrong type)
 ```
 
 **`.catch()`**: Handles errors, not `null`
@@ -120,9 +120,10 @@ input.items.first().or("").uppercase() # OK: provides default before uppercase
 output.has_name = input.user.name.exists()
 
 # type() - check type
-output.valid = if input.value.type() == "number" {
+# Type checking - check for any signed integer type
+output.valid = if [ "int32", "int64" ].contains(input.value.type()) {
   input.value
 } else {
-  throw("Value must be number")
+  throw("Value must be a signed integer")
 }
 ```
