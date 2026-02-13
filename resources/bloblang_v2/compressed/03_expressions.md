@@ -29,8 +29,8 @@ input.items[-1]     # Array: last element
 input.items[-2]     # Array: second-to-last element
 input["field"]      # Object: dynamic field access
 input[$var]         # Object: dynamic field access with variable
-input.name[0]       # String: first codepoint (→ single-codepoint string)
-input.data[0]       # Bytes: first byte as number 0-255
+input.name[0]       # String: first codepoint as int32 (Unicode codepoint value)
+input.data[0]       # Bytes: first byte as int32 0-255
 ```
 
 **Negative indexing:** For arrays, negative indices count from the end: `-1` is last, `-2` is second-to-last, etc. Out-of-bounds negative indices throw errors.
@@ -38,25 +38,25 @@ input.data[0]       # Bytes: first byte as number 0-255
 **Semantics:**
 - **Objects:** Indexed by string, returns field value (dynamic field access)
 - **Arrays:** Indexed by number, returns element at position
-- **Strings:** Indexed by number (codepoint position), returns single-codepoint string
-- **Bytes:** Indexed by number (byte position), returns number (0-255)
+- **Strings:** Indexed by number (codepoint position), returns int32 (Unicode codepoint value)
+- **Bytes:** Indexed by number (byte position), returns int32 (byte value 0-255)
 
 **String indexing is codepoint-based, not grapheme-based:**
 ```bloblang
 # Simple characters (1 codepoint each)
-"hello"[0]       # "h"
-"café"[3]        # "é" (1 codepoint)
+"hello"[0]       # 104 (int32: codepoint for 'h')
+"café"[3]        # 233 (int32: codepoint for 'é')
 
 # Emoji (1 codepoint)
-"😀"[0]          # "😀" (full emoji)
+"😀"[0]          # 128512 (int32: codepoint for 😀)
 
 # Complex graphemes (multiple codepoints)
-"👋🏽"[0]         # "👋" (base emoji only, without skin tone modifier)
-"👋🏽"[1]         # "🏽" (skin tone modifier alone)
+"👋🏽"[0]         # 128075 (int32: base emoji 👋)
+"👋🏽"[1]         # 127995 (int32: skin tone modifier 🏽)
 
 # Family emoji with ZWJ (zero-width joiners)
-"👨‍👩‍👧‍👦"[0]    # "👨" (man only, not full family)
-"👨‍👩‍👧‍👦"[1]    # Zero-width joiner (invisible character)
+"👨‍👩‍👧‍👦"[0]    # 128104 (int32: man 👨)
+"👨‍👩‍👧‍👦"[1]    # 8205 (int32: zero-width joiner)
 ```
 
 **All string operations are codepoint-based:**
@@ -68,7 +68,7 @@ input.data[0]       # Bytes: first byte as number 0-255
 
 **Byte operations are byte-based:**
 ```bloblang
-"hello".bytes()[0]          # 104 (byte value of 'h')
+"hello".bytes()[0]          # 104 (int32: byte value of 'h')
 "hello".bytes().length()    # 5 (bytes)
 "👋".bytes().length()       # 4 (UTF-8 encoding uses 4 bytes)
 ```

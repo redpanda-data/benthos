@@ -61,9 +61,8 @@ output.total = input.items.reduce((acc, item) -> acc + item.price, 0)
 output.first = input.items[0].catch(null)
 output.last = input.items[-1].catch(null)
 
-# Strings (rune/character position)
-output.first_char = input.name[0]
-output.initials = input.first[0] + input.last[0]
+# Strings (codepoint position, returns int32)
+output.first_codepoint = input.name[0]          # int32 Unicode codepoint
 
 # Dynamic indexing
 output.selected = input.options[input.index].catch("invalid")
@@ -114,7 +113,7 @@ output.user = if input.user_type == "premium" {
 
 output.timestamp = match input.date_format as f {
   f == "iso8601" => input.date.ts_parse("2006-01-02T15:04:05Z07:00").ts_unix(),
-  f == "unix" => input.date.number(),
+  f == "unix" => input.date.int64(),
   _ => input.date.ts_parse("2006-01-02").ts_unix(),
 }
 ```
