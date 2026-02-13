@@ -58,7 +58,9 @@ lambda_expr     := lambda_params '->' (expression | lambda_block)
 lambda_params   := identifier | '(' identifier (',' identifier)* ')'
 lambda_block    := '{' var_decl* expression '}'
 
-literal         := number | string | boolean | null | array | object
+literal         := int_literal | float_literal | int32_literal | int64_literal | 
+                    uint32_literal | uint64_literal | float32_literal | float64_literal |
+                    string | boolean | null | array | object
 array           := '[' [expression (',' expression)*] ']'
 object          := '{' [key_value (',' key_value)*] '}'
 key_value       := expression ':' expression
@@ -79,7 +81,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
   - **Match with `as`:** Creates a read-only binding in expressions (e.g., `match input.x as val { val.field ... }`)
 - **Quoted fields:** Use `."string"` for field names (dot required before quote): `input."field name"`
 - **Object literals:** Keys are expressions that **must** evaluate to strings at runtime (error if not): `{"key": value}` or `{$var: value}`. Use `.string()` for explicit type conversion.
-- **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position), bytes (byte position). Negative indices supported for arrays.
+- **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int32), bytes (byte position, returns int32). Negative indices supported for arrays.
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
 - **Map calls:** `name(arg)` or `namespace.name(arg)` (positional or named arguments)
 - **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments

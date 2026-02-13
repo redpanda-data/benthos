@@ -9,7 +9,7 @@
 **Common methods:**
 - String: `.uppercase()`, `.lowercase()`, `.trim()`, `.split()`, `.replace_all()`
 - Array: `.filter()`, `.map_each()`, `.sort()`, `.length()`, `.first()`, `.last()`
-- Type: `.type()`, `.string()`, `.number()`, `.bool()`, `.bytes()`
+- Type: `.type()`, `.string()`, `.int32()`, `.int64()`, `.uint32()`, `.uint64()`, `.float32()`, `.float64()`, `.bool()`, `.bytes()`
 - Time: `.ts_parse()`, `.ts_format()`, `.ts_unix()`
 - Error: `.catch()`, `.or()`, `.exists()`
 
@@ -105,7 +105,7 @@ Optimize repeated concatenation:
 
 Provide clear error messages with context:
 ```
-mapping.blobl:15:22: Type mismatch: cannot add number and string
+mapping.blobl:15:22: Type mismatch: cannot add int64 and string
   output.result = 5 + "3"
                       ^^^
 ```
