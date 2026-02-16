@@ -44,7 +44,7 @@ output.user = normalize_user(input.user_data)
 
 ## 1.3 Lexical Structure
 
-**Keywords:** `input`, `output`, `if`, `else`, `match`, `as`, `map`, `import`
+**Keywords:** `input`, `output`, `if`, `else`, `match`, `as`, `map`, `import`, `_`
 
 **Operators:** `.`, `?.`, `@.`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `<`, `<=`, `&&`, `||`, `=>`, `->`
 
@@ -64,7 +64,7 @@ output.user = normalize_user(input.user_data)
 
 **Comments:** `#` to end-of-line
 
-**Identifiers:** `[a-zA-Z_][a-zA-Z0-9_]*`
+**Identifiers:** `[a-zA-Z_][a-zA-Z0-9_]*` (excluding keywords; notably `_` alone is not a valid identifier)
 
 **Quoted fields:** Use `."quoted"` syntax for field names with special characters or spaces. Dot required before quote:
 ```bloblang

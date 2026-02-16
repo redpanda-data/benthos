@@ -234,22 +234,29 @@ output.age = if input.birthdate != null {
 
 **Match Expression:**
 ```bloblang
-output.sound = match input.animal as a {
-  a == "cat" => "meow",
-  a == "dog" => "woof",
-  a.contains("bird") => "chirp",
+# Equality match: cases compared against matched value
+output.sound = match input.animal {
+  "cat" => "meow",
+  "dog" => "woof",
   _ => "unknown",
 }
 
-# Boolean match (no expression)
-output.tier = match {
+# Boolean match with 'as': cases must be boolean expressions
+output.tier = match input.score as s {
+  s >= 100 => "gold",
+  s >= 50 => "silver",
+  _ => "bronze",
+}
+
+# Boolean match (no expression): cases must be boolean expressions
+output.category = match {
   input.score >= 100 => "gold",   # Cases evaluated in order
   input.score >= 50 => "silver",  # First true case wins
   _ => "bronze",
 }
 ```
 
-**Boolean match semantics:** Cases are evaluated in order. The first case that yields `true` activates its expression. If a case evaluates to a non-boolean value, an error is thrown.
+**Match semantics:** There are three forms: `match expr { ... }` compares each case value by equality against the matched expression. `match expr as x { ... }` binds the matched value to `x` and each case must be a boolean expression. `match { ... }` (no expression) also requires each case to be a boolean expression. In all boolean forms, cases are evaluated in order, first `true` wins, and a non-boolean case throws an error.
 
 **Purity:** Conditional expressions cannot assign to `output` or `output@`.
 
@@ -284,6 +291,21 @@ output.field = expression
 output.user.id = input.id              # Creates nested structure
 output."special.field" = value         # Quoted field (dot required)
 output."field with spaces" = value     # Spaces in field name
+```
+
+**Auto-creation of intermediate structures:** Assigning to a nested path automatically creates intermediate objects (and arrays when using index syntax) as needed:
+```bloblang
+# output starts as {}
+output.user.address.city = "London"
+# output is now {"user": {"address": {"city": "London"}}}
+
+# Array auto-creation with index syntax
+output.items[0].name = "first"
+# output.items created as array, output.items[0] created as object
+
+# Collision with non-object/non-array value is an error
+output.user = "Alice"
+output.user.name = "Alice"     # ERROR: output.user is a string, not an object
 ```
 
 **Variable Declaration:**
