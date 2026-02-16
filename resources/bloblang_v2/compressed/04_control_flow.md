@@ -144,17 +144,28 @@ match input.type() as t {
 
 **Parsing disambiguation:** Like `if`, the syntactic context determines statement vs expression form. Match statements are only valid at top-level or inside other statement bodies.
 
-**Context binding with `as`** is optional. When omitted, case expressions reference the original matched expression directly:
+### Three Match Forms
+
+**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected.
 
 ```bloblang
-# Without 'as' (repeat expression)
-output.tier = match input.score {
-  input.score >= 100 => "gold",
-  input.score >= 50 => "silver",
-  _ => "bronze",
+output.sound = match input.animal {
+  "cat" => "meow",
+  "dog" => "woof",
+  _ => "unknown",
 }
 
-# With 'as' (bind to variable)
+# Equivalent to:
+output.sound = match input.animal as a {
+  a == "cat" => "meow",
+  a == "dog" => "woof",
+  _ => "unknown",
+}
+```
+
+**2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown.
+
+```bloblang
 output.tier = match input.score as s {
   s >= 100 => "gold",
   s >= 50 => "silver",
@@ -162,27 +173,20 @@ output.tier = match input.score as s {
 }
 ```
 
-Use `as` when the matched expression is complex or used multiple times in cases.
+Use `as` when you need range checks or complex conditions against the matched value.
 
-**Evaluation semantics:** The matched expression is evaluated **once** before testing any cases, regardless of whether `as` is used. The value is then compared against each case condition in order. Using `as` simply binds the evaluated value to a variable for cleaner syntax, but does not change evaluation behavior.
-
-**Boolean match (no expression):** When `match` is used without an expression, each case must be a boolean expression. Cases are evaluated in order, and the first one that yields `true` is selected. If a case evaluates to a non-boolean value, an error is thrown.
+**3. Boolean match (`match { bool => ... }`):** No matched expression. Each case must be a **boolean expression**. Cases are evaluated in order, and the first one that yields `true` is selected. If a case evaluates to a non-boolean value, an error is thrown.
 
 ```bloblang
-# Boolean match
 output.category = match {
   input.score >= 90 => "A",
   input.score >= 80 => "B",
   input.score >= 70 => "C",
   _ => "F",
 }
-
-# ERROR: non-boolean case
-output.bad = match {
-  "hello" => "result",  # ERROR: "hello" is string, not boolean
-  _ => "default",
-}
 ```
+
+**Key distinction:** Without `as`, case values are compared by equality against the matched expression. With `as`, case expressions must be booleans.
 
 ## 4.3 Block-Scoped Variables
 
