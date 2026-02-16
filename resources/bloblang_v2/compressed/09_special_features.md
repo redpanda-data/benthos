@@ -98,6 +98,10 @@ output.user = {
 output.matrix = [[1, deleted(), 3], [4, 5]]
 # Result: [[1, 3], [4, 5]]
 
+# Deeply nested - deletion propagates through all levels
+output.nested = [deleted(), [deleted(), 3]]
+# Result: [[3]] (first element deleted, then inner first element deleted)
+
 # Nested objects
 output.user = {
   "name": "Alice",
