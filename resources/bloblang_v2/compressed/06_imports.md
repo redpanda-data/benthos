@@ -47,13 +47,16 @@ import "/etc/benthos/common.blobl" as common
 
 **All top-level maps are exported automatically.** Variables (including top-level variables) are never exported - only the importing file can access them through the namespace.
 
-For private helpers, use variables (not maps):
+Only maps are accessible through the namespace; variables remain private to the file:
 ```bloblang
-$private_helper = data -> data.value * 2  # Not exported
+# utils.blobl
+$internal = 42                             # Not exported
+map transform(data) { data.value * 2 }    # Exported
 
-map public_api(data) {                     # Exported
-  output = $private_helper(data)
-}
+# main.blobl
+import "./utils.blobl" as utils
+output.result = utils.transform(input)     # ✅ Works: maps are exported
+output.value = utils.$internal             # ❌ Error: variables not exported
 ```
 
 ## 6.5 Error Handling

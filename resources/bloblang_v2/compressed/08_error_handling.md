@@ -44,19 +44,28 @@ output.count = input.items.length().or(0)
 
 ## 8.4 Throw Function
 
-Throw custom errors that **stop execution immediately**:
+Throw custom errors:
 ```bloblang
 output.value = if input.value != null {
   input.value
 } else {
-  throw("Value is required")  # Halts mapping with error
+  throw("Value is required")
 }
-
-# Assignment never happens if throw executes
-output.result = throw("error")  # Stops execution, result unset
 ```
 
-`throw()` halts the entire mapping with an error. No subsequent statements execute.
+**Error propagation:** `throw()` produces an error that propagates like any other error. It can be caught with `.catch()`:
+```bloblang
+# Caught: provides fallback value
+output.result = throw("bad value").catch("fallback")  # "fallback"
+
+# Caught in expression context
+output.name = input.name.or(throw("name is required")).catch("Anonymous")
+
+# Uncaught: halts the mapping
+output.result = throw("fatal error")  # No .catch(), stops execution
+```
+
+When a `throw()` error is **not caught** by `.catch()`, it halts the entire mapping and no subsequent statements execute.
 
 ## 8.5 Null-Safe vs Error-Safe
 
@@ -116,9 +125,6 @@ input.items.first().or("").uppercase() # OK: provides default before uppercase
 ## 8.7 Validation Methods
 
 ```bloblang
-# exists() - check if field exists
-output.has_name = input.user.name.exists()
-
 # type() - check type
 # Type checking - check for any signed integer type
 output.valid = if [ "int32", "int64" ].contains(input.value.type()) {

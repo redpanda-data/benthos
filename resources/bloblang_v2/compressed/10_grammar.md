@@ -23,7 +23,7 @@ top_level_context_root := ('output' | 'input') metadata_accessor? | var_ref
 expr_path       := expr_context_root path_component*
 expr_context_root := ('output' | 'input') metadata_accessor? | var_ref | identifier
 
-metadata_accessor := '@.'
+metadata_accessor := '@'
 path_component  := '.' field_name | '?.' field_name | '[' expression ']' | '?[' expression ']'
 field_name      := identifier | string_literal
 var_ref         := '$' identifier
@@ -41,10 +41,10 @@ if_stmt         := 'if' expression '{' stmt_body '}'
 expr_body       := var_decl* expression
 stmt_body       := statement+
 
-match_expr      := 'match' expression ('as' identifier)? '{' expr_match_case (',' expr_match_case)* '}'
-                 | 'match' '{' expr_match_case (',' expr_match_case)* '}'
-match_stmt      := 'match' expression ('as' identifier)? '{' stmt_match_case (',' stmt_match_case)* '}'
-                 | 'match' '{' stmt_match_case (',' stmt_match_case)* '}'
+match_expr      := 'match' expression ('as' identifier)? '{' (expr_match_case ',')+ '}'
+                 | 'match' '{' (expr_match_case ',')+ '}'
+match_stmt      := 'match' expression ('as' identifier)? '{' (stmt_match_case ',')+ '}'
+                 | 'match' '{' (stmt_match_case ',')+ '}'
 expr_match_case := (expression | '_') '=>' (expression | '{' expr_body '}')
 stmt_match_case := (expression | '_') '=>' '{' stmt_body '}'
 
@@ -58,11 +58,11 @@ lambda_expr     := lambda_params '->' (expression | lambda_block)
 lambda_params   := identifier | '(' identifier (',' identifier)* ')'
 lambda_block    := '{' var_decl* expression '}'
 
-literal         := int_literal | float_literal | int32_literal | int64_literal | 
-                    uint32_literal | uint64_literal | float32_literal | float64_literal |
-                    string | boolean | null | array | object
-array           := '[' [expression (',' expression)*] ']'
-object          := '{' [key_value (',' key_value)*] '}'
+literal         := float_literal | int_literal | string | boolean | null | array | object
+int_literal     := '-'? [0-9]+
+float_literal   := '-'? [0-9]+ '.' [0-9]+
+array           := '[' [expression (',' expression)* ','?] ']'
+object          := '{' [key_value (',' key_value)* ','?] '}'
 key_value       := expression ':' expression
 
 arg_list        := positional_args | named_args
