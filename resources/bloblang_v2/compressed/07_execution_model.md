@@ -144,7 +144,7 @@ Undefined metadata keys return `null`.
 output.x = input.y                        # ✅ Read input, write output
 
 # Top-level lambda: can read input/output
-output.items = input.data.map_each(x -> {
+output.items = input.data.map_array(x -> {
   $multiplier = input.config.multiplier   # ✅ Can read input
   $base = output.base_value               # ✅ Can read output
   x * $multiplier
@@ -158,7 +158,7 @@ map transform(data) {
 
 # Lambda inside map: also no input/output access
 map process(items) {
-  items.map_each(x -> {
+  items.map_array(x -> {
     $val = input.config                   # ❌ ERROR: cannot access input
     x * 2                                 # ✅ OK: use parameters and variables
   })

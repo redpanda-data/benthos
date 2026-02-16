@@ -53,7 +53,7 @@ output.city = input.user?.address?.city.or("Unknown")
 # Functional
 output.results = input.items
   .filter(item -> item.active)
-  .map_each(item -> item.value * 2)
+  .map_array(item -> item.value * 2)
   .sort()
 
 # Conditionals
