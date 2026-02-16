@@ -106,7 +106,7 @@ interval: 1ms
 	err := b.Connect(ctx)
 	require.NoError(t, err)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		m, _, err := b.ReadBatch(ctx)
 		require.NoError(t, err)
 		require.Equal(t, 1, m.Len())
@@ -127,7 +127,7 @@ count: 10
 	err := b.Connect(ctx)
 	require.NoError(t, err)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		m, _, err := b.ReadBatch(ctx)
 		require.NoError(t, err)
 		require.Equal(t, 1, m.Len())
@@ -158,7 +158,7 @@ batch_size: 2
 	err := b.Connect(ctx)
 	require.NoError(t, err)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		m, _, err := b.ReadBatch(ctx)
 		require.NoError(t, err)
 		if i == 4 {
@@ -192,7 +192,7 @@ interval: 0s
 	err := b.Connect(ctx)
 	require.NoError(t, err)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		m, _, err := b.ReadBatch(ctx)
 		require.NoError(t, err)
 		require.Equal(t, 1, m.Len())
@@ -214,7 +214,7 @@ interval: ""
 	err := b.Connect(ctx)
 	require.NoError(t, err)
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		m, _, err := b.ReadBatch(ctx)
 		require.NoError(t, err)
 		require.Equal(t, 1, m.Len())

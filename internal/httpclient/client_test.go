@@ -99,7 +99,7 @@ url: %v
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	for i := 0; i < nTestLoops; i++ {
+	for i := range nTestLoops {
 		testStr := fmt.Sprintf("test%v", i)
 		testMsg := service.MessageBatch{
 			service.NewMessage([]byte(testStr)),
@@ -226,7 +226,7 @@ headers:
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	for i := 0; i < nTestLoops; i++ {
+	for i := range nTestLoops {
 		testStr := fmt.Sprintf(`{"test":%v,"foo":{"bar":"firstvar","baz":"secondvar"}}`, i)
 		testMsg := service.MessageBatch{service.NewMessage([]byte(testStr))}
 
@@ -285,7 +285,7 @@ url: %v
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	for i := 0; i < nTestLoops; i++ {
+	for i := range nTestLoops {
 		testStr := fmt.Sprintf("test%v", i)
 		testMsg := service.MessageBatch{
 			service.NewMessage([]byte(testStr + "PART-A")),
@@ -326,7 +326,7 @@ url: %v
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	for i := 0; i < nTestLoops; i++ {
+	for range nTestLoops {
 		testStr := fmt.Sprintf("test%v", j)
 		resMsg, err := h.Send(t.Context(), nil)
 		require.NoError(t, err)
@@ -502,7 +502,7 @@ func TestHTTPClientReceiveMultipart(t *testing.T) {
 		body := &bytes.Buffer{}
 		writer := multipart.NewWriter(body)
 
-		for i := 0; i < len(msg); i++ {
+		for i := range msg {
 			part, err := writer.CreatePart(textproto.MIMEHeader{
 				"Content-Type": []string{"application/octet-stream"},
 				"foo-bar":      []string{"baz-" + strconv.Itoa(i), "ignored"},
@@ -530,7 +530,7 @@ url: %v
 	h, err := NewClientFromOldConfig(conf, service.MockResources())
 	require.NoError(t, err)
 
-	for i := 0; i < nTestLoops; i++ {
+	for range nTestLoops {
 		testStr := fmt.Sprintf("test%v", j)
 		resMsg, err := h.Send(t.Context(), nil)
 		require.NoError(t, err)

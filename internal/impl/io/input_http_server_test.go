@@ -71,7 +71,7 @@ http_server:
 	defer server.Close()
 
 	// Test both single and multipart messages.
-	for i := 0; i < nTestLoops; i++ {
+	for i := range nTestLoops {
 		testStr := fmt.Sprintf("test%v", i)
 		testResponse := fmt.Sprintf("response%v", i)
 		// Send it as single part
@@ -110,7 +110,7 @@ http_server:
 	}
 
 	// Test MIME multipart parsing, as defined in RFC 2046
-	for i := 0; i < nTestLoops; i++ {
+	for i := range nTestLoops {
 		partOne := fmt.Sprintf("test%v part one", i)
 		partTwo := fmt.Sprintf("test%v part two", i)
 
@@ -156,7 +156,7 @@ http_server:
 	// Test requests without content-type
 	client := &http.Client{}
 
-	for i := 0; i < nTestLoops; i++ {
+	for i := range nTestLoops {
 		testStr := fmt.Sprintf("test%v", i)
 		testResponse := fmt.Sprintf("response%v", i)
 		// Send it as single part
@@ -837,15 +837,13 @@ http_server:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		if clientErr := client.WriteMessage(
 			websocket.BinaryMessage, []byte("hello world 1"),
 		); clientErr != nil {
 			t.Error(clientErr)
 		}
-		wg.Done()
-	}()
+	})
 
 	var ts message.Transaction
 	select {
@@ -859,15 +857,13 @@ http_server:
 	require.NoError(t, ts.Ack(tCtx, nil))
 	wg.Wait()
 
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		if closeErr := client.WriteMessage(
 			websocket.BinaryMessage, []byte("hello world 2"),
 		); closeErr != nil {
 			t.Error(closeErr)
 		}
-		wg.Done()
-	}()
+	})
 
 	select {
 	case ts = <-h.TransactionChan():
@@ -1013,9 +1009,7 @@ http_server:
 	input := `{"foo":"test message","field1":"bar"}`
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		req, err := http.NewRequest(http.MethodPost, server.URL+"/testpost", bytes.NewBufferString(input))
 		if err != nil {
@@ -1051,7 +1045,7 @@ http_server:
 		if exp, act := "", res.Header.Get("Language"); exp != act {
 			t.Errorf("Wrong sync response header: %v != %v", act, exp)
 		}
-	}()
+	})
 
 	var ts message.Transaction
 	select {
@@ -1169,9 +1163,7 @@ http_server:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		hdr, body, err := createMultipart(input, "application/octet-stream")
 		require.NoError(t, err)
@@ -1183,7 +1175,7 @@ http_server:
 		act, err := readMultipart(res)
 		require.NoError(t, err)
 		assert.Equal(t, output, act)
-	}()
+	})
 
 	var ts message.Transaction
 	select {
@@ -1240,9 +1232,7 @@ http_server:
 	input := `{"foo":"test message","field1":"bar"}`
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		res, err := http.Post(
 			server.URL+"/testpost",
@@ -1287,7 +1277,7 @@ http_server:
 		if exp, act := "bar", res.Header.Get("foo"); exp != act {
 			t.Errorf("Wrong sync response header: %v != %v", act, exp)
 		}
-	}()
+	})
 
 	// Non errored message
 	var ts message.Transaction

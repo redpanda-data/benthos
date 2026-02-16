@@ -82,9 +82,7 @@ file:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 		defer done()
@@ -94,7 +92,7 @@ file:
 		require.NoError(t, pushFn(ctx, service.NewMessage([]byte("hello world 3"))))
 
 		require.NoError(t, strm.StopWithin(time.Second*5))
-	}()
+	})
 
 	require.NoError(t, strm.Run(t.Context()))
 	wg.Wait()
@@ -133,9 +131,7 @@ file:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 		defer done()
@@ -154,7 +150,7 @@ file:
 		}))
 
 		require.NoError(t, strm.StopWithin(time.Second*5))
-	}()
+	})
 
 	require.NoError(t, strm.Run(t.Context()))
 	wg.Wait()
@@ -1247,7 +1243,7 @@ func (n *noopOutput) Close(ctx context.Context) error {
 
 func benchmarkStreamRunOutputNX(b *testing.B, size int) {
 	var outputsBuf bytes.Buffer
-	for i := 0; i < size; i++ {
+	for range size {
 		outputsBuf.WriteString("      - custom: {}\n")
 	}
 

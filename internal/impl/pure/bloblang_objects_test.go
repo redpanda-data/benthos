@@ -60,7 +60,6 @@ func TestConcatMethod(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			exec, err := bloblang.Parse(test.mapping)
 			require.NoError(t, err)
@@ -147,7 +146,6 @@ func TestZipMethod(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			exec, err := bloblang.Parse(test.mapping)
 			require.NoError(t, err)

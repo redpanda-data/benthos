@@ -214,7 +214,7 @@ func TestOutputOwnedNonBlockingNonBuffered(t *testing.T) {
 		return tmpErr == nil
 	}, time.Second, time.Millisecond*10)
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		require.Error(t, mo.WriteBatchNonBlocking(MessageBatch{
 			NewMessage([]byte("first")),
 		}, func(ctx context.Context, err error) error {
@@ -270,7 +270,7 @@ func TestOutputOwnedNonBlockingBuffered(t *testing.T) {
 
 	require.NoError(t, mo.PrimeBuffered(5))
 
-	for i := 0; i < 6; i++ {
+	for i := range 6 {
 		assert.Eventually(t, func() bool {
 			tmpErr := mo.WriteBatchNonBlocking(MessageBatch{
 				NewMessage(strconv.AppendInt(nil, int64(i), 10)),
@@ -281,7 +281,7 @@ func TestOutputOwnedNonBlockingBuffered(t *testing.T) {
 		}, time.Second, time.Millisecond*10)
 	}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		require.Error(t, mo.WriteBatchNonBlocking(MessageBatch{
 			NewMessage([]byte("another")),
 		}, func(ctx context.Context, err error) error {

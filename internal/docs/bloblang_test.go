@@ -47,7 +47,6 @@ func TestLintBloblangMapping(t *testing.T) {
 
 	ctx := docs.NewLintContext(docs.NewLintConfig(bundle.GlobalEnvironment))
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			gotLints := docs.LintBloblangMapping(ctx, test.line, test.col, test.mapping)
 			require.EqualValues(t, test.wantLints, gotLints)
@@ -110,7 +109,6 @@ func TestLintBloblangField(t *testing.T) {
 
 	ctx := docs.NewLintContext(docs.NewLintConfig(bundle.GlobalEnvironment))
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			gotLints := docs.LintBloblangField(ctx, test.line, test.col, test.mapping)
 			require.EqualValues(t, test.wantLints, gotLints)

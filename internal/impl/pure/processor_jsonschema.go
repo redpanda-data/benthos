@@ -161,16 +161,18 @@ func (s *jsonSchemaProc) Process(ctx context.Context, part *message.Part) ([]*me
 	if !result.Valid() {
 		s.log.Debug("The document is not valid")
 		var errStr string
+		var errStrSb164 strings.Builder
 		for i, desc := range result.Errors() {
 			if i > 0 {
-				errStr += "\n"
+				errStrSb164.WriteString("\n")
 			}
 			description := strings.ToLower(desc.Description())
 			if property := desc.Details()["property"]; property != nil {
 				description = property.(string) + strings.TrimPrefix(description, strings.ToLower(property.(string)))
 			}
-			errStr += desc.Field() + " " + description
+			errStrSb164.WriteString(desc.Field() + " " + description)
 		}
+		errStr += errStrSb164.String()
 		return nil, errors.New(errStr)
 	}
 

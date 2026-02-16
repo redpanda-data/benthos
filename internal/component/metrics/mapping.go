@@ -4,6 +4,7 @@ package metrics
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
@@ -44,12 +45,8 @@ func (m *Mapping) WithStaticVars(kvs map[string]any) *Mapping {
 	newM := *m
 
 	newM.staticVars = map[string]any{}
-	for k, v := range m.staticVars {
-		newM.staticVars[k] = v
-	}
-	for k, v := range kvs {
-		newM.staticVars[k] = v
-	}
+	maps.Copy(newM.staticVars, m.staticVars)
+	maps.Copy(newM.staticVars, kvs)
 
 	return &newM
 }
@@ -70,9 +67,7 @@ func (m *Mapping) mapPath(path string, labelNames, labelValues []string) (outPat
 
 	var input any = path
 	vars := map[string]any{}
-	for k, v := range m.staticVars {
-		vars[k] = v
-	}
+	maps.Copy(vars, m.staticVars)
 
 	var v any = value.Nothing(nil)
 	if err := m.m.ExecOnto(query.FunctionContext{

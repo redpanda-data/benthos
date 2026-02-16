@@ -39,15 +39,13 @@ func TestAsyncPreserverClose(t *testing.T) {
 	exp := errors.New("foo error")
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
+	wg.Go(func() {
 		if err := pres.Connect(ctx); err != nil {
 			t.Error(err)
 		}
 		assert.EqualError(t, pres.Close(ctx), "foo error")
-		wg.Done()
-	}()
+	})
 
 	select {
 	case readerImpl.connChan <- nil:
@@ -82,7 +80,7 @@ func TestAsyncPreserverRetryPriority(t *testing.T) {
 		{message.NewPart([]byte("second msg"))},
 	}
 	readerImpl.ackChan = make(chan error, 3)
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		readerImpl.ackChan <- nil
 	}
 	pres := input.NewAsyncPreserver(readerImpl)
@@ -183,10 +181,8 @@ func TestAsyncPreserverNackThenClose(t *testing.T) {
 	pres := input.NewAsyncPreserver(readerImpl)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		select {
 		case readerImpl.connChan <- nil:
@@ -223,7 +219,7 @@ func TestAsyncPreserverNackThenClose(t *testing.T) {
 		case <-ctx.Done():
 			t.Error("Timed out")
 		}
-	}()
+	})
 
 	err := pres.Connect(ctx)
 	assert.NoError(t, err)
@@ -256,10 +252,8 @@ func TestAsyncPreserverCloseThenAck(t *testing.T) {
 	pres := input.NewAsyncPreserver(readerImpl)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		select {
 		case readerImpl.connChan <- nil:
@@ -296,7 +290,7 @@ func TestAsyncPreserverCloseThenAck(t *testing.T) {
 		case <-ctx.Done():
 			t.Error("Timed out")
 		}
-	}()
+	})
 
 	err := pres.Connect(ctx)
 	assert.NoError(t, err)
@@ -329,10 +323,8 @@ func TestAsyncPreserverCloseThenNackThenAck(t *testing.T) {
 	pres := input.NewAsyncPreserver(readerImpl)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		select {
 		case readerImpl.connChan <- nil:
@@ -369,7 +361,7 @@ func TestAsyncPreserverCloseThenNackThenAck(t *testing.T) {
 		case <-ctx.Done():
 			t.Error("Timed out")
 		}
-	}()
+	})
 
 	err := pres.Connect(ctx)
 	assert.NoError(t, err)
@@ -407,10 +399,8 @@ func TestAsyncPreserverMutateThenNack(t *testing.T) {
 	pres := input.NewAsyncPreserver(readerImpl)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		select {
 		case readerImpl.connChan <- nil:
@@ -447,7 +437,7 @@ func TestAsyncPreserverMutateThenNack(t *testing.T) {
 		case <-ctx.Done():
 			t.Error("Timed out")
 		}
-	}()
+	})
 
 	err := pres.Connect(ctx)
 	assert.NoError(t, err)
@@ -496,10 +486,8 @@ func TestAsyncPreserverCloseViaConnectThenAck(t *testing.T) {
 	pres := input.NewAsyncPreserver(readerImpl)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		select {
 		case readerImpl.connChan <- nil:
@@ -542,7 +530,7 @@ func TestAsyncPreserverCloseViaConnectThenAck(t *testing.T) {
 		case <-ctx.Done():
 			t.Error("Timed out")
 		}
-	}()
+	})
 
 	err := pres.Connect(ctx)
 	assert.NoError(t, err)

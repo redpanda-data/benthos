@@ -85,8 +85,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, cerr := conn.Write([]byte("foo\n"))
 		require.NoError(t, cerr)
@@ -96,8 +95,7 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -150,8 +148,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, cerr := conn.Write([]byte("foo\n"))
 		require.NoError(t, cerr)
@@ -161,8 +158,7 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func(reject bool) (message.Batch, error) {
 		var tran message.Transaction
@@ -259,8 +255,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, cerr := conn.Write([]byte("foo\n"))
 		require.NoError(t, cerr)
@@ -275,8 +270,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -295,7 +289,7 @@ socket_server:
 		"baz": {},
 	}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		msg, err := readNextMsg()
 		require.NoError(t, err)
 
@@ -331,8 +325,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, cerr := conn.Write([]byte("foo\n"))
 		require.NoError(t, cerr)
@@ -346,8 +339,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -396,8 +388,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, cerr := conn.Write([]byte("foo@"))
 		require.NoError(t, cerr)
@@ -411,8 +402,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n@@"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -461,8 +451,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -478,8 +467,7 @@ socket_server:
 		require.NoError(t, cerr)
 
 		conn.Close()
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -528,8 +516,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -541,8 +528,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -597,8 +583,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -610,8 +595,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func(reject bool) (message.Batch, error) {
 		var tran message.Transaction
@@ -712,8 +696,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, cerr := conn.Write([]byte("foo\n"))
 		require.NoError(t, cerr)
@@ -729,8 +712,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -786,8 +768,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo@"))
@@ -802,8 +783,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n@@"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -863,8 +843,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -880,8 +859,7 @@ socket_server:
 		require.NoError(t, cerr)
 
 		conn.Close()
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -936,8 +914,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -949,8 +926,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1001,8 +977,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -1014,8 +989,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func(reject bool) (message.Batch, error) {
 		var tran message.Transaction
@@ -1108,8 +1082,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, cerr := conn.Write([]byte("foo\n"))
 		require.NoError(t, cerr)
@@ -1125,8 +1098,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1178,8 +1150,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo@"))
@@ -1194,8 +1165,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n@@"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1251,8 +1221,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -1268,8 +1237,7 @@ socket_server:
 		require.NoError(t, cerr)
 
 		conn.Close()
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1324,8 +1292,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -1337,8 +1304,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1389,8 +1355,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -1407,8 +1372,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1427,7 +1391,7 @@ socket_server:
 		"baz": {},
 	}
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		msg, err := readNextMsg()
 		require.NoError(t, err)
 
@@ -1460,8 +1424,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -1476,8 +1439,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1524,8 +1486,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo@"))
@@ -1540,8 +1501,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n@@"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1588,8 +1548,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -1605,8 +1564,7 @@ socket_server:
 		require.NoError(t, cerr)
 
 		conn.Close()
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1655,8 +1613,7 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
@@ -1668,8 +1625,7 @@ socket_server:
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction
@@ -1729,15 +1685,13 @@ socket_server:
 	require.NoError(t, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 
 		_, cerr := conn.Write([]byte("foo\n"))
 		require.NoError(t, cerr)
 
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var tran message.Transaction

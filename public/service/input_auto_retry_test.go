@@ -107,16 +107,14 @@ func TestAutoRetryClose(t *testing.T) {
 	expErr := errors.New("foo error")
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 
 		err := pres.Connect(ctx)
 		require.NoError(t, err)
 
 		assert.Equal(t, expErr, pres.Close(ctx))
-	}()
+	})
 
 	select {
 	case readerImpl.connChan <- nil:
@@ -373,9 +371,7 @@ func TestAutoRetryReadAfterClose(t *testing.T) {
 	pres := AutoRetryNacks(readerImpl)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		select {
 		case readerImpl.connChan <- nil:
 		case <-time.After(time.Second):
@@ -390,20 +386,18 @@ func TestAutoRetryReadAfterClose(t *testing.T) {
 		// Force mockInput.Read() to return ErrEndOfInput after the first
 		// message was read
 		close(readerImpl.readChan)
-	}()
+	})
 
 	require.NoError(t, pres.Connect(ctx))
 
 	msg, fn, err := pres.Read(ctx)
 	require.NoError(t, err)
 
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		// Acknowledge the message explicitly so the input doesn't attempt to
 		// redeliver it
 		require.NoError(t, fn(ctx, err))
-	}()
+	})
 
 	select {
 	// Push a message on the ackChan to unblock the message acknowledgement
