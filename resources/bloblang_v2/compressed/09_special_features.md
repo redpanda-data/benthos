@@ -41,13 +41,29 @@ output@.key = deleted()         # Specific key removed
 output@ = deleted()             # All metadata removed
 ```
 
-**Restoration:** Reassigning to a deleted target restores it:
+**Reading deleted output:** Reading a deleted `output` yields `null`:
+```bloblang
+output = deleted()
+$val = output                   # $val is null
+```
+
+**Restoration:** Reassigning the root `output` to a deleted target restores it:
 ```bloblang
 output = deleted()              # Document deleted
 output = "hello"                # Document restored with new value
 
 output@ = deleted()             # All metadata deleted
 output@.key = "value"           # Metadata restored with one key
+```
+
+**Field assignment on deleted output is an error:** Since deleted output reads as `null`, assigning to a nested field is a type error (same as assigning through any non-object value):
+```bloblang
+output = deleted()
+output.field = "value"          # ERROR: cannot assign field on non-object (null)
+
+# Same error as:
+output = "hello"
+output.field = "value"          # ERROR: cannot assign field on non-object (string)
 ```
 
 **Variable deletion:** Assigning `deleted()` to a variable **removes the variable**:
@@ -158,11 +174,13 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 - Assignment targets: `output.field = deleted()`, `output = deleted()`, `output@.key = deleted()`
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
+- `map_array` lambda return value: element is filtered out
 
 **Causes runtime error:**
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls: `deleted().type()`, `deleted().uppercase()`
 - Used as function arguments (except assignment): `some_function(deleted())`
+- Lambda return values in methods other than `map_array` (e.g., `reduce`, `filter`, `sort`)
 
 The distinction: `deleted()` is a special marker that triggers deletion when flowing into an assignment or collection, but cannot be used as a normal value in computations.
 

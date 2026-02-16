@@ -22,16 +22,16 @@ Common error sources:
 
 ## 8.2 Catch Method
 
-Handle errors with `.catch()`:
+Handle errors with `.catch()`. The method catches errors from its **immediate receiver** (the expression to its left). If the receiver succeeds, `.catch()` returns its value unchanged. If the receiver errors, the fallback expression is evaluated and returned. If the fallback itself errors, that error propagates and can be caught by a subsequent `.catch()`:
 ```bloblang
 # Provide fallback value
 output.parsed = input.date.ts_parse("2006-01-02").catch(null)
 
 # Chain multiple attempts
 output.parsed = input.date
-  .ts_parse("2006-01-02")
-  .catch(input.date.ts_parse("2006/01/02"))
-  .catch(null)
+  .ts_parse("2006-01-02")                         # Try format 1
+  .catch(input.date.ts_parse("2006/01/02"))        # If format 1 fails, try format 2
+  .catch(null)                                     # If format 2 also fails, use null
 ```
 
 ## 8.3 Or Method
