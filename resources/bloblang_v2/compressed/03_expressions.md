@@ -173,7 +173,7 @@ Lambda parameters are **read-only** and available as bare identifiers within the
 
 **Single parameter:**
 ```bloblang
-input.items.map_each(item -> item.value * 2)   # 'item' is read-only parameter
+input.items.map_array(item -> item.value * 2)   # 'item' is read-only parameter
 input.items.filter(x -> x > 10)
 ```
 
@@ -185,7 +185,7 @@ input.scores.reduce((sum, score, index) -> sum + (score * index), 0)
 
 **Multi-statement body:**
 ```bloblang
-input.items.map_each(item -> {
+input.items.map_array(item -> {
   $base = item.price * item.quantity
   $tax = $base * 0.1
   $base + $tax
@@ -201,7 +201,7 @@ $double = x -> x * 2
 
 # Positional arguments
 output.sum = $add(5, 10)
-output.doubled = input.items.map_each($double)
+output.doubled = input.items.map_array($double)
 
 # Named arguments
 output.sum = $add(a: 5, b: 10)

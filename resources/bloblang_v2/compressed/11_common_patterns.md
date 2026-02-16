@@ -35,7 +35,7 @@ output.parsed = input.date
 # Filter, map, sort
 output.results = input.items
   .filter(item -> item.active)
-  .map_each(item -> item.name.uppercase())
+  .map_array(item -> item.name.uppercase())
   .sort()
 
 # Multi-statement transformations
@@ -44,7 +44,7 @@ output.processed = input.orders
     $total = order.items.reduce((acc, item) -> acc + item.price, 0)
     $total > 100
   })
-  .map_each(order -> {
+  .map_array(order -> {
     $subtotal = order.items.reduce((acc, item) -> acc + item.price, 0)
     $tax = $subtotal * 0.1
     {"order_id": order.id, "total": $subtotal + $tax}
@@ -88,8 +88,8 @@ output@.content_type = "application/json"
 ```bloblang
 map walk(node) {
   match node.type() as t {
-    t == "object" => node.map_each(item -> walk(item.value)),
-    t == "array" => node.map_each(elem -> walk(elem)),
+    t == "object" => node.map_object((key, value) -> walk(value)),
+    t == "array" => node.map_array(elem -> walk(elem)),
     t == "string" => node.uppercase(),
     _ => node,
   }

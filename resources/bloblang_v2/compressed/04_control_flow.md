@@ -41,7 +41,7 @@ output.value = if input.flag {
 $result = if input.score > 80 { "high" } else { "low" }
 
 # Expression context (lambda body)
-input.items.map_each(x -> if x > 0 { x * 2 } else { 0 })
+input.items.map_array(x -> if x > 0 { x * 2 } else { 0 })
 
 # ERROR: Statement body cannot end with expression
 if input.flag {
@@ -131,10 +131,10 @@ output.sound = match input.animal {
 ```bloblang
 match input.type() as t {
   t == "object" => {
-    output = input.map_each(item -> transform(item.value))
+    output = input.map_object((key, value) -> transform(value))
   },
   t == "array" => {
-    output = input.map_each(elem -> transform(elem))
+    output = input.map_array(elem -> transform(elem))
   },
   _ => {
     output = input
