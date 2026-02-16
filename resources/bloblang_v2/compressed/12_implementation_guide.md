@@ -8,7 +8,8 @@
 
 **Common methods:**
 - String: `.uppercase()`, `.lowercase()`, `.trim()`, `.split()`, `.replace_all()`
-- Array: `.filter()`, `.map_each()`, `.sort()`, `.length()`, `.first()`, `.last()`
+- Array: `.filter()`, `.map_array()`, `.sort()`, `.length()`, `.first()`, `.last()`
+- Object: `.map_object()`
 - Type: `.type()`, `.string()`, `.int32()`, `.int64()`, `.uint32()`, `.uint64()`, `.float32()`, `.float64()`, `.bool()`, `.bytes()`
 - Time: `.ts_parse()`, `.ts_format()`, `.ts_unix()`
 - Error: `.catch()`, `.or()`
@@ -23,7 +24,7 @@ Implementations may optimize without changing observable behavior. Results must 
 
 **Strategy:** Methods may return internal iterators instead of materializing arrays immediately.
 
-**Lazy methods:** `.filter()`, `.map_each()`, `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()`
+**Lazy methods:** `.filter()`, `.map_array()`, `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()`
 
 **Terminal methods:** `.sort()`, `.reverse()`, `.length()`, `.first()`, `.last()`, `.any()`, `.all()`, `.join()`, `.fold()`, `.reduce()`
 
@@ -38,7 +39,7 @@ Implementations may optimize without changing observable behavior. Results must 
 # Direct chain (stays lazy)
 output.top = input.items
   .filter(x -> x.active)
-  .map_each(x -> x.value)
+  .map_array(x -> x.value)
   .take(10)
 # Single pass, processes only ~10 items
 
@@ -58,7 +59,7 @@ Combine multiple operations into single loop:
 # User code
 output.results = input.items
   .filter(x -> x.active)
-  .map_each(x -> x.value * 2)
+  .map_array(x -> x.value * 2)
   .filter(x -> x > 0)
 
 # Implementation may fuse into:

@@ -69,8 +69,8 @@ output.items = [1, deleted(), 3]              # Result: [1, 3]
 output.items = [1, if false { 2 }, 3]         # Result: [1, 3]
 output.mixed = ["a", if false { "b" } else { deleted() }, "c"]  # Result: ["a", "c"]
 
-# map_each - deleted elements filtered out
-output.positive = input.numbers.map_each(x -> if x > 0 { x } else { deleted() })
+# map_array - deleted elements filtered out
+output.positive = input.numbers.map_array(x -> if x > 0 { x } else { deleted() })
 # Input: [-1, 2, -3, 4] → Output: [2, 4]
 ```
 

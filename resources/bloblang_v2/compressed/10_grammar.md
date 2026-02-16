@@ -125,7 +125,7 @@ map invalid(data) {
 
 **Lambda body (bare identifiers only in expressions):**
 ```bloblang
-input.items.map_each(item -> item.value * 2)  # ✅ Valid: 'item' in expression
+input.items.map_array(item -> item.value * 2)  # ✅ Valid: 'item' in expression
 input.items.filter(x -> x.active)              # ✅ Valid: 'x' in expression
 ```
 
