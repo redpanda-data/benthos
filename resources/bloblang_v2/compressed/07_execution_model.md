@@ -78,7 +78,7 @@ output@.kafka_topic = "new-topic"
 - Built incrementally during execution
 
 **Variables:**
-- `$variable` - Block-scoped, immutable
+- `$variable` - Block-scoped, mutable
 - Can shadow variables from outer scopes
 
 **Map body contexts:**

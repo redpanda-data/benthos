@@ -11,7 +11,7 @@
 - Array: `.filter()`, `.map_each()`, `.sort()`, `.length()`, `.first()`, `.last()`
 - Type: `.type()`, `.string()`, `.int32()`, `.int64()`, `.uint32()`, `.uint64()`, `.float32()`, `.float64()`, `.bool()`, `.bytes()`
 - Time: `.ts_parse()`, `.ts_format()`, `.ts_unix()`
-- Error: `.catch()`, `.or()`, `.exists()`
+- Error: `.catch()`, `.or()`
 
 **Note:** This list shows commonly required methods. Implementations may provide additional methods (e.g., `.get()`, `.set()`, `.without()`, `.merge()`, `.append()`, `.parse_json()`) that are useful but not required by this specification. Consult implementation documentation for complete method listing.
 
