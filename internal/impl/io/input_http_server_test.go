@@ -1010,7 +1010,6 @@ http_server:
 
 	wg := sync.WaitGroup{}
 	wg.Go(func() {
-
 		req, err := http.NewRequest(http.MethodPost, server.URL+"/testpost", bytes.NewBufferString(input))
 		if err != nil {
 			t.Error(err)
@@ -1164,7 +1163,6 @@ http_server:
 
 	wg := sync.WaitGroup{}
 	wg.Go(func() {
-
 		hdr, body, err := createMultipart(input, "application/octet-stream")
 		require.NoError(t, err)
 
@@ -1233,7 +1231,6 @@ http_server:
 
 	wg := sync.WaitGroup{}
 	wg.Go(func() {
-
 		res, err := http.Post(
 			server.URL+"/testpost",
 			"application/octet-stream",

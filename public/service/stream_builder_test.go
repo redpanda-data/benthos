@@ -83,7 +83,6 @@ file:
 
 	wg := sync.WaitGroup{}
 	wg.Go(func() {
-
 		ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 		defer done()
 
@@ -132,7 +131,6 @@ file:
 
 	wg := sync.WaitGroup{}
 	wg.Go(func() {
-
 		ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 		defer done()
 

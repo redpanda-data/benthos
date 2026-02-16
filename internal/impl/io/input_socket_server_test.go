@@ -269,7 +269,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -338,7 +337,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -401,7 +399,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n@@"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -527,7 +524,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -594,7 +590,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func(reject bool) (message.Batch, error) {
@@ -711,7 +706,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -782,7 +776,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n@@"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -925,7 +918,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -988,7 +980,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func(reject bool) (message.Batch, error) {
@@ -1097,7 +1088,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -1164,7 +1154,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n@@"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -1303,7 +1292,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -1371,7 +1359,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -1438,7 +1425,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -1500,7 +1486,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n@@"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -1624,7 +1609,6 @@ socket_server:
 
 		_, cerr = conn.Write([]byte("baz\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {
@@ -1690,7 +1674,6 @@ socket_server:
 
 		_, cerr := conn.Write([]byte("foo\n"))
 		require.NoError(t, cerr)
-
 	})
 
 	readNextMsg := func() (message.Batch, error) {

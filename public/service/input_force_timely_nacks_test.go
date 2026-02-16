@@ -52,7 +52,6 @@ func TestBatchTimelyNacksClose(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-
 		err := pres.Connect(ctx)
 		require.NoError(t, err)
 

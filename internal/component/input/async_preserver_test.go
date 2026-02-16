@@ -183,7 +183,6 @@ func TestAsyncPreserverNackThenClose(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-
 		select {
 		case readerImpl.connChan <- nil:
 		case <-ctx.Done():
@@ -254,7 +253,6 @@ func TestAsyncPreserverCloseThenAck(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-
 		select {
 		case readerImpl.connChan <- nil:
 		case <-ctx.Done():
@@ -325,7 +323,6 @@ func TestAsyncPreserverCloseThenNackThenAck(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-
 		select {
 		case readerImpl.connChan <- nil:
 		case <-ctx.Done():
@@ -401,7 +398,6 @@ func TestAsyncPreserverMutateThenNack(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-
 		select {
 		case readerImpl.connChan <- nil:
 		case <-ctx.Done():
@@ -488,7 +484,6 @@ func TestAsyncPreserverCloseViaConnectThenAck(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	wg.Go(func() {
-
 		select {
 		case readerImpl.connChan <- nil:
 		case <-ctx.Done():

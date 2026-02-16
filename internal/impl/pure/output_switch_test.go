@@ -773,7 +773,6 @@ cases:
 
 	wg := sync.WaitGroup{}
 	wg.Go(func() {
-
 		closed := 0
 		bar := `{"foo":"bar"}`
 		baz := `{"foo":"baz"}`

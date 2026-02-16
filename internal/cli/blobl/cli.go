@@ -306,7 +306,7 @@ func run(c *cli.Context, opts *common.CLIOpts) error {
 
 	var mu sync.Mutex
 
-	for i := 0; i < t; i++ {
+	for range t {
 		eg.Go(func() error {
 			execCache := newExecCache()
 			for {
