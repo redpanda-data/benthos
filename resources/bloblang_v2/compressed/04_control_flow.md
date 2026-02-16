@@ -110,7 +110,7 @@ output.sound = match input.animal as a {
 }
 ```
 
-**Exhaustiveness:** Match expressions are **not required** to be exhaustive. If no case matches at runtime, the mapping **throws an error**. Use `_` as a catch-all to handle unexpected values:
+**Exhaustiveness:** Match expressions and statements are **not required** to be exhaustive. If no case matches at runtime, the mapping **throws an error**. Use `_` as a catch-all to handle unexpected values:
 
 ```bloblang
 # Not exhaustive - will error if animal is "bird"

@@ -20,7 +20,7 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 | `object` | Key-value map | `{"key": "value"}` |
 | `lambda` | Function value | `x -> x * 2` |
 
-**Important:** String operations (indexing, `.length()`, slicing, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
+**Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
 
 ## 2.2 Type Introspection
 
