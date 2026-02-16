@@ -217,7 +217,7 @@ func TestProcessorMultiMsgs(t *testing.T) {
 	resFns := []func(context.Context, error) error{}
 
 	// Receive N messages
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case procT, open := <-proc.TransactionChan():
 			require.True(t, open)
@@ -239,7 +239,7 @@ func TestProcessorMultiMsgs(t *testing.T) {
 	}
 
 	// Respond without error N times
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		require.NoError(t, resFns[i](ctx, nil))
 	}
 
@@ -298,7 +298,7 @@ func TestProcessorMultiMsgsBatchError(t *testing.T) {
 	resFns := []func(context.Context, error) error{}
 
 	// Receive expected messages
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case procT, open := <-proc.TransactionChan():
 			require.True(t, open)
@@ -416,7 +416,7 @@ func TestProcessorMultiMsgsBatchUnknownError(t *testing.T) {
 	resFns := []func(context.Context, error) error{}
 
 	// Receive expected messages
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		select {
 		case procT, open := <-proc.TransactionChan():
 			require.True(t, open)

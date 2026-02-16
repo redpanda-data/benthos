@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"sync"
 	"testing"
@@ -43,10 +44,8 @@ func (m *mockNBWriter) WriteBatch(ctx context.Context, msg message.Batch) error 
 	m.t.Helper()
 	assert.Equal(m.t, 1, msg.Len())
 	return msg.Iter(func(i int, p *message.Part) error {
-		for _, eOn := range m.errorOn {
-			if eOn == string(p.AsBytes()) {
-				return errors.New("test err")
-			}
+		if slices.Contains(m.errorOn, string(p.AsBytes())) {
+			return errors.New("test err")
 		}
 		m.written = append(m.written, string(p.AsBytes()))
 		return nil
@@ -82,7 +81,7 @@ func TestNotBatchedSingleMessages(t *testing.T) {
 
 	nbOut.TriggerStartConsuming()
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		select {
 		case tChan <- message.NewTransaction(msg(fmt.Sprintf("foo%v", i)), resChan):
 		case <-time.After(time.Second):
