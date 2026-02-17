@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Go API: Schema caching and fingerprinting support added to avoid redundant format conversions. (@Jeffail)
+- Bloblang method `split` now supports converting empty substrings to `null` directly. (@rockwotj)
 
 ## 4.64.0 - 2026-01-30
 

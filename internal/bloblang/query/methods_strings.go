@@ -2042,13 +2042,23 @@ var _ = registerSimpleMethod(
 			`{"new_value":["foo","bar","baz"]}`,
 		),
 		NewExampleSpec("",
+			`root.new_value = this.value.split(",", true)`,
+			`{"value":"foo,,qux"}`,
+			`{"new_value":["foo",null,"qux"]}`,
+		),
+		NewExampleSpec("",
 			`root.words = this.sentence.split(" ")`,
 			`{"sentence":"hello world from bloblang"}`,
 			`{"words":["hello","world","from","bloblang"]}`,
 		),
-	).Param(ParamString("delimiter", "The delimiter to split with.")),
+	).Param(ParamString("delimiter", "The delimiter to split with.")).
+		Param(ParamBool("empty_as_null", "To treat empty substrings as null values").Default(false)),
 	func(args *ParsedParams) (simpleMethod, error) {
 		delim, err := args.FieldString("delimiter")
+		if err != nil {
+			return nil, err
+		}
+		emptyAsNull, err := args.FieldBool("empty_as_null")
 		if err != nil {
 			return nil, err
 		}
@@ -2057,16 +2067,32 @@ var _ = registerSimpleMethod(
 			switch t := v.(type) {
 			case string:
 				bits := strings.Split(t, delim)
-				vals := make([]any, 0, len(bits))
-				for _, b := range bits {
-					vals = append(vals, b)
+				vals := make([]any, len(bits))
+				if emptyAsNull {
+					for i, b := range bits {
+						if len(b) != 0 {
+							vals[i] = b
+						}
+					}
+				} else {
+					for i, b := range bits {
+						vals[i] = b
+					}
 				}
 				return vals, nil
 			case []byte:
 				bits := bytes.Split(t, delimB)
-				vals := make([]any, 0, len(bits))
-				for _, b := range bits {
-					vals = append(vals, b)
+				vals := make([]any, len(bits))
+				if emptyAsNull {
+					for i, b := range bits {
+						if len(b) != 0 {
+							vals[i] = b
+						}
+					}
+				} else {
+					for i, b := range bits {
+						vals[i] = b
+					}
 				}
 				return vals, nil
 			}

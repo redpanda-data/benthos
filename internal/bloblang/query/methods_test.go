@@ -1168,6 +1168,13 @@ func TestMethods(t *testing.T) {
 			),
 			output: []any{"foo", "bar", "baz"},
 		},
+		"check split empty as null": {
+			input: methods(
+				literalFn("foo,,baz"),
+				method("split", ",", true),
+			),
+			output: []any{"foo", nil, "baz"},
+		},
 		"check split bytes": {
 			input: methods(
 				function("content"),
@@ -1177,6 +1184,16 @@ func TestMethods(t *testing.T) {
 				{content: `foo,bar,baz,`},
 			},
 			output: []any{[]byte("foo"), []byte("bar"), []byte("baz"), []byte("")},
+		},
+		"check split bytes empty as null": {
+			input: methods(
+				function("content"),
+				method("split", ",", true),
+			),
+			messages: []easyMsg{
+				{content: `foo,,baz,`},
+			},
+			output: []any{[]byte("foo"), nil, []byte("baz"), nil},
 		},
 		"check slice": {
 			input: methods(
