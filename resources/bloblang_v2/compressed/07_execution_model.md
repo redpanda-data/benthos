@@ -88,7 +88,7 @@ output@.kafka_topic = "new-topic"
 
 ## 7.4 Metadata
 
-Messages have metadata separate from document payload.
+Messages have metadata separate from document payload. Metadata (`output@`) is always an object (key-value map) — unlike `output`, which can hold any type. This distinction affects deletion behavior (see Section 9.2).
 
 **Access:**
 ```bloblang

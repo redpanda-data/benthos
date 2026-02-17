@@ -41,27 +41,33 @@ output@.key = deleted()         # Specific key removed
 output@ = deleted()             # All metadata removed
 ```
 
-**Reading deleted output:** Reading a deleted `output` yields `null`:
+**`output` vs `output@` deletion — different semantics:**
+
+`output` can hold any type (object, array, string, bytes, etc.), so `output = deleted()` removes the document entirely — it is marked for deletion and reads as `null`. Restoring it requires a root reassignment (`output = value`); field assignment through a deleted document is a type error since there is no underlying structure.
+
+`output@` is always an object (a key-value map of metadata). It has no other valid form. `output@ = deleted()` clears all keys from the metadata object but the underlying object remains. Because the object still exists, assigning individual keys after clearing is always valid.
+
 ```bloblang
+# Document deletion: removes the document, reads as null
 output = deleted()
 $val = output                   # $val is null
+output = "hello"                # OK: root reassignment restores document
+output = deleted()
+output.field = "value"          # ERROR: cannot assign field on non-object (null)
+
+# Metadata deletion: clears all keys, object still exists
+output@ = deleted()             # All metadata keys removed (object remains empty)
+output@.key = "value"           # OK: assigning key to the (empty) metadata object
 ```
 
-**Restoration:** Reassigning the root `output` to a deleted target restores it:
+**Restoration of deleted output:** Only root reassignment restores a deleted document:
 ```bloblang
 output = deleted()              # Document deleted
 output = "hello"                # Document restored with new value
 
-output@ = deleted()             # All metadata deleted
-output@.key = "value"           # Metadata restored with one key
-```
-
-**Field assignment on deleted output is an error:** Since deleted output reads as `null`, assigning to a nested field is a type error (same as assigning through any non-object value):
-```bloblang
+# Same error as assigning through any non-object value:
 output = deleted()
 output.field = "value"          # ERROR: cannot assign field on non-object (null)
-
-# Same error as:
 output = "hello"
 output.field = "value"          # ERROR: cannot assign field on non-object (string)
 ```
