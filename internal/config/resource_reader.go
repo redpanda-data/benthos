@@ -262,7 +262,7 @@ func (r *Reader) TriggerResourceUpdate(mgr bundle.NewManagement, strict bool, pa
 
 	lintlog := mgr.Logger()
 	for _, lint := range lints {
-		lintlog.Info(lint)
+		lintlog.Info("%s", lint)
 	}
 	if strict && len(lints) > 0 {
 		mgr.Logger().Error("Rejecting updated resource config due to linter errors, to allow linting errors run Benthos with --chilled")

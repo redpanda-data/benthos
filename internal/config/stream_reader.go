@@ -226,7 +226,7 @@ func (r *Reader) TriggerStreamUpdate(mgr bundle.NewManagement, strict bool, path
 
 	lintlog := mgr.Logger()
 	for _, lint := range lints {
-		lintlog.Info(lint)
+		lintlog.Info("%s", lint)
 	}
 	if strict && len(lints) > 0 {
 		mgr.Logger().Error("Rejecting updated stream %v config due to linter errors, to allow linting errors run Benthos with --chilled.", info.id)

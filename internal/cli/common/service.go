@@ -165,7 +165,7 @@ func initStreamsMode(
 			return nil, fmt.Errorf("failed to create stream (%v): %w", id, err)
 		}
 	}
-	logger.Info(opts.ExecTemplate("Launching {{.ProductName}} in streams mode, use CTRL+C to close"))
+	logger.Info("%s", opts.ExecTemplate("Launching {{.ProductName}} in streams mode, use CTRL+C to close"))
 
 	if err := confReader.SubscribeStreamChanges(func(id string, newStreamConf *stream.Config) error {
 		ctx, done := context.WithTimeout(context.Background(), time.Second*30)
@@ -227,7 +227,7 @@ func initNormalMode(
 
 	stoppableStream := NewSwappableStopper(initStream)
 
-	logger.Info(opts.ExecTemplate("Launching a {{.ProductName}} instance, use CTRL+C to close"))
+	logger.Info("%s", opts.ExecTemplate("Launching a {{.ProductName}} instance, use CTRL+C to close"))
 
 	if err := confReader.SubscribeConfigChanges(func(newStreamConf *config.Type) error {
 		ctx, done := context.WithTimeout(context.Background(), 30*time.Second)
