@@ -175,12 +175,13 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
 - `map_array` lambda return value: element is filtered out
+- `map_object` lambda return value: key-value pair is removed from result
 
 **Causes runtime error:**
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls: `deleted().type()`, `deleted().uppercase()`
 - Used as function arguments (except assignment): `some_function(deleted())`
-- Lambda return values in methods other than `map_array` (e.g., `reduce`, `filter`, `sort`)
+- Lambda return values in methods other than `map_array`/`map_object` (e.g., `filter`, `sort`)
 
 The distinction: `deleted()` is a special marker that triggers deletion when flowing into an assignment or collection, but cannot be used as a normal value in computations.
 
