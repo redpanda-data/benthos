@@ -57,10 +57,15 @@ unary_op        := '!' | '-'
 lambda_expr     := lambda_params '->' (expression | lambda_block)
 lambda_params   := identifier | '(' identifier (',' identifier)* ')'
 lambda_block    := '{' var_decl* expression '}'
+paren_expr      := '(' expression ')'
 
-literal         := float_literal | int_literal | string | boolean | null | array | object
+literal         := float_literal | int_literal | string_literal | boolean | null | array | object
 int_literal     := '-'? [0-9]+
 float_literal   := '-'? [0-9]+ '.' [0-9]+
+string_literal  := '"' string_char* '"' | '"""' multiline_char* '"""'
+string_char     := [^"\\\n] | escape_seq
+escape_seq      := '\\' ( '"' | '\\' | 'n' | 't' | 'r' | 'u' hex hex hex hex )
+multiline_char  := [^"""] | '"' [^"] | '""' [^"]
 array           := '[' [expression (',' expression)* ','?] ']'
 object          := '{' [key_value (',' key_value)* ','?] '}'
 key_value       := expression ':' expression

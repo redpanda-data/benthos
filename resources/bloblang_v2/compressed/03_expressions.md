@@ -179,8 +179,7 @@ input.items.filter(x -> x > 10)
 
 **Multiple parameters:**
 ```bloblang
-input.items.reduce((acc, item) -> acc + item.price, 0)
-input.scores.reduce((sum, score, index) -> sum + (score * index), 0)
+input.data.map_object((key, value) -> value.uppercase())
 ```
 
 **Multi-statement body:**
@@ -261,6 +260,36 @@ output.category = match {
 **Purity:** Conditional expressions cannot assign to `output` or `output@`.
 
 ## 3.6 Literals
+
+**Strings:**
+
+Regular strings use double quotes with backslash escape sequences:
+```bloblang
+"hello world"
+"line one\nline two"       # \n newline
+"tab\there"                # \t tab
+"quote: \"hi\""            # \" escaped quote
+"backslash: \\"            # \\ literal backslash
+```
+
+Escape sequences: `\\`, `\"`, `\n`, `\t`, `\r`, `\uXXXX` (Unicode codepoint).
+
+Multiline strings use triple double quotes. No escape processing — content is used as-is:
+```bloblang
+"""
+This is a multiline string.
+It can contain "quotes" without escaping.
+Backslashes are literal: C:\path\to\file
+Leading newline after opening """ is stripped.
+Trailing newline before closing """ is stripped.
+"""
+```
+
+Multiline string rules:
+- Content between `"""` delimiters is taken verbatim (no escape sequences)
+- The first newline immediately after the opening `"""` is stripped
+- The last newline immediately before the closing `"""` is stripped
+- All other whitespace and newlines are preserved as-is
 
 **Arrays:**
 ```bloblang
