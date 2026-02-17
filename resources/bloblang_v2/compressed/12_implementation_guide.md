@@ -4,7 +4,7 @@
 
 **Reference:** Full list available via `rpk connect blobl --list-functions` and `--list-methods`
 
-**Common functions:** `uuid_v4()`, `now()`, `random()`, `timestamp_unix()`, `deleted()`
+**Common functions:** `uuid_v4()`, `now()`, `random()`, `deleted()`
 
 **Common methods:**
 - String: `.uppercase()`, `.lowercase()`, `.trim()`, `.split()`, `.replace_all()`
@@ -14,7 +14,31 @@
 - Time: `.ts_parse()`, `.ts_format()`, `.ts_unix()`
 - Error: `.catch()`, `.or()`
 
-**Note:** This list shows commonly required methods. Implementations may provide additional methods (e.g., `.get()`, `.set()`, `.without()`, `.merge()`, `.append()`, `.parse_json()`) that are useful but not required by this specification. Consult implementation documentation for complete method listing.
+### map_array and map_object Semantics
+
+**`.map_array(elem -> expr)`** — Transforms each element of an array. Returns a new array.
+- Lambda receives each element as a single parameter
+- Lambda return value replaces the element
+- If the lambda returns `deleted()`, the element is omitted from the result
+
+```bloblang
+[1, 2, 3].map_array(x -> x * 2)                              # [2, 4, 6]
+[1, -2, 3].map_array(x -> if x > 0 { x } else { deleted() }) # [1, 3]
+```
+
+**`.map_object((key, value) -> expr)`** — Transforms each value of an object. Returns a new object with the same keys.
+- Lambda receives the key (string) and value as two parameters
+- Lambda return value replaces the value for that key (key is preserved)
+- If the lambda returns `deleted()`, the key-value pair is removed from the result
+- Result is always an object (may be empty if all pairs are deleted)
+
+```bloblang
+{"a": 1, "b": 2}.map_object((k, v) -> v * 10)                          # {"a": 10, "b": 20}
+{"a": 1, "b": -2, "c": 3}.map_object((k, v) -> if v > 0 { v } else { deleted() })  # {"a": 1, "c": 3}
+{"x": "hello"}.map_object((k, v) -> v.uppercase())                     # {"x": "HELLO"}
+```
+
+**All methods listed above are required.** The type conversion methods (`.int32()`, `.uint32()`, etc.) are the only way to create non-default numeric types since literals are always int64 or float64. Implementations may provide additional methods (e.g., `.get()`, `.without()`, `.merge()`, `.append()`, `.parse_json()`) that are useful but not required by this specification. Consult implementation documentation for complete method listing.
 
 ## 12.2 Optional Optimizations
 
@@ -26,7 +50,7 @@ Implementations may optimize without changing observable behavior. Results must 
 
 **Lazy methods:** `.filter()`, `.map_array()`, `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()`
 
-**Terminal methods:** `.sort()`, `.reverse()`, `.length()`, `.first()`, `.last()`, `.any()`, `.all()`, `.join()`, `.fold()`, `.reduce()`
+**Terminal methods:** `.sort()`, `.reverse()`, `.length()`, `.first()`, `.last()`, `.any()`, `.all()`, `.join()`, `.fold()`
 
 **Materialization points:**
 - Variable assignment: `$var = iterator` → array

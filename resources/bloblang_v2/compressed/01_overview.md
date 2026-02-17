@@ -44,9 +44,9 @@ output.user = normalize_user(input.user_data)
 
 ## 1.3 Lexical Structure
 
-**Keywords:** `input`, `output`, `if`, `else`, `match`, `as`, `map`, `import`, `_`
+**Keywords:** `input`, `output`, `if`, `else`, `match`, `as`, `map`, `import`, `true`, `false`, `null`, `_`
 
-**Operators:** `.`, `?.`, `@.`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `<`, `<=`, `&&`, `||`, `=>`, `->`
+**Operators:** `.`, `?.`, `@`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `<`, `<=`, `&&`, `||`, `=>`, `->`
 
 **Delimiters:** `(`, `)`, `{`, `}`, `[`, `]`, `?[`, `,`, `:`
 
@@ -56,7 +56,7 @@ output.user = normalize_user(input.user_data)
 
 **Literals:**
 - Numbers: `42`, `3.14`, `-10`
-- Strings: `"hello"` or `"""multiline"""`
+- Strings: `"hello"`, `"escape\n"`, or `"""multiline"""`
 - Booleans: `true`, `false`
 - Null: `null`
 - Arrays: `[1, 2, 3]`, `["a", input.field, uuid_v4()]`
