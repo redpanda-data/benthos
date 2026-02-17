@@ -96,15 +96,16 @@ output.h = 10.0 / 3.0               # 3.333... (float64)
 
 **Equality Semantics:**
 
-Both type and value must match for equality to return `true`. Different types always return `false` (not an error). This means `int32(5)` is not equal to `int64(5)` or `float64(5)`:
+Both type and value must match for equality to return `true`. Different types always return `false` (not an error). This means `5.int32()` is not equal to `5` (int64) or `5.float64()`:
 
 ```bloblang
 # Different types: always false
-5 == "5"             # false (int64 vs string)
-5 == 5.0             # false (int64 vs float64)
-int32(5) == int64(5) # false (int32 vs int64)
-true == 1            # false (bool vs int64)
-null == 0            # false (null vs int64)
+5 == "5"                   # false (int64 vs string)
+5 == 5.0                   # false (int64 vs float64)
+5.int32() == 5             # false (int32 vs int64)
+5.int32() == 5.float64()   # false (int32 vs float64)
+true == 1                  # false (bool vs int64)
+null == 0                  # false (null vs int64)
 
 # Same type, same value: true
 5 == 5               # true
