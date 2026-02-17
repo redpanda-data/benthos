@@ -387,7 +387,7 @@ func (r *Reader) TriggerMainUpdate(mgr bundle.NewManagement, strict bool, newPat
 
 	lintlog := mgr.Logger()
 	for _, lint := range lints {
-		lintlog.Info(lint)
+		lintlog.Info("%s", lint)
 	}
 	if strict && len(lints) > 0 {
 		mgr.Logger().Error("Rejecting updated main config due to linter errors, to allow linting errors run Benthos with --chilled")

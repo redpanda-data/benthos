@@ -120,10 +120,10 @@ level=info msg="Info message" @service=benthos_service @system=foo
 				logger = logger.WithFields(test.fields)
 				require.NoError(t, err)
 
-				logger.Warn(test.message)
+				logger.Warn("%s", test.message)
 			}
 
-			logger.Info(test.message)
+			logger.Info("%s", test.message)
 
 			assert.Equal(t, test.expected, buf.String())
 		})

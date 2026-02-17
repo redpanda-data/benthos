@@ -98,7 +98,7 @@ formatters:
       local-prefixes:
         - github.com/redpanda-data/
     gofumpt:
-      extra-rules: true
+      extra-rules: false
   exclusions:
     generated: lax
     paths:
