@@ -84,12 +84,8 @@ output.field = $val             # ERROR: variable $val does not exist
 
 **In array operations:**
 ```bloblang
-# Array literal - deleted elements omitted
+# Array literal - deleted elements removed
 output.items = [1, deleted(), 3]              # Result: [1, 3]
-
-# if-without-else also skips elements (same as deleted)
-output.items = [1, if false { 2 }, 3]         # Result: [1, 3]
-output.mixed = ["a", if false { "b" } else { deleted() }, "c"]  # Result: ["a", "c"]
 
 # map_array - deleted elements filtered out
 output.positive = input.numbers.map_array(x -> if x > 0 { x } else { deleted() })
@@ -104,14 +100,14 @@ output.user = {
   "email": if input.email_verified { input.email } else { deleted() },
   "phone": input.phone
 }
-# If email not verified, field "email" is omitted from object
+# If email not verified, field "email" is removed from object
+```
 
-# if-without-else also omits fields (same as deleted)
-output.user = {
-  "id": input.id,
-  "email": if input.email_verified { input.email },  # Omitted if not verified
-  "phone": input.phone
-}
+**`deleted()` vs void (if-without-else):** Both cause elements to be absent from collections, but they are different concepts. `deleted()` is an active deletion marker. Void (from an if-without-else when false) means no value was produced — the element is skipped because there is nothing to include. See Section 4.1 for void semantics.
+```bloblang
+# These produce the same result in collections, but via different mechanisms:
+output.items = [1, deleted(), 3]          # [1, 3] — deleted: element actively removed
+output.items = [1, if false { 2 }, 3]     # [1, 3] — void: no value produced, element skipped
 ```
 
 **Nested structures (recursive deletion):**
@@ -243,15 +239,15 @@ output.user = {
   }
 }
 
-# Conditional array elements - if without else skips the element
+# Conditional array elements - if without else produces void, skipping the element
 output.items = [
   input.a,
-  if input.b != null { input.b },  # Skipped if b is null
+  if input.b != null { input.b },  # Void if b is null: element skipped
   input.c
 ]
 # If b is null: [input.a, input.c]
 
-# Equivalent using deleted()
+# Similar result using deleted(), but different mechanism (active removal vs no value)
 output.items = [
   input.a,
   if input.b != null { input.b } else { deleted() },

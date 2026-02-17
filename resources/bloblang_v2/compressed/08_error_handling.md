@@ -22,7 +22,7 @@ Common error sources:
 
 ## 8.2 Catch Method
 
-Handle errors with `.catch()`. The method catches errors from its **immediate receiver** (the expression to its left). If the receiver succeeds, `.catch()` returns its value unchanged. If the receiver errors, the fallback expression is evaluated and returned. If the fallback itself errors, that error propagates and can be caught by a subsequent `.catch()`:
+Handle errors with `.catch()`. The method catches any error produced by evaluating the expression to its left. If that expression succeeds, `.catch()` returns its value unchanged. If it errors — whether the error originates in the expression itself or propagates from deeper in the chain — the fallback expression is evaluated and returned. If the fallback itself errors, that error propagates and can be caught by a subsequent `.catch()`:
 ```bloblang
 # Provide fallback value
 output.parsed = input.date.ts_parse("2006-01-02").catch(null)

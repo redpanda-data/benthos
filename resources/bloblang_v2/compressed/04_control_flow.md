@@ -50,14 +50,14 @@ if input.flag {
 }
 ```
 
-**If expressions without `else`:** When the condition is false, the behavior depends on context:
+**If expressions without `else`:** When the condition is false, the expression produces **void** — the absence of a value. No value is produced at all, and the surrounding context determines what happens:
 
-**In assignments:** The assignment does not execute. The target field is neither created nor modified.
+**Void in assignments:** The assignment does not execute. The target field is neither created nor modified.
 
 **Case 1: No prior assignment**
 ```bloblang
 output.category = if input.score > 80 { "high" }
-# If score <= 80: assignment skipped, field doesn't exist
+# If score <= 80: void, assignment skipped, field doesn't exist
 # Reading output.category returns null (field is absent)
 # JSON output: field omitted entirely
 ```
@@ -65,7 +65,7 @@ output.category = if input.score > 80 { "high" }
 **Case 2: Has prior assignment**
 ```bloblang
 output.status = "pending"
-output.status = if false { "override" }  # Assignment skipped
+output.status = if false { "override" }  # Void: assignment skipped
 # output.status keeps its existing value: "pending"
 # Reading output.status returns "pending" (not null!)
 # JSON output: {"status": "pending"}
@@ -74,30 +74,60 @@ output.status = if false { "override" }  # Assignment skipped
 **Case 3: Explicit null vs non-existent**
 ```bloblang
 output.field1 = null                    # Field exists with null value
-output.field2 = if false { "value" }    # Field doesn't exist (no prior assignment)
+output.field2 = if false { "value" }    # Void: field doesn't exist (no prior assignment)
 # field1 reads as null, field2 reads as null - but differ structurally
 # JSON output: {"field1": null} (field2 omitted)
 ```
 
-**In array literals:** Elements are skipped (same as `deleted()`).
+**Void in array literals:** No value was produced, so there is nothing to include — the element position is skipped.
 ```bloblang
 output.items = [1, if false { 2 }, 3]   # Result: [1, 3]
-# Equivalent to: [1, if false { 2 } else { deleted() }, 3]
 ```
 
-**In object literals:** Fields are omitted (same as `deleted()`).
+**Void in object literals:** No value was produced for the field, so the field is omitted.
 ```bloblang
 output.user = {
   "id": input.id,
-  "email": if input.verified { input.email }  # Omitted if not verified
+  "email": if input.verified { input.email }  # Void if not verified: field omitted
 }
 # If not verified: {"id": ...} (no email field)
 ```
 
-**Key distinction:** An if-without-else that evaluates to false skips the assignment entirely:
-- **No prior value:** Field doesn't exist (reads as `null`, omitted from JSON)
-- **Has prior value:** Field keeps its existing value (reads as that value, included in JSON)
-- **Explicit null:** Field exists with `null` value (reads as `null`, included in JSON as `"field": null`)
+**Void vs `deleted()`:** Both cause elements to be absent from collections and fields to be omitted from objects, but they are different concepts. Void means "no value was produced" — nothing happens. `deleted()` is an active deletion marker that removes existing fields (see Section 9.2). The distinction matters in assignments:
+```bloblang
+output.status = "pending"
+output.status = if false { "override" }  # Void: keeps "pending" (no-op)
+output.status = deleted()                # Deleted: removes the field entirely
+```
+
+**Void in variable declarations:** The variable is not created. Subsequent references to it error as if the variable were never defined.
+```bloblang
+$x = if false { 42 }    # Void: $x is not created
+output.y = $x            # ERROR: variable $x does not exist
+```
+
+**Void as a function/map argument:** Passing void as an argument is invalid and causes a mapping error (similar to `deleted()`).
+```bloblang
+map double(val) { val * 2 }
+output.result = double(if false { 42 })  # ERROR: void argument
+```
+
+**Void in expression context:** If an operator encounters void as an operand, it causes an error.
+```bloblang
+output.result = (if false { 42 }) + 1    # ERROR: void in expression
+output.flag = !(if false { true })       # ERROR: void in expression
+```
+
+**Summary of void behavior by context:**
+
+| Context | Behavior |
+|---------|----------|
+| Output field assignment (`output.x = void`) | Assignment skipped; prior value (if any) preserved |
+| Variable declaration (`$x = void`) | Variable not created; references error |
+| Collection literal (`[1, void, 3]`) | Element skipped (`[1, 3]`) |
+| Object literal (`{"a": void}`) | Field omitted (`{}`) |
+| Function/map argument (`f(void)`) | Error |
+| Expression operand (`void + 1`) | Error |
 
 ## 4.2 Match Expressions vs Statements
 
