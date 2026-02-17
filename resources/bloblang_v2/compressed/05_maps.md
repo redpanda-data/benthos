@@ -5,6 +5,11 @@ Pure, reusable transformations called as functions.
 ## 5.1 Syntax
 
 ```bloblang
+# Zero parameters (useful for common structures/macros)
+map default_headers() {
+  {"content_type": "application/json", "version": "2.0"}
+}
+
 # Single parameter
 map name(parameter) {
   # optional variable declarations
@@ -17,16 +22,17 @@ map calculate(x, y, z) {
   x + y * z
 }
 
-# Invocation - positional arguments
+# Invocation
+output.headers = default_headers()
 output.result = name(input.data)
 output.calc = calculate(1, 2, 3)
 
-# Invocation - named arguments
+# Invocation - named arguments (for maps with parameters)
 output.result = name(parameter: input.data)
 output.calc = calculate(x: 1, y: 2, z: 3)
 ```
 
-Maps are **pure functions**: they take parameters, optionally declare variables, and return a value. They cannot reference `input` or `output`.
+Maps are **pure functions**: they take zero or more parameters, optionally declare variables, and return a value. They cannot reference `input` or `output`.
 
 **Argument styles:** Functions can be called with positional or named arguments, but not both in the same call.
 
@@ -88,7 +94,7 @@ output = walk_tree(input)
 
 ## 5.3 Parameter Semantics
 
-- Parameters are the **only** input to the map (no access to `input` or `output`)
+- **Maps are fully isolated** — they can only access their parameters and variables declared within the map body. They cannot access `input`, `output`, or top-level `$variables`.
 - Parameters are **read-only** - they cannot be reassigned or used as assignment targets
 - Parameters are available as bare identifiers within the map body (e.g., `data.field`)
 - Variables declared within maps (using `$`) can be reassigned
@@ -104,6 +110,11 @@ map example(data) {
 
 map invalid(data) {
   data = input.x          # ❌ Invalid: cannot assign to parameter
+}
+
+map also_invalid(data) {
+  $val = $top_level_var   # ❌ Invalid: cannot access top-level variables
+  data.field
 }
 ```
 

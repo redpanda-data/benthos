@@ -55,8 +55,8 @@ output.user = normalize_user(input.user_data)
 **Metadata:** `input@.key` (read), `output@.key` (write)
 
 **Literals:**
-- Numbers: `42`, `3.14`, `-10`
-- Strings: `"hello"`, `"escape\n"`, or `"""multiline"""`
+- Numbers: `42`, `3.14` (negative numbers use unary minus: `-10`)
+- Strings: `"hello"`, `"escape\n"`, or `` `raw multiline` ``
 - Booleans: `true`, `false`
 - Null: `null`
 - Arrays: `[1, 2, 3]`, `["a", input.field, uuid_v4()]`

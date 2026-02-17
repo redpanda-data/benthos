@@ -274,22 +274,18 @@ Regular strings use double quotes with backslash escape sequences:
 
 Escape sequences: `\\`, `\"`, `\n`, `\t`, `\r`, `\uXXXX` (Unicode codepoint).
 
-Multiline strings use triple double quotes. No escape processing — content is used as-is:
+Raw strings use backticks. No escape processing — content is used as-is:
 ```bloblang
-"""
-This is a multiline string.
+`This is a raw string.
 It can contain "quotes" without escaping.
 Backslashes are literal: C:\path\to\file
-Leading newline after opening """ is stripped.
-Trailing newline before closing """ is stripped.
-"""
+Newlines are preserved as-is.`
 ```
 
-Multiline string rules:
-- Content between `"""` delimiters is taken verbatim (no escape sequences)
-- The first newline immediately after the opening `"""` is stripped
-- The last newline immediately before the closing `"""` is stripped
-- All other whitespace and newlines are preserved as-is
+Raw string rules:
+- Content between backticks is taken verbatim (no escape sequences)
+- Newlines and whitespace are preserved as-is
+- Cannot contain a literal backtick character
 
 **Arrays:**
 ```bloblang

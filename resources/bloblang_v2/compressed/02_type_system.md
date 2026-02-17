@@ -8,11 +8,11 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 |------|-------------|----------|
 | `string` | UTF-8 text (operations are codepoint-based) | `"hello"`, `""` |
 | `int32` | 32-bit signed integer | `42.int32()` |
-| `int64` | 64-bit signed integer (default for integer literals) | `42`, `-10` |
+| `int64` | 64-bit signed integer (default for integer literals) | `42`, `-10` (unary minus) |
 | `uint32` | 32-bit unsigned integer | `42.uint32()` |
 | `uint64` | 64-bit unsigned integer | `42.uint64()` |
 | `float32` | 32-bit IEEE 754 float | `3.14.float32()` |
-| `float64` | 64-bit IEEE 754 float (default for float literals) | `3.14`, `-10.5` |
+| `float64` | 64-bit IEEE 754 float (default for float literals) | `3.14`, `-10.5` (unary minus) |
 | `bool` | Boolean | `true`, `false` |
 | `null` | Null value | `null` |
 | `bytes` | Byte array (operations are byte-based) | `"hello".bytes()` |
@@ -48,13 +48,13 @@ output.ok = 5.string() + "3"        # "53" (explicit conversion)
 
 **Other Operators:**
 - Arithmetic (`-`, `*`, `/`, `%`): Require numeric types (null errors), with promotion
-- Comparison (`>`, `<`, `>=`, `<=`): Require comparable same types (null errors)
-- Equality (`==`, `!=`): Compare both type and value (see below)
+- Comparison (`>`, `<`, `>=`, `<=`): Require comparable same types (null errors), with numeric promotion
+- Equality (`==`, `!=`): Numeric types use promotion then compare by value; non-numeric types require same type and value; cross-family is always `false` (see below)
 - Logical (`&&`, `||`): Require booleans
 
 ### Numeric Type Promotion
 
-When arithmetic operators are applied to operands of different numeric types, both operands are promoted to a common type before the operation. Non-numeric types (string, bool, null, etc.) are never promoted — mixing them with numbers is always an error.
+When arithmetic, comparison, or equality operators are applied to operands of different numeric types, both operands are promoted to a common type before the operation. Non-numeric types (string, bool, null, etc.) are never promoted — mixing them with numbers is always an error (for arithmetic/comparison) or always `false` (for equality).
 
 **Promotion rules (applied in order):**
 
@@ -90,35 +90,50 @@ output.e = 5 + 3.0                  # 8.0 (float64)
 output.f = 7 / 2                    # 3.5 (float64)
 output.g = 20 / 4 / 2               # 2.5 (float64)
 output.h = 10.0 / 3.0               # 3.333... (float64)
+
+# Division by zero: always an error
+output.bad = 7 / 0                  # ERROR: division by zero
+output.bad = 7.0 / 0.0              # ERROR: division by zero
 ```
 
-**Note:** Promoting int64 or uint64 to float64 may lose precision for values larger than 2^53. Use explicit conversion if exact large-integer arithmetic is required.
+**Note:** Promoting uint64 to int64 may overflow for values larger than 2^63-1 (the maximum int64 value). Promoting int64 or uint64 to float64 may lose precision for values larger than 2^53. Use explicit conversion if exact large-integer arithmetic is required.
+
+**Integer overflow:** Overflow behavior for integer arithmetic (e.g., int64 max + 1) is implementation-defined. Implementations may wrap, saturate, or error.
+
+**Special float values (NaN, Infinity):** Division by zero is always an error — it does not produce Infinity or NaN. However, NaN and Infinity values may enter the system through input data. When they do, Bloblang follows IEEE 754 semantics:
+- `NaN == NaN` is `false` (NaN is not equal to anything, including itself)
+- `NaN != NaN` is `true`
+- `NaN > x`, `NaN < x`, `NaN >= x`, `NaN <= x` are all `false` for any `x`
+- Arithmetic with NaN produces NaN
+- Infinity compares normally (`Infinity > 1.0` is `true`, `Infinity == Infinity` is `true`)
 
 **Equality Semantics:**
 
-Both type and value must match for equality to return `true`. Different types always return `false` (not an error). This means `5.int32()` is not equal to `5` (int64) or `5.float64()`:
+For non-numeric types, both type and value must match for equality to return `true`. Different non-numeric types always return `false` (not an error).
+
+For numeric types, the same promotion rules used for arithmetic apply before comparison. Both operands are promoted to a common numeric type, then compared by value. This means `5 == 5.0` is `true` (int64 promoted to float64, values match).
+
+Cross-family comparisons (numeric vs non-numeric) always return `false`.
 
 ```bloblang
-# Different types: always false
-5 == "5"                   # false (int64 vs string)
-5 == 5.0                   # false (int64 vs float64)
-5.int32() == 5             # false (int32 vs int64)
-5.int32() == 5.float64()   # false (int32 vs float64)
-true == 1                  # false (bool vs int64)
-null == 0                  # false (null vs int64)
+# Numeric equality: promotion rules applied
+5 == 5.0                   # true (int64 promoted to float64, same value)
+5.int32() == 5             # true (int32 promoted to int64, same value)
+5.int32() == 5.float64()   # true (both promoted to float64, same value)
+5 == 6.0                   # false (promoted, different value)
 
-# Same type, same value: true
-5 == 5               # true
-5.0 == 5.0           # true (both are float64)
+# Non-numeric types: type and value must match
 "hello" == "hello"   # true
 true == true         # true
 null == null         # true
-
-# Same type, different value: false
-5 == 10              # false
 "a" == "b"           # false
 
-# Collections: structural equality (value-based)
+# Cross-family: always false
+5 == "5"             # false (numeric vs string)
+true == 1            # false (bool vs numeric)
+null == 0            # false (null vs numeric)
+
+# Collections: structural equality (value-based, numeric promotion applies within)
 [1, 2] == [1, 2]     # true (same contents)
 [1, 2] == [2, 1]     # false (different order)
 {"a": 1} == {"a": 1} # true (same structure and values)

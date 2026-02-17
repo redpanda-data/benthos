@@ -101,6 +101,11 @@ output@.kafka_topic = "processed-topic"
 output@.kafka_key = input.id
 output@.content_type = "application/json"
 
+# Dynamic metadata access (string index)
+$key = "kafka_topic"
+output.topic = input@[$key]
+output@[$key] = "new-topic"
+
 # Delete metadata
 output@.kafka_key = deleted()
 ```
@@ -130,13 +135,13 @@ Undefined metadata keys return `null`.
 | Context | Read `input` | Read `output` | Write `output`/`output@` | Read/Write `$var` |
 |---------|--------------|---------------|--------------------------|-------------------|
 | Top-level mapping | ✅ | ✅ | ✅ | ✅ |
-| Map body | ❌ | ❌ | ❌ | ✅ (own variables only) |
+| Map body | ❌ | ❌ | ❌ | ✅ (locally declared only) |
 | Lambda/expression (top-level) | ✅ | ✅ | ❌ | ✅ |
-| Lambda/expression (inside map) | ❌ | ❌ | ❌ | ✅ (map's variables) |
+| Lambda/expression (inside map) | ❌ | ❌ | ❌ | ✅ (map's local variables only) |
 | Match `as` binding (top-level) | ✅ | ✅ | ❌ | ✅ |
-| Match `as` binding (inside map) | ❌ | ❌ | ❌ | ✅ (map's variables) |
+| Match `as` binding (inside map) | ❌ | ❌ | ❌ | ✅ (map's local variables only) |
 
-**Key principle:** Contexts inside maps cannot access `input` or `output` at all. Lambdas and expressions at the top-level can read (but not write) `input` and `output`.
+**Key principle:** Maps are fully isolated — they cannot access `input`, `output`, or top-level `$variables`. The only data available inside a map is its parameters and variables declared within the map body. Lambdas and expressions at the top-level can read (but not write) `input` and `output`.
 
 **Examples:**
 ```bloblang
@@ -218,6 +223,17 @@ output.z = $value  # Still 20 (inner scope doesn't affect outer)
 
 Statements execute sequentially, top-to-bottom.
 Variables must be declared before use.
+**Map declarations are hoisted** — maps can be called before their declaration in the file. All maps are resolved before execution begins, so declaration order does not matter.
+
+```bloblang
+# Map used before its declaration — valid
+output.result = transform(input.data)
+
+map transform(data) {
+  data.value * 2
+}
+```
+
 Later statements can reference earlier `output` fields:
 
 ```bloblang
