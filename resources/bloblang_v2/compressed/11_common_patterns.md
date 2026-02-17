@@ -38,20 +38,11 @@ output.results = input.items
   .map_array(item -> item.name.uppercase())
   .sort()
 
-# Multi-statement transformations
-output.processed = input.orders
-  .filter(order -> {
-    $total = order.items.reduce((acc, item) -> acc + item.price, 0)
-    $total > 100
-  })
-  .map_array(order -> {
-    $subtotal = order.items.reduce((acc, item) -> acc + item.price, 0)
-    $tax = $subtotal * 0.1
-    {"order_id": order.id, "total": $subtotal + $tax}
-  })
-
-# Multi-parameter reduce
-output.total = input.items.reduce((acc, item) -> acc + item.price, 0)
+# Object transformation
+output.uppercased = input.data.map_object((key, value) -> {
+  $trimmed = value.trim()
+  $trimmed.uppercase()
+})
 ```
 
 ## Indexing Patterns
