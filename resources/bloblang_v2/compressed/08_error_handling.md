@@ -22,16 +22,26 @@ Common error sources:
 
 ## 8.2 Catch Method
 
-Handle errors with `.catch()`. The method catches any error produced by evaluating the expression to its left. If that expression succeeds, `.catch()` returns its value unchanged. If it errors — whether the error originates in the expression itself or propagates from deeper in the chain — the fallback expression is evaluated and returned. If the fallback itself errors, that error propagates and can be caught by a subsequent `.catch()`:
+Handle errors with `.catch()`. The method takes a lambda with a single parameter — the error object — and is called only when the expression to its left produces an error. If the expression succeeds, `.catch()` returns its value unchanged. If the lambda itself errors, that error propagates and can be caught by a subsequent `.catch()`.
+
+**The error object** has a single field:
+- `.what` — a string containing the error message
+
 ```bloblang
-# Provide fallback value
-output.parsed = input.date.ts_parse("2006-01-02").catch(null)
+# Inspect the error
+output.parsed = input.date.ts_parse("2006-01-02").catch(err -> {
+  $msg = "parse failed: " + err.what
+  throw($msg)
+})
+
+# Ignore the error, provide fallback value
+output.parsed = input.date.ts_parse("2006-01-02").catch(err -> null)
 
 # Chain multiple attempts
 output.parsed = input.date
-  .ts_parse("2006-01-02")                         # Try format 1
-  .catch(input.date.ts_parse("2006/01/02"))        # If format 1 fails, try format 2
-  .catch(null)                                     # If format 2 also fails, use null
+  .ts_parse("2006-01-02")                                    # Try format 1
+  .catch(err -> input.date.ts_parse("2006/01/02"))           # If format 1 fails, try format 2
+  .catch(err -> null)                                        # If format 2 also fails, use null
 ```
 
 ## 8.3 Or Method
@@ -39,12 +49,12 @@ output.parsed = input.date
 Provide default for null values:
 ```bloblang
 output.name = input.user.name.or("Anonymous")
-output.count = input.items.length().or(0)
+output.count = input.items?.length().or(0)
 ```
 
 ## 8.4 Throw Function
 
-Throw custom errors:
+Throw custom errors. `throw()` requires exactly one string argument:
 ```bloblang
 output.value = if input.value != null {
   input.value
@@ -53,13 +63,26 @@ output.value = if input.value != null {
 }
 ```
 
+Non-string arguments are a compile-time error:
+```bloblang
+throw(42)     # ERROR: throw() requires a string argument
+throw(null)   # ERROR: throw() requires a string argument
+throw()       # ERROR: throw() requires exactly one string argument
+```
+
 **Error propagation:** `throw()` produces an error that propagates like any other error. It can be caught with `.catch()`:
 ```bloblang
 # Caught: provides fallback value
-output.result = throw("bad value").catch("fallback")  # "fallback"
+output.result = throw("bad value").catch(err -> "fallback")  # "fallback"
+
+# Caught with error inspection
+output.result = throw("bad value").catch(err -> {
+  $default = "fallback"
+  $default  # err.what == "bad value"
+})
 
 # Caught in expression context
-output.name = input.name.or(throw("name is required")).catch("Anonymous")
+output.name = input.name.or(throw("name is required")).catch(err -> "Anonymous")
 
 # Uncaught: halts the mapping
 output.result = throw("fatal error")  # No .catch(), stops execution
@@ -80,9 +103,9 @@ input.user?.name    # OK: returns null if user is null, or user.name if user is 
 5?.name             # ERROR: cannot access field on int64 (not null, wrong type)
 ```
 
-**`.catch()`**: Handles errors, not `null`
+**`.catch(lambda)`**: Handles errors, not `null`
 ```bloblang
-input.date.ts_parse("format").catch(null)  # null if parse fails
+input.date.ts_parse("format").catch(err -> null)  # null if parse fails
 ```
 
 **`.or()`**: Handles `null`, not errors
@@ -92,7 +115,7 @@ input.name.or("default")  # "default" if name is null
 
 **Combine for both:**
 ```bloblang
-input.user?.age.or(0).catch(-1)
+input.user?.age.or(0).catch(err -> -1)
 # null-safe → default for null → fallback for errors
 ```
 

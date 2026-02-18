@@ -65,6 +65,7 @@ output.value = utils.$internal             # ❌ Error: variables not exported
 - **Duplicate namespace:** Error if same name used twice
 - **Circular imports:** Detected at compile time and error
 - **Map not found:** Error when calling non-existent map
+- **Parameter conflicts with namespace:** Compile-time error if a map parameter shares a name with an imported namespace alias
 
 **Circular import detection:** Import cycles are not allowed. If file A imports B (directly or transitively through other files), then B cannot import A.
 

@@ -101,6 +101,7 @@ output = walk_tree(input)
 - Maps are pure: same inputs always produce same output
 - Call with positional arguments (match order) or named arguments (match names)
 - **Cannot mix** positional and named arguments in the same call
+- **Parameter names must not conflict with imported namespaces** — if a parameter has the same name as an imported namespace, it is a compile-time error. Rename the parameter or the namespace alias to resolve the conflict.
 
 ```bloblang
 map example(data) {
@@ -115,6 +116,11 @@ map invalid(data) {
 map also_invalid(data) {
   $val = $top_level_var   # ❌ Invalid: cannot access top-level variables
   data.field
+}
+
+# Assuming: import "./math.blobl" as math
+map also_invalid(math) {  # ❌ Compile error: parameter 'math' conflicts with namespace 'math'
+  math.add(1, 2)
 }
 ```
 
