@@ -140,15 +140,21 @@ output.users = [
 
 `deleted()` works recursively at all nesting levels - elements are omitted wherever they appear in the structure.
 
-**In conditional expressions:**
+**In conditional expressions and match arms:** Match arms are transparent — `deleted()` produced by a case arm flows out of the match expression and behaves exactly as it would from any other expression.
 ```bloblang
-# Field assignment skipped when expression yields deleted()
+# Field actively removed when expression yields deleted()
 output.category = if input.spam { deleted() } else { input.category }
 # If spam, output.category field doesn't exist (not even with null value)
 
 # Message filtering
 output = if input.spam { deleted() } else { input }
 # If spam, entire document deleted
+
+# deleted() from a match arm flows out identically
+output.result = match input.x {
+  "b" => deleted(),    # Field actively removed if x == "b"
+  _ => input.x,
+}
 ```
 
 **In maps and lambdas:**

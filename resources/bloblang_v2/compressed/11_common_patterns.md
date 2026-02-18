@@ -25,8 +25,8 @@ output.product = input.order?.items?[0]?.product?.name.or("Unknown")
 ```bloblang
 output.parsed = input.date
   .ts_parse("2006-01-02")
-  .catch(input.date.ts_parse("2006/01/02"))
-  .catch(null)
+  .catch(err -> input.date.ts_parse("2006/01/02"))
+  .catch(err -> null)
 ```
 
 ## Array Transformation
@@ -49,14 +49,14 @@ output.uppercased = input.data.map_object((key, value) -> {
 
 ```bloblang
 # Arrays
-output.first = input.items[0].catch(null)
-output.last = input.items[-1].catch(null)
+output.first = input.items[0].catch(err -> null)
+output.last = input.items[-1].catch(err -> null)
 
 # Strings (codepoint position, returns int32)
 output.first_codepoint = input.name[0]          # int32 Unicode codepoint
 
 # Dynamic indexing
-output.selected = input.options[input.index].catch("invalid")
+output.selected = input.options[input.index].catch(err -> "invalid")
 ```
 
 ## Metadata Routing

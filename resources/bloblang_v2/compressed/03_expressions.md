@@ -30,16 +30,18 @@ input.items[-2]     # Array: second-to-last element
 input["field"]      # Object: dynamic field access
 input[$var]         # Object: dynamic field access with variable
 input.name[0]       # String: first codepoint as int32 (Unicode codepoint value)
+input.name[-1]      # String: last codepoint as int32
 input.data[0]       # Bytes: first byte as int32 0-255
+input.data[-1]      # Bytes: last byte as int32
 ```
 
-**Negative indexing:** For arrays, negative indices count from the end: `-1` is last, `-2` is second-to-last, etc. Out-of-bounds negative indices throw errors.
+**Negative indexing:** For arrays, strings, and bytes, negative indices count from the end: `-1` is last, `-2` is second-to-last, etc. Out-of-bounds negative indices throw errors.
 
 **Semantics:**
 - **Objects:** Indexed by string, returns field value (dynamic field access)
 - **Arrays:** Indexed by number, returns element at position
-- **Strings:** Indexed by number (codepoint position), returns int32 (Unicode codepoint value)
-- **Bytes:** Indexed by number (byte position), returns int32 (byte value 0-255)
+- **Strings:** Indexed by number (codepoint position), returns int32 (Unicode codepoint value). Negative indices count from the end.
+- **Bytes:** Indexed by number (byte position), returns int32 (byte value 0-255). Negative indices count from the end.
 
 **String indexing is codepoint-based, not grapheme-based:**
 ```bloblang
@@ -73,7 +75,7 @@ input.data[0]       # Bytes: first byte as int32 0-255
 "👋".bytes().length()       # 4 (UTF-8 encoding uses 4 bytes)
 ```
 
-Out-of-bounds indexing throws error. Use `.catch()` for safety.
+Out-of-bounds indexing throws error. Use `.catch(err -> ...)` for safety.
 
 ### Null-Safe Navigation
 
@@ -205,6 +207,20 @@ output.doubled = input.items.map_array($double)
 # Named arguments
 output.sum = $add(a: 5, b: 10)
 output.sum = $add(b: 10, a: 5)  # Order doesn't matter with named args
+```
+
+**Closure capture:** Lambdas capture variables from their enclosing scope **by reference**. If a closed-over variable is reassigned after the lambda is created, the lambda sees the new value when invoked.
+```bloblang
+$x = 1
+$fn = y -> y + $x
+$x = 2
+output.result = $fn(10)    # 12: $fn sees the current value of $x (2), not the value at creation (1)
+```
+
+**Parameter names must not conflict with imported namespaces** — if a lambda parameter shares a name with an imported namespace alias, it is a compile-time error.
+```bloblang
+# Assuming: import "./math.blobl" as math
+input.items.map_array(math -> math.add(1, 2))  # ❌ Compile error: parameter 'math' conflicts with namespace 'math'
 ```
 
 **Purity:** Lambdas cannot assign to `output` or `output@` (no side effects).
