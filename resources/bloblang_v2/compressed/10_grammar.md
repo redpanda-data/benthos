@@ -15,9 +15,9 @@ expression      := literal | expr_path | function_call | method_chain |
                    lambda_expr | paren_expr
 control_expr    := if_expr | match_expr
 
-# Top-level paths (in assignments): no bare identifiers
+# Top-level paths (in assignments): only output or $variables (input is read-only)
 top_level_path  := top_level_context_root path_component*
-top_level_context_root := ('output' | 'input') metadata_accessor? | var_ref
+top_level_context_root := 'output' metadata_accessor? | var_ref
 
 # Expression paths (in maps/lambdas/match-as): allow bare identifiers
 expr_path       := expr_context_root path_component*
