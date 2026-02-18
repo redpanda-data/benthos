@@ -3,11 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.65.0 - TBD
+## 4.65.0 - 2026-02-18
 
 ### Added
 
 - Go API: Schema caching and fingerprinting support added to avoid redundant format conversions. (@Jeffail)
+- The bloblang method split now has an `empty_as_null` parameter. (@rockwotj)
 
 ## 4.64.0 - 2026-01-30
 
