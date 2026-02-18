@@ -1206,11 +1206,7 @@ func parseCSVMethod(args *ParsedParams) (simpleMethod, error) {
 		} else {
 			records = make([]any, 0, len(strRecords))
 			for _, rec := range strRecords {
-				genericSlice := make([]any, len(rec))
-				for i, v := range rec {
-					genericSlice[i] = v
-				}
-				records = append(records, genericSlice)
+				records = append(records, toAnySlice(rec))
 			}
 		}
 
@@ -1726,10 +1722,7 @@ var _ = registerSimpleMethod(
 			switch t := v.(type) {
 			case string:
 				matches := re.FindAllString(t, -1)
-				result = make([]any, 0, len(matches))
-				for _, str := range matches {
-					result = append(result, str)
-				}
+				result = toAnySlice(matches)
 			case []byte:
 				matches := re.FindAll(t, -1)
 				result = make([]any, 0, len(matches))
@@ -1779,10 +1772,7 @@ var _ = registerSimpleMethod(
 				groupMatches := re.FindAllStringSubmatch(t, -1)
 				result = make([]any, 0, len(groupMatches))
 				for _, matches := range groupMatches {
-					r := make([]any, 0, len(matches))
-					for _, str := range matches {
-						r = append(r, str)
-					}
+					r := toAnySlice(matches)
 					result = append(result, r)
 				}
 			case []byte:
@@ -2042,13 +2032,23 @@ var _ = registerSimpleMethod(
 			`{"new_value":["foo","bar","baz"]}`,
 		),
 		NewExampleSpec("",
+			`root.new_value = this.value.split(",", true)`,
+			`{"value":"foo,,qux"}`,
+			`{"new_value":["foo",null,"qux"]}`,
+		),
+		NewExampleSpec("",
 			`root.words = this.sentence.split(" ")`,
 			`{"sentence":"hello world from bloblang"}`,
 			`{"words":["hello","world","from","bloblang"]}`,
 		),
-	).Param(ParamString("delimiter", "The delimiter to split with.")),
+	).Param(ParamString("delimiter", "The delimiter to split with.")).
+		Param(ParamBool("empty_as_null", "To treat empty substrings as null values").Default(false)),
 	func(args *ParsedParams) (simpleMethod, error) {
 		delim, err := args.FieldString("delimiter")
+		if err != nil {
+			return nil, err
+		}
+		emptyAsNull, err := args.FieldBool("empty_as_null")
 		if err != nil {
 			return nil, err
 		}
@@ -2056,17 +2056,23 @@ var _ = registerSimpleMethod(
 		return func(v any, ctx FunctionContext) (any, error) {
 			switch t := v.(type) {
 			case string:
-				bits := strings.Split(t, delim)
-				vals := make([]any, 0, len(bits))
-				for _, b := range bits {
-					vals = append(vals, b)
+				vals := strSplit(t, delim)
+				if emptyAsNull {
+					for i, v := range vals {
+						if v == "" {
+							vals[i] = nil
+						}
+					}
 				}
 				return vals, nil
 			case []byte:
-				bits := bytes.Split(t, delimB)
-				vals := make([]any, 0, len(bits))
-				for _, b := range bits {
-					vals = append(vals, b)
+				vals := byteSplit(t, delimB)
+				if emptyAsNull {
+					for i, v := range vals {
+						if len(v.([]byte)) == 0 {
+							vals[i] = nil
+						}
+					}
 				}
 				return vals, nil
 			}
@@ -2074,6 +2080,56 @@ var _ = registerSimpleMethod(
 		}, nil
 	},
 )
+
+func toAnySlice[T any](slice []T) []any {
+	out := make([]any, len(slice))
+	for i, v := range slice {
+		out[i] = v
+	}
+	return out
+}
+
+func strSplit(s string, sep string) []any {
+	if len(sep) == 0 {
+		return toAnySlice(strings.Split(s, sep))
+	}
+	n := min(strings.Count(s, sep)+1, len(s)+1)
+	a := make([]any, n)
+	n--
+	i := 0
+	for i < n {
+		m := strings.Index(s, sep)
+		if m < 0 {
+			break
+		}
+		a[i] = s[:m]
+		s = s[m+len(sep):]
+		i++
+	}
+	a[i] = s
+	return a[:i+1]
+}
+
+func byteSplit(s []byte, sep []byte) []any {
+	if len(sep) == 0 {
+		return toAnySlice(bytes.Split(s, sep))
+	}
+	n := min(bytes.Count(s, sep)+1, len(s)+1)
+	a := make([]any, n)
+	n--
+	i := 0
+	for i < n {
+		m := bytes.Index(s, sep)
+		if m < 0 {
+			break
+		}
+		a[i] = s[:m]
+		s = s[m+len(sep):]
+		i++
+	}
+	a[i] = s
+	return a[:i+1]
+}
 
 //------------------------------------------------------------------------------
 
