@@ -135,7 +135,10 @@ func (b *bloblangProc) Close(context.Context) error {
 //------------------------------------------------------------------------------
 
 func (p *ProcessorsProvider) initProcs(confs cachedConfig) ([]processor.V1, error) {
-	mgr, err := manager.New(confs.mgr, manager.OptSetLogger(p.logger))
+	mgr, err := manager.New(confs.mgr,
+		manager.OptSetLogger(p.logger),
+		manager.OptSetEnvironment(p.env),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialise resources: %v", err)
 	}
