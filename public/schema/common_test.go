@@ -28,6 +28,7 @@ func TestSchemaStringify(t *testing.T) {
 		{Input: Null, Output: "NULL"},
 		{Input: Union, Output: "UNION"},
 		{Input: Timestamp, Output: "TIMESTAMP"},
+		{Input: Any, Output: "ANY"},
 		{Input: zeroType, Output: "UNKNOWN"},
 		{Input: CommonType(-1), Output: "UNKNOWN"},
 	} {

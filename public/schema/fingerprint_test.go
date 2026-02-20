@@ -218,7 +218,7 @@ func TestFingerprintAllTypes(t *testing.T) {
 	types := []CommonType{
 		Boolean, Int32, Int64, Float32, Float64,
 		String, ByteArray, Object, Map, Array,
-		Null, Union, Timestamp,
+		Null, Union, Timestamp, Any,
 	}
 
 	fingerprints := make(map[string]CommonType)
@@ -268,6 +268,13 @@ func TestToAnyIncludesFingerprint(t *testing.T) {
 					{Type: String, Name: "id"},
 					{Type: String, Name: "email"},
 				},
+			},
+		},
+		{
+			name: "any type schema",
+			schema: Common{
+				Type: Any,
+				Name: "payload",
 			},
 		},
 		{

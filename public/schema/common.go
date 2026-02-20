@@ -74,6 +74,7 @@ const (
 	Null      CommonType = 11
 	Union     CommonType = 12
 	Timestamp CommonType = 13
+	Any       CommonType = 14
 )
 
 // String returns a human readable string representation of the type.
@@ -105,6 +106,8 @@ func (t CommonType) String() string {
 		return "UNION"
 	case Timestamp:
 		return "TIMESTAMP"
+	case Any:
+		return "ANY"
 	default:
 		return "UNKNOWN"
 	}
@@ -138,6 +141,8 @@ func typeFromStr(v string) (CommonType, error) {
 		return Union, nil
 	case "TIMESTAMP":
 		return Timestamp, nil
+	case "ANY":
+		return Any, nil
 	default:
 		return 0, fmt.Errorf("unrecognised type string: %v", v)
 	}
@@ -173,9 +178,9 @@ const (
 // avoiding the need to parse the Any format and recalculate the fingerprint.
 //
 // NOTE: Ironically, the schema for this serialization is not something that can
-// actually be represented as a Common schema. This is because we do not support
-// schemas that nest complex types, which would be necessary for representing
-// the Children field.
+// be precisely represented as a Common schema. The Children field requires an
+// Array of structured schema objects, which cannot be described accurately
+// within the Common type system.
 func (c *Common) ToAny() any {
 	m := map[string]any{
 		anyFieldType:        c.Type.String(),

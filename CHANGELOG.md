@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.65.1 - TBD
+
+### Added
+
+- Go API: Common schemas now support Any field types. (@Jeffail)
+
 ## 4.65.0 - 2026-02-18
 
 ### Added
