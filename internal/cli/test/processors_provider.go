@@ -135,8 +135,6 @@ func (b *bloblangProc) Close(context.Context) error {
 //------------------------------------------------------------------------------
 
 func (p *ProcessorsProvider) initProcs(confs cachedConfig) ([]processor.V1, error) {
-	// Explicitly pass the environment to ensure templates registered via -t flag
-	// are available. This matches the pattern used in the run command.
 	mgr, err := manager.New(confs.mgr,
 		manager.OptSetLogger(p.logger),
 		manager.OptSetEnvironment(p.env),
