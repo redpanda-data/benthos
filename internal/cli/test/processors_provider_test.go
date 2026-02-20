@@ -417,8 +417,6 @@ pipeline:
 }
 
 func TestProcessorsProviderWithTemplate(t *testing.T) {
-	// Create a cloned environment to simulate RPK's behavior where templates
-	// are registered to a cloned environment, not bundle.GlobalEnvironment
 	env := bundle.GlobalEnvironment.Clone()
 	bloblEnv := bloblang.GlobalEnvironment()
 
