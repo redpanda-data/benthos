@@ -3,6 +3,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.65.1 - 2026-02-20
+
+### Added
+
+- Go API: Common schemas now support Any field types. (@Jeffail)
+
+### Fixed
+
+- `test` command: Templates registered via the `-t` flag are now correctly available during test execution. (@Phantal)
+
 ## 4.65.0 - 2026-02-18
 
 ### Added
