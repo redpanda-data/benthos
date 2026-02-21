@@ -442,7 +442,7 @@ func TestProcessorChainTracingIsolationBatch(t *testing.T) {
 	require.Len(t, proc3Spans, 3)
 
 	// Verify all processor spans are root spans (siblings, not nested)
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		assert.True(t, proc1Spans[i].IsRoot(),
 			"processor1 span %d should be a root span", i)
 		assert.True(t, proc2Spans[i].IsRoot(),

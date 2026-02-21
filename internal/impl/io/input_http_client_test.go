@@ -133,7 +133,7 @@ http_client:
 	var tr message.Transaction
 	var open bool
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		exp := fmt.Sprintf("hello%v", i)
 		select {
 		case tr, open = <-h.TransactionChan():
@@ -184,7 +184,7 @@ http_client:
 
 	h.TriggerStartConsuming()
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		select {
 		case <-requestChan:
 		case <-time.After(time.Second):
@@ -684,7 +684,7 @@ http_client:
 
 	h.TriggerStartConsuming()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		for _, testMsg := range msgs {
 			var ts message.Transaction
 			var open bool
@@ -749,7 +749,7 @@ http_client:
 
 	h.TriggerStartConsuming()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		for _, testMsg := range msgs {
 			var ts message.Transaction
 			var open bool
@@ -820,7 +820,7 @@ http_client:
 
 	h.TriggerStartConsuming()
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		if i == 9 {
 			tokensLock.Lock()
 			updateTokens = false

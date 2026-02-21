@@ -28,7 +28,6 @@ func TestLiteralParserErrors(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, err := tryParseQuery(test.input)
@@ -112,7 +111,6 @@ func TestLiteralParser(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 

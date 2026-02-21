@@ -109,7 +109,6 @@ func TestArithmeticNumberDegradation(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			res, err := fn(NewLiteralFunction("left", test.left), NewLiteralFunction("right", test.right), test.left, test.right)
 			if test.err != "" {
@@ -267,7 +266,6 @@ func TestArithmeticComparisons(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			fn, err := NewArithmeticExpression(
 				[]Function{
@@ -806,7 +804,6 @@ func TestArithmetic(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -910,7 +907,6 @@ func TestArithmeticTargets(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 

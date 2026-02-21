@@ -32,7 +32,7 @@ func TestBasicFanIn(t *testing.T) {
 
 	resChan := make(chan error)
 
-	for i := 0; i < nInputs; i++ {
+	for i := range nInputs {
 		mockInputs = append(mockInputs, &mock.Input{
 			TChan: make(chan message.Transaction),
 		})
@@ -47,9 +47,9 @@ func TestBasicFanIn(t *testing.T) {
 
 	fanIn.TriggerStartConsuming()
 
-	for i := 0; i < nMsgs; i++ {
-		for j := 0; j < nInputs; j++ {
-			content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
+	for i := range nMsgs {
+		for j := range nInputs {
+			content := [][]byte{fmt.Appendf(nil, "hello world %v", i)}
 			select {
 			case mockInputs[j].TChan <- message.NewTransaction(message.QuickBatch(content), resChan):
 			case <-time.After(time.Second * 5):
@@ -112,7 +112,7 @@ func TestFanInShutdown(t *testing.T) {
 	Inputs := []input.Streamed{}
 	mockInputs := []*mock.Input{}
 
-	for i := 0; i < nInputs; i++ {
+	for i := range nInputs {
 		mockInputs = append(mockInputs, &mock.Input{
 			TChan: make(chan message.Transaction),
 		})
@@ -156,7 +156,7 @@ func TestFanInAsync(t *testing.T) {
 	Inputs := []input.Streamed{}
 	mockInputs := []*mock.Input{}
 
-	for i := 0; i < nInputs; i++ {
+	for i := range nInputs {
 		mockInputs = append(mockInputs, &mock.Input{
 			TChan: make(chan message.Transaction),
 		})
@@ -174,11 +174,11 @@ func TestFanInAsync(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(nInputs)
 
-	for j := 0; j < nInputs; j++ {
+	for j := range nInputs {
 		go func(index int) {
 			rChan := make(chan error)
-			for i := 0; i < nMsgs; i++ {
-				content := [][]byte{[]byte(fmt.Sprintf("hello world %v %v", i, index))}
+			for i := range nMsgs {
+				content := [][]byte{fmt.Appendf(nil, "hello world %v %v", i, index)}
 				select {
 				case mockInputs[index].TChan <- message.NewTransaction(message.QuickBatch(content), rChan):
 				case <-time.After(time.Second * 5):
@@ -223,7 +223,7 @@ func BenchmarkBasicFanIn(b *testing.B) {
 	mockInputs := []*mock.Input{}
 	resChan := make(chan error)
 
-	for i := 0; i < nInputs; i++ {
+	for i := range nInputs {
 		mockInputs = append(mockInputs, &mock.Input{
 			TChan: make(chan message.Transaction),
 		})
@@ -246,8 +246,8 @@ func BenchmarkBasicFanIn(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		for j := 0; j < nInputs; j++ {
-			content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
+		for j := range nInputs {
+			content := [][]byte{fmt.Appendf(nil, "hello world %v", i)}
 			select {
 			case mockInputs[j].TChan <- message.NewTransaction(message.QuickBatch(content), resChan):
 			case <-time.After(time.Second * 5):

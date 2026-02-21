@@ -67,7 +67,6 @@ output_resources:
 `,
 		},
 	} {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			builder := service.NewStreamBuilder()
 			require.NoError(t, builder.SetYAML(test.conf))

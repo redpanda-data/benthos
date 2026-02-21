@@ -192,9 +192,7 @@ func (d *dynamicFanOutOutputBroker) loop() {
 		d.shutSig.TriggerHasStopped()
 	}()
 
-	apiWG.Add(1)
-	go func() {
-		defer apiWG.Done()
+	apiWG.Go(func() {
 		for {
 			select {
 			case wrappedOutput, open := <-d.newOutputChan:
@@ -230,7 +228,7 @@ func (d *dynamicFanOutOutputBroker) loop() {
 				return
 			}
 		}
-	}()
+	})
 
 	for {
 		var ts message.Transaction

@@ -64,8 +64,8 @@ func TestBasicRoundRobin(t *testing.T) {
 
 	oTM.TriggerStartConsuming()
 
-	for i := 0; i < nMsgs; i++ {
-		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
+	for i := range nMsgs {
+		content := [][]byte{fmt.Appendf(nil, "hello world %v", i)}
 		select {
 		case readChan <- message.NewTransaction(message.QuickBatch(content), resChan):
 		case <-time.After(time.Second):
@@ -119,7 +119,7 @@ func BenchmarkBasicRoundRobin(b *testing.B) {
 	outputs := []output.Streamed{}
 	mockOutputs := []*mock.OutputChanneled{}
 
-	for i := 0; i < nOutputs; i++ {
+	for i := range nOutputs {
 		mockOutputs = append(mockOutputs, &mock.OutputChanneled{})
 		outputs = append(outputs, mockOutputs[i])
 	}
@@ -143,7 +143,7 @@ func BenchmarkBasicRoundRobin(b *testing.B) {
 
 	b.StartTimer()
 
-	for i := 0; i < nMsgs; i++ {
+	for i := range nMsgs {
 		readChan <- message.NewTransaction(message.QuickBatch(content), resChan)
 		ts := <-mockOutputs[i%3].TChan
 		require.NoError(b, ts.Ack(tCtx, nil))
