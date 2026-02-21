@@ -77,8 +77,8 @@ func TestBatcherBasic(t *testing.T) {
 	var firstBatchExpected [][]byte
 	var secondBatchExpected [][]byte
 	var finalBatchExpected [][]byte
-	for i := 0; i < 10; i++ {
-		inputBytes := []byte(fmt.Sprintf("foo %v", i))
+	for i := range 10 {
+		inputBytes := fmt.Appendf(nil, "foo %v", i)
 		if i < 4 {
 			firstBatchExpected = append(firstBatchExpected, inputBytes)
 		} else if i < 8 {
@@ -93,9 +93,7 @@ func TestBatcherBasic(t *testing.T) {
 	finalErr := errors.New("final error")
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		for _, batch := range firstBatchExpected {
 			select {
 			case tInChan <- message.NewTransaction(message.QuickBatch([][]byte{batch}), resChan):
@@ -142,7 +140,7 @@ func TestBatcherBasic(t *testing.T) {
 				t.Error("timed out")
 			}
 		}
-	}()
+	})
 
 	sendResponse := func(tran message.Transaction, err error) {
 		sCtx, done := context.WithTimeout(t.Context(), time.Second)
@@ -294,10 +292,8 @@ func TestBatcherBatchError(t *testing.T) {
 	tOutChan := out.TChan
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
 
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		firstErr := errors.New("first error")
 		thirdErr := errors.New("third error")
 
@@ -319,17 +315,17 @@ func TestBatcherBatchError(t *testing.T) {
 			Failed(0, firstErr).Failed(2, thirdErr)
 
 		require.NoError(t, outTr.Ack(tCtx, batchErr))
-	}()
+	})
 
-	for i := 0; i < 4; i++ {
-		data := []byte(fmt.Sprintf("foo%v", i))
+	for i := range 4 {
+		data := fmt.Appendf(nil, "foo%v", i)
 		select {
 		case tInChan <- message.NewTransaction(message.QuickBatch([][]byte{data}), resChan):
 		case <-time.After(time.Second):
 			t.Fatal("timed out")
 		}
 	}
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		var act error
 		select {
 		case actRes := <-resChan:

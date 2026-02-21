@@ -48,7 +48,7 @@ generate:
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		select {
 		case tran := <-in.TransactionChan():
 			require.NoError(t, tran.Ack(ctx, nil))
@@ -101,7 +101,7 @@ generate:
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		select {
 		case tran := <-in.TransactionChan():
 			require.NoError(t, tran.Ack(ctx, nil))
@@ -153,7 +153,7 @@ generate:
 
 	in.TriggerStartConsuming()
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		select {
 		case tran := <-in.TransactionChan():
 			require.NoError(t, tran.Ack(ctx, nil))
@@ -203,7 +203,7 @@ generate:
 
 	ctx, done := context.WithTimeout(t.Context(), time.Second)
 	defer done()
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		select {
 		case tran := <-in.TransactionChan():
 			require.NoError(t, tran.Ack(ctx, nil))
@@ -247,7 +247,7 @@ func TestBundleOutputTracing(t *testing.T) {
 
 	out.TriggerStartConsuming()
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		resChan := make(chan error)
 		tran := message.NewTransaction(message.QuickBatch([][]byte{[]byte(strconv.Itoa(i))}), resChan)
 		select {
@@ -306,7 +306,7 @@ func TestBundleOutputTracingDisabled(t *testing.T) {
 
 	out.TriggerStartConsuming()
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		resChan := make(chan error)
 		tran := message.NewTransaction(message.QuickBatch([][]byte{[]byte(strconv.Itoa(i))}), resChan)
 		select {
@@ -364,7 +364,7 @@ func TestBundleOutputWithProcessorsTracing(t *testing.T) {
 
 	out.TriggerStartConsuming()
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		resChan := make(chan error)
 		tran := message.NewTransaction(message.QuickBatch([][]byte{[]byte("hello world " + strconv.Itoa(i))}), resChan)
 		select {
@@ -448,7 +448,7 @@ broker:
 
 	out.TriggerStartConsuming()
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		resChan := make(chan error)
 		tran := message.NewTransaction(message.QuickBatch([][]byte{
 			[]byte("hello world " + strconv.Itoa(i*2)),
@@ -535,7 +535,7 @@ meta bar = "new bar value"
 	proc, err := mgr.NewProcessor(procConfig)
 	require.NoError(t, err)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		part := message.NewPart([]byte(strconv.Itoa(i)))
 		part.MetaSetMut("foo", fmt.Sprintf("foo value %v", i))
 		batch, res := proc.ProcessBatch(tCtx, message.Batch{part})
@@ -630,7 +630,7 @@ meta bar = "new bar value"
 	proc, err := mgr.NewProcessor(procConfig)
 	require.NoError(t, err)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		part := message.NewPart([]byte(strconv.Itoa(i)))
 		part.MetaSetMut("foo", fmt.Sprintf("foo value %v", i))
 		batch, res := proc.ProcessBatch(tCtx, message.Batch{part})

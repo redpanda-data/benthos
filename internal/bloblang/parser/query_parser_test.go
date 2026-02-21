@@ -127,7 +127,6 @@ func TestFunctionParserErrors(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			_, err := tryParseQuery(test.input)
@@ -235,7 +234,6 @@ not this`,
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			res := queryParser(Context{

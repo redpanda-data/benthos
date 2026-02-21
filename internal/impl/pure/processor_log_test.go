@@ -48,7 +48,7 @@ log:
 			t.Fatal(err)
 		}
 
-		input := message.QuickBatch([][]byte{[]byte(fmt.Sprintf(`{"foo":"%v"}`, level))})
+		input := message.QuickBatch([][]byte{fmt.Appendf(nil, `{"foo":"%v"}`, level)})
 		expMsgs := []message.Batch{input}
 		actMsgs, res := l.ProcessBatch(t.Context(), input)
 		if res != nil {

@@ -88,7 +88,6 @@ func TestTypeError(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, test.exp, value.NewTypeErrorFrom(test.from, test.actual, test.types...).Error())
 		})
@@ -131,7 +130,6 @@ func TestTypeMismatchError(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, test.exp, NewTypeMismatch(
 				test.operator,

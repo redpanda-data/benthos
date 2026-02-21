@@ -71,9 +71,7 @@ func (n *notBatchedOutput) breakMessageOut(msg message.Batch) error {
 			return nil
 		}
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			var err error
 			select {
 			case res := <-tmpResChan:
@@ -82,7 +80,7 @@ func (n *notBatchedOutput) breakMessageOut(msg message.Batch) error {
 				err = component.ErrTypeClosed
 			}
 			addBatchErr(index, err)
-		}()
+		})
 		return nil
 	}); err != nil {
 		return err

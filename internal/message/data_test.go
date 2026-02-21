@@ -16,10 +16,8 @@ func TestConcurrentMutationsFromNil(t *testing.T) {
 	kickOffChan := make(chan struct{})
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 100 {
+		wg.Go(func() {
 			<-kickOffChan
 
 			local := source.ShallowCopy()
@@ -43,7 +41,7 @@ func TestConcurrentMutationsFromNil(t *testing.T) {
 
 			vBytes := local.AsBytes()
 			assert.Equal(t, `{"foo":"baz"}`, string(vBytes))
-		}()
+		})
 	}
 
 	close(kickOffChan)
@@ -61,10 +59,8 @@ func TestConcurrentMutationsFromStructured(t *testing.T) {
 	kickOffChan := make(chan struct{})
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 100 {
+		wg.Go(func() {
 			<-kickOffChan
 
 			local := source.ShallowCopy()
@@ -103,7 +99,7 @@ func TestConcurrentMutationsFromStructured(t *testing.T) {
 
 			vBytes = local.AsBytes()
 			assert.Equal(t, `{"foo":"meow"}`, string(vBytes))
-		}()
+		})
 	}
 
 	close(kickOffChan)

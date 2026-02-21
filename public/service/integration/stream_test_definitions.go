@@ -131,7 +131,7 @@ func StreamTestSendBatch(n int) StreamTestDefinition {
 
 			set := map[string][]string{}
 			payloads := []string{}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				payload := fmt.Sprintf("hello world %v", i)
 				set[payload] = nil
 				payloads = append(payloads, payload)
@@ -160,8 +160,8 @@ func StreamTestSendBatches(batchSize, batches, parallelism int) StreamTestDefini
 			})
 
 			set := map[string][]string{}
-			for j := 0; j < batches; j++ {
-				for i := 0; i < batchSize; i++ {
+			for j := range batches {
+				for i := range batchSize {
 					payload := fmt.Sprintf("hello world %v", j*batches+i)
 					set[payload] = nil
 				}
@@ -170,10 +170,8 @@ func StreamTestSendBatches(batchSize, batches, parallelism int) StreamTestDefini
 			batchChan := make(chan []string)
 
 			var wg sync.WaitGroup
-			for k := 0; k < parallelism; k++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+			for range parallelism {
+				wg.Go(func() {
 					for {
 						batch, open := <-batchChan
 						if !open {
@@ -181,20 +179,18 @@ func StreamTestSendBatches(batchSize, batches, parallelism int) StreamTestDefini
 						}
 						assert.NoError(t, sendBatch(env.ctx, t, tranChan, batch))
 					}
-				}()
+				})
 			}
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				for len(set) > 0 {
 					messagesInSet(t, true, env.allowDuplicateMessages, receiveBatch(env.ctx, t, input.TransactionChan(), nil), set)
 				}
-			}()
+			})
 
-			for j := 0; j < batches; j++ {
+			for j := range batches {
 				payloads := []string{}
-				for i := 0; i < batchSize; i++ {
+				for i := range batchSize {
 					payload := fmt.Sprintf("hello world %v", j*batches+i)
 					payloads = append(payloads, payload)
 				}
@@ -224,7 +220,7 @@ func StreamTestSendBatchCount(n int) StreamTestDefinition {
 			resChan := make(chan error)
 
 			set := map[string][]string{}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				payload := fmt.Sprintf("hello world %v", i)
 				set[payload] = nil
 				msg := message.Batch{
@@ -239,7 +235,7 @@ func StreamTestSendBatchCount(n int) StreamTestDefinition {
 				}
 			}
 
-			for i := 0; i < n; i++ {
+			for range n {
 				select {
 				case res := <-resChan:
 					assert.NoError(t, res)
@@ -272,7 +268,7 @@ func StreamTestSendBatchCountIsolated(n int) StreamTestDefinition {
 			resChan := make(chan error)
 
 			set := map[string][]string{}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				payload := fmt.Sprintf("hello world %v", i)
 				set[payload] = nil
 				msg := message.Batch{
@@ -287,7 +283,7 @@ func StreamTestSendBatchCountIsolated(n int) StreamTestDefinition {
 				}
 			}
 
-			for i := 0; i < n; i++ {
+			for range n {
 				select {
 				case res := <-resChan:
 					assert.NoError(t, res)
@@ -325,7 +321,7 @@ func StreamTestReceiveBatchCount(n int) StreamTestDefinition {
 
 			set := map[string][]string{}
 
-			for i := 0; i < n; i++ {
+			for i := range n {
 				payload := fmt.Sprintf("hello world: %v", i)
 				set[payload] = nil
 				require.NoError(t, sendMessage(env.ctx, t, tranChan, payload))
@@ -360,7 +356,7 @@ func StreamTestStreamSequential(n int) StreamTestDefinition {
 
 			set := map[string][]string{}
 
-			for i := 0; i < n; i++ {
+			for i := range n {
 				payload := fmt.Sprintf("hello world: %v", i)
 				set[payload] = nil
 				require.NoError(t, sendMessage(env.ctx, t, tranChan, payload))
@@ -387,7 +383,7 @@ func StreamTestStreamIsolated(n int) StreamTestDefinition {
 
 			set := map[string][]string{}
 
-			for i := 0; i < n; i++ {
+			for i := range n {
 				payload := fmt.Sprintf("hello world: %v", i)
 				set[payload] = nil
 				require.NoError(t, sendMessage(env.ctx, t, tranChan, payload))
@@ -486,7 +482,7 @@ func StreamTestStreamParallel(n int) StreamTestDefinition {
 			})
 
 			set := map[string][]string{}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				payload := fmt.Sprintf("hello world: %v", i)
 				set[payload] = nil
 			}
@@ -496,7 +492,7 @@ func StreamTestStreamParallel(n int) StreamTestDefinition {
 
 			go func() {
 				defer wg.Done()
-				for i := 0; i < n; i++ {
+				for i := range n {
 					payload := fmt.Sprintf("hello world: %v", i)
 					require.NoError(t, sendMessage(env.ctx, t, tranChan, payload))
 				}
@@ -643,7 +639,7 @@ func StreamTestStreamParallelLossy(n int) StreamTestDefinition {
 			})
 
 			set := map[string][]string{}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				payload := fmt.Sprintf("hello world: %v", i)
 				set[payload] = nil
 			}
@@ -653,7 +649,7 @@ func StreamTestStreamParallelLossy(n int) StreamTestDefinition {
 
 			go func() {
 				defer wg.Done()
-				for i := 0; i < n; i++ {
+				for i := range n {
 					payload := fmt.Sprintf("hello world: %v", i)
 					require.NoError(t, sendMessage(env.ctx, t, tranChan, payload))
 				}
@@ -662,7 +658,7 @@ func StreamTestStreamParallelLossy(n int) StreamTestDefinition {
 			go func() {
 				defer wg.Done()
 				rejected := 0
-				for i := 0; i < n; i++ {
+				for i := range n {
 					if i%10 == 1 {
 						rejected++
 						messagesInSet(
@@ -699,7 +695,7 @@ func StreamTestStreamParallelLossyThroughReconnect(n int) StreamTestDefinition {
 			})
 
 			set := map[string][]string{}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				payload := fmt.Sprintf("hello world: %v", i)
 				set[payload] = nil
 			}
@@ -709,7 +705,7 @@ func StreamTestStreamParallelLossyThroughReconnect(n int) StreamTestDefinition {
 
 			go func() {
 				defer wg.Done()
-				for i := 0; i < n; i++ {
+				for i := range n {
 					payload := fmt.Sprintf("hello world: %v", i)
 					require.NoError(t, sendMessage(env.ctx, t, tranChan, payload))
 				}
@@ -718,7 +714,7 @@ func StreamTestStreamParallelLossyThroughReconnect(n int) StreamTestDefinition {
 			go func() {
 				defer wg.Done()
 				rejected := 0
-				for i := 0; i < n; i++ {
+				for i := range n {
 					if i%10 == 1 {
 						rejected++
 						messagesInSet(
@@ -766,7 +762,7 @@ func StreamTestOutputOnlySendSequential(n int, getFn GetMessageFunc) StreamTestD
 			})
 
 			set := map[string]string{}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				id := strconv.Itoa(i)
 				payload := fmt.Sprintf(`{"content":"hello world","id":%v}`, id)
 				set[id] = payload
@@ -795,7 +791,7 @@ func StreamTestOutputOnlySendBatch(n int, getFn GetMessageFunc) StreamTestDefini
 
 			set := map[string]string{}
 			batch := []string{}
-			for i := 0; i < n; i++ {
+			for i := range n {
 				id := strconv.Itoa(i)
 				payload := fmt.Sprintf(`{"content":"hello world","id":%v}`, id)
 				set[id] = payload

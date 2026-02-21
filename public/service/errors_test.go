@@ -189,12 +189,12 @@ func TestBloblangErrorFuncs(t *testing.T) {
 			require.NoError(t, err)
 
 			// Register a resource processor
-			resProcConf, err := docs.UnmarshalYAML([]byte(fmt.Sprintf(`
+			resProcConf, err := docs.UnmarshalYAML(fmt.Appendf(nil, `
 processors:
   - mapping: root.foo = "bar"
   - label: %s
     mapping: root = throw("Kaboom!")
-`, test.label)))
+`, test.label))
 			require.NoError(t, err)
 
 			resProc, err := processor.FromAny(mgr, resProcConf)
@@ -205,7 +205,7 @@ processors:
 			require.NoError(t, err)
 
 			// Register a processor template
-			err = template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), []byte(fmt.Sprintf(`
+			err = template.RegisterTemplateYAML(mgr.Environment(), mgr.BloblEnvironment(), fmt.Appendf(nil, `
 name: %s
 type: processor
 
@@ -216,11 +216,11 @@ mapping: |
       "label": @label,
       "mapping": """root = throw("Kaboom!")"""
     }
-`, processorTemplateName)))
+`, processorTemplateName))
 			require.NoError(t, err)
 
 			// Configure a `processors` processor which exercises the `error_source_*` functions
-			conf, err := docs.UnmarshalYAML([]byte(fmt.Sprintf(`
+			conf, err := docs.UnmarshalYAML(fmt.Appendf(nil, `
 processors:
   # Use a try to make the path more interesting
   - try:
@@ -233,7 +233,7 @@ processors:
       root.name = error_source_name()
       root.label = error_source_label()
       root.path = error_source_path()
-`, test.label, test.processor)))
+`, test.label, test.processor))
 			require.NoError(t, err)
 
 			parsedConf, err := processor.FromAny(mgr, conf)

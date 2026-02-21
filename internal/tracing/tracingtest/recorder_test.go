@@ -34,7 +34,7 @@ func TestRecordingTracerProviderMultipleSpans(t *testing.T) {
 	tracer := tp.Tracer("test")
 
 	// Create multiple spans
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		_, span := tracer.Start(context.Background(), "span")
 		span.End()
 	}

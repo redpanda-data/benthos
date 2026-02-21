@@ -279,7 +279,6 @@ func TestAssignments(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			msg := message.QuickBatch(nil)
 			for _, p := range test.input {
@@ -393,7 +392,6 @@ func TestTargets(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		test := test
 		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
 			_, targets := test.mapping.QueryTargets(query.TargetsContext{
 				Maps: map[string]query.Function{},
@@ -494,7 +492,6 @@ func TestExec(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			res, err := test.mapping.Exec(query.FunctionContext{
 				MsgBatch: message.QuickBatch(nil),
@@ -594,7 +591,6 @@ func TestQueries(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			msg := message.QuickBatch(nil)
 			for _, p := range test.input {

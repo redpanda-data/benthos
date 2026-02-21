@@ -42,7 +42,7 @@ func TestBatcherStandard(t *testing.T) {
 
 	testMsgs := []string{}
 	testResChans := []chan error{}
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		testMsgs = append(testMsgs, fmt.Sprintf("test%v", i))
 		testResChans = append(testResChans, make(chan error))
 	}
@@ -183,7 +183,7 @@ func TestBatcherErrorTracking(t *testing.T) {
 
 	testMsgs := []string{}
 	testResChans := []chan error{}
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		testMsgs = append(testMsgs, fmt.Sprintf("test%v", i))
 		testResChans = append(testResChans, make(chan error))
 	}

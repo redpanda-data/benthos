@@ -128,7 +128,6 @@ func TestIteratorMethods(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -162,7 +161,7 @@ func benchFilterIter(b *testing.B, n, m int) {
 	var err error
 	var fn Function = NewLiteralFunction("", startingArray)
 	filter := filterFunction()
-	for i := 0; i < m; i++ {
+	for range m {
 		fn, err = newFilterMethod(fn, filter)
 		require.NoError(b, err)
 	}
@@ -187,7 +186,7 @@ func benchFilterNoIter(b *testing.B, n, m int) {
 	var err error
 	var fn Function = NewLiteralFunction("", startingArray)
 	filter := filterFunction()
-	for i := 0; i < m; i++ {
+	for range m {
 		fn, err = InitMethodHelper("filter", fn, filter)
 		require.NoError(b, err)
 	}

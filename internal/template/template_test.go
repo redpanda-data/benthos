@@ -483,7 +483,7 @@ mapping: |
 			spec, ok := mgr.Environment().GetDocs("foobar", docs.TypeProcessor)
 			require.True(t, ok)
 
-			node, err := docs.UnmarshalYAML([]byte(fmt.Sprintf(`test: %v`, test.fieldValue)))
+			node, err := docs.UnmarshalYAML(fmt.Appendf(nil, `test: %v`, test.fieldValue))
 			require.NoError(t, err)
 
 			lints := spec.Config.LintYAML(docs.NewLintContext(docs.NewLintConfig(mgr.Environment())), node)
@@ -643,7 +643,7 @@ mapping: |
 			spec, ok := mgr.Environment().GetDocs("foobar", docs.TypeProcessor)
 			require.True(t, ok)
 
-			node, err := docs.UnmarshalYAML([]byte(fmt.Sprintf(`test: %v`, test.fieldValue)))
+			node, err := docs.UnmarshalYAML(fmt.Appendf(nil, `test: %v`, test.fieldValue))
 			require.NoError(t, err)
 
 			lints := spec.Config.LintYAML(docs.NewLintContext(docs.NewLintConfig(mgr.Environment())), node)

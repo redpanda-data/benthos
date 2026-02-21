@@ -99,7 +99,6 @@ switch:
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			msg := message.QuickBatch(nil)
 			for _, s := range test.input {
@@ -287,7 +286,7 @@ switch:
 func BenchmarkSortCorrect(b *testing.B) {
 	sortedParts := make([]*message.Part, b.N)
 	for i := range sortedParts {
-		sortedParts[i] = message.NewPart([]byte(fmt.Sprintf("hello world %040d", i)))
+		sortedParts[i] = message.NewPart(fmt.Appendf(nil, "hello world %040d", i))
 	}
 
 	group, parts := message.NewSortGroup(sortedParts)
@@ -301,7 +300,7 @@ func BenchmarkSortCorrect(b *testing.B) {
 func BenchmarkSortReverse(b *testing.B) {
 	sortedParts := make([]*message.Part, b.N)
 	for i := range sortedParts {
-		sortedParts[i] = message.NewPart([]byte(fmt.Sprintf("hello world %040d", i)))
+		sortedParts[i] = message.NewPart(fmt.Appendf(nil, "hello world %040d", i))
 	}
 
 	group, parts := message.NewSortGroup(sortedParts)

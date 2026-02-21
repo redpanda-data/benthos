@@ -37,7 +37,7 @@ interval: 1s
 
 	ctx := t.Context()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		period, _ := rl.Access(ctx)
 		assert.LessOrEqual(t, period, time.Duration(0))
 	}
@@ -61,7 +61,7 @@ interval: 10ms
 
 	ctx := t.Context()
 
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		period, _ := rl.Access(ctx)
 		if period > 0 {
 			t.Errorf("Period above zero: %v", period)
@@ -76,7 +76,7 @@ interval: 10ms
 
 	<-time.After(time.Millisecond * 15)
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		period, _ := rl.Access(ctx)
 		if period != 0 {
 			t.Errorf("Rate limited on get %v", i)
@@ -122,7 +122,7 @@ interval: 1ns
 
 	ctx := b.Context()
 
-	for i := 0; i < nParallel; i++ {
+	for range nParallel {
 		go func() {
 			<-startChan
 			for j := 0; j < b.N; j++ {

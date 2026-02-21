@@ -18,7 +18,7 @@ func TestBasicThrottle(t *testing.T) {
 		OptCloseChan(closeChan),
 	)
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		if !throt.Retry() {
 			t.Errorf("Throttle blocked early: %v", i)
 		}
@@ -40,8 +40,8 @@ func TestThrottleReset(t *testing.T) {
 		OptCloseChan(closeChan),
 	)
 
-	for j := 0; j < 3; j++ {
-		for i := 0; i < 3; i++ {
+	for range 3 {
+		for i := range 3 {
 			if !throt.Retry() {
 				t.Errorf("Throttle blocked early: %v", i)
 			}
@@ -73,7 +73,7 @@ func TestThrottleLinear(t *testing.T) {
 		t.Errorf("Unexpected retry period: %v != %v", act, exp)
 	}
 
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		tBefore = time.Now()
 		throt.Retry()
 

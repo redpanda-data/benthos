@@ -74,8 +74,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo\n")); cerr != nil {
 			t.Error(cerr)
@@ -86,8 +85,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -163,8 +161,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, cerr := conn.Write([]byte("foo\n"))
 		if cerr != nil {
@@ -180,8 +177,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -267,8 +263,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo\n")); cerr != nil {
 			t.Error(cerr)
@@ -279,8 +274,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -357,8 +351,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo\n")); cerr != nil {
 			t.Error(cerr)
@@ -372,8 +365,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n\n")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -442,8 +434,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo@")); cerr != nil {
 			t.Error(cerr)
@@ -457,8 +448,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n@@")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -527,8 +517,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo\n")); cerr != nil {
 			t.Error(cerr)
@@ -543,8 +532,7 @@ socket:
 			t.Error(cerr)
 		}
 		conn.Close()
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -611,8 +599,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo\n")); cerr != nil {
 			t.Error(cerr)
@@ -623,8 +610,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -700,8 +686,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		_, cerr := conn.Write([]byte("foo\n"))
 		if cerr != nil {
@@ -718,8 +703,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -796,8 +780,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo\n")); cerr != nil {
 			t.Error(cerr)
@@ -811,8 +794,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n\n")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -881,8 +863,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo@")); cerr != nil {
 			t.Error(cerr)
@@ -896,8 +877,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n@@")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -966,8 +946,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo\n")); cerr != nil {
 			t.Error(cerr)
@@ -982,8 +961,7 @@ socket:
 			t.Error(cerr)
 		}
 		conn.Close()
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -1058,8 +1036,7 @@ socket:
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 5))
 		if _, cerr := conn.Write([]byte("foo\n")); cerr != nil {
 			t.Error(cerr)
@@ -1070,8 +1047,7 @@ socket:
 		if _, cerr := conn.Write([]byte("baz\n")); cerr != nil {
 			t.Error(cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (message.Batch, error) {
 		var msg message.Batch
@@ -1178,15 +1154,13 @@ socket:
 	require.NoError(b, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 60))
 		for i := 0; i < b.N; i++ {
 			_, cerr := fmt.Fprintf(conn, "hello world this is message %v\n", i)
 			assert.NoError(b, cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (string, error) {
 		var payload string
@@ -1246,15 +1220,13 @@ socket:
 	require.NoError(b, err)
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetWriteDeadline(time.Now().Add(time.Second * 60))
 		for i := 0; i < b.N; i++ {
 			_, cerr := fmt.Fprintf(conn, "hello world this is message %v\n", i)
 			assert.NoError(b, cerr)
 		}
-		wg.Done()
-	}()
+	})
 
 	readNextMsg := func() (string, error) {
 		var payload string

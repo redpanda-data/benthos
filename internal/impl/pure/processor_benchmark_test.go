@@ -25,7 +25,7 @@ interval: 0
 	require.NoError(t, err)
 
 	msg := service.NewMessage([]byte("hello"))
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		batch, err := benchmarkProc.Process(t.Context(), msg)
 		require.NoError(t, err)
 		require.Equal(t, service.MessageBatch{msg}, batch)
@@ -58,7 +58,7 @@ count_bytes: false
 	require.NoError(t, err)
 
 	msg := service.NewMessage([]byte("hello"))
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		batch, err := benchmarkProc.Process(t.Context(), msg)
 		require.NoError(t, err)
 		require.Equal(t, service.MessageBatch{msg}, batch)

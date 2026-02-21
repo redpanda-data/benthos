@@ -182,7 +182,7 @@ func TestSchemaCacheConcurrency(t *testing.T) {
 	results := make([]mockConvertedSchema, numGoroutines)
 	errors := make([]error, numGoroutines)
 
-	for i := 0; i < numGoroutines; i++ {
+	for i := range numGoroutines {
 		go func(idx int) {
 			defer wg.Done()
 			results[idx], errors[idx] = cache.GetOrConvert(schema)

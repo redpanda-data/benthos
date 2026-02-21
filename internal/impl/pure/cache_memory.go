@@ -148,7 +148,7 @@ func newMemCache(ttl, compInterval time.Duration, nShards int, initValues map[st
 			},
 		}
 	} else {
-		for i := 0; i < nShards; i++ {
+		for range nShards {
 			m.shards = append(m.shards, &shard{
 				items:          map[string]item{},
 				compInterval:   compInterval,
