@@ -61,7 +61,6 @@ func TestBloblLinter(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			var node yaml.Node
 			require.NoError(t, node.Encode(test.input))
@@ -126,7 +125,6 @@ func TestFieldLinting(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			var lints []docs.Lint
 			linter := test.f.GetLintFunc()
@@ -207,7 +205,6 @@ func TestSecretScrubbing(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			out, err := test.f.ScrubValue(test.input)
 			require.NoError(t, err)

@@ -185,7 +185,6 @@ root.meow = this.apply("foo")
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			m, err := GlobalEnvironment().NewMapping(test.mapping)
 			require.NoError(t, err)
@@ -234,7 +233,6 @@ func TestMappingParallelExecution(t *testing.T) {
 	}
 
 	for name, test := range tests {
-		test := test
 		t.Run(name, func(t *testing.T) {
 			m, err := GlobalEnvironment().NewMapping(test.mapping)
 			require.NoError(t, err)
@@ -242,13 +240,11 @@ func TestMappingParallelExecution(t *testing.T) {
 			startChan := make(chan struct{})
 
 			var wg sync.WaitGroup
-			for i := 0; i < 10; i++ {
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
+			for range 10 {
+				wg.Go(func() {
 					<-startChan
 
-					for j := 0; j < 100; j++ {
+					for range 100 {
 						part := message.NewPart(nil)
 						part.SetStructured(test.input)
 
@@ -263,7 +259,7 @@ func TestMappingParallelExecution(t *testing.T) {
 
 						assert.Equal(t, test.output, res)
 					}
-				}()
+				})
 			}
 
 			close(startChan)

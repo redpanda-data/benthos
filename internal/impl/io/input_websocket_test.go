@@ -229,11 +229,9 @@ url: %v
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		require.NoError(t, m.Close(ctx))
-		wg.Done()
-	}()
+	})
 
 	if _, _, err = m.ReadBatch(ctx); err != component.ErrTypeClosed && err != component.ErrNotConnected {
 		t.Errorf("Wrong error: %v != %v", err, component.ErrTypeClosed)

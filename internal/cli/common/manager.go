@@ -197,10 +197,7 @@ func RunManagerUntilStopped(
 		// than the deadline (by 10%, capped at one second).
 		dlTriggersBy := time.Until(dl)
 
-		earlierBy := dlTriggersBy / 10
-		if earlierBy > time.Second {
-			earlierBy = time.Second
-		}
+		earlierBy := min(dlTriggersBy/10, time.Second)
 		deadLineTrigger = time.After(dlTriggersBy - earlierBy)
 	}
 

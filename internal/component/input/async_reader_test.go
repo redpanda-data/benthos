@@ -635,7 +635,7 @@ func TestAsyncReaderParallel(t *testing.T) {
 	defer done()
 
 	expMsgs := []string{}
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		expMsgs = append(expMsgs, fmt.Sprintf("message: %v", i))
 	}
 	readerImpl := newMockAsyncReader()
@@ -818,7 +818,7 @@ func benchmarkAsyncReaderGenerateN(b *testing.B, capacity int) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N/capacity; i++ {
-		for j := 0; j < capacity; j++ {
+		for j := range capacity {
 			select {
 			case ts, open := <-r.TransactionChan():
 				require.True(b, open)
@@ -828,7 +828,7 @@ func benchmarkAsyncReaderGenerateN(b *testing.B, capacity int) {
 			}
 		}
 
-		for j := 0; j < capacity; j++ {
+		for j := range capacity {
 			require.NoError(b, resFns[j](tCtx, nil))
 		}
 	}

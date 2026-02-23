@@ -162,7 +162,7 @@ retry:
 		}
 	}()
 
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		select {
 		case tran = <-mOut.TChan:
 		case <-resChan:
