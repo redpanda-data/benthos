@@ -14,6 +14,73 @@ import (
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
+func TestMessageMetaImmut(t *testing.T) {
+	m := NewMessage(nil)
+
+	// Not found returns nil, false
+	v, ok := m.MetaGetImmut("missing")
+	assert.False(t, ok)
+	assert.Nil(t, v)
+
+	// Scalar string: MetaGetImmut returns the ImmutableAny wrapper itself
+	m.MetaSetImmut("str", ImmutableAny{V: "hello"})
+	v, ok = m.MetaGetImmut("str")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "hello"}, v)
+
+	// Integer value
+	m.MetaSetImmut("int", ImmutableAny{V: 42})
+	v, ok = m.MetaGetImmut("int")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: 42}, v)
+
+	// Slice value: MetaGetImmut returns the wrapper; MetaGetMut returns a copy
+	m.MetaSetImmut("slice", ImmutableAny{V: []any{"a", "b", "c"}})
+	v, ok = m.MetaGetImmut("slice")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: []any{"a", "b", "c"}}, v)
+
+	// MetaGetMut delivers a distinct copy — mutating it does not affect the stored value
+	mutV, ok := m.MetaGetMut("slice")
+	assert.True(t, ok)
+	assert.Equal(t, []any{"a", "b", "c"}, mutV)
+	mutV.([]any)[0] = "x"
+	immutV, _ := m.MetaGetImmut("slice")
+	assert.Equal(t, []any{"a", "b", "c"}, immutV.(ImmutableAny).V.([]any), "original slice must be unaffected")
+
+	// Map value
+	m.MetaSetImmut("map", ImmutableAny{V: map[string]any{"foo": "bar"}})
+	v, ok = m.MetaGetImmut("map")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: map[string]any{"foo": "bar"}}, v)
+
+	// MetaSetImmut overwrites a prior value set by MetaSetMut
+	m.MetaSetMut("key", "mutable")
+	m.MetaSetImmut("key", ImmutableAny{V: "immutable"})
+	v, ok = m.MetaGetImmut("key")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "immutable"}, v)
+
+	// MetaSetMut overwrites a prior value set by MetaSetImmut
+	m.MetaSetImmut("key2", ImmutableAny{V: "immutable"})
+	m.MetaSetMut("key2", "mutable")
+	v, ok = m.MetaGetImmut("key2")
+	assert.True(t, ok)
+	assert.Equal(t, "mutable", v)
+
+	// Immutable values yielded via MetaWalkMut receive Copy() results
+	m2 := NewMessage(nil)
+	m2.MetaSetImmut("a", ImmutableAny{V: int64(1)})
+	m2.MetaSetImmut("b", ImmutableAny{V: "two"})
+	seen := map[string]any{}
+	err := m2.MetaWalkMut(func(k string, v any) error {
+		seen[k] = v
+		return nil
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]any{"a": int64(1), "b": "two"}, seen)
+}
+
 func TestMessageCopyAirGap(t *testing.T) {
 	p := message.NewPart([]byte("hello world"))
 	p.MetaSetMut("foo", "bar")

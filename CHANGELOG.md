@@ -3,7 +3,11 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## 4.65.2 - TBD
+## 4.66.0 - TBD
+
+### Added
+
+- Go API: `Message` now exposes `MetaGetImmut` and `MetaSetImmut` methods for reading and writing metadata values of any type with immutable semantics. (@Jeffail)
 
 ### Fixed
 
