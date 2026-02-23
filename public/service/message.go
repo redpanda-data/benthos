@@ -295,14 +295,43 @@ func (m *Message) GetError() error {
 
 // MetaGet attempts to find a metadata key from the message and returns a string
 // result and a boolean indicating whether it was found.
-//
-// Strong advice: Use MetaGetMut instead.
 func (m *Message) MetaGet(key string) (string, bool) {
-	v, exists := m.part.MetaGetMut(key)
-	if !exists {
-		return "", false
-	}
-	return value.IToString(v), true
+	return m.part.MetaGetStrOK(key)
+}
+
+// ImmutableValue is implemented by values stored via MetaSetImmut. The engine
+// calls Copy() automatically when a downstream component requests a mutable
+// version of the value via MetaGetMut, delivering a fresh instance without
+// affecting the original.
+//
+// Copy() must be safe to call concurrently from multiple goroutines. After a
+// DeepCopy, immutable entries are shared across message copies that may be
+// processed in parallel, and each parallel branch may call Copy() on the same
+// ImmutableValue simultaneously.
+type ImmutableValue interface {
+	Copy() any
+}
+
+// ImmutableAny wraps an arbitrary value as an ImmutableValue. V is the
+// underlying value and must be treated as read-only by the caller.
+//
+// Copy() delegates to message.CopyJSON which deeply clones []any and
+// map[string]any structures. Other reference types (e.g. []string,
+// map[string]string, custom structs) are returned by reference — callers
+// that need true isolation for those types should implement ImmutableValue
+// directly with a type-appropriate Copy().
+type ImmutableAny struct{ V any }
+
+// Copy returns a mutable copy of the wrapped value.
+func (i ImmutableAny) Copy() any { return message.CopyJSON(i.V) }
+
+// MetaGetImmut attempts to find a metadata key from the message and returns the
+// value if found, along with a boolean indicating whether it was found. The
+// value returned should be treated as immutable; if you need to modify the
+// value use MetaGetMut instead, which signals that the caller intends to mutate
+// the result.
+func (m *Message) MetaGetImmut(key string) (any, bool) {
+	return m.part.MetaGetImmut(key)
 }
 
 // MetaGetMut attempts to find a metadata key from the message and returns the
@@ -312,15 +341,13 @@ func (m *Message) MetaGet(key string) (string, bool) {
 func (m *Message) MetaGetMut(key string) (any, bool) {
 	v, exists := m.part.MetaGetMut(key)
 	if !exists {
-		return "", false
+		return nil, false
 	}
 	return v, true
 }
 
 // MetaSet sets the value of a metadata key. If the value is an empty string the
 // metadata key is deleted.
-//
-// Strong advice: Use MetaSetMut instead.
 func (m *Message) MetaSet(key, value string) {
 	if value == "" {
 		m.part.MetaDelete(key)
@@ -329,9 +356,18 @@ func (m *Message) MetaSet(key, value string) {
 	}
 }
 
+// MetaSetImmut sets the value of a metadata key to an ImmutableValue. The
+// value is stored as immutable: downstream components that retrieve it via
+// MetaGetImmut receive the value directly (must not mutate), while components
+// that retrieve it via MetaGetMut receive a fresh copy produced by Copy().
+func (m *Message) MetaSetImmut(key string, value ImmutableValue) {
+	m.part.MetaSetImmut(key, value)
+}
+
 // MetaSetMut sets the value of a metadata key to any value. The value provided
 // is stored as mutable, and therefore if it is a reference type such as a slice
-// or map then it could be modified by a downstream component.
+// or map then it could be modified by a downstream component. The caller must
+// not mutate the value after passing it to MetaSetMut.
 func (m *Message) MetaSetMut(key string, value any) {
 	m.part.MetaSetMut(key, value)
 }
@@ -344,8 +380,6 @@ func (m *Message) MetaDelete(key string) {
 // MetaWalk iterates each metadata key/value pair and executes a provided
 // closure on each iteration. To stop iterating, return an error from the
 // closure. An error returned by the closure will be returned by this function.
-//
-// Strong advice: Use MetaWalkMut instead.
 func (m *Message) MetaWalk(fn func(string, string) error) error {
 	return m.part.MetaIterStr(fn)
 }
