@@ -2,19 +2,25 @@
 
 package message
 
-import "maps"
+import (
+	"maps"
+	"sync/atomic"
+)
 
 // Contains underlying allocated data for messages.
 type messageData struct {
 	rawBytes []byte // Contents are always read-only
 	err      error
 
-	// Mutable when readOnlyStructured = false
-	readOnlyStructured bool
+	// Mutable when readOnlyStructured = false.
+	// Atomic because ShallowCopy may be called concurrently on the same source
+	// (e.g. workflow processor spawning parallel branches).
+	readOnlyStructured atomic.Bool
 	structured         any // Sometimes mutable
 
-	// Mutable when readOnlyMeta = false
-	readOnlyMeta bool
+	// Mutable when readOnlyMeta = false.
+	// Atomic because ShallowCopy may be called concurrently on the same source.
+	readOnlyMeta atomic.Bool
 	metadata     map[string]metaValue
 }
 
@@ -24,7 +30,7 @@ type messageData struct {
 // true and v is the ImmutableValue; callers requesting mutation receive
 // v.(immutableMeta).Copy() rather than v itself.
 type metaValue struct {
-	v        any
+	v         any
 	immutable bool
 }
 
@@ -71,17 +77,17 @@ func (m *messageData) SetStructured(jObj any) {
 	if jObj == nil {
 		m.rawBytes = []byte(`null`)
 		m.structured = nil
-		m.readOnlyStructured = false
+		m.readOnlyStructured.Store(false)
 		return
 	}
 	m.rawBytes = nil
 	m.structured = jObj
-	m.readOnlyStructured = true
+	m.readOnlyStructured.Store(true)
 }
 
 func (m *messageData) SetStructuredMut(jObj any) {
 	m.SetStructured(jObj)
-	m.readOnlyStructured = false
+	m.readOnlyStructured.Store(false)
 }
 
 func (m *messageData) AsStructured() (any, error) {
@@ -99,11 +105,11 @@ func (m *messageData) AsStructured() (any, error) {
 }
 
 func (m *messageData) AsStructuredMut() (any, error) {
-	if m.readOnlyStructured {
+	if m.readOnlyStructured.Load() {
 		if m.structured != nil {
 			m.structured = cloneGeneric(m.structured)
 		}
-		m.readOnlyStructured = false
+		m.readOnlyStructured.Store(false)
 	}
 
 	v, err := m.AsStructured()
@@ -124,19 +130,22 @@ func (m *messageData) AsStructuredMut() (any, error) {
 // readOnly flags set to true, so any mutation triggers a copy-on-write clone
 // first. The original is marked read-only here to prevent it from writing
 // directly to the shared map while the copy may be concurrently cloning it.
+//
+// ShallowCopy is safe to call concurrently on the same source. The readOnly
+// flags use atomic operations so that concurrent callers (e.g. workflow
+// processor spawning parallel branches) do not race.
 func (m *messageData) ShallowCopy() *messageData {
-	m.readOnlyMeta = true
-	m.readOnlyStructured = true
-	return &messageData{
-		rawBytes: m.rawBytes,
-		err:      m.err,
-
-		readOnlyStructured: true,
-		structured:         m.structured,
-
-		readOnlyMeta: true,
-		metadata:     m.metadata,
+	m.readOnlyMeta.Store(true)
+	m.readOnlyStructured.Store(true)
+	cp := &messageData{
+		rawBytes:   m.rawBytes,
+		err:        m.err,
+		structured: m.structured,
+		metadata:   m.metadata,
 	}
+	cp.readOnlyMeta.Store(true)
+	cp.readOnlyStructured.Store(true)
+	return cp
 }
 
 // DeepCopy returns a copy of the message data that can be mutated without
@@ -185,7 +194,7 @@ func (m *messageData) IsEmpty() bool {
 }
 
 func (m *messageData) writeableMeta() {
-	if !m.readOnlyMeta {
+	if !m.readOnlyMeta.Load() {
 		return
 	}
 
@@ -199,7 +208,7 @@ func (m *messageData) writeableMeta() {
 	}
 
 	m.metadata = clonedMeta
-	m.readOnlyMeta = false
+	m.readOnlyMeta.Store(false)
 }
 
 // MetaGetImmut returns a metadata value if a key exists. The returned value

@@ -315,11 +315,10 @@ type ImmutableValue interface {
 // ImmutableAny wraps an arbitrary value as an ImmutableValue. V is the
 // underlying value and must be treated as read-only by the caller.
 //
-// Copy() delegates to message.CopyJSON which deeply clones []any and
-// map[string]any structures. Other reference types (e.g. []string,
-// map[string]string, custom structs) are returned by reference — callers
-// that need true isolation for those types should implement ImmutableValue
-// directly with a type-appropriate Copy().
+// Copy() deeply clones []any and map[string]any structures. Other reference
+// types (e.g. []string, map[string]string, custom structs) are returned by
+// reference and should therefore not be stored in metadata values unless they
+// are themselves mutable.
 type ImmutableAny struct{ V any }
 
 // Copy returns a mutable copy of the wrapped value.
