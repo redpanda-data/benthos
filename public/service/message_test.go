@@ -4,6 +4,7 @@ package service
 
 import (
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -79,6 +80,453 @@ func TestMessageMetaImmut(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, map[string]any{"a": int64(1), "b": "two"}, seen)
+}
+
+func TestMessageImmutCopyIsolation(t *testing.T) {
+	original := NewMessage([]byte(`{"data":"test"}`))
+	original.MetaSetImmut("tags", ImmutableAny{V: []any{"alpha", "beta"}})
+	original.MetaSetImmut("count", ImmutableAny{V: int64(42)})
+	original.MetaSetMut("mut", "original_mut")
+
+	copied := original.Copy()
+
+	// Both see the same immutable values
+	v, ok := copied.MetaGetImmut("tags")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: []any{"alpha", "beta"}}, v)
+
+	v, ok = copied.MetaGetImmut("count")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: int64(42)}, v)
+
+	// MetaGetMut on copy triggers Copy() — mutation doesn't affect original
+	mutV, ok := copied.MetaGetMut("tags")
+	assert.True(t, ok)
+	mutV.([]any)[0] = "MUTATED"
+
+	origV, ok := original.MetaGetImmut("tags")
+	assert.True(t, ok)
+	assert.Equal(t, []any{"alpha", "beta"}, origV.(ImmutableAny).V)
+
+	// Overwriting mutable metadata on copy doesn't affect original
+	copied.MetaSetMut("mut", "changed")
+	mv, ok := original.MetaGetMut("mut")
+	assert.True(t, ok)
+	assert.Equal(t, "original_mut", mv)
+}
+
+func TestMessageImmutDeepCopySharing(t *testing.T) {
+	original := NewMessage([]byte(`{"data":"test"}`))
+	immutVal := ImmutableAny{V: map[string]any{"nested": "data"}}
+	original.MetaSetImmut("shared", immutVal)
+	original.MetaSetMut("cloned", map[string]any{"nested": "mutable"})
+
+	deep := original.DeepCopy()
+
+	// Immutable entry is shared across deep copies
+	v, ok := deep.MetaGetImmut("shared")
+	assert.True(t, ok)
+	assert.Equal(t, immutVal, v)
+
+	// Mutable entry is deep-cloned — mutating original doesn't affect deep copy
+	origMut, ok := original.MetaGetMut("cloned")
+	assert.True(t, ok)
+	origMut.(map[string]any)["nested"] = "MUTATED"
+
+	deepMut, ok := deep.MetaGetMut("cloned")
+	assert.True(t, ok)
+	assert.Equal(t, "mutable", deepMut.(map[string]any)["nested"])
+}
+
+func TestMessageImmutBloblangRoundTrip(t *testing.T) {
+	msg := NewMessage(nil)
+	msg.SetStructured(map[string]any{"content": "hello"})
+	msg.MetaSetImmut("trace_id", ImmutableAny{V: "abc-123"})
+	msg.MetaSetImmut("count", ImmutableAny{V: int64(42)})
+	msg.MetaSetMut("region", "us-east-1")
+
+	// Bloblang's meta() reads metadata — exercises the MetaGetStr → MetaGetMut → Copy() path
+	blobl, err := bloblang.Parse(`
+root.trace = meta("trace_id")
+root.count = meta("count")
+root.region = meta("region")
+`)
+	require.NoError(t, err)
+
+	res, err := msg.BloblangQuery(blobl)
+	require.NoError(t, err)
+
+	resI, err := res.AsStructured()
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"trace":  "abc-123",
+		"count":  "42",
+		"region": "us-east-1",
+	}, resI)
+
+	// Original immutable values must be unchanged after mapping
+	v, ok := msg.MetaGetImmut("trace_id")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "abc-123"}, v)
+
+	v, ok = msg.MetaGetImmut("count")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: int64(42)}, v)
+}
+
+func TestMessageImmutPluginProcessorFlow(t *testing.T) {
+	// Simulates a plugin input that sets immutable metadata, followed
+	// by processing through branch-like copy/modify patterns.
+	msg := NewMessage([]byte(`{"content":"hello world"}`))
+	msg.MetaSetImmut("trace_id", ImmutableAny{V: "trace-001"})
+	msg.MetaSetImmut("headers", ImmutableAny{V: map[string]any{
+		"content-type": "application/json",
+		"x-request-id": "req-456",
+	}})
+	msg.MetaSetMut("region", "us-east-1")
+
+	// Simulate branch processor: shallow copy for each branch
+	branch1 := msg.Copy()
+	branch2 := msg.Copy()
+
+	// Branch 1: reads metadata via bloblang
+	blobl1, err := bloblang.Parse(`
+root = this
+root.trace = meta("trace_id")
+root.region = meta("region")
+`)
+	require.NoError(t, err)
+
+	res1, err := branch1.BloblangQuery(blobl1)
+	require.NoError(t, err)
+
+	// Branch 2: modifies mutable metadata, then reads
+	branch2.MetaSetMut("region", "eu-west-1")
+	blobl2, err := bloblang.Parse(`
+root = this
+root.trace = meta("trace_id")
+root.region = meta("region")
+`)
+	require.NoError(t, err)
+
+	res2, err := branch2.BloblangQuery(blobl2)
+	require.NoError(t, err)
+
+	// Verify branch results
+	s1, err := res1.AsStructured()
+	require.NoError(t, err)
+	assert.Equal(t, "trace-001", s1.(map[string]any)["trace"])
+	assert.Equal(t, "us-east-1", s1.(map[string]any)["region"])
+
+	s2, err := res2.AsStructured()
+	require.NoError(t, err)
+	assert.Equal(t, "trace-001", s2.(map[string]any)["trace"])
+	assert.Equal(t, "eu-west-1", s2.(map[string]any)["region"])
+
+	// Original immutable metadata unchanged
+	v, ok := msg.MetaGetImmut("trace_id")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "trace-001"}, v)
+
+	// Original mutable metadata unchanged (COW)
+	mv, ok := msg.MetaGetMut("region")
+	assert.True(t, ok)
+	assert.Equal(t, "us-east-1", mv)
+
+	// Immutable reference-type metadata also unchanged
+	hv, ok := msg.MetaGetImmut("headers")
+	assert.True(t, ok)
+	assert.Equal(t, map[string]any{
+		"content-type": "application/json",
+		"x-request-id": "req-456",
+	}, hv.(ImmutableAny).V)
+}
+
+func TestMessageImmutConcurrentCopyAccess(t *testing.T) {
+	original := NewMessage([]byte(`{}`))
+	original.MetaSetImmut("shared", ImmutableAny{V: map[string]any{"key": "value"}})
+	original.MetaSetMut("counter", "0")
+
+	// Create copies sequentially (ShallowCopy is not safe for concurrent calls)
+	copies := make([]*Message, 100)
+	for i := range copies {
+		copies[i] = original.Copy()
+	}
+
+	var wg sync.WaitGroup
+	for _, cp := range copies {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			// Read immutable (no copy triggered)
+			v, ok := cp.MetaGetImmut("shared")
+			assert.True(t, ok)
+			assert.Equal(t, ImmutableAny{V: map[string]any{"key": "value"}}, v)
+
+			// Read mutable (triggers Copy on immutable entry)
+			mv, ok := cp.MetaGetMut("shared")
+			assert.True(t, ok)
+			assert.Equal(t, map[string]any{"key": "value"}, mv)
+
+			// Mutate the returned copy — must not affect shared state
+			mv.(map[string]any)["key"] = "mutated"
+
+			// Write new metadata (triggers COW on shared map)
+			cp.MetaSetMut("counter", "updated")
+		}()
+	}
+	wg.Wait()
+
+	// Original must be unchanged
+	v, ok := original.MetaGetImmut("shared")
+	assert.True(t, ok)
+	assert.Equal(t, map[string]any{"key": "value"}, v.(ImmutableAny).V)
+
+	mv, ok := original.MetaGetMut("counter")
+	assert.True(t, ok)
+	assert.Equal(t, "0", mv)
+}
+
+func TestMessageImmutStringCompat(t *testing.T) {
+	msg := NewMessage(nil)
+	msg.MetaSetImmut("str", ImmutableAny{V: "hello"})
+	msg.MetaSetImmut("int", ImmutableAny{V: int64(42)})
+	msg.MetaSetImmut("float", ImmutableAny{V: float64(3.14)})
+	msg.MetaSetImmut("bool", ImmutableAny{V: true})
+	msg.MetaSetMut("plain", "world")
+
+	// MetaGet (string API) returns string representations
+	v, ok := msg.MetaGet("str")
+	assert.True(t, ok)
+	assert.Equal(t, "hello", v)
+
+	v, ok = msg.MetaGet("int")
+	assert.True(t, ok)
+	assert.Equal(t, "42", v)
+
+	v, ok = msg.MetaGet("float")
+	assert.True(t, ok)
+	assert.Equal(t, "3.14", v)
+
+	v, ok = msg.MetaGet("bool")
+	assert.True(t, ok)
+	assert.Equal(t, "true", v)
+
+	v, ok = msg.MetaGet("plain")
+	assert.True(t, ok)
+	assert.Equal(t, "world", v)
+
+	// MetaWalk (string API) iterates all entries as strings
+	seen := map[string]string{}
+	err := msg.MetaWalk(func(k, v string) error {
+		seen[k] = v
+		return nil
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"str":   "hello",
+		"int":   "42",
+		"float": "3.14",
+		"bool":  "true",
+		"plain": "world",
+	}, seen)
+}
+
+// customImmutValue is a test implementation of ImmutableValue with a
+// type-specific Copy() that correctly clones []string.
+type customImmutValue struct{ items []string }
+
+func (c customImmutValue) Copy() any {
+	cp := make([]string, len(c.items))
+	copy(cp, c.items)
+	return cp
+}
+
+func TestMessageImmutCustomValue(t *testing.T) {
+	msg := NewMessage(nil)
+	custom := customImmutValue{items: []string{"a", "b", "c"}}
+	msg.MetaSetImmut("custom", custom)
+
+	// MetaGetImmut returns the original
+	v, ok := msg.MetaGetImmut("custom")
+	assert.True(t, ok)
+	assert.Equal(t, custom, v)
+
+	// MetaGetMut returns a copy via Copy()
+	mutV, ok := msg.MetaGetMut("custom")
+	assert.True(t, ok)
+	cp := mutV.([]string)
+	assert.Equal(t, []string{"a", "b", "c"}, cp)
+
+	// Mutate the copy — original unaffected
+	cp[0] = "X"
+	v2, ok := msg.MetaGetImmut("custom")
+	assert.True(t, ok)
+	assert.Equal(t, []string{"a", "b", "c"}, v2.(customImmutValue).items)
+
+	// Copy the message and verify custom value works
+	copied := msg.Copy()
+	cMutV, ok := copied.MetaGetMut("custom")
+	assert.True(t, ok)
+	assert.Equal(t, []string{"a", "b", "c"}, cMutV.([]string))
+
+	// DeepCopy shares the immutable custom value
+	deep := msg.DeepCopy()
+	dv, ok := deep.MetaGetImmut("custom")
+	assert.True(t, ok)
+	assert.Equal(t, custom, dv)
+}
+
+func TestMessageImmutDeleteAfterCopy(t *testing.T) {
+	original := NewMessage(nil)
+	original.MetaSetImmut("keep", ImmutableAny{V: "keep_val"})
+	original.MetaSetImmut("remove", ImmutableAny{V: "remove_val"})
+	original.MetaSetMut("mut_keep", "mut_keep_val")
+	original.MetaSetMut("mut_remove", "mut_remove_val")
+
+	copied := original.Copy()
+
+	// Delete immutable and mutable entries on the copy
+	copied.MetaDelete("remove")
+	copied.MetaDelete("mut_remove")
+
+	// Copy should no longer have deleted entries
+	_, ok := copied.MetaGetImmut("remove")
+	assert.False(t, ok)
+	_, ok = copied.MetaGetMut("mut_remove")
+	assert.False(t, ok)
+
+	// Copy should still have kept entries
+	v, ok := copied.MetaGetImmut("keep")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "keep_val"}, v)
+	v2, ok := copied.MetaGetMut("mut_keep")
+	assert.True(t, ok)
+	assert.Equal(t, "mut_keep_val", v2)
+
+	// Original should still have all entries (COW)
+	v, ok = original.MetaGetImmut("remove")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "remove_val"}, v)
+	v, ok = original.MetaGetImmut("keep")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "keep_val"}, v)
+	v2, ok = original.MetaGetMut("mut_remove")
+	assert.True(t, ok)
+	assert.Equal(t, "mut_remove_val", v2)
+	v2, ok = original.MetaGetMut("mut_keep")
+	assert.True(t, ok)
+	assert.Equal(t, "mut_keep_val", v2)
+}
+
+func TestMessageImmutWalkAfterCopy(t *testing.T) {
+	original := NewMessage(nil)
+	original.MetaSetImmut("immut", ImmutableAny{V: []any{1, 2, 3}})
+	original.MetaSetMut("mut", "plain")
+
+	copied := original.Copy()
+
+	// Walk on the copy — immutable entries should yield Copy() results
+	seen := map[string]any{}
+	err := copied.MetaWalkMut(func(k string, v any) error {
+		seen[k] = v
+		return nil
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, []any{1, 2, 3}, seen["immut"])
+	assert.Equal(t, "plain", seen["mut"])
+
+	// Mutate the walked immutable value — original must be unaffected
+	seen["immut"].([]any)[0] = 999
+
+	origV, ok := original.MetaGetImmut("immut")
+	assert.True(t, ok)
+	assert.Equal(t, []any{1, 2, 3}, origV.(ImmutableAny).V)
+}
+
+func TestMessageImmutBloblangMetaOverwrite(t *testing.T) {
+	msg := NewMessage([]byte(`{"content":"hello"}`))
+	msg.MetaSetImmut("immut1", ImmutableAny{V: "preserved"})
+	msg.MetaSetImmut("immut2", ImmutableAny{V: int64(99)})
+	msg.MetaSetMut("mut1", "mutable_val")
+
+	// Bloblang meta = {...} replaces all metadata (clears existing, sets new)
+	blobl, err := bloblang.Parse(`meta = {"new_key": "new_value", "another": "thing"}`)
+	require.NoError(t, err)
+
+	res, err := msg.BloblangMutate(blobl)
+	require.NoError(t, err)
+
+	// Old metadata (both immutable and mutable) should be gone
+	_, ok := res.MetaGetImmut("immut1")
+	assert.False(t, ok)
+	_, ok = res.MetaGetImmut("immut2")
+	assert.False(t, ok)
+	_, ok = res.MetaGetMut("mut1")
+	assert.False(t, ok)
+
+	// New metadata should be present (as mutable, since meta = {...} uses MetaSetMut)
+	v, ok := res.MetaGetMut("new_key")
+	assert.True(t, ok)
+	assert.Equal(t, "new_value", v)
+
+	v, ok = res.MetaGetMut("another")
+	assert.True(t, ok)
+	assert.Equal(t, "thing", v)
+
+	// Only the two new keys should exist
+	seen := map[string]any{}
+	err = res.MetaWalkMut(func(k string, v any) error {
+		seen[k] = v
+		return nil
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"new_key": "new_value",
+		"another": "thing",
+	}, seen)
+}
+
+func TestMessageImmutOverwriteImmutAfterCopy(t *testing.T) {
+	msg := NewMessage(nil)
+	msg.MetaSetImmut("key", ImmutableAny{V: "first"})
+
+	copied := msg.Copy()
+
+	// Overwrite with a different ImmutableValue on the copy
+	copied.MetaSetImmut("key", ImmutableAny{V: "second"})
+
+	// Copy has the new value
+	v, ok := copied.MetaGetImmut("key")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "second"}, v)
+
+	// Original has the old value (COW)
+	v, ok = msg.MetaGetImmut("key")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "first"}, v)
+
+	// Also test overwriting with a different ImmutableValue type
+	msg2 := NewMessage(nil)
+	msg2.MetaSetImmut("key", ImmutableAny{V: "plain"})
+
+	copied2 := msg2.Copy()
+	copied2.MetaSetImmut("key", customImmutValue{items: []string{"x", "y"}})
+
+	v2, ok := copied2.MetaGetImmut("key")
+	assert.True(t, ok)
+	assert.Equal(t, customImmutValue{items: []string{"x", "y"}}, v2)
+
+	// MetaGetMut on the new value should call the new impl's Copy()
+	mutV, ok := copied2.MetaGetMut("key")
+	assert.True(t, ok)
+	assert.Equal(t, []string{"x", "y"}, mutV)
+
+	// Original unchanged
+	v3, ok := msg2.MetaGetImmut("key")
+	assert.True(t, ok)
+	assert.Equal(t, ImmutableAny{V: "plain"}, v3)
 }
 
 func TestMessageCopyAirGap(t *testing.T) {
