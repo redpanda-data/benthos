@@ -501,8 +501,8 @@ fallback:
 
 	stopChan := make(chan struct{})
 	go func() {
-		err = s.Run(t.Context())
-		require.NoError(t, err)
+		runErr := s.Run(t.Context())
+		require.NoError(t, runErr)
 
 		close(stopChan)
 	}()
