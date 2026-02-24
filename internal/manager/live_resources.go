@@ -52,6 +52,34 @@ func (l *liveResource[T]) Access(ctx context.Context, fn func(t *T, set func(t *
 	return l.res != nil
 }
 
+// lazyInit performs lazy initialization under a write lock. Returns true if
+// the resource is non-nil after the call.
+func (l *liveResource[T]) lazyInit(ctx context.Context) (bool, error) {
+	l.m.Lock()
+	defer l.m.Unlock()
+
+	if l.res != nil {
+		return true, nil
+	}
+	if l.lazyRes == nil {
+		return false, nil
+	}
+
+	// Never call the initialization function if the context is already
+	// cancelled.
+	if ctx.Err() != nil {
+		return false, ctx.Err()
+	}
+
+	res, err := l.lazyRes(ctx)
+	if err != nil {
+		return false, err
+	}
+	l.res = res
+	l.lazyRes = nil
+	return true, nil
+}
+
 // RAccess grants a closure function access to the underlying resource, but
 // mutations must not be performed on the resource itself. Returns true if the
 // resource is non-nil.
@@ -60,28 +88,27 @@ func (l *liveResource[T]) RAccess(ctx context.Context, fn func(t T)) (bool, erro
 		return false, nil
 	}
 
+	// Fast path: resource already initialized.
 	l.m.RLock()
-	defer l.m.RUnlock()
+	if l.res != nil {
+		defer l.m.RUnlock()
+		fn(*l.res)
+		return true, nil
+	}
+	l.m.RUnlock()
 
-	if l.res == nil {
-		if l.lazyRes == nil {
-			return false, nil
-		}
-
-		// Never call the initialization function if the context is already
-		// cancelled.
-		if ctx.Err() != nil {
-			return false, ctx.Err()
-		}
-
-		res, err := l.lazyRes(ctx)
-		if err != nil {
-			return false, err
-		}
-		l.res = res
-		l.lazyRes = nil
+	// Slow path: lazy init under write lock with double-check.
+	ok, err := l.lazyInit(ctx)
+	if err != nil || !ok {
+		return false, err
 	}
 
+	// Downgrade to read lock so fn runs with shared access.
+	l.m.RLock()
+	defer l.m.RUnlock()
+	if l.res == nil {
+		return false, nil
+	}
 	fn(*l.res)
 	return true, nil
 }
