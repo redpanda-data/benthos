@@ -12,6 +12,178 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestLiveResourcesRWalkCancelledContextSkipsLazyInit(t *testing.T) {
+	var initCount atomic.Int64
+
+	lr := newLiveResources[string]()
+	lr.LazyAdd("foo", func(ctx context.Context) (*string, error) {
+		initCount.Add(1)
+		s := "hello"
+		return &s, nil
+	})
+	lr.LazyAdd("bar", func(ctx context.Context) (*string, error) {
+		initCount.Add(1)
+		s := "world"
+		return &s, nil
+	})
+
+	// RWalk with a cancelled context must not trigger lazy initialization.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var walked []string
+	err := lr.RWalk(ctx, func(name string, s string) error {
+		walked = append(walked, name)
+		return nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(0), initCount.Load(), "lazy init should not have been triggered")
+	assert.Empty(t, walked, "no resources should have been walked")
+
+	// Resources should still be probeable even though they were not initialized.
+	assert.True(t, lr.Probe("foo"))
+	assert.True(t, lr.Probe("bar"))
+
+	// Accessing individually with a live context should trigger init.
+	err = lr.RAccess(context.Background(), "foo", func(s string) {
+		assert.Equal(t, "hello", s)
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), initCount.Load(), "only the accessed resource should have been initialized")
+}
+
+func TestLiveResourcesRWalkLiveContextTriggersLazyInit(t *testing.T) {
+	var initCount atomic.Int64
+
+	lr := newLiveResources[string]()
+	lr.LazyAdd("foo", func(ctx context.Context) (*string, error) {
+		initCount.Add(1)
+		s := "hello"
+		return &s, nil
+	})
+	lr.LazyAdd("bar", func(ctx context.Context) (*string, error) {
+		initCount.Add(1)
+		s := "world"
+		return &s, nil
+	})
+
+	// RWalk with a live context triggers lazy initialization.
+	walked := map[string]string{}
+	err := lr.RWalk(context.Background(), func(name string, s string) error {
+		walked[name] = s
+		return nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(2), initCount.Load(), "both resources should have been initialized")
+	assert.Equal(t, map[string]string{"foo": "hello", "bar": "world"}, walked)
+}
+
+func TestLiveResourceRAccessCancelledContextSkipsLazyInit(t *testing.T) {
+	var initCount atomic.Int64
+
+	lr := &liveResource[string]{
+		lazyRes: func(ctx context.Context) (*string, error) {
+			initCount.Add(1)
+			s := "hello"
+			return &s, nil
+		},
+	}
+
+	// RAccess with a cancelled context must not trigger lazy init.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	ok, err := lr.RAccess(ctx, func(s string) {
+		t.Fatal("callback should not be called")
+	})
+	require.ErrorIs(t, err, context.Canceled)
+	assert.False(t, ok)
+	assert.Equal(t, int64(0), initCount.Load(), "lazy init should not have been triggered")
+
+	// Subsequent access with a live context should succeed.
+	ok, err = lr.RAccess(context.Background(), func(s string) {
+		assert.Equal(t, "hello", s)
+	})
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, int64(1), initCount.Load())
+}
+
+func TestLiveResourceLazyInitRetryAfterError(t *testing.T) {
+	var attempt atomic.Int64
+
+	lr := &liveResource[string]{
+		lazyRes: func(ctx context.Context) (*string, error) {
+			n := attempt.Add(1)
+			if n == 1 {
+				return nil, assert.AnError
+			}
+			s := "recovered"
+			return &s, nil
+		},
+	}
+
+	// First access fails with an error.
+	ok, err := lr.RAccess(context.Background(), func(s string) {
+		t.Fatal("callback should not be called on error")
+	})
+	require.ErrorIs(t, err, assert.AnError)
+	assert.False(t, ok)
+	assert.Equal(t, int64(1), attempt.Load())
+
+	// lazyRes is NOT cleared on error, so a subsequent access retries.
+	ok, err = lr.RAccess(context.Background(), func(s string) {
+		assert.Equal(t, "recovered", s)
+	})
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, int64(2), attempt.Load())
+
+	// Now initialized; further accesses should not call lazyRes again.
+	ok, err = lr.RAccess(context.Background(), func(s string) {
+		assert.Equal(t, "recovered", s)
+	})
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, int64(2), attempt.Load(), "should not re-init after success")
+}
+
+func TestLiveResourcesWalkCancelledContextSkipsLazyInit(t *testing.T) {
+	var initCount atomic.Int64
+
+	lr := newLiveResources[string]()
+	lr.LazyAdd("foo", func(ctx context.Context) (*string, error) {
+		initCount.Add(1)
+		s := "hello"
+		return &s, nil
+	})
+	lr.LazyAdd("bar", func(ctx context.Context) (*string, error) {
+		initCount.Add(1)
+		s := "world"
+		return &s, nil
+	})
+
+	// Walk with a cancelled context must not trigger lazy initialization.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var walked []string
+	err := lr.Walk(ctx, func(name string, s *string, set func(*string)) error {
+		walked = append(walked, name)
+		return nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, int64(0), initCount.Load(), "lazy init should not have been triggered")
+	assert.Empty(t, walked, "no resources should have been walked")
+
+	// Resources should still be probeable.
+	assert.True(t, lr.Probe("foo"))
+	assert.True(t, lr.Probe("bar"))
+}
+
 func TestLiveResourceRAccessConcurrentLazyInit(t *testing.T) {
 	var initCount atomic.Int64
 
