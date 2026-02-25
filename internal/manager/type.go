@@ -256,6 +256,9 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 			}
 
 			ni := WrapInput(newInput, t)
+			if t.consumeTriggered.Load() {
+				ni.TriggerStartConsuming()
+			}
 			return &ni, nil
 		})
 	}
@@ -971,25 +974,29 @@ func (t *Type) CloseObservability(ctx context.Context) error {
 }
 
 // TriggerStartConsuming instructs the manager to start resource inputs
-// consuming data. This call blocks if there are lazily evaluated inputs..
+// consuming data. Resources that have not yet been lazily initialized will
+// not be triggered here; instead, they will be started when they are first
+// accessed via their lazy init closure (which checks consumeTriggered).
 func (t *Type) TriggerStartConsuming(ctx context.Context) error {
 	// Set this immediately so that all new components are triggered, as it is
 	// safe to call consume trigger multiple times.
 	t.consumeTriggered.Store(true)
 
-	if err := t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
+	// NOTE: Context is provided in R/O calls because we might have a lazily
+	// evaluated resource. In our case here we do not want to trigger a lazy
+	// initialization, and therefore we provide a pre-cancelled context.
+	cctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_ = t.inputs.RWalk(cctx, func(name string, i *InputWrapper) error {
 		i.TriggerStartConsuming()
 		return nil
-	}); err != nil {
-		return err
-	}
+	})
 
-	if err := t.outputs.RWalk(ctx, func(name string, o *outputWrapper) error {
+	_ = t.outputs.RWalk(cctx, func(name string, o *outputWrapper) error {
 		o.TriggerStartConsuming()
 		return nil
-	}); err != nil {
-		return err
-	}
+	})
 
 	return nil
 }
