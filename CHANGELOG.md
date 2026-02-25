@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.65.2 - TBD
+
+### Fixed
+
+- Fixed a regression where input and output resources imported but unused were being initialized. (@Jeffail)
+
 ## 4.65.1 - 2026-02-20
 
 ### Added
