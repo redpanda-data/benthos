@@ -873,13 +873,9 @@ func TestManagerConnectionTestWithError(t *testing.T) {
 	mgr, err := manager.New(conf)
 	require.NoError(t, err)
 
-	// Test ConnectionTest method with a bad resource
+	// ConnectionTest triggers lazy init via RWalk, which now propagates
+	// initialization errors instead of silently skipping them.
 	ctx := context.Background()
 	_, err = mgr.ConnectionTest(ctx)
-	// The connection test should handle the error gracefully
-	// Either return an error or handle it within the results
-	// depending on the implementation
-	if err != nil {
-		assert.Error(t, err)
-	}
+	require.Error(t, err)
 }

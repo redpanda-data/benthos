@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLiveResourcesRWalkCancelledContextSkipsLazyInit(t *testing.T) {
+func TestLiveResourcesRWalkCancelledContextReturnsError(t *testing.T) {
 	var initCount atomic.Int64
 
 	lr := newLiveResources[string]()
@@ -21,13 +21,9 @@ func TestLiveResourcesRWalkCancelledContextSkipsLazyInit(t *testing.T) {
 		s := "hello"
 		return &s, nil
 	})
-	lr.LazyAdd("bar", func(ctx context.Context) (*string, error) {
-		initCount.Add(1)
-		s := "world"
-		return &s, nil
-	})
 
-	// RWalk with a cancelled context must not trigger lazy initialization.
+	// RWalk with a cancelled context now propagates the context.Canceled
+	// error from RAccess (instead of silently skipping).
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
@@ -36,14 +32,13 @@ func TestLiveResourcesRWalkCancelledContextSkipsLazyInit(t *testing.T) {
 		walked = append(walked, name)
 		return nil
 	})
-	require.NoError(t, err)
+	require.ErrorIs(t, err, context.Canceled)
 
 	assert.Equal(t, int64(0), initCount.Load(), "lazy init should not have been triggered")
 	assert.Empty(t, walked, "no resources should have been walked")
 
 	// Resources should still be probeable even though they were not initialized.
 	assert.True(t, lr.Probe("foo"))
-	assert.True(t, lr.Probe("bar"))
 
 	// Accessing individually with a live context should trigger init.
 	err = lr.RAccess(context.Background(), "foo", func(s string) {
@@ -182,6 +177,106 @@ func TestLiveResourcesWalkCancelledContextSkipsLazyInit(t *testing.T) {
 	// Resources should still be probeable.
 	assert.True(t, lr.Probe("foo"))
 	assert.True(t, lr.Probe("bar"))
+}
+
+func TestLiveResourcesRWalkInitialized(t *testing.T) {
+	var initCount atomic.Int64
+
+	lr := newLiveResources[string]()
+
+	// Pre-initialize "foo" by accessing it.
+	lr.LazyAdd("foo", func(ctx context.Context) (*string, error) {
+		initCount.Add(1)
+		s := "hello"
+		return &s, nil
+	})
+	lr.LazyAdd("bar", func(ctx context.Context) (*string, error) {
+		initCount.Add(1)
+		s := "world"
+		return &s, nil
+	})
+
+	// Initialize only "foo".
+	err := lr.RAccess(context.Background(), "foo", func(s string) {
+		assert.Equal(t, "hello", s)
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), initCount.Load())
+
+	// RWalkInitialized should only visit "foo", skipping the lazy "bar".
+	walked := map[string]string{}
+	err = lr.RWalkInitialized(func(name string, s string) error {
+		walked[name] = s
+		return nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]string{"foo": "hello"}, walked)
+	assert.Equal(t, int64(1), initCount.Load(), "lazy init should not have been triggered for bar")
+
+	// "bar" should still be probeable.
+	assert.True(t, lr.Probe("bar"))
+}
+
+func TestLiveResourcesWalkInitializedSkipsLazy(t *testing.T) {
+	lr := newLiveResources[string]()
+
+	lr.LazyAdd("foo", func(ctx context.Context) (*string, error) {
+		s := "hello"
+		return &s, nil
+	})
+	lr.LazyAdd("bar", func(ctx context.Context) (*string, error) {
+		s := "world"
+		return &s, nil
+	})
+
+	// Initialize only "foo".
+	err := lr.RAccess(context.Background(), "foo", func(s string) {})
+	require.NoError(t, err)
+
+	// WalkInitialized should visit only "foo", skipping the uninitialized "bar".
+	walked := map[string]string{}
+	err = lr.WalkInitialized(func(name string, s *string, set func(*string)) error {
+		walked[name] = *s
+		set(nil) // explicitly remove
+		return nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]string{"foo": "hello"}, walked)
+
+	// "foo" was explicitly set(nil) so it's gone.
+	assert.False(t, lr.Probe("foo"))
+	// "bar" was never initialized — it should still be in the map.
+	assert.True(t, lr.Probe("bar"))
+}
+
+func TestLiveResourcesRWalkSnapshotAllowsProbe(t *testing.T) {
+	lr := newLiveResources[string]()
+
+	lr.LazyAdd("foo", func(ctx context.Context) (*string, error) {
+		// During lazy init, probe the same map — this would deadlock
+		// with the old RWalk that held the outer RLock during iteration.
+		assert.True(t, lr.Probe("bar"))
+		s := "hello"
+		return &s, nil
+	})
+	lr.LazyAdd("bar", func(ctx context.Context) (*string, error) {
+		s := "world"
+		return &s, nil
+	})
+
+	// RWalk with a live context triggers lazy init for "foo", whose
+	// constructor probes "bar" on the same map. With the snapshot pattern
+	// this must not deadlock.
+	walked := map[string]string{}
+	err := lr.RWalk(context.Background(), func(name string, s string) error {
+		walked[name] = s
+		return nil
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, map[string]string{"foo": "hello", "bar": "world"}, walked)
 }
 
 func TestLiveResourceRAccessConcurrentLazyInit(t *testing.T) {
