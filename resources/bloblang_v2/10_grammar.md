@@ -39,7 +39,7 @@ if_stmt         := 'if' expression '{' stmt_body '}'
                    ('else' 'if' expression '{' stmt_body '}')*
                    ('else' '{' stmt_body '}')?
 expr_body       := var_decl* expression
-stmt_body       := statement+
+stmt_body       := statement*
 
 match_expr      := 'match' expression ('as' identifier)? '{' expr_match_case (',' expr_match_case)* ','? '}'
                  | 'match' '{' expr_match_case (',' expr_match_case)* ','? '}'
@@ -100,7 +100,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
   - `if_expr` / `match_expr`: Used in assignments, contain `expr_body` (no `output` assignments)
   - `if_stmt` / `match_stmt`: Standalone statements, contain `stmt_body` (may assign to `output`)
   - `expr_body`: Variable declarations + final expression (must be pure)
-  - `stmt_body`: One or more statements (no trailing expression)
+  - `stmt_body`: Zero or more statements (no trailing expression). Empty bodies are valid (no-op).
 - **Type coercion:** `+` requires same type family (no cross-family implicit conversion). Numeric types are promoted using promotion rules; non-numeric types require exact type match.
 - **Operator precedence:** Field access > unary > multiplicative > additive > comparison > equality > logical AND > logical OR
 
