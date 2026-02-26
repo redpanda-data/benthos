@@ -74,7 +74,7 @@ output.user = normalize(input.user_data)
 
 # Imports
 import "./utils.blobl" as utils
-output.result = utils.transform(input.data)
+output.result = utils::transform(input.data)
 ```
 
 ### Key Features
@@ -84,7 +84,7 @@ output.result = utils.transform(input.data)
 - **Mutable variables:** `$var` can be reassigned, block-scoped with shadowing
 - **Null-safe operators:** `?.` and `?[]`
 - **Explicit type coercion:** No implicit conversion
-- **Function-style maps:** Called as `name(arg)`
+- **Function-style maps:** Called as `name(arg)` or `namespace::name(arg)`
 - **Namespace imports:** `import "..." as name`
 - **First-class lambdas:** Multi-param, multi-statement
 

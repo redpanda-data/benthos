@@ -26,8 +26,8 @@ map format_name(data) {
 # main.blobl
 import "./user_transforms.blobl" as users
 
-output.user = users.extract_user(input.user_data)
-output.display_name = users.format_name(input.user)
+output.user = users::extract_user(input.user_data)
+output.display_name = users::format_name(input.user)
 ```
 
 ## 6.3 Path Resolution
@@ -61,7 +61,7 @@ map transform(data) { data.value * 2 }
 
 # main.blobl
 import "./utils.blobl" as utils
-output.result = utils.transform(input)      # ✅ Works: maps are exported
+output.result = utils::transform(input)     # ✅ Works: maps are exported
 ```
 
 ## 6.5 Error Handling
@@ -77,11 +77,11 @@ output.result = utils.transform(input)      # ✅ Works: maps are exported
 ```bloblang
 # a.blobl
 import "./b.blobl" as b
-map foo(x) { b.bar(x) }
+map foo(x) { b::bar(x) }
 
 # b.blobl
 import "./a.blobl" as a  # ERROR: Circular import (A->B->A)
-map bar(x) { a.foo(x) }
+map bar(x) { a::foo(x) }
 ```
 
 This restriction prevents mutual recursion across files. Implementations must detect cycles at compile time before execution.

@@ -101,7 +101,7 @@ output = walk_tree(input)
 - Maps are pure given their inputs: the map body has no access to external state, so the result is entirely determined by the parameter values. However, if a closure is passed as an argument, the closure may carry captured mutable state (Section 3.4), so the same lambda variable can produce different results across calls
 - Call with positional arguments (match order) or named arguments (match names)
 - **Cannot mix** positional and named arguments in the same call
-- **Parameter shadowing:** Parameter names shadow any map names or imported namespaces with the same name within the map body. The parameter always wins.
+- **Parameter shadowing:** Parameter names shadow any map names with the same name within the map body. The parameter always wins. Imported namespaces are not affected since they use `::` syntax — `namespace::func()` is always unambiguous regardless of parameter names.
 
 ```bloblang
 map example(data) {
@@ -118,10 +118,10 @@ map also_invalid(data) {
   data.field
 }
 
-# Parameter shadows namespace — math refers to the parameter, not the namespace
+# Parameter and namespace coexist — :: makes namespace calls unambiguous
 import "./math.blobl" as math
 map transform(math) {
-  math * 2                # math is the parameter, namespace is inaccessible
+  math::add(math, 2)     # math:: is the namespace call, math is the parameter
 }
 ```
 
