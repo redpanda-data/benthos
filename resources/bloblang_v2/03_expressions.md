@@ -13,6 +13,8 @@ Access nested data: `input.user.email`, `output.result.id`
 
 **Important:** Bare identifiers (parameters and match bindings) are read-only and can only be used in expressions on the right-hand side. They cannot be assigned to.
 
+**Name resolution:** Every bare identifier in an expression must resolve to a bound name — a map parameter, lambda parameter, or match `as` binding. An unresolved bare identifier is a **compile-time error**. This catches typos like `inpt.field` (instead of `input.field`) at compile time rather than allowing them to parse and fail later.
+
 **Quoted field names:** Use `."quoted"` for fields with special characters, spaces, or any name. Dot required before quote:
 ```bloblang
 input."field with spaces"
@@ -217,10 +219,10 @@ $x = 2
 output.result = $fn(10)    # 12: $fn sees the current value of $x (2), not the value at creation (1)
 ```
 
-**Parameter names must not conflict with imported namespaces** — if a lambda parameter shares a name with an imported namespace alias, it is a compile-time error.
+**Parameter shadowing:** Lambda parameter names shadow any map names or imported namespaces with the same name within the lambda body. The parameter always wins.
 ```bloblang
-# Assuming: import "./math.blobl" as math
-input.items.map_array(math -> math.add(1, 2))  # ❌ Compile error: parameter 'math' conflicts with namespace 'math'
+map double(x) { x * 2 }
+input.items.map_array(double -> double * 2)     # double is the parameter, not the map
 ```
 
 **Purity:** Lambdas cannot assign to `output` or `output@` (no side effects).
@@ -387,35 +389,41 @@ output = deleted()               # Filter entire message
 
 ## 3.8 Variable Scope & Shadowing
 
-Variables are block-scoped. Inner blocks can declare new variables that shadow outer variables:
+Variables are block-scoped with different rules for **statement** and **expression** contexts:
 
-```bloblang
-$value = 10
-output.outer = $value  # 10
+**In expression contexts** (if/match expressions, lambdas, map bodies): assigning to a variable name that exists in an outer scope **shadows** it — a new variable is created in the inner scope, and the outer variable is unchanged. This preserves the functional, side-effect-free nature of expressions.
 
-output.inner = if input.flag {
-  $value = 20          # Shadows outer $value (new variable in this scope)
-  $value               # Returns 20
-}
-
-output.still_outer = $value  # Still 10 (outer $value unchanged by inner block)
-```
-
-**Reassignment vs Shadowing:**
 ```bloblang
 $x = 1
-$x = 2              # Reassignment: same variable, now has value 2
-output.a = $x       # 2
 
-output.b = if true {
+output.result = if true {
   $x = 3            # Shadowing: NEW variable in inner scope
   $x                # 3
 }
 
-output.c = $x       # Still 2 (inner $x doesn't affect outer)
+output.outer = $x   # Still 1 (inner $x doesn't affect outer)
 ```
 
-Variables declared in blocks are only accessible within that block and nested blocks.
+**In statement contexts** (if/match statements at top-level): variables are **not block-scoped**. Assigning to an existing outer variable modifies it, and new variables declared inside the block are visible in the outer scope after the block executes.
+
+```bloblang
+$count = 0
+if input.flag {
+  $count = 1        # Modifies outer $count
+  $temp = "found"   # New variable, visible in outer scope
+}
+output.count = $count  # 1 if flag was true, 0 if false
+output.temp = $temp    # "found" if flag was true, ERROR if false ($temp never created)
+```
+
+**Reassignment at the same scope level:**
+```bloblang
+$x = 1
+$x = 2              # Reassignment: same variable, now has value 2
+output.a = $x       # 2
+```
+
+**Rationale:** Bloblang is mostly functional, but if/match statements are an intentional imperative escape hatch — they can assign to `output`, modify outer variables, and introduce new variables into the outer scope. Expressions remain pure: no `output` assignments, no outer variable mutation, and variables are block-scoped with shadowing.
 
 ## 3.9 Statements vs Expressions
 

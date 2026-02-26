@@ -122,9 +122,11 @@ output@.routing = {"region": "us-west", "priority": 10}
 
 **Copy all metadata:**
 ```bloblang
-output@ = input@                    # Copy all
+output@ = input@                    # Deep copy all metadata
 output@.kafka_topic = "new-topic"   # Override specific
 ```
+
+`output@ = input@` performs a **deep copy** — output metadata is fully independent of input metadata. Modifying output metadata (including nested values like `output@.tags[0]`) never affects input metadata. This follows from the immutability of `input`.
 
 Undefined metadata keys return `null`.
 
@@ -240,4 +242,10 @@ Later statements can reference earlier `output` fields:
 output.price = input.price
 output.tax = output.price * 0.1          # Uses earlier output
 output.total = output.price + output.tax
+```
+
+**Note:** Reading an `output` field that has not yet been assigned returns `null` (consistent with Section 7.1 — non-existent fields return null). This means reordering statements can silently change behavior:
+```bloblang
+output.a = output.b  # null — output.b not yet assigned
+output.b = 42
 ```

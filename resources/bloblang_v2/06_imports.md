@@ -43,20 +43,25 @@ import "../parent/file.blobl" as parent
 import "/etc/benthos/common.blobl" as common
 ```
 
-## 6.4 Visibility
+## 6.4 Visibility & File Constraints
 
-**All top-level maps are exported automatically.** Variables (including top-level variables) are never exported - only the importing file can access them through the namespace.
+**All top-level maps are exported automatically.** Maps are accessible through the namespace.
 
-Only maps are accessible through the namespace; variables remain private to the file:
+**Imported files may only contain map declarations and import statements.** Top-level statements (assignments, variable declarations, if/match statements) are a compile-time error in imported files. Since maps are fully isolated and cannot access top-level variables, `input`, or `output` (Section 5.3), there is no useful purpose for top-level statements in library files.
+
 ```bloblang
-# utils.blobl
-$internal = 42                             # Not exported
-map transform(data) { data.value * 2 }    # Exported
+# utils.blobl — valid imported file
+import "./helpers.blobl" as helpers         # ✅ Imports allowed
+map transform(data) { data.value * 2 }     # ✅ Map declarations allowed
+
+# invalid_utils.blobl — would fail when imported
+$internal = 42                              # ❌ Compile error: statement in imported file
+output.side_effect = "hello"                # ❌ Compile error: statement in imported file
+map transform(data) { data.value * 2 }
 
 # main.blobl
 import "./utils.blobl" as utils
-output.result = utils.transform(input)     # ✅ Works: maps are exported
-output.value = utils.$internal             # ❌ Error: variables not exported
+output.result = utils.transform(input)      # ✅ Works: maps are exported
 ```
 
 ## 6.5 Error Handling
@@ -64,8 +69,8 @@ output.value = utils.$internal             # ❌ Error: variables not exported
 - **File not found:** Error at import
 - **Duplicate namespace:** Error if same name used twice
 - **Circular imports:** Detected at compile time and error
+- **Statements in imported file:** Compile-time error if an imported file contains top-level statements
 - **Map not found:** Error when calling non-existent map
-- **Parameter conflicts with namespace:** Compile-time error if a map parameter shares a name with an imported namespace alias
 
 **Circular import detection:** Import cycles are not allowed. If file A imports B (directly or transitively through other files), then B cannot import A.
 

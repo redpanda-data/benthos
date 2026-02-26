@@ -98,10 +98,10 @@ output = walk_tree(input)
 - Parameters are **read-only** - they cannot be reassigned or used as assignment targets
 - Parameters are available as bare identifiers within the map body (e.g., `data.field`)
 - Variables declared within maps (using `$`) can be reassigned
-- Maps are pure: same inputs always produce same output
+- Maps are pure given their inputs: the map body has no access to external state, so the result is entirely determined by the parameter values. However, if a closure is passed as an argument, the closure may carry captured mutable state (Section 3.4), so the same lambda variable can produce different results across calls
 - Call with positional arguments (match order) or named arguments (match names)
 - **Cannot mix** positional and named arguments in the same call
-- **Parameter names must not conflict with imported namespaces** — if a parameter has the same name as an imported namespace, it is a compile-time error. Rename the parameter or the namespace alias to resolve the conflict.
+- **Parameter shadowing:** Parameter names shadow any map names or imported namespaces with the same name within the map body. The parameter always wins.
 
 ```bloblang
 map example(data) {
@@ -118,15 +118,16 @@ map also_invalid(data) {
   data.field
 }
 
-# Assuming: import "./math.blobl" as math
-map also_invalid(math) {  # ❌ Compile error: parameter 'math' conflicts with namespace 'math'
-  math.add(1, 2)
+# Parameter shadows namespace — math refers to the parameter, not the namespace
+import "./math.blobl" as math
+map transform(math) {
+  math * 2                # math is the parameter, namespace is inaccessible
 }
 ```
 
 ## 5.4 Purity Constraints
 
-Maps are pure functions with no side effects:
+Maps are isolated functions with no side effects — they cannot access `input`, `output`, or top-level variables, and cannot produce side effects:
 
 ```bloblang
 map transform(data) {
@@ -139,7 +140,20 @@ map invalid(data) {
 }
 ```
 
-**Why pure?**
-- Predictable: Same input always gives same result
+**Why isolated?**
+- Predictable: Result is entirely determined by parameter values
 - Composable: Can be used anywhere, including in lambdas
+- No hidden dependencies: Cannot read or modify global state
+
+**Closure caveat:** If a closure (lambda that captures variables by reference) is passed as an argument, the closure carries external mutable state. The map itself remains isolated — it has no direct access to the captured variables — but the same lambda variable can produce different results if its captured state changes between calls:
+```bloblang
+$multiplier = 2
+$fn = x -> x * $multiplier
+
+map apply(data, callback) { callback(data) }
+
+output.a = apply(5, $fn)  # 10
+$multiplier = 3
+output.b = apply(5, $fn)  # 15 — $fn's captured $multiplier changed
+```
 - Testable: Easy to test in isolation
