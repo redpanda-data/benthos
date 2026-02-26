@@ -221,6 +221,36 @@ output.y = if true {
 output.z = $value  # Still 20 (inner scope doesn't affect outer)
 ```
 
+**Variable path assignment:** Variables support field and index assignment with the same semantics as `output`. Assigning to a nested path within a variable mutates the variable's value in place, with auto-creation of intermediate structures:
+
+```bloblang
+$record = {"name": "Alice", "scores": [10, 20]}
+$record.name = "Bob"                  # {"name": "Bob", "scores": [10, 20]}
+$record.scores[2] = 30               # {"name": "Bob", "scores": [10, 20, 30]}
+$record.address.city = "London"       # Auto-creates: {"name": "Bob", ..., "address": {"city": "London"}}
+$record.name = deleted()              # Removes field: {"scores": [...], "address": {...}}
+```
+
+**Copy-on-write:** Assigning a value to a variable always creates a logical copy, regardless of the source. Subsequent mutations to the variable never affect the original, and subsequent mutations to the original never affect the variable:
+
+```bloblang
+# From input (immutable source)
+$data = input.user
+$data.status = "processed"            # Mutates $data only; input.user unchanged
+
+# From output (mutable source)
+$snapshot = output.user
+output.user.name = "changed"          # Mutates output only; $snapshot unchanged
+$snapshot.age = 30                    # Mutates $snapshot only; output unchanged
+
+# Between variables
+$a = {"x": 1}
+$b = $a
+$b.x = 2                             # $b is {"x": 2}, $a is still {"x": 1}
+```
+
+**Statement contexts only:** Variable path assignment (`$var.field = expr`) is an assignment statement, not a variable declaration. It is only available in statement contexts (top-level and if/match statement bodies). In expression contexts (if/match expressions, lambdas, map bodies), only whole-variable declaration (`$var = expr`) is allowed.
+
 ## 7.7 Evaluation Order
 
 Statements execute sequentially, top-to-bottom.

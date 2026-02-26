@@ -82,7 +82,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 ## Key Points
 
 - **Top-level only:** Map declarations (`map_decl`) and imports (`import_stmt`) can only appear at the top level of a program, not inside statement bodies. Control flow statements (`if_stmt`, `match_stmt`) can be nested
-- **Variables:** `$var` for declaration and reference
+- **Variables:** `$var` for declaration and reference. Variable path assignment (`$var.field = expr`, `$var[0] = expr`) goes through the `assignment` production (not `var_decl`) and supports the same field access, indexing, and auto-creation semantics as `output`. Since it is an `assignment`, it is only available in statement contexts.
 - **Metadata:** `input@.key` (read), `output@.key` (write)
 - **Context-dependent paths:**
   - **Top-level assignments:** Must use `output`, `input`, or `$variable` (no bare identifiers)

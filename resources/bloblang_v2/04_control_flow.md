@@ -127,13 +127,14 @@ output.flag = !(if false { true })       # ERROR: void in expression
 
 **Void as a lambda return value:** Void propagates transparently out of a lambda — the lambda itself does not error. The consuming context then determines what happens:
 
-- **`map_array` / `map_object`**: void means "no transformation produced" — the element/value is kept **unchanged**. Use `deleted()` to remove elements/key-value pairs.
+- **`map_array` / `map_object`**: void is an error — the lambda must return a value for every element. Use an explicit `else` branch to keep elements unchanged, or return `deleted()` to remove them.
 - **`filter`**: requires a boolean — void is an error.
 - Methods that require a specific type will error if they receive void.
 
 ```bloblang
-# map_array: void keeps element unchanged, deleted() removes it
-input.items.map_array(x -> if x > 0 { x * 2 })     # Positive elements doubled, others unchanged
+# map_array: void is an error, must always return a value
+input.items.map_array(x -> if x > 0 { x * 2 } else { x })     # Positive doubled, others kept
+input.items.map_array(x -> if x > 0 { x * 2 })                 # ERROR when x <= 0: void
 input.items.map_array(x -> if x > 0 { x } else { deleted() })  # Non-positive elements removed
 
 # filter requires a boolean: receiving void is an error
@@ -159,8 +160,8 @@ output.result = match input.x {
 | Collection literal (`[1, void, 3]`) | Element skipped (`[1, 3]`) |
 | Object literal (`{"a": void}`) | Field omitted (`{}`) |
 | Function/map argument (`f(void)`) | Error |
-| `map_array` lambda return | Element kept unchanged |
-| `map_object` lambda return | Value kept unchanged |
+| `map_array` lambda return | Error (value required) |
+| `map_object` lambda return | Error (value required) |
 | `filter` lambda return | Error (boolean required) |
 | Other lambda return | Propagates to consuming context |
 | Expression operand (`void + 1`) | Error |
