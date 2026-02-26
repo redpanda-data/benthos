@@ -219,7 +219,7 @@ $x = 2
 output.result = $fn(10)    # 12: $fn sees the current value of $x (2), not the value at creation (1)
 ```
 
-**Parameter shadowing:** Lambda parameter names shadow any map names or imported namespaces with the same name within the lambda body. The parameter always wins.
+**Parameter shadowing:** Lambda parameter names shadow any map names with the same name within the lambda body. The parameter always wins. Imported namespaces are not affected since they use `::` syntax.
 ```bloblang
 map double(x) { x * 2 }
 input.items.map_array(double -> double * 2)     # double is the parameter, not the map

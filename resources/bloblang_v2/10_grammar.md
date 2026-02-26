@@ -29,7 +29,7 @@ field_name      := identifier | string_literal
 var_ref         := '$' identifier
 
 function_call   := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
-qualified_name  := identifier '.' identifier
+qualified_name  := identifier '::' identifier
 method_chain    := expression ('.' identifier '(' [arg_list] ')')+
 
 if_expr         := 'if' expression '{' expr_body '}'
@@ -93,7 +93,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Object literals:** Keys are expressions that **must** evaluate to strings at runtime (error if not): `{"key": value}` or `{$var: value}`. Use `.string()` for explicit type conversion.
 - **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int32), bytes (byte position, returns int32). Negative indices supported for arrays, strings, and bytes.
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
-- **Map calls:** `name(arg)` or `namespace.name(arg)` (positional or named arguments)
+- **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments)
 - **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments
 - **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body
 - **Purity:**
