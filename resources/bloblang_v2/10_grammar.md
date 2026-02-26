@@ -19,7 +19,7 @@ control_expr    := if_expr | match_expr
 top_level_path  := top_level_context_root path_component*
 top_level_context_root := 'output' metadata_accessor? | var_ref
 
-# Expression paths (in maps/lambdas/match-as): allow bare identifiers
+# Expression paths: allow bare identifiers (resolved by semantic analysis, see below)
 expr_path       := expr_context_root path_component*
 expr_context_root := ('output' | 'input') metadata_accessor? | var_ref | identifier
 
@@ -48,6 +48,10 @@ match_stmt      := 'match' expression ('as' identifier)? '{' stmt_match_case (',
 expr_match_case := (expression | '_') '=>' (expression | '{' expr_body '}')
 stmt_match_case := (expression | '_') '=>' '{' stmt_body '}'
 
+# Note: this is a simplified flat production. Operator precedence, associativity,
+# and non-associativity rules are defined in Section 3.2 and must be applied by
+# the parser. In particular, chaining non-associative operators (e.g., a < b < c)
+# is a parse error.
 binary_expr     := expression binary_op expression
 binary_op       := '+' | '-' | '*' | '/' | '%' |
                    '==' | '!=' | '>' | '>=' | '<' | '<=' | '&&' | '||'
@@ -84,9 +88,10 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
   - **Top-level assignments:** Must use `output`, `input`, or `$variable` (no bare identifiers)
   - **Map/lambda bodies:** Can use bare identifiers for parameters **in expressions only** (e.g., `data.field` where `data` is a parameter). Parameters are read-only and cannot be assigned to.
   - **Match with `as`:** Creates a read-only binding in expressions (e.g., `match input.x as val { val.field ... }`)
+  - **Name resolution:** The grammar's `expr_context_root` accepts `identifier` in all expression contexts for simplicity. A separate semantic pass must verify that every bare identifier resolves to a bound name (map parameter, lambda parameter, or match `as` binding). Unresolved bare identifiers are a compile-time error (Section 3.1).
 - **Quoted fields:** Use `."string"` for field names (dot required before quote): `input."field name"`
 - **Object literals:** Keys are expressions that **must** evaluate to strings at runtime (error if not): `{"key": value}` or `{$var: value}`. Use `.string()` for explicit type conversion.
-- **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int32), bytes (byte position, returns int32). Negative indices supported for arrays.
+- **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int32), bytes (byte position, returns int32). Negative indices supported for arrays, strings, and bytes.
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
 - **Map calls:** `name(arg)` or `namespace.name(arg)` (positional or named arguments)
 - **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments
@@ -94,15 +99,16 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Purity:**
   - Expressions cannot assign to `output` or `output@`
   - Lambda blocks: Variable declarations + final expression (pure, no side effects)
-  - Map bodies: Same as lambda blocks - pure functions that return values
-  - Maps cannot reference `input` or `output` (only their parameter)
+  - Map bodies: Same as lambda blocks - isolated functions that return values
+  - Maps cannot reference `input`, `output`, or top-level `$variables` (only their parameters)
 - **Control flow forms:**
   - `if_expr` / `match_expr`: Used in assignments, contain `expr_body` (no `output` assignments)
   - `if_stmt` / `match_stmt`: Standalone statements, contain `stmt_body` (may assign to `output`)
   - `expr_body`: Variable declarations + final expression (must be pure)
   - `stmt_body`: Zero or more statements (no trailing expression). Empty bodies are valid (no-op).
+- **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false. The grammar cannot distinguish expressions that may produce void from those that always produce values; this is a runtime semantic. See Section 4.1 for full void behavior.
 - **Type coercion:** `+` requires same type family (no cross-family implicit conversion). Numeric types are promoted using promotion rules; non-numeric types require exact type match.
-- **Operator precedence:** Field access > unary > multiplicative > additive > comparison > equality > logical AND > logical OR
+- **Operator precedence and associativity:** The `binary_expr` production is a simplified flat rule. Implementations must apply the precedence, associativity, and non-associativity rules from Section 3.2. Precedence (high to low): field access > unary > multiplicative > additive > comparison > equality > logical AND > logical OR. Arithmetic and logical operators are left-associative; comparison and equality operators are non-associative (chaining is a parse error).
 
 ## Context Examples
 

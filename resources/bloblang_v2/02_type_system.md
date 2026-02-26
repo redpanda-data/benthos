@@ -22,6 +22,8 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 
 **Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
 
+**Void:** Void is not a runtime type — it is the absence of a value, produced when an if-expression without `else` has a false condition (Section 4.1). Void cannot be stored in variables, passed as arguments, or used in expressions (all are errors). It only exists transiently to signal "no value was produced," and the surrounding context determines what happens (assignment skipped, collection element omitted, etc.). Since void can never be the receiver of a method call, `.type()` on void is not possible. See Section 4.1 for full void semantics.
+
 ## 2.2 Type Introspection
 
 ```bloblang
@@ -72,6 +74,15 @@ When arithmetic, comparison, or equality operators are applied to operands of di
 | float32 / float32 | float32 |
 | All other combinations | float64 |
 
+**Modulo follows standard promotion rules** (not the division rule). The result type is determined by the promoted operand type. For float operands, modulo uses `fmod` semantics (IEEE 754 remainder):
+
+| Operand types | Result type | Example |
+|---------------|-------------|---------|
+| int64 % int64 | int64 | `7 % 2 → 1` |
+| int32 % int64 | int64 | Promoted to int64 |
+| Any integer % any float | float64 | `7 % 2.0 → 1.0` |
+| float64 % float64 | float64 | `7.5 % 2.0 → 1.5` |
+
 ```bloblang
 # Same type: no promotion
 output.a = 5 + 3                    # 8 (int64)
@@ -91,9 +102,18 @@ output.f = 7 / 2                    # 3.5 (float64)
 output.g = 20 / 4 / 2               # 2.5 (float64)
 output.h = 10.0 / 3.0               # 3.333... (float64)
 
+# Modulo: follows standard promotion (not the division rule)
+output.i = 7 % 2                    # 1 (int64)
+output.j = 7.0 % 2.0                # 1.0 (float64, fmod)
+output.k = 7.5 % 2.0                # 1.5 (float64, fmod)
+output.l = 7 % 2.0                  # 1.0 (float64: int64 promoted to float64, fmod)
+
 # Division by zero: always an error
 output.bad = 7 / 0                  # ERROR: division by zero
 output.bad = 7.0 / 0.0              # ERROR: division by zero
+
+# Modulo by zero: always an error
+output.bad = 7 % 0                  # ERROR: modulo by zero
 ```
 
 **Note:** Promoting uint64 to int64 may overflow for values larger than 2^63-1 (the maximum int64 value). Promoting int64 or uint64 to float64 may lose precision for values larger than 2^53. Use explicit conversion if exact large-integer arithmetic is required.
@@ -135,9 +155,12 @@ null == 0            # false (null vs numeric)
 
 # Collections: structural equality (value-based, numeric promotion applies within)
 [1, 2] == [1, 2]     # true (same contents)
-[1, 2] == [2, 1]     # false (different order)
-{"a": 1} == {"a": 1} # true (same structure and values)
+[1, 2] == [2, 1]     # false (different order — arrays are ordered)
+{"a": 1} == {"a": 1} # true (same keys and values)
+{"a": 1, "b": 2} == {"b": 2, "a": 1}  # true (key order irrelevant for objects)
 ```
+
+**Object key ordering:** Object key ordering is **not preserved**. Programs must not depend on iteration order in `map_object`, JSON serialization order, or any other context where keys are enumerated. Object equality compares keys and values regardless of order.
 
 ## 2.4 Null Handling
 

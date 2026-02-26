@@ -188,7 +188,7 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 **Causes runtime error:**
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls: `deleted().type()`, `deleted().uppercase()`
-- Used as function arguments (except assignment): `some_function(deleted())`
+- Used as function arguments: `some_function(deleted())`
 - Lambda return values in methods other than `map_array`/`map_object` (e.g., `filter`, `sort`)
 
 The distinction: `deleted()` is a special marker that triggers deletion when flowing into an assignment or collection, but cannot be used as a normal value in computations.
