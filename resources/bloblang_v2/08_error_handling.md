@@ -46,10 +46,14 @@ output.parsed = input.date
 
 ## 8.3 Or Method
 
-Provide default for null values:
+Provide default for null values. `.or()` uses **short-circuit evaluation**: the argument expression is only evaluated if the receiver value is null. If the receiver is non-null, the argument is never evaluated and the receiver value is returned directly.
+
 ```bloblang
 output.name = input.user.name.or("Anonymous")
 output.count = input.items?.length().or(0)
+
+# Short-circuit: throw() is only evaluated if name is null
+output.name = input.name.or(throw("name is required"))
 ```
 
 ## 8.4 Throw Function
@@ -108,7 +112,7 @@ input.user?.name    # OK: returns null if user is null, or user.name if user is 
 input.date.ts_parse("format").catch(err -> null)  # null if parse fails
 ```
 
-**`.or()`**: Handles `null`, not errors
+**`.or()`**: Handles `null`, not errors. Short-circuits: argument only evaluated if receiver is null.
 ```bloblang
 input.name.or("default")  # "default" if name is null
 ```
@@ -134,15 +138,17 @@ input.value?.uppercase()    # Returns null if value is null (method not called)
 input.value.type()          # Returns "null" if value is null (method called)
 
 # Chaining with null-safe operators
-input.items.first()?.uppercase()      # Skip uppercase if first() returns null
 input.user?.address?.city.or("Unknown")  # Combine null-safe navigation with defaults
 ```
 
 **When a method returns null:** The null propagates to the next operation:
 ```bloblang
-input.items.first().uppercase()       # ERROR if first() returns null (empty array)
-input.items.first()?.uppercase()      # OK: returns null if first() returns null
-input.items.first().or("").uppercase() # OK: provides default before uppercase
+[null, "a"].first().uppercase()       # ERROR: first() returns null, uppercase requires string
+[null, "a"].first()?.uppercase()      # OK: returns null (null-safe skips uppercase)
+
+# first() errors on empty arrays — use .catch() for fallback
+input.items.first().uppercase()                    # ERROR if array is empty
+input.items.first().catch(err -> "").uppercase()    # OK: provides default on empty array
 ```
 
 ## 8.7 Validation Methods

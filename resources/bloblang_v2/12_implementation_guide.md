@@ -19,24 +19,59 @@
 **`.map_array(elem -> expr)`** — Transforms each element of an array. Returns a new array.
 - Lambda receives each element as a single parameter
 - Lambda return value replaces the element
+- If the lambda returns void, the element is kept **unchanged** (no transformation applied)
 - If the lambda returns `deleted()`, the element is omitted from the result
 
 ```bloblang
 [1, 2, 3].map_array(x -> x * 2)                              # [2, 4, 6]
-[1, -2, 3].map_array(x -> if x > 0 { x } else { deleted() }) # [1, 3]
+[1, -2, 3].map_array(x -> if x > 0 { x * 10 })              # [10, -2, 30] (negatives unchanged)
+[1, -2, 3].map_array(x -> if x > 0 { x } else { deleted() }) # [1, 3] (negatives removed)
 ```
 
 **`.map_object((key, value) -> expr)`** — Transforms each value of an object. Returns a new object with the same keys.
 - Lambda receives the key (string) and value as two parameters
 - Lambda return value replaces the value for that key (key is preserved)
+- If the lambda returns void, the value is kept **unchanged** (no transformation applied)
 - If the lambda returns `deleted()`, the key-value pair is removed from the result
 - Result is always an object (may be empty if all pairs are deleted)
 
 ```bloblang
 {"a": 1, "b": 2}.map_object((k, v) -> v * 10)                          # {"a": 10, "b": 20}
+{"a": 1, "b": -2, "c": 3}.map_object((k, v) -> if v > 0 { v * 10 })   # {"a": 10, "b": -2, "c": 30} (negatives unchanged)
 {"a": 1, "b": -2, "c": 3}.map_object((k, v) -> if v > 0 { v } else { deleted() })  # {"a": 1, "c": 3}
 {"x": "hello"}.map_object((k, v) -> v.uppercase())                     # {"x": "HELLO"}
 ```
+
+### Required Method Semantics
+
+**`.first()` / `.last()`** — Return the first/last element of an array. Error on empty arrays — this distinguishes "array was empty" from "first element was null". Use `.catch()` to handle the empty case:
+```bloblang
+[1, 2, 3].first()            # 1
+[1, 2, 3].last()             # 3
+[null, 1].first()            # null (first element is null)
+[].first()                   # ERROR: empty array
+[].first().catch(err -> 0)   # 0
+```
+
+**`.sort()`** — Sort an array in ascending order. Sort is **stable** (equal elements preserve their relative order). All elements must be the same type family (all numeric, all strings, etc.) — mixed types are an error. Numeric types are promoted before comparison using the standard promotion rules (Section 2.3):
+```bloblang
+[3, 1, 2].sort()                # [1, 2, 3]
+["b", "a", "c"].sort()          # ["a", "b", "c"]
+[3, 1.5, 2].sort()              # [1.5, 2, 3] (int64 promoted to float64 for comparison)
+[1, "a", true].sort()           # ERROR: cannot sort mixed types
+```
+
+**`.round(n)`** — Round a float to `n` decimal places using **half-even rounding** (banker's rounding, IEEE 754 default). When the value is exactly halfway between two rounded values, it rounds to the nearest even digit:
+```bloblang
+3.456.round(2)     # 3.46
+2.5.round(0)       # 2.0 (half-even: rounds to nearest even)
+3.5.round(0)       # 4.0 (half-even: rounds to nearest even)
+2.55.round(1)      # 2.6
+```
+
+**`.length()`** — Returns the length of a value. For arrays: number of elements. For strings: number of codepoints. For bytes: number of bytes. For objects: number of keys. Other types: error.
+
+**`.filter(elem -> bool)`** — Return a new array containing only elements for which the lambda returns `true`. The lambda must return a boolean — non-boolean return values (including void) are an error.
 
 **All methods listed above are required.** The type conversion methods (`.int32()`, `.uint32()`, etc.) are the only way to create non-default numeric types since literals are always int64 or float64. Implementations may provide additional methods (e.g., `.get()`, `.without()`, `.merge()`, `.append()`, `.parse_json()`) that are useful but not required by this specification. Consult implementation documentation for complete method listing.
 

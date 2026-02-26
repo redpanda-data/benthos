@@ -125,14 +125,20 @@ output.result = (if false { 42 }) + 1    # ERROR: void in expression
 output.flag = !(if false { true })       # ERROR: void in expression
 ```
 
-**Void as a lambda return value:** Void propagates transparently out of a lambda — the lambda itself does not error. The consuming context then determines what happens, exactly as it would for any other void value. Methods that require a specific type from their lambda will error if they receive void; methods that produce collections will treat void as a skipped element.
+**Void as a lambda return value:** Void propagates transparently out of a lambda — the lambda itself does not error. The consuming context then determines what happens:
+
+- **`map_array` / `map_object`**: void means "no transformation produced" — the element/value is kept **unchanged**. Use `deleted()` to remove elements/key-value pairs.
+- **`filter`**: requires a boolean — void is an error.
+- Methods that require a specific type will error if they receive void.
+
 ```bloblang
+# map_array: void keeps element unchanged, deleted() removes it
+input.items.map_array(x -> if x > 0 { x * 2 })     # Positive elements doubled, others unchanged
+input.items.map_array(x -> if x > 0 { x } else { deleted() })  # Non-positive elements removed
+
 # filter requires a boolean: receiving void is an error
 input.items.filter(x -> if x > 0 { true })         # ERROR when x <= 0: filter received void, not bool
 input.items.filter(x -> if x > 0 { true } else { false })  # OK: always returns bool
-
-# map_array produces a collection: void is treated as a skipped element
-input.items.map_array(x -> if x > 0 { x })         # Elements where x <= 0 are skipped
 ```
 
 **Void in match arms:** Match arms are transparent — void produced by a case arm flows out of the match expression and behaves exactly as it would from any other expression. The surrounding context (assignment, collection, etc.) determines what happens.
@@ -153,16 +159,19 @@ output.result = match input.x {
 | Collection literal (`[1, void, 3]`) | Element skipped (`[1, 3]`) |
 | Object literal (`{"a": void}`) | Field omitted (`{}`) |
 | Function/map argument (`f(void)`) | Error |
-| Lambda return value | Propagates to consuming context; behavior follows normal void rules |
+| `map_array` lambda return | Element kept unchanged |
+| `map_object` lambda return | Value kept unchanged |
+| `filter` lambda return | Error (boolean required) |
+| Other lambda return | Propagates to consuming context |
 | Expression operand (`void + 1`) | Error |
 
 ## 4.2 Match Expressions vs Statements
 
 **Match Expression** (returns value):
 ```bloblang
-output.sound = match input.animal as a {
-  a == "cat" => "meow",
-  a == "dog" => "woof",
+output.sound = match input.animal {
+  "cat" => "meow",
+  "dog" => "woof",
   _ => "unknown",
 }
 ```
@@ -220,7 +229,7 @@ output.sound = match input.animal as a {
 }
 ```
 
-**2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown.
+**2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown. The wildcard `_` is exempt from this requirement — it always matches unconditionally.
 
 ```bloblang
 output.tier = match input.score as s {
@@ -232,7 +241,7 @@ output.tier = match input.score as s {
 
 Use `as` when you need range checks or complex conditions against the matched value.
 
-**3. Boolean match (`match { bool => ... }`):** No matched expression. Each case must be a **boolean expression**. Cases are evaluated in order, and the first one that yields `true` is selected. If a case evaluates to a non-boolean value, an error is thrown.
+**3. Boolean match (`match { bool => ... }`):** No matched expression. Each case must be a **boolean expression**. Cases are evaluated in order, and the first one that yields `true` is selected. If a case evaluates to a non-boolean value, an error is thrown. The wildcard `_` is exempt — it always matches unconditionally.
 
 ```bloblang
 output.category = match {
@@ -244,6 +253,8 @@ output.category = match {
 ```
 
 **Key distinction:** Without `as`, case values are compared by equality against the matched expression. With `as`, case expressions must be booleans.
+
+**Wildcard `_`:** In all three match forms, `_` is an unconditional catch-all — it always matches regardless of context. In equality match it matches any value; in boolean match forms it is not evaluated as a boolean expression but simply matches unconditionally. `_` is a syntactic form, not an expression — it can only appear as a match case pattern, not in arbitrary expression positions.
 
 ## 4.3 Block-Scoped Variables
 
