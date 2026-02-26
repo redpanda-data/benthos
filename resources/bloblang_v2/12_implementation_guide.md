@@ -19,25 +19,27 @@
 **`.map_array(elem -> expr)`** — Transforms each element of an array. Returns a new array.
 - Lambda receives each element as a single parameter
 - Lambda return value replaces the element
-- If the lambda returns void, the element is kept **unchanged** (no transformation applied)
+- If the lambda returns void, it is an error — the lambda must return a value for every element
 - If the lambda returns `deleted()`, the element is omitted from the result
 
 ```bloblang
 [1, 2, 3].map_array(x -> x * 2)                              # [2, 4, 6]
-[1, -2, 3].map_array(x -> if x > 0 { x * 10 })              # [10, -2, 30] (negatives unchanged)
+[1, -2, 3].map_array(x -> if x > 0 { x * 10 } else { x })   # [10, -2, 30] (explicit else needed)
+[1, -2, 3].map_array(x -> if x > 0 { x * 10 })              # ERROR: void when x <= 0
 [1, -2, 3].map_array(x -> if x > 0 { x } else { deleted() }) # [1, 3] (negatives removed)
 ```
 
 **`.map_object((key, value) -> expr)`** — Transforms each value of an object. Returns a new object with the same keys.
 - Lambda receives the key (string) and value as two parameters
 - Lambda return value replaces the value for that key (key is preserved)
-- If the lambda returns void, the value is kept **unchanged** (no transformation applied)
+- If the lambda returns void, it is an error — the lambda must return a value for every entry
 - If the lambda returns `deleted()`, the key-value pair is removed from the result
 - Result is always an object (may be empty if all pairs are deleted)
 
 ```bloblang
 {"a": 1, "b": 2}.map_object((k, v) -> v * 10)                          # {"a": 10, "b": 20}
-{"a": 1, "b": -2, "c": 3}.map_object((k, v) -> if v > 0 { v * 10 })   # {"a": 10, "b": -2, "c": 30} (negatives unchanged)
+{"a": 1, "b": -2, "c": 3}.map_object((k, v) -> if v > 0 { v * 10 } else { v })   # {"a": 10, "b": -2, "c": 30} (explicit else needed)
+{"a": 1, "b": -2, "c": 3}.map_object((k, v) -> if v > 0 { v * 10 })   # ERROR: void when v <= 0
 {"a": 1, "b": -2, "c": 3}.map_object((k, v) -> if v > 0 { v } else { deleted() })  # {"a": 1, "c": 3}
 {"x": "hello"}.map_object((k, v) -> v.uppercase())                     # {"x": "HELLO"}
 ```

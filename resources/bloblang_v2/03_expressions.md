@@ -364,6 +364,29 @@ $count = $count + 1
 $count = $count * 2
 ```
 
+**Variable path assignment:** Variables support field and index assignment with the same semantics as `output`, including auto-creation of intermediate structures:
+```bloblang
+$user = {"name": "Alice"}
+$user.name = "Bob"                    # Deep mutation: {"name": "Bob"}
+$user.address.city = "London"         # Auto-creates intermediates
+$user.tags[0] = "admin"              # Index assignment
+$user.address = deleted()             # Removes the field
+
+$val = "hello"
+$val.field = "x"                      # ERROR: cannot assign field on string
+```
+
+Assigning a value to a variable always creates a logical copy, regardless of source (`input`, `output`, or another variable). Mutations to the variable never affect the original, and vice versa:
+```bloblang
+$data = input.record
+$data.status = "processed"            # Mutates $data only; input unchanged
+
+$snap = output.user
+output.user.name = "changed"          # $snap unaffected
+```
+
+Variable path assignment is only available in statement contexts (top-level and if/match statement bodies). In expression contexts, only whole-variable assignment (`$var = expr`) is allowed.
+
 Variables are **block-scoped** with shadowing support (inner blocks can declare new variables with the same name).
 
 **Variable deletion:**
