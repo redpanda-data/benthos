@@ -32,7 +32,7 @@ output.category = match input.score as s {
   _ => "low",
 }
 
-# Named transformation (pure function)
+# Named transformation (isolated function)
 map normalize_user(data) {
   {
     "id": data.user_id,
@@ -55,7 +55,7 @@ output.user = normalize_user(input.user_data)
 **Metadata:** `input@.key` (read), `output@.key` (write)
 
 **Literals:**
-- Numbers: `42`, `3.14` (negative numbers use unary minus: `-10`)
+- Numbers: `42`, `3.14` (negative numbers use unary minus: `-10`). **Note:** `-10` is not a single token — it is unary minus applied to `10`. Since method calls bind tighter than unary minus, `-10.string()` parses as `-(10.string())` which is an error. Use `(-10).string()` instead.
 - Strings: `"hello"`, `"escape\n"`, or `` `raw multiline` ``
 - Booleans: `true`, `false`
 - Null: `null`

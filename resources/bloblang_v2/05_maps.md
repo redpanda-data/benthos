@@ -1,6 +1,6 @@
 # 5. Maps (User-Defined Functions)
 
-Pure, reusable transformations called as functions.
+Isolated, reusable transformations called as functions.
 
 ## 5.1 Syntax
 
@@ -32,7 +32,7 @@ output.result = name(parameter: input.data)
 output.calc = calculate(x: 1, y: 2, z: 3)
 ```
 
-Maps are **pure functions**: they take zero or more parameters, optionally declare variables, and return a value. They cannot reference `input` or `output`.
+Maps are **isolated functions**: they take zero or more parameters, optionally declare variables, and return a value. They cannot reference `input` or `output`.
 
 **Argument styles:** Functions can be called with positional or named arguments, but not both in the same call.
 
@@ -98,7 +98,7 @@ output = walk_tree(input)
 - Parameters are **read-only** - they cannot be reassigned or used as assignment targets
 - Parameters are available as bare identifiers within the map body (e.g., `data.field`)
 - Variables declared within maps (using `$`) can be reassigned
-- Maps are pure given their inputs: the map body has no access to external state, so the result is entirely determined by the parameter values. However, if a closure is passed as an argument, the closure may carry captured mutable state (Section 3.4), so the same lambda variable can produce different results across calls
+- Maps are isolated: the map body has no access to external state (`input`, `output`, top-level variables). The result is determined by the parameter values, but note that closures passed as arguments may carry captured mutable state (Section 3.4), so the same lambda value can produce different results across calls
 - Call with positional arguments (match order) or named arguments (match names)
 - **Cannot mix** positional and named arguments in the same call
 - **Parameter shadowing:** Parameter names shadow any map names with the same name within the map body. The parameter always wins. Imported namespaces are not affected since they use `::` syntax — `namespace::func()` is always unambiguous regardless of parameter names.
@@ -125,13 +125,13 @@ map transform(math) {
 }
 ```
 
-## 5.4 Purity Constraints
+## 5.4 Isolation Constraints
 
-Maps are isolated functions with no side effects — they cannot access `input`, `output`, or top-level variables, and cannot produce side effects:
+Maps are isolated functions — they cannot access `input`, `output`, or top-level variables:
 
 ```bloblang
 map transform(data) {
-  data.value * 2           # ✅ Valid: pure transformation
+  data.value * 2           # ✅ Valid: isolated transformation
 }
 
 map invalid(data) {
@@ -141,7 +141,7 @@ map invalid(data) {
 ```
 
 **Why isolated?**
-- Predictable: Result is entirely determined by parameter values
+- Predictable: No hidden dependencies on `input`, `output`, or global state
 - Composable: Can be used anywhere, including in lambdas
 - No hidden dependencies: Cannot read or modify global state
 

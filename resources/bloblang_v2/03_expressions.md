@@ -114,6 +114,10 @@ output.check = input.x > 10 && input.y < 20  # > before &&
 output.neg = -input.value                    # Unary minus
 output.not = !input.flag                     # Logical not
 
+# Precedence trap: method calls bind tighter than unary minus
+# -10.string()                               # ERROR: parses as -(10.string()) = -("10")
+output.neg_str = (-10).string()              # OK: "-10"
+
 # Associativity examples (left-associative)
 output.result = 10 - 5 - 2    # (10 - 5) - 2 = 3
 output.result = 20 / 4 / 2    # (20 / 4) / 2 = 2.5
@@ -427,16 +431,25 @@ output.result = if true {
 output.outer = $x   # Still 1 (inner $x doesn't affect outer)
 ```
 
-**In statement contexts** (if/match statements at top-level): variables are **not block-scoped**. Assigning to an existing outer variable modifies it, and new variables declared inside the block are visible in the outer scope after the block executes.
+**In statement contexts** (if/match statements at top-level): assigning to a variable that exists in an outer scope **modifies** it. New variables declared inside a statement block are **block-scoped** — they are not visible in the outer scope.
 
 ```bloblang
 $count = 0
 if input.flag {
-  $count = 1        # Modifies outer $count
-  $temp = "found"   # New variable, visible in outer scope
+  $count = 1        # Modifies outer $count (already exists)
+  $temp = "found"   # Block-scoped: only visible inside this block
 }
 output.count = $count  # 1 if flag was true, 0 if false
-output.temp = $temp    # "found" if flag was true, ERROR if false ($temp never created)
+output.temp = $temp    # Compile-time error: $temp does not exist
+```
+
+To use a variable after a conditional, pre-declare it:
+```bloblang
+$temp = null
+if input.flag {
+  $temp = "found"   # Modifies outer $temp (already exists)
+}
+output.temp = $temp    # OK: null or "found"
 ```
 
 **Reassignment at the same scope level:**
@@ -446,7 +459,7 @@ $x = 2              # Reassignment: same variable, now has value 2
 output.a = $x       # 2
 ```
 
-**Rationale:** Bloblang is mostly functional, but if/match statements are an intentional imperative escape hatch — they can assign to `output`, modify outer variables, and introduce new variables into the outer scope. Expressions remain pure: no `output` assignments, no outer variable mutation, and variables are block-scoped with shadowing.
+**Rationale:** Bloblang is mostly functional, but if/match statements are an intentional imperative escape hatch — they can assign to `output` and modify existing outer variables. New variable declarations are always block-scoped in both statement and expression contexts. The key difference: in statement contexts, assigning to an *existing* outer variable modifies it; in expression contexts, it shadows (creates a new inner variable). Neither context leaks new variables to the outer scope.
 
 ## 3.9 Statements vs Expressions
 
