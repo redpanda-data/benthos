@@ -27,6 +27,10 @@ type MessageBatchHandlerFunc func(context.Context, MessageBatch) error
 // Message represents a single discrete message passing through a Benthos
 // pipeline. It is safe to mutate the message via Set methods, but the
 // underlying byte data should not be edited directly.
+//
+// A Message is not safe for concurrent use by multiple goroutines. To process
+// a message in parallel, create independent copies using Copy or DeepCopy and
+// pass each copy to its own goroutine.
 type Message struct {
 	part  *message.Part
 	onErr func(err error)
@@ -164,6 +168,11 @@ func NewInternalMessage(imsg *message.Part) *Message {
 // Copy creates a shallow copy of a message that is safe to mutate with Set
 // methods without mutating the original. Both messages will share a context,
 // and therefore a tracing ID, if one has been associated with them.
+//
+// It is safe to call Copy concurrently from multiple goroutines on the same
+// source message, provided the source is not being mutated concurrently. After
+// copying, the original and the copy may be used independently from separate
+// goroutines.
 func (m *Message) Copy() *Message {
 	return &Message{
 		part: m.part.ShallowCopy(),

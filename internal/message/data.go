@@ -7,7 +7,11 @@ import (
 	"sync/atomic"
 )
 
-// Contains underlying allocated data for messages.
+// messageData contains the underlying allocated data for messages.
+//
+// A messageData is not safe for concurrent use by multiple goroutines.
+// ShallowCopy may be called concurrently on the same source (the readOnly
+// flags are atomic), but all other methods require exclusive access.
 type messageData struct {
 	rawBytes []byte // Contents are always read-only
 	err      error
