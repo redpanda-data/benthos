@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+- The `command` processor now emits the `exit_code` metadata field. (@mihaitodor)
 - Go API: `Message` now exposes `MetaGetImmut` and `MetaSetImmut` methods for reading and writing metadata values of any type with immutable semantics. (@Jeffail)
 
 ### Fixed

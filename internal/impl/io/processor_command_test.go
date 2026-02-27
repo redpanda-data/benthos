@@ -87,12 +87,20 @@ args_mapping: '[ "-n" ]'
 			require.NoError(t, err)
 
 			res, err := cmdProc.Process(tCtx, service.NewMessage([]byte(test.input)))
+
+			exitCode, ok := res[0].MetaGetMut("exit_code")
+			assert.True(t, ok)
+
 			if test.errContains != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.errContains)
+
+				assert.Equal(t, 2, exitCode)
 			} else {
 				require.NoError(t, err)
 				require.Len(t, res, 1)
+
+				assert.Equal(t, 0, exitCode)
 
 				resBytes, err := res[0].AsBytes()
 				require.NoError(t, err)
