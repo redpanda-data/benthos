@@ -67,12 +67,10 @@ address: %v
 	var buf bytes.Buffer
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		_, _ = buf.ReadFrom(conn)
-		wg.Done()
-	}()
+	})
 
 	if err = wtr.Write(t.Context(), service.NewMessage([]byte("foo"))); err != nil {
 		t.Error(err)
@@ -134,12 +132,10 @@ address: %v
 	var buf bytes.Buffer
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		_, _ = buf.ReadFrom(&testOutputWrapPacketConn{r: conn})
-		wg.Done()
-	}()
+	})
 
 	if err = wtr.Write(t.Context(), service.NewMessage([]byte("foo"))); err != nil {
 		t.Error(err)
@@ -199,12 +195,10 @@ address: %v
 	var buf bytes.Buffer
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		_, _ = buf.ReadFrom(conn)
-		wg.Done()
-	}()
+	})
 
 	if err = wtr.Write(t.Context(), service.NewMessage([]byte("foo"))); err != nil {
 		t.Error(err)
@@ -272,12 +266,10 @@ tls:
 	var buf bytes.Buffer
 
 	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go func() {
+	wg.Go(func() {
 		_ = conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 		_, _ = buf.ReadFrom(conn)
-		wg.Done()
-	}()
+	})
 
 	if err = wtr.Write(t.Context(), service.NewMessage([]byte("foo"))); err != nil {
 		t.Error(err)

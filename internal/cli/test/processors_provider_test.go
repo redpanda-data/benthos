@@ -13,12 +13,14 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v3"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli/test"
 	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/internal/template"
 
 	_ "github.com/redpanda-data/benthos/v4/public/components/io"
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
@@ -412,4 +414,56 @@ pipeline:
 	)
 	_, err = provider.Provide("/pipeline/processors", nil, nil)
 	require.EqualError(t, err, "failed to initialise resources: cache resource label 'barcache' collides with a previously defined resource")
+}
+
+func TestProcessorsProviderWithTemplate(t *testing.T) {
+	env := bundle.GlobalEnvironment.Clone()
+	bloblEnv := bloblang.GlobalEnvironment()
+
+	// Register a simple test template
+	templateYAML := []byte(`
+name: test_uppercase_processor
+type: processor
+fields:
+  - name: prefix
+    type: string
+    default: "PREFIX: "
+mapping: |
+  root.mapping = """root = "%s" + content().string().uppercase()""".format(this.prefix)
+`)
+
+	err := template.RegisterTemplateYAML(env, bloblEnv, templateYAML)
+	require.NoError(t, err)
+
+	// Create test config using the template
+	files := map[string]string{
+		"config.yaml": `
+pipeline:
+  processors:
+    - test_uppercase_processor:
+        prefix: "TEST: "
+`,
+	}
+
+	testDir, err := initTestFiles(t, files)
+	require.NoError(t, err)
+	defer os.RemoveAll(testDir)
+
+	// Create ProcessorsProvider with the environment containing the template
+	configPath := filepath.Join(testDir, "config.yaml")
+	provider := test.NewProcessorsProvider(configPath, nil, config.Spec(), env, log.Noop())
+
+	// Extract processors - this should work now that we pass the environment
+	procs, err := provider.Provide("/pipeline/processors", nil, nil)
+	require.NoError(t, err)
+	require.Len(t, procs, 1)
+
+	// Test the processor works correctly
+	msg := message.Batch{message.NewPart([]byte("hello"))}
+	results, err := procs[0].ProcessBatch(context.Background(), msg)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Len(t, results[0], 1)
+
+	assert.Equal(t, "TEST: HELLO", string(results[0][0].AsBytes()))
 }

@@ -422,15 +422,92 @@ output:
 `, iterations, batchSize)
 			},
 		},
+		{
+			name: "metadata heavy mutation",
+			confFn: func(iterations, batchSize int) string {
+				return fmt.Sprintf(`
+input:
+  generate:
+    count: %v
+    batch_size: %v
+    interval: ""
+    mapping: |
+      meta = {"k1":"v1","k2":"v2","k3":"v3","k4":"v4","k5":"v5","k6":"v6","k7":"v7","k8":"v8"}
+      root.id = uuid_v4()
+      root.data = "some data " + uuid_v4()
+
+pipeline:
+  processors:
+    - mutation: |
+        meta d1 = meta("k1") + "_" + meta("k2")
+        meta d2 = meta("k3") + "_" + meta("k4")
+        meta d3 = meta("k5") + "_" + meta("k6")
+        meta d4 = meta("k7") + "_" + meta("k8")
+        root.k1 = meta("k1")
+        root.k2 = meta("k2")
+        root.k3 = meta("k3")
+        root.k4 = meta("k4")
+    - mutation: |
+        root.d1 = meta("d1")
+        root.d2 = meta("d2")
+        root.d3 = meta("d3")
+        root.d4 = meta("d4")
+        root.k5 = meta("k5")
+        root.k6 = meta("k6")
+        root.k7 = meta("k7")
+        root.k8 = meta("k8")
+
+output:
+  drop: {}
+`, iterations, batchSize)
+			},
+		},
+		{
+			name: "metadata propagation through branches",
+			confFn: func(iterations, batchSize int) string {
+				return fmt.Sprintf(`
+input:
+  generate:
+    count: %v
+    batch_size: %v
+    interval: ""
+    mapping: |
+      meta = {"trace_id":"abc-123","region":"us-east-1","env":"prod","service":"api","version":"1.0"}
+      root.id = uuid_v4()
+      root.data = "some data " + uuid_v4()
+
+pipeline:
+  processors:
+    - branch:
+        request_map: |
+          root.trace = meta("trace_id")
+          root.region = meta("region")
+          root.data = this.data
+        processors:
+          - mapping: root = content().uppercase()
+        result_map: |
+          root.branch_a = content().string()
+    - branch:
+        request_map: |
+          root.env = meta("env")
+          root.service = meta("service")
+          root.data = this.data
+        processors:
+          - mapping: root = content().uppercase()
+        result_map: |
+          root.branch_b = content().string()
+    - mutation: |
+        root.all_meta = meta("trace_id") + "|" + meta("region") + "|" + meta("env")
+
+output:
+  drop: {}
+`, iterations, batchSize)
+			},
+		},
 	} {
-		test := test
 		for _, batchSize := range []int{1, 10, 50} {
-			batchSize := batchSize
 			b.Run(fmt.Sprintf("%v/%v", test.name, batchSize), func(b *testing.B) {
-				iterations := b.N / batchSize
-				if iterations < 1 {
-					iterations = 1
-				}
+				iterations := max(b.N/batchSize, 1)
 
 				builder := service.NewStreamBuilder()
 				require.NoError(b, builder.SetYAML(test.confFn(iterations, batchSize)))

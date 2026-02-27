@@ -16,10 +16,8 @@ func TestConcurrentMutationsFromNil(t *testing.T) {
 	kickOffChan := make(chan struct{})
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 100 {
+		wg.Go(func() {
 			<-kickOffChan
 
 			local := source.ShallowCopy()
@@ -43,7 +41,7 @@ func TestConcurrentMutationsFromNil(t *testing.T) {
 
 			vBytes := local.AsBytes()
 			assert.Equal(t, `{"foo":"baz"}`, string(vBytes))
-		}()
+		})
 	}
 
 	close(kickOffChan)
@@ -61,10 +59,8 @@ func TestConcurrentMutationsFromStructured(t *testing.T) {
 	kickOffChan := make(chan struct{})
 
 	var wg sync.WaitGroup
-	for i := 0; i < 100; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+	for range 100 {
+		wg.Go(func() {
 			<-kickOffChan
 
 			local := source.ShallowCopy()
@@ -103,11 +99,119 @@ func TestConcurrentMutationsFromStructured(t *testing.T) {
 
 			vBytes = local.AsBytes()
 			assert.Equal(t, `{"foo":"meow"}`, string(vBytes))
-		}()
+		})
 	}
 
 	close(kickOffChan)
 	wg.Wait()
+}
+
+// mockImmut is a minimal immutableMeta implementation for testing.
+type mockImmut struct{ val any }
+
+func (m mockImmut) Copy() any { return m.val }
+
+func TestMetaValueSemantics(t *testing.T) {
+	t.Run("mutable get returns value directly", func(t *testing.T) {
+		d := newMessageBytes(nil)
+		d.MetaSetMut("k", "hello")
+		v, ok := d.MetaGetMut("k")
+		assert.True(t, ok)
+		assert.Equal(t, "hello", v)
+	})
+
+	t.Run("immutable get returns ImmutableValue without Copy", func(t *testing.T) {
+		d := newMessageBytes(nil)
+		im := mockImmut{val: []any{"a", "b"}}
+		d.MetaSetImmut("k", im)
+		// MetaGetImmut returns the stored ImmutableValue itself
+		v, ok := d.MetaGetImmut("k")
+		assert.True(t, ok)
+		assert.Equal(t, im, v)
+	})
+
+	t.Run("MetaGetMut on immutable calls Copy", func(t *testing.T) {
+		d := newMessageBytes(nil)
+		im := mockImmut{val: "original"}
+		d.MetaSetImmut("k", im)
+		v, ok := d.MetaGetMut("k")
+		assert.True(t, ok)
+		assert.Equal(t, "original", v)
+	})
+
+	t.Run("MetaGetMut on mutable does not call Copy", func(t *testing.T) {
+		d := newMessageBytes(nil)
+		obj := map[string]any{"x": 1}
+		d.MetaSetMut("k", obj)
+		v, ok := d.MetaGetMut("k")
+		assert.True(t, ok)
+		// Same pointer — no copy performed
+		assert.Equal(t, obj, v.(map[string]any))
+	})
+
+	t.Run("MetaIterMut calls Copy for immutable entries only", func(t *testing.T) {
+		d := newMessageBytes(nil)
+		d.MetaSetMut("mut", "plain")
+		d.MetaSetImmut("immut", mockImmut{val: int64(42)})
+
+		seen := map[string]any{}
+		require.NoError(t, d.MetaIterMut(func(k string, v any) error {
+			seen[k] = v
+			return nil
+		}))
+		assert.Equal(t, "plain", seen["mut"])
+		assert.Equal(t, int64(42), seen["immut"])
+	})
+
+	t.Run("ShallowCopy COW preserves immutable flag", func(t *testing.T) {
+		src := newMessageBytes(nil)
+		src.MetaSetImmut("k", mockImmut{val: "immut"})
+		src.MetaSetMut("m", "mut")
+
+		cp := src.ShallowCopy()
+		// Write to cp does not affect src
+		cp.MetaSetMut("m", "mutated")
+		v, _ := src.MetaGetMut("m")
+		assert.Equal(t, "mut", v)
+
+		// Immutable flag preserved in copy
+		raw, ok := cp.MetaGetImmut("k")
+		assert.True(t, ok)
+		assert.Equal(t, mockImmut{val: "immut"}, raw)
+	})
+
+	t.Run("DeepCopy shares immutable entries", func(t *testing.T) {
+		im := mockImmut{val: []any{"shared"}}
+		src := newMessageBytes(nil)
+		src.MetaSetImmut("k", im)
+
+		dc := src.DeepCopy()
+		// The stored ImmutableValue pointer is shared (safe: Copy is lazy)
+		raw, ok := dc.MetaGetImmut("k")
+		assert.True(t, ok)
+		assert.Equal(t, im, raw)
+	})
+
+	t.Run("DeepCopy deep-clones mutable entries", func(t *testing.T) {
+		obj := map[string]any{"x": "original"}
+		src := newMessageBytes(nil)
+		src.MetaSetMut("k", obj)
+
+		dc := src.DeepCopy()
+		obj["x"] = "mutated"
+
+		v, ok := dc.MetaGetMut("k")
+		assert.True(t, ok)
+		assert.Equal(t, "original", v.(map[string]any)["x"])
+	})
+
+	t.Run("missing key returns false", func(t *testing.T) {
+		d := newMessageBytes(nil)
+		_, ok := d.MetaGetMut("missing")
+		assert.False(t, ok)
+		_, ok = d.MetaGetImmut("missing")
+		assert.False(t, ok)
+	})
 }
 
 func TestSetNil(t *testing.T) {

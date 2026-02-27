@@ -57,7 +57,7 @@ http_server:
 	<-time.After(time.Millisecond * 100)
 
 	// Test both single and multipart messages.
-	for i := 0; i < nTestLoops; i++ {
+	for i := range nTestLoops {
 		testStr := fmt.Sprintf("test%v", i)
 
 		go func() {

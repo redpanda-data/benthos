@@ -158,8 +158,8 @@ func TestFallbackHappyPath(t *testing.T) {
 
 	oTM.TriggerStartConsuming()
 
-	for i := 0; i < 10; i++ {
-		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
+	for i := range 10 {
+		content := [][]byte{fmt.Appendf(nil, "hello world %v", i)}
 		select {
 		case readChan <- message.NewTransaction(message.QuickBatch(content), resChan):
 		case <-time.After(time.Second):
@@ -227,8 +227,8 @@ func TestFallbackHappyishPath(t *testing.T) {
 
 	oTM.TriggerStartConsuming()
 
-	for i := 0; i < 10; i++ {
-		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
+	for i := range 10 {
+		content := [][]byte{fmt.Appendf(nil, "hello world %v", i)}
 		select {
 		case readChan <- message.NewTransaction(message.QuickBatch(content), resChan):
 		case <-time.After(time.Second):
@@ -319,8 +319,8 @@ func TestFallbackAllFail(t *testing.T) {
 
 	oTM.TriggerStartConsuming()
 
-	for i := 0; i < 10; i++ {
-		content := [][]byte{[]byte(fmt.Sprintf("hello world %v", i))}
+	for i := range 10 {
+		content := [][]byte{fmt.Appendf(nil, "hello world %v", i)}
 		select {
 		case readChan <- message.NewTransaction(message.QuickBatch(content), resChan):
 		case <-time.After(time.Second):
@@ -329,7 +329,7 @@ func TestFallbackAllFail(t *testing.T) {
 
 		testErr := errors.New("test error")
 		go func() {
-			for j := 0; j < 3; j++ {
+			for j := range 3 {
 				var ts message.Transaction
 				select {
 				case ts = <-mockOutputs[j%3].TChan:
@@ -405,8 +405,6 @@ func TestFallbackAllFailParallel(t *testing.T) {
 	testErr := errors.New("test error")
 
 	for i, o := range mockOutputs {
-		i := i
-		o := o
 		go func() {
 			defer wg.Done()
 			for range resChans {
@@ -503,8 +501,8 @@ fallback:
 
 	stopChan := make(chan struct{})
 	go func() {
-		err = s.Run(t.Context())
-		require.NoError(t, err)
+		runErr := s.Run(t.Context())
+		require.NoError(t, runErr)
 
 		close(stopChan)
 	}()

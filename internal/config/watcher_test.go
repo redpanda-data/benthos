@@ -192,7 +192,7 @@ func TestReaderStreamDirectWatching(t *testing.T) {
 	require.NoError(t, os.WriteFile(confBPath, []byte(`output: { label: b2, drop: {} }`), 0o644))
 	require.NoError(t, os.WriteFile(confCPath, []byte(`output: { label: c2, drop: {} }`), 0o644))
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// Wait for the config watcher to reload each config
 		select {
 		case <-changeChan:
@@ -215,7 +215,7 @@ func TestReaderStreamDirectWatching(t *testing.T) {
 	require.NoError(t, os.Remove(confBPath))
 	require.NoError(t, os.WriteFile(confCPath, []byte(`output: { label: c3, drop: {} }`), 0o644))
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// Wait for the config watcher to reload each config
 		select {
 		case <-changeChan:
@@ -276,7 +276,7 @@ func TestReaderStreamWildcardWatching(t *testing.T) {
 	require.NoError(t, os.WriteFile(confBPath, []byte(`output: { label: b2, drop: {} }`), 0o644))
 	require.NoError(t, os.WriteFile(confCPath, []byte(`output: { label: c2, drop: {} }`), 0o644))
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// Wait for the config watcher to reload each config
 		select {
 		case <-changeChan:
@@ -299,7 +299,7 @@ func TestReaderStreamWildcardWatching(t *testing.T) {
 	require.NoError(t, os.WriteFile(confBPath, []byte(`output: { label: b3, drop: {} }`), 0o644))
 	require.NoError(t, os.Remove(confCPath))
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// Wait for the config watcher to reload each config
 		select {
 		case <-changeChan:
@@ -360,7 +360,7 @@ func TestReaderStreamDirWatching(t *testing.T) {
 	require.NoError(t, os.WriteFile(confBPath, []byte(`output: { label: b2, drop: {} }`), 0o644))
 	require.NoError(t, os.WriteFile(confCPath, []byte(`output: { label: c2, drop: {} }`), 0o644))
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// Wait for the config watcher to reload each config
 		select {
 		case <-changeChan:
@@ -383,7 +383,7 @@ func TestReaderStreamDirWatching(t *testing.T) {
 	require.NoError(t, os.WriteFile(confBPath, []byte(`output: { label: b3, drop: {} }`), 0o644))
 	require.NoError(t, os.Remove(confCPath))
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// Wait for the config watcher to reload each config
 		select {
 		case <-changeChan:
@@ -447,7 +447,7 @@ func TestReaderWatcherRace(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, rdr.BeginFileWatching(testMgr, true))
 
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		// Wait for the config watcher to reload each config
 		select {
 		case <-changeChan:
@@ -469,7 +469,7 @@ func TestReaderWatcherRace(t *testing.T) {
 	require.NoError(t, os.WriteFile(confBPath, []byte(`output: { label: b3, drop: {} }`), 0o644))
 	require.NoError(t, os.Remove(confCPath))
 
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		// Wait for the config watcher to reload each config
 		select {
 		case <-changeChan:

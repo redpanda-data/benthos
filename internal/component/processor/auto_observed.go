@@ -95,7 +95,8 @@ func (a *v2ToV1Processor) ProcessBatch(ctx context.Context, msg message.Batch) (
 
 	newParts := make([]*message.Part, 0, msg.Len())
 	_ = msg.Iter(func(i int, part *message.Part) error {
-		_, span := tracing.WithChildSpan(a.mgr.Tracer(), a.typeStr, part)
+		origCtx := message.GetContext(part) // save original context before adding span
+		part, span := tracing.WithChildSpan(a.mgr.Tracer(), a.typeStr, part)
 
 		nextParts, err := a.p.Process(ctx, part)
 		if err != nil {
@@ -106,6 +107,11 @@ func (a *v2ToV1Processor) ProcessBatch(ctx context.Context, msg message.Batch) (
 		}
 
 		span.Finish()
+		// Restore original context to output parts so they don't inherit this
+		// processor's span.
+		for j, p := range nextParts {
+			nextParts[j] = message.WithContext(origCtx, p)
+		}
 		if len(nextParts) > 0 {
 			newParts = append(newParts, nextParts...)
 		}
@@ -232,8 +238,15 @@ func (a *v2BatchedToV1Processor) ProcessBatch(ctx context.Context, msg message.B
 	a.mReceived.Incr(int64(msg.Len()))
 	a.mBatchReceived.Incr(1)
 
+	// Save original contexts before adding spans
+	origCtxs := make([]context.Context, msg.Len())
+	_ = msg.Iter(func(i int, p *message.Part) error {
+		origCtxs[i] = message.GetContext(p)
+		return nil
+	})
+
 	tStarted := time.Now()
-	_, spans := tracing.WithChildSpans(a.mgr.Tracer(), a.typeStr, msg)
+	msg, spans := tracing.WithChildSpans(a.mgr.Tracer(), a.typeStr, msg)
 
 	outputBatches, err := a.p.ProcessBatch(&BatchProcContext{
 		ctx:    ctx,
@@ -262,6 +275,22 @@ func (a *v2BatchedToV1Processor) ProcessBatch(ctx context.Context, msg message.B
 	a.mLatency.Timing(time.Since(tStarted).Nanoseconds())
 	if len(outputBatches) == 0 {
 		return nil, nil
+	}
+
+	// Restore original contexts to all output parts so they don't inherit this
+	// processor's span
+	if len(origCtxs) > 0 {
+		for batchIdx := range outputBatches {
+			for partIdx, p := range outputBatches[batchIdx] {
+				// If there are more output parts than input parts, use the context
+				// from the first input part
+				ctxIdx := partIdx
+				if ctxIdx >= len(origCtxs) {
+					ctxIdx = 0
+				}
+				outputBatches[batchIdx][partIdx] = message.WithContext(origCtxs[ctxIdx], p)
+			}
+		}
 	}
 
 	for _, m := range outputBatches {

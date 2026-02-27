@@ -4,9 +4,57 @@
 // within the domain of benthos. The intention for these schemas is to encourage
 // schema conversion between multiple common formats such as avro, parquet, and
 // so on.
+//
+// # Schema Identification and Caching
+//
+// To optimize performance when converting schemas between formats, this package
+// provides fingerprinting and caching mechanisms:
+//
+//   - SchemaCache: A thread-safe cache for storing converted schemas
+//
+// This allows downstream components to lazily perform conversions only once per
+// unique schema identifier, avoiding redundant ToAny/FromAny serialization and
+// expensive format translations.
+//
+// Example usage:
+//
+//	// Create a cache for Parquet schema conversions
+//	cache := schema.NewSchemaCache(func(c schema.Common) (ParquetSchema, error) {
+//	    return convertToParquet(c)
+//	})
+//
+//	// First access converts and caches
+//	parquet1, err := cache.GetOrConvert(mySchema)
+//
+//	// Second access uses cached result (no conversion)
+//	parquet2, err := cache.GetOrConvert(mySchema)
+//
+// # Optimized Cache Lookups with Any Format
+//
+// When schemas are serialized to Any format (map[string]any), a fingerprint
+// field is automatically included. This enables optimized cache lookups:
+//
+//	// Producer side: export schema (fingerprint included automatically)
+//	schema := schema.Common{Type: schema.String, Name: "id"}
+//	anySchema := schema.ToAny()
+//	// ... send anySchema over network or store it ...
+//
+//	// Consumer side: optimized cache lookup
+//	cache := schema.NewSchemaCache(convertFunc)
+//	result, err := cache.GetOrConvertFromAny(anySchema)
+//	// Fast path: if cached, avoids ParseFromAny and Fingerprint calculation
+//
+// This optimization is particularly useful in scenarios where schemas are
+// transmitted over the network or stored in external systems, as it eliminates
+// the need to parse and recalculate fingerprints on cache hits.
 package schema
 
-import "fmt"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+)
 
 // CommonType represents types supported by common schemas.
 type CommonType int
@@ -26,6 +74,7 @@ const (
 	Null      CommonType = 11
 	Union     CommonType = 12
 	Timestamp CommonType = 13
+	Any       CommonType = 14
 )
 
 // String returns a human readable string representation of the type.
@@ -57,6 +106,8 @@ func (t CommonType) String() string {
 		return "UNION"
 	case Timestamp:
 		return "TIMESTAMP"
+	case Any:
+		return "ANY"
 	default:
 		return "UNKNOWN"
 	}
@@ -90,6 +141,8 @@ func typeFromStr(v string) (CommonType, error) {
 		return Union, nil
 	case "TIMESTAMP":
 		return Timestamp, nil
+	case "ANY":
+		return Any, nil
 	default:
 		return 0, fmt.Errorf("unrecognised type string: %v", v)
 	}
@@ -107,10 +160,11 @@ type Common struct {
 }
 
 const (
-	anyFieldType     = "type"
-	anyFieldName     = "name"
-	anyFieldOptional = "optional"
-	anyFieldChildren = "children"
+	anyFieldType        = "type"
+	anyFieldName        = "name"
+	anyFieldOptional    = "optional"
+	anyFieldChildren    = "children"
+	anyFieldFingerprint = "fingerprint"
 )
 
 // ToAny serializes the common schema into a generic Go value, with structured
@@ -119,13 +173,18 @@ const (
 // bringing back into a Common representation or serializing into another
 // format.
 //
+// The serialized format includes a "fingerprint" field at the top level, which
+// can be used to optimize cache lookups via SchemaCache.GetOrConvertFromAny,
+// avoiding the need to parse the Any format and recalculate the fingerprint.
+//
 // NOTE: Ironically, the schema for this serialization is not something that can
-// actually be represented as a Common schema. This is because we do not support
-// schemas that nest complex types, which would be necessary for representing
-// the Children field.
+// be precisely represented as a Common schema. The Children field requires an
+// Array of structured schema objects, which cannot be described accurately
+// within the Common type system.
 func (c *Common) ToAny() any {
 	m := map[string]any{
-		anyFieldType: c.Type.String(),
+		anyFieldType:        c.Type.String(),
+		anyFieldFingerprint: c.fingerprint(),
 	}
 
 	if c.Name != "" {
@@ -193,4 +252,40 @@ func ParseFromAny(v any) (Common, error) {
 	}
 
 	return c, nil
+}
+
+// Fingerprint returns a deterministic hash identifier for the schema structure.
+// Two schemas with the same structure will produce the same fingerprint,
+// regardless of memory location. This is useful for caching schema conversions
+// to avoid redundant serialization and translation operations.
+//
+// The fingerprint is computed using SHA-256 and returned as a hex-encoded string.
+func (c *Common) fingerprint() string {
+	h := sha256.New()
+	c.writeFingerprint(h)
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// writeFingerprint writes a canonical representation of the schema to the hash
+func (c *Common) writeFingerprint(w io.Writer) {
+	// Write type as its integer value for stability
+	fmt.Fprintf(w, "T:%d|", c.Type)
+
+	// Write name
+	fmt.Fprintf(w, "N:%s|", c.Name)
+
+	// Write optional flag
+	if c.Optional {
+		fmt.Fprint(w, "O:1|")
+	} else {
+		fmt.Fprint(w, "O:0|")
+	}
+
+	// Write children count and recursively fingerprint each child
+	fmt.Fprintf(w, "C:%d|", len(c.Children))
+	for i, child := range c.Children {
+		fmt.Fprintf(w, "[%d:", i)
+		child.writeFingerprint(w)
+		fmt.Fprint(w, "]")
+	}
 }

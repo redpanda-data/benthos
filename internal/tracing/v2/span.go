@@ -7,6 +7,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -33,24 +34,28 @@ func (s *Span) unwrap() trace.Span {
 	return s.w
 }
 
-// LogKV adds log key/value pairs to the span.
-func (s *Span) LogKV(name string, kv ...string) {
-	if s == nil {
-		return
-	}
-	var attrs []attribute.KeyValue
-	for i := 0; i < len(kv)-1; i += 2 {
-		attrs = append(attrs, attribute.String(kv[i], kv[i+1]))
-	}
-	s.w.AddEvent(name, trace.WithAttributes(attrs...))
-}
-
 // SetTag sets a given tag to a value.
 func (s *Span) SetTag(key, value string) {
 	if s == nil {
 		return
 	}
 	s.w.SetAttributes(attribute.String(key, value))
+}
+
+// SetTagInt sets a given tag to an integer value.
+func (s *Span) SetTagInt(key string, value int) {
+	if s == nil {
+		return
+	}
+	s.w.SetAttributes(attribute.Int(key, value))
+}
+
+// SetStatus sets the status of the span.
+func (s *Span) SetStatus(code codes.Code, description string) {
+	if s == nil {
+		return
+	}
+	s.w.SetStatus(code, description)
 }
 
 // Finish the span.

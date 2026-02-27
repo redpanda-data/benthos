@@ -41,7 +41,7 @@ func (l *Logger) Trace(message string) {
 	if l == nil {
 		return
 	}
-	l.m.Trace(message)
+	l.m.Trace("%s", message)
 }
 
 // Debugf logs a debug message using fmt.Sprintf when args are specified.
@@ -57,7 +57,7 @@ func (l *Logger) Debug(message string) {
 	if l == nil {
 		return
 	}
-	l.m.Debug(message)
+	l.m.Debug("%s", message)
 }
 
 // Infof logs an info message using fmt.Sprintf when args are specified.
@@ -73,7 +73,7 @@ func (l *Logger) Info(message string) {
 	if l == nil {
 		return
 	}
-	l.m.Info(message)
+	l.m.Info("%s", message)
 }
 
 // Warnf logs a warning message using fmt.Sprintf when args are specified.
@@ -89,7 +89,7 @@ func (l *Logger) Warn(message string) {
 	if l == nil {
 		return
 	}
-	l.m.Warn(message)
+	l.m.Warn("%s", message)
 }
 
 // Errorf logs an error message using fmt.Sprintf when args are specified.
@@ -105,7 +105,7 @@ func (l *Logger) Error(message string) {
 	if l == nil {
 		return
 	}
-	l.m.Error(message)
+	l.m.Error("%s", message)
 }
 
 // With adds a variadic set of fields to a logger. Each field must consist

@@ -246,10 +246,7 @@ func run(c *cli.Context, opts *common.CLIOpts) error {
 		return err
 	}
 
-	t := c.Int("threads")
-	if t < 1 {
-		t = 1
-	}
+	t := max(c.Int("threads"), 1)
 	raw := c.Bool("raw")
 	pretty := c.Bool("pretty")
 	file := c.String("file")

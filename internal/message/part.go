@@ -7,6 +7,10 @@ import (
 )
 
 // Part represents a single Benthos message.
+//
+// A Part is not safe for concurrent use by multiple goroutines. To use a Part
+// from multiple goroutines, create independent copies via ShallowCopy or
+// DeepCopy and give each goroutine its own copy.
 type Part struct {
 	data *messageData
 	ctx  context.Context
@@ -130,8 +134,9 @@ func (p *Part) SetStructured(jObj any) {
 
 //------------------------------------------------------------------------------
 
-// MetaGetStr returns a metadata value if a key exists as a string, otherwise an
-// empty string.
+// MetaGetStr returns a metadata value as a string if the key exists, otherwise
+// an empty string. For immutable values (set via MetaSetImmut), Copy() is
+// called to extract the underlying value for string conversion.
 func (p *Part) MetaGetStr(key string) string {
 	v, exists := p.data.MetaGetMut(key)
 	if !exists {
@@ -140,13 +145,38 @@ func (p *Part) MetaGetStr(key string) string {
 	return metaToString(v)
 }
 
-// MetaGetMut returns a metadata value if a key exists.
+// MetaGetStrOK returns a metadata value as a string and a boolean indicating
+// whether the key was found. Like MetaGetStr but distinguishes missing keys
+// from keys whose string representation is empty.
+func (p *Part) MetaGetStrOK(key string) (string, bool) {
+	v, exists := p.data.MetaGetMut(key)
+	if !exists {
+		return "", false
+	}
+	return metaToString(v), true
+}
+
+// MetaGetImmut returns a metadata value if a key exists. The returned value
+// must be treated as read-only; use MetaGetMut to obtain a mutable copy.
+// For values stored via MetaSetImmut the ImmutableValue itself is returned.
+func (p *Part) MetaGetImmut(key string) (any, bool) {
+	return p.data.MetaGetImmut(key)
+}
+
+// MetaGetMut returns a metadata value if a key exists. If the value was stored
+// as immutable (via MetaSetImmut), a mutable copy is returned via Copy().
 func (p *Part) MetaGetMut(key string) (any, bool) {
 	v, exists := p.data.MetaGetMut(key)
 	if !exists {
 		return nil, false
 	}
 	return v, true
+}
+
+// MetaSetImmut stores value under key, tagged as immutable. Callers retrieving
+// via MetaGetMut or MetaIterMut will receive a fresh Copy() of the value.
+func (p *Part) MetaSetImmut(key string, value interface{ Copy() any }) {
+	p.data.MetaSetImmut(key, value)
 }
 
 // MetaSetMut sets the value of a metadata key to any value.
@@ -160,11 +190,11 @@ func (p *Part) MetaDelete(key string) {
 }
 
 // MetaIterStr iterates each metadata key/value pair with the value serialised
-// as a string.
+// as a string. For immutable values (set via MetaSetImmut), Copy() is called
+// before string conversion to extract the underlying value.
 func (p *Part) MetaIterStr(f func(string, string) error) error {
 	return p.data.MetaIterMut(func(k string, v any) error {
-		vStr := metaToString(v)
-		return f(k, vStr)
+		return f(k, metaToString(v))
 	})
 }
 

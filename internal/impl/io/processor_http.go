@@ -114,7 +114,7 @@ func (h *httpProc) ProcessBatch(ctx context.Context, msg service.MessageBatch) (
 
 	if h.asMultipart || len(msg) == 1 {
 		// Easy, just do a single request.
-		resultMsg, err := h.client.Send(context.Background(), msg)
+		resultMsg, err := h.client.Send(ctx, msg)
 		if err != nil {
 			var code int
 			var hErr httpclient.ErrUnexpectedHTTPRes
@@ -152,7 +152,7 @@ func (h *httpProc) ProcessBatch(ctx context.Context, msg service.MessageBatch) (
 	} else if !h.parallel {
 		for _, p := range msg {
 			tmpMsg := service.MessageBatch{p}
-			result, err := h.client.Send(context.Background(), tmpMsg)
+			result, err := h.client.Send(ctx, tmpMsg)
 			if err != nil {
 				h.log.Errorf("HTTP request to '%v' failed: %v", h.rawURL, err)
 
@@ -187,11 +187,11 @@ func (h *httpProc) ProcessBatch(ctx context.Context, msg service.MessageBatch) (
 		}
 		reqChan, resChan := make(chan int), make(chan error)
 
-		for i := 0; i < len(msg); i++ {
+		for range msg {
 			go func() {
 				for index := range reqChan {
 					tmpMsg := service.MessageBatch{msg[index]}
-					result, err := h.client.Send(context.Background(), tmpMsg)
+					result, err := h.client.Send(ctx, tmpMsg)
 					if err == nil && len(result) != 1 {
 						err = fmt.Errorf("unexpected response size: %v", len(result))
 					}
@@ -214,11 +214,11 @@ func (h *httpProc) ProcessBatch(ctx context.Context, msg service.MessageBatch) (
 			}()
 		}
 		go func() {
-			for i := 0; i < len(msg); i++ {
+			for i := range msg {
 				reqChan <- i
 			}
 		}()
-		for i := 0; i < len(msg); i++ {
+		for range msg {
 			if err := <-resChan; err != nil {
 				h.log.Errorf("HTTP parallel request to '%v' failed: %v", h.rawURL, err)
 			}

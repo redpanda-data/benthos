@@ -256,6 +256,9 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 			}
 
 			ni := WrapInput(newInput, t)
+			if t.consumeTriggered.Load() {
+				ni.TriggerStartConsuming()
+			}
 			return &ni, nil
 		})
 	}
@@ -931,6 +934,25 @@ func (t *Type) NewScanner(conf scanner.Config) (scanner.Creator, error) {
 
 //------------------------------------------------------------------------------
 
+// ConnectionTest attempts to run connectivity tests for all resources that
+// support them, and returns the results.
+func (t *Type) ConnectionTest(ctx context.Context) (results component.ConnectionTestResults, err error) {
+	if err = t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
+		results = append(results, i.ConnectionTest(ctx)...)
+		return nil
+	}); err != nil {
+		return
+	}
+
+	if err = t.outputs.RWalk(ctx, func(name string, o *outputWrapper) error {
+		results = append(results, o.ConnectionTest(ctx)...)
+		return nil
+	}); err != nil {
+		return
+	}
+	return
+}
+
 // CloseObservability attempts to clean up observability (metrics, tracing, etc)
 // components owned by the manager. This should only be called when the manager
 // itself has finished shutting down and when it is the sole owner of the
@@ -952,25 +974,23 @@ func (t *Type) CloseObservability(ctx context.Context) error {
 }
 
 // TriggerStartConsuming instructs the manager to start resource inputs
-// consuming data. This call blocks if there are lazily evaluated inputs..
+// consuming data. Resources that have not yet been lazily initialized will
+// not be triggered here; instead, they will be started when they are first
+// accessed via their lazy init closure (which checks consumeTriggered).
 func (t *Type) TriggerStartConsuming(ctx context.Context) error {
 	// Set this immediately so that all new components are triggered, as it is
 	// safe to call consume trigger multiple times.
 	t.consumeTriggered.Store(true)
 
-	if err := t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
+	_ = t.inputs.RWalkInitialized(func(name string, i *InputWrapper) error {
 		i.TriggerStartConsuming()
 		return nil
-	}); err != nil {
-		return err
-	}
+	})
 
-	if err := t.outputs.RWalk(ctx, func(name string, o *outputWrapper) error {
+	_ = t.outputs.RWalkInitialized(func(name string, o *outputWrapper) error {
 		o.TriggerStartConsuming()
 		return nil
-	}); err != nil {
-		return err
-	}
+	})
 
 	return nil
 }
@@ -978,18 +998,12 @@ func (t *Type) TriggerStartConsuming(ctx context.Context) error {
 // TriggerStopConsuming instructs the manager to stop resource inputs and
 // outputs from consuming data. This call does not block.
 func (t *Type) TriggerStopConsuming() {
-	// NOTE: Context is provided in R/O calls because we might have a lazily
-	// evaluated resource. In our case here we do not want to trigger a lazy
-	// initialization, and therefore we provide a pre-cancelled context.
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_ = t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
+	_ = t.inputs.RWalkInitialized(func(name string, i *InputWrapper) error {
 		i.TriggerStopConsuming()
 		return nil
 	})
 
-	_ = t.outputs.RWalk(ctx, func(name string, o *outputWrapper) error {
+	_ = t.outputs.RWalkInitialized(func(name string, o *outputWrapper) error {
 		o.TriggerStopConsuming()
 		return nil
 	})
@@ -998,18 +1012,12 @@ func (t *Type) TriggerStopConsuming() {
 // TriggerCloseNow triggers the absolute shut down of this component but should
 // not block the calling goroutine.
 func (t *Type) TriggerCloseNow() {
-	// NOTE: Context is provided in R/O calls because we might have a lazily
-	// evaluated resource. In our case here we do not want to trigger a lazy
-	// initialization, and therefore we provide a pre-cancelled context.
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	_ = t.inputs.RWalk(ctx, func(name string, i *InputWrapper) error {
+	_ = t.inputs.RWalkInitialized(func(name string, i *InputWrapper) error {
 		i.TriggerCloseNow()
 		return nil
 	})
 
-	_ = t.outputs.RWalk(ctx, func(name string, o *outputWrapper) error {
+	_ = t.outputs.RWalkInitialized(func(name string, o *outputWrapper) error {
 		o.TriggerCloseNow()
 		return nil
 	})
@@ -1018,16 +1026,7 @@ func (t *Type) TriggerCloseNow() {
 // WaitForClose is a blocking call to wait until the component has finished
 // shutting down and cleaning up resources.
 func (t *Type) WaitForClose(ctx context.Context) error {
-	// NOTE: Context is provided in calls because we might have a lazily
-	// evaluated resource. In our case here we do not want to trigger a lazy
-	// initialization, and therefore we provide a pre-cancelled context.
-	cctx, cancel := context.WithCancel(context.Background())
-	cancel()
-
-	if err := t.inputs.Walk(cctx, func(name string, i **InputWrapper, set func(i **InputWrapper)) error {
-		if i == nil {
-			return nil
-		}
+	if err := t.inputs.WalkInitialized(func(name string, i **InputWrapper, set func(i **InputWrapper)) error {
 		if err := (*i).WaitForClose(ctx); err != nil {
 			return fmt.Errorf("resource '%s' failed to cleanly shutdown: %v", name, err)
 		}
@@ -1037,10 +1036,7 @@ func (t *Type) WaitForClose(ctx context.Context) error {
 		return err
 	}
 
-	if err := t.caches.Walk(cctx, func(name string, c *cache.V1, set func(c *cache.V1)) error {
-		if c == nil {
-			return nil
-		}
+	if err := t.caches.WalkInitialized(func(name string, c *cache.V1, set func(c *cache.V1)) error {
 		if err := (*c).Close(ctx); err != nil {
 			return fmt.Errorf("resource '%s' failed to cleanly shutdown: %v", name, err)
 		}
@@ -1050,10 +1046,7 @@ func (t *Type) WaitForClose(ctx context.Context) error {
 		return err
 	}
 
-	if err := t.processors.Walk(cctx, func(name string, p *processor.V1, set func(p *processor.V1)) error {
-		if p == nil {
-			return nil
-		}
+	if err := t.processors.WalkInitialized(func(name string, p *processor.V1, set func(p *processor.V1)) error {
 		if err := (*p).Close(ctx); err != nil {
 			return fmt.Errorf("resource '%s' failed to cleanly shutdown: %v", name, err)
 		}
@@ -1063,10 +1056,7 @@ func (t *Type) WaitForClose(ctx context.Context) error {
 		return err
 	}
 
-	if err := t.rateLimits.Walk(cctx, func(name string, r *ratelimit.V1, set func(r *ratelimit.V1)) error {
-		if r == nil {
-			return nil
-		}
+	if err := t.rateLimits.WalkInitialized(func(name string, r *ratelimit.V1, set func(r *ratelimit.V1)) error {
 		if err := (*r).Close(ctx); err != nil {
 			return fmt.Errorf("resource '%s' failed to cleanly shutdown: %v", name, err)
 		}
@@ -1076,10 +1066,7 @@ func (t *Type) WaitForClose(ctx context.Context) error {
 		return err
 	}
 
-	if err := t.outputs.Walk(cctx, func(name string, o **outputWrapper, set func(o **outputWrapper)) error {
-		if o == nil {
-			return nil
-		}
+	if err := t.outputs.WalkInitialized(func(name string, o **outputWrapper, set func(o **outputWrapper)) error {
 		if err := (*o).WaitForClose(ctx); err != nil {
 			return fmt.Errorf("resource '%s' failed to cleanly shutdown: %v", name, err)
 		}

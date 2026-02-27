@@ -587,3 +587,295 @@ func TestManagerGenericGetOrSet(t *testing.T) {
 	assert.True(t, loaded)
 	assert.Equal(t, "foo", v)
 }
+
+func TestTriggerStartConsumingDoesNotForceLazyInit(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	// Register a resource with a bad type. If TriggerStartConsuming forces
+	// lazy initialization (via RWalk with a live context), it would attempt
+	// to construct this resource and fail. With the fix, resources remain
+	// lazy until first access.
+	badConf := input.NewConfig()
+	badConf.Type = "notexist"
+	badConf.Label = "lazy_bad"
+	conf.ResourceInputs = append(conf.ResourceInputs, badConf)
+
+	// Also register a valid resource to confirm it remains lazy too.
+	goodConf, err := testutil.InputFromYAML(`
+label: lazy_good
+generate:
+  mapping: 'root = {}'
+`)
+	require.NoError(t, err)
+	conf.ResourceInputs = append(conf.ResourceInputs, goodConf)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	// TriggerStartConsuming must NOT force lazy init. It sets the
+	// consumeTriggered flag and walks only already-initialized resources.
+	require.NoError(t, mgr.TriggerStartConsuming(t.Context()))
+
+	// Both resources should still be probeable (registered in the map).
+	require.True(t, mgr.ProbeInput("lazy_bad"))
+	require.True(t, mgr.ProbeInput("lazy_good"))
+
+	// Accessing the good resource should succeed — lazy init fires now,
+	// and since consumeTriggered is set, it auto-starts consuming.
+	err = mgr.AccessInput(t.Context(), "lazy_good", func(i input.Streamed) {
+		require.NotNil(t, i)
+	})
+	require.NoError(t, err)
+
+	// Accessing the bad resource should fail on init (bad type), confirming
+	// it was never initialized earlier by TriggerStartConsuming.
+	err = mgr.AccessInput(t.Context(), "lazy_bad", func(i input.Streamed) {})
+	require.Error(t, err)
+
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
+	defer done()
+
+	mgr.TriggerCloseNow()
+	require.NoError(t, mgr.WaitForClose(ctx))
+}
+
+func TestLazyInputStartsConsumingAfterTrigger(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	inConf, err := testutil.InputFromYAML(`
+label: test_gen
+generate:
+  mapping: 'root.msg = "hello"'
+`)
+	require.NoError(t, err)
+	conf.ResourceInputs = append(conf.ResourceInputs, inConf)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	// Set the consume trigger BEFORE accessing the input. The lazy init
+	// closure must check consumeTriggered and auto-start the input.
+	require.NoError(t, mgr.TriggerStartConsuming(t.Context()))
+
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
+	defer done()
+
+	// Access the input — this triggers lazy init. Because consumeTriggered
+	// is already set, the input should auto-start and produce data.
+	err = mgr.AccessInput(ctx, "test_gen", func(i input.Streamed) {
+		select {
+		case tran, open := <-i.TransactionChan():
+			require.True(t, open)
+			assert.Equal(t, `{"msg":"hello"}`, string(tran.Payload.Get(0).AsBytes()))
+			require.NoError(t, tran.Ack(ctx, nil))
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for message from lazily initialized input")
+		}
+	})
+	require.NoError(t, err)
+
+	mgr.TriggerStopConsuming()
+	mgr.TriggerCloseNow()
+	require.NoError(t, mgr.WaitForClose(ctx))
+}
+
+func TestLazyOutputStartsConsumingAfterTrigger(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	outConf := output.NewConfig()
+	outConf.Type = "drop"
+	outConf.Label = "test_drop"
+	conf.ResourceOutputs = append(conf.ResourceOutputs, outConf)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	// Set the consume trigger BEFORE accessing the output.
+	require.NoError(t, mgr.TriggerStartConsuming(t.Context()))
+
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
+	defer done()
+
+	// Access the output — lazy init fires, and since consumeTriggered is
+	// set, the output should be ready to accept transactions.
+	err = mgr.AccessOutput(ctx, "test_drop", func(o output.Sync) {
+		require.NotNil(t, o)
+		tran := message.NewTransaction(message.QuickBatch([][]byte{[]byte("hello")}), make(chan error))
+		require.NoError(t, o.WriteTransaction(ctx, tran))
+	})
+	require.NoError(t, err)
+
+	mgr.TriggerStopConsuming()
+	mgr.TriggerCloseNow()
+	require.NoError(t, mgr.WaitForClose(ctx))
+}
+
+func TestShutdownWithUninitializedLazyResources(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	// Register resources of every type but never access them.
+	inConf, err := testutil.InputFromYAML(`
+label: unused_input
+generate:
+  mapping: 'root = {}'
+`)
+	require.NoError(t, err)
+	conf.ResourceInputs = append(conf.ResourceInputs, inConf)
+
+	outConf := output.NewConfig()
+	outConf.Type = "drop"
+	outConf.Label = "unused_output"
+	conf.ResourceOutputs = append(conf.ResourceOutputs, outConf)
+
+	cacheConf := cache.NewConfig()
+	cacheConf.Label = "unused_cache"
+	conf.ResourceCaches = append(conf.ResourceCaches, cacheConf)
+
+	procConf := processor.NewConfig()
+	procConf.Label = "unused_proc"
+	conf.ResourceProcessors = append(conf.ResourceProcessors, procConf)
+
+	rlConf := ratelimit.NewConfig()
+	rlConf.Label = "unused_rl"
+	conf.ResourceRateLimits = append(conf.ResourceRateLimits, rlConf)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	require.NoError(t, mgr.TriggerStartConsuming(t.Context()))
+
+	// All resources should be probeable but none initialized.
+	require.True(t, mgr.ProbeInput("unused_input"))
+	require.True(t, mgr.ProbeOutput("unused_output"))
+	require.True(t, mgr.ProbeCache("unused_cache"))
+	require.True(t, mgr.ProbeProcessor("unused_proc"))
+	require.True(t, mgr.ProbeRateLimit("unused_rl"))
+
+	// Shutdown must complete without hanging or error, even though no
+	// resource was ever initialized.
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
+	defer done()
+
+	mgr.TriggerStopConsuming()
+	mgr.TriggerCloseNow()
+	require.NoError(t, mgr.WaitForClose(ctx))
+}
+
+func TestShutdownWithPartiallyInitializedLazyResources(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	// Two inputs: one will be accessed (initialized), one will not.
+	usedConf, err := testutil.InputFromYAML(`
+label: used_input
+generate:
+  mapping: 'root = {}'
+`)
+	require.NoError(t, err)
+	conf.ResourceInputs = append(conf.ResourceInputs, usedConf)
+
+	unusedConf, err := testutil.InputFromYAML(`
+label: unused_input
+generate:
+  mapping: 'root = {}'
+`)
+	require.NoError(t, err)
+	conf.ResourceInputs = append(conf.ResourceInputs, unusedConf)
+
+	// Same for outputs.
+	usedOut := output.NewConfig()
+	usedOut.Type = "drop"
+	usedOut.Label = "used_output"
+	conf.ResourceOutputs = append(conf.ResourceOutputs, usedOut)
+
+	unusedOut := output.NewConfig()
+	unusedOut.Type = "drop"
+	unusedOut.Label = "unused_output"
+	conf.ResourceOutputs = append(conf.ResourceOutputs, unusedOut)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	require.NoError(t, mgr.TriggerStartConsuming(t.Context()))
+
+	// Access only one input and one output — the others stay lazy.
+	err = mgr.AccessInput(t.Context(), "used_input", func(i input.Streamed) {
+		require.NotNil(t, i)
+	})
+	require.NoError(t, err)
+
+	err = mgr.AccessOutput(t.Context(), "used_output", func(o output.Sync) {
+		require.NotNil(t, o)
+	})
+	require.NoError(t, err)
+
+	// Shutdown must clean up the initialized resources and skip the lazy
+	// ones without hanging.
+	ctx, done := context.WithTimeout(t.Context(), time.Second*5)
+	defer done()
+
+	mgr.TriggerStopConsuming()
+	mgr.TriggerCloseNow()
+	require.NoError(t, mgr.WaitForClose(ctx))
+}
+
+func TestManagerConnectionTest(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	// Add input resource
+	inConf, err := testutil.InputFromYAML(`
+label: test_input
+generate:
+  mapping: 'root = {}'
+`)
+	require.NoError(t, err)
+	conf.ResourceInputs = append(conf.ResourceInputs, inConf)
+
+	// Add output resource
+	outConf := output.NewConfig()
+	outConf.Type = "drop"
+	outConf.Label = "test_output"
+	conf.ResourceOutputs = append(conf.ResourceOutputs, outConf)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	// Test ConnectionTest method
+	ctx := context.Background()
+	results, err := mgr.ConnectionTest(ctx)
+	require.NoError(t, err)
+
+	// Should have results from both input and output
+	assert.GreaterOrEqual(t, len(results), 2, "Expected at least 2 connection test results")
+}
+
+func TestManagerConnectionTestEmpty(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	// Test ConnectionTest method with no resources
+	ctx := context.Background()
+	results, err := mgr.ConnectionTest(ctx)
+	require.NoError(t, err)
+	assert.Empty(t, results, "Expected no connection test results for empty manager")
+}
+
+func TestManagerConnectionTestWithError(t *testing.T) {
+	conf := manager.NewResourceConfig()
+
+	// Add an input that will fail initialization
+	badInConf := input.NewConfig()
+	badInConf.Type = "notexist"
+	badInConf.Label = "bad_input"
+	conf.ResourceInputs = append(conf.ResourceInputs, badInConf)
+
+	mgr, err := manager.New(conf)
+	require.NoError(t, err)
+
+	// ConnectionTest triggers lazy init via RWalk, which now propagates
+	// initialization errors instead of silently skipping them.
+	ctx := context.Background()
+	_, err = mgr.ConnectionTest(ctx)
+	require.Error(t, err)
+}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -135,7 +136,10 @@ func (b *bloblangProc) Close(context.Context) error {
 //------------------------------------------------------------------------------
 
 func (p *ProcessorsProvider) initProcs(confs cachedConfig) ([]processor.V1, error) {
-	mgr, err := manager.New(confs.mgr, manager.OptSetLogger(p.logger))
+	mgr, err := manager.New(confs.mgr,
+		manager.OptSetLogger(p.logger),
+		manager.OptSetEnvironment(p.env),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialise resources: %v", err)
 	}
@@ -276,9 +280,7 @@ func (p *ProcessorsProvider) getConfs(jsonPtr string, environment map[string]str
 	}
 
 	remainingMocks := map[string]any{}
-	for k, v := range mocks {
-		remainingMocks[k] = v
-	}
+	maps.Copy(remainingMocks, mocks)
 
 	configBytes, _, _, err := config.NewReader("", nil, config.OptUseEnvLookupFunc(envVarLookup)).
 		ReadFileEnvSwap(context.TODO(), targetPath)
