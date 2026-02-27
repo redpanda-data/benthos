@@ -38,13 +38,16 @@ output.is_null = input.maybe.type() == "null"
 
 **The `+` Operator:**
 - Both strings: string concatenation
+- Both bytes: byte concatenation
 - Both numeric: addition (with promotion, see below)
-- String + number (or any other cross-family mix): **error**
+- Any cross-family mix (string + number, bytes + string, etc.): **error**
 
 ```bloblang
 output.sum = 5 + 3                  # 8 (int64)
 output.concat = "hello" + " world"  # "hello world" (string)
+output.joined = "ab".bytes() + "cd".bytes()  # byte concatenation
 output.bad = 5 + "3"                # ERROR: cannot add int64 and string
+output.bad2 = "hello" + "world".bytes()  # ERROR: cannot add string and bytes
 output.ok = 5.string() + "3"        # "53" (explicit conversion)
 ```
 

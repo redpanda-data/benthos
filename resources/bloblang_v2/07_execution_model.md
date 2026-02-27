@@ -63,6 +63,8 @@ output@ = input@
 output@.kafka_topic = "new-topic"
 ```
 
+`output = input` performs a **logical copy** (copy-on-write) of the entire document — `output` is fully independent of `input`. Subsequent mutations to `output` never affect `input`. This is the same COW semantics used for variable assignment (Section 3.7) and metadata copy (`output@ = input@`).
+
 ## 7.3 Contexts
 
 **Top-level mapping contexts:**
@@ -84,7 +86,7 @@ output@.kafka_topic = "new-topic"
 **Map body contexts:**
 - Parameter: Bare identifier (e.g., `data.field`)
 - Variables: `$variable` (local to map)
-- **No access** to `input` or `output` (pure functions)
+- **No access** to `input` or `output` (isolated functions)
 
 ## 7.4 Metadata
 
@@ -177,9 +179,10 @@ map process(items) {
 - Maps accessible globally (or via namespace if imported)
 
 **Block scope:**
-- Variables in `if`, `match`, lambda bodies
+- New variable declarations in `if`, `match`, lambda, and map bodies are block-scoped
 - Only accessible within declaring block and nested blocks
-- Can shadow outer variables
+- In expression contexts: assigning to an existing outer variable name creates a new inner variable (shadow)
+- In statement contexts: assigning to an existing outer variable modifies it
 
 ```bloblang
 $global = 10
@@ -193,16 +196,29 @@ output.result = if input.flag {
 output.final = $global  # Still 10
 ```
 
-**Shadowing:**
+**Expression contexts (shadowing):**
 ```bloblang
 $value = 10
 
 output.inner = if input.flag {
-  $value = 20        # NEW variable, shadows outer
+  $value = 20        # NEW variable, shadows outer (expression context)
   $value             # Returns 20
 }
 
 output.outer = $value  # Still 10 (outer variable unchanged)
+```
+
+**Statement contexts (mutation):**
+```bloblang
+$value = 10
+
+if input.flag {
+  $value = 20        # Modifies outer $value (statement context)
+  $new = "hello"     # Block-scoped: NOT visible outside
+}
+
+output.result = $value  # 20 if flag was true, 10 if false
+output.new = $new       # Compile-time error: $new does not exist
 ```
 
 ## 7.6 Variable Reassignment

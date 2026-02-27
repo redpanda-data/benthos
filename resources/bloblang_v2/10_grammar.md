@@ -96,15 +96,15 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments)
 - **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments
 - **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body
-- **Purity:**
+- **Side effects:**
   - Expressions cannot assign to `output` or `output@`
-  - Lambda blocks: Variable declarations + final expression (pure, no side effects)
-  - Map bodies: Same as lambda blocks - isolated functions that return values
+  - Lambda blocks: Variable declarations + final expression (no side effects)
+  - Map bodies: Same as lambda blocks — isolated functions that return values
   - Maps cannot reference `input`, `output`, or top-level `$variables` (only their parameters)
 - **Control flow forms:**
   - `if_expr` / `match_expr`: Used in assignments, contain `expr_body` (no `output` assignments)
   - `if_stmt` / `match_stmt`: Standalone statements, contain `stmt_body` (may assign to `output`)
-  - `expr_body`: Variable declarations + final expression (must be pure)
+  - `expr_body`: Variable declarations + final expression (no side effects)
   - `stmt_body`: Zero or more statements (no trailing expression). Empty bodies are valid (no-op).
 - **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false. The grammar cannot distinguish expressions that may produce void from those that always produce values; this is a runtime semantic. See Section 4.1 for full void behavior.
 - **Type coercion:** `+` requires same type family (no cross-family implicit conversion). Numeric types are promoted using promotion rules; non-numeric types require exact type match.
