@@ -7,6 +7,10 @@ import (
 )
 
 // Part represents a single Benthos message.
+//
+// A Part is not safe for concurrent use by multiple goroutines. To use a Part
+// from multiple goroutines, create independent copies via ShallowCopy or
+// DeepCopy and give each goroutine its own copy.
 type Part struct {
 	data *messageData
 	ctx  context.Context
