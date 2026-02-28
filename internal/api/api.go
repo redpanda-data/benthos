@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"runtime"
+	"strconv"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -154,6 +155,15 @@ func New(
 		}
 	}
 
+	handleMutexProfileWithRate := func(w http.ResponseWriter, r *http.Request) {
+		rate, _ := strconv.Atoi(r.FormValue("rate"))
+		if rate > 0 {
+			prev := runtime.SetMutexProfileFraction(rate)
+			defer runtime.SetMutexProfileFraction(prev)
+		}
+		pprof.Index(w, r)
+	}
+
 	if t.conf.DebugEndpoints {
 		t.RegisterEndpoint(
 			"/debug/config/json", "DEBUG: Returns the loaded config as JSON.",
@@ -185,7 +195,7 @@ func New(
 		)
 		t.RegisterEndpoint(
 			"/debug/pprof/mutex", "DEBUG: Responds with a pprof-formatted mutex profile.",
-			pprof.Index,
+			handleMutexProfileWithRate,
 		)
 		t.RegisterEndpoint(
 			"/debug/pprof/allocs", "DEBUG: Responds with a pprof-formatted allocs profile.",
