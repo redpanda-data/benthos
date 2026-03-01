@@ -13,6 +13,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/blobl"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
+	"github.com/redpanda-data/benthos/v4/internal/cli/lsp"
 	"github.com/redpanda-data/benthos/v4/internal/cli/studio"
 	clitemplate "github.com/redpanda-data/benthos/v4/internal/cli/template"
 	"github.com/redpanda-data/benthos/v4/internal/cli/test"
@@ -137,6 +138,7 @@ func App(opts *common.CLIOpts) *cli.App {
 		clitemplate.CliCommand(opts),
 		blobl.CliCommand(opts),
 		studio.CliCommand(opts),
+		lsp.CliCommand(opts),
 	} {
 		if _, exists := commandNames[c.Name]; !exists {
 			// Only add standard commands that haven't been replaced with a
