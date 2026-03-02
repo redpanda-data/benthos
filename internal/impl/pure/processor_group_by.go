@@ -29,7 +29,9 @@ func groupByProcSpec() *service.ConfigSpec {
 		Description(`
 Once the groups are established a list of processors are applied to their respective grouped batch, which can be used to label the batch as per their grouping. Messages that do not pass the check of any specified group are placed in their own group.
 
-The functionality of this processor depends on being applied across messages that are batched. You can find out more about batching xref:configuration:batching.adoc[in this doc].`).
+The functionality of this processor depends on being applied across messages that are batched. You can find out more about batching xref:configuration:batching.adoc[in this doc].
+
+To further divide each group into individual messages, follow this processor with a ` + "xref:components:processors/split.adoc[`split` processor]" + `.`).
 		Example(
 			"Grouped Processing",
 			"Imagine we have a batch of messages that we wish to split into a group of foos and everything else, which should be sent to different output destinations based on those groupings. We also need to send the foos as a tar gzip archive. For this purpose we can use the `group_by` processor with a xref:components:outputs/switch.adoc[`switch`] output:",
