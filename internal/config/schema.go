@@ -73,7 +73,9 @@ func Spec() docs.FieldSpecs {
 	fields = append(fields, stream.Spec()...)
 	fields = append(fields, manager.Spec()...)
 	fields = append(fields, observabilityFields()...)
-	fields = append(fields, test.ConfigSpec().Advanced())
+	for _, f := range test.ConfigSpecs() {
+		fields = append(fields, f.Advanced())
+	}
 	return fields
 }
 
