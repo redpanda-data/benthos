@@ -50,6 +50,7 @@ type NewManagement interface {
 
 	Path() []string
 	Label() string
+	StreamID() string
 
 	Metrics() metrics.Type
 	Logger() log.Modular
