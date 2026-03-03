@@ -2,58 +2,33 @@
 
 ## High Priority Issues
 
-### 1. `deleted()` vs void — overlapping behavior creates confusion
+### ~~1. `deleted()` vs void — overlapping behavior creates confusion~~
 
-In collection literals, both produce identical results:
-```bloblang
-[1, deleted(), 3]          # [1, 3]
-[1, if false { 2 }, 3]     # [1, 3]
-```
-
-But in assignments, they differ:
-```bloblang
-output.x = "prior"
-output.x = if false { "new" }   # void: keeps "prior"
-output.x = deleted()             # deleted: removes field
-```
-
-Having two concepts that look similar but differ in assignments is a cognitive burden. (Note: the original `map_array` discrepancy has been resolved — void is now an error in `map_array`/`map_object`, so the overlap is reduced to collection literals and assignments.)
+**Resolved:** Void is now an error in collection literals (arrays and objects). The only remaining valid context for void is assignments, where it causes a no-op (assignment skipped). `deleted()` is the sole mechanism for omitting elements from collections. This eliminates the overlap — void and `deleted()` now have clearly distinct roles.
 
 ---
 
 ## Medium Priority Issues
 
-### 2. `output@` vs `output` deletion asymmetry is surprising
+### ~~2. `output@` vs `output` deletion asymmetry is surprising~~
 
-`output = deleted()` removes the document (reads as null, field assignment errors). `output@ = deleted()` clears all keys but the object remains (key assignment still works). The spec explains this but the asymmetry violates the "Consistent Syntax" principle — identical syntax (`X = deleted()`) has fundamentally different semantics based on `X`.
+**Resolved:** `output@ = deleted()` is now an error — metadata is always an object and cannot be deleted. To clear all metadata keys, use `output@ = {}`. To replace metadata entirely, assign an object literal: `output@ = {"key": "value"}`. This makes `deleted()` consistent: it always means "remove this thing," and since metadata can't be removed, it's an error.
 
-### 3. `uint64 + int64` promotion silently loses data
+### ~~3. `uint64 + int64` promotion silently loses data~~
 
-The promotion rule `signed + unsigned integer → int64` means uint64 values above 2^63-1 silently overflow. The spec notes this but doesn't explain why int64 was chosen over erroring. For a language that claims "Explicit Context Management" and "Fail Loudly," silent overflow of a promotion rule is inconsistent with the design philosophy.
+**Resolved:** Promotion is now checked at runtime. uint64 → int64 errors if the value exceeds 2^63-1. Integer → float64 errors if the integer magnitude exceeds 2^53 (cannot be represented exactly). All lossless promotions (int32 → int64, float32 → float64, etc.) proceed without checks.
 
-### 4. Integer overflow is implementation-defined
+### ~~4. Integer overflow is implementation-defined~~
 
-Section 2.3: "Overflow behavior for integer arithmetic is implementation-defined. Implementations may wrap, saturate, or error." This means the same Bloblang program can produce different results across implementations — directly contradicting the "Consistent Syntax" and "Predictable behavior" goals.
+**Resolved:** Integer arithmetic overflow is now always a runtime error. Implementations must detect overflow and throw an error rather than wrapping or saturating. This applies to all integer types and all arithmetic operators.
 
-### 5. `match` without `as` — boolean case expressions have surprising behavior
+### ~~5. `match` without `as` — boolean case expressions have surprising behavior~~
 
-In `match expr { cases }` (equality form), case expressions are evaluated and compared by equality. A user might accidentally write:
+**Resolved:** In equality match (`match expr { cases }`), if a case expression evaluates to a boolean, a runtime error is thrown. This catches the common mistake of writing boolean conditions in equality match. Users must use `as` for boolean conditions, or `if`/`else` to match against boolean values directly.
 
-```bloblang
-match input.score {
-  input.score >= 100 => "gold",   # Compares input.score == true/false, NOT a range check
-}
-```
+### ~~6. `else if` without final `else` — produces void silently~~
 
-This evaluates `input.score >= 100` to a boolean, then compares `input.score == true/false`. The spec has three match forms to handle this, but there's no guard against using the wrong form — it silently does the wrong thing.
-
-### 6. `else if` without final `else` — produces void silently
-
-```bloblang
-output.x = if a { 1 } else if b { 2 }
-```
-
-If both `a` and `b` are false, this produces void (assignment skipped). The presence of `else if` may mislead users into thinking cases are exhaustive. Compare with match, where non-exhaustive is an explicit error.
+**Kept as-is:** This is consistent with the general `if`-without-`else` producing void behavior. The void semantics are well-documented (Section 4.1) and the pattern is useful.
 
 ### 7. Methods used in examples but not defined in the spec
 

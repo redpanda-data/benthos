@@ -50,7 +50,7 @@ if input.flag {
 }
 ```
 
-**If expressions without `else`:** When the condition is false, the expression produces **void** — the absence of a value. No value is produced at all, and the surrounding context determines what happens:
+**If expressions without `else`:** When the condition is false, the expression produces **void** — the absence of a value. No value is produced at all. Void is only meaningful in assignments (where it causes a no-op); in most other contexts it is an error (see summary table below).
 
 **Void in assignments:** The assignment does not execute. The target field is neither created nor modified.
 
@@ -79,21 +79,25 @@ output.field2 = if false { "value" }    # Void: field doesn't exist (no prior as
 # JSON output: {"field1": null} (field2 omitted)
 ```
 
-**Void in array literals:** No value was produced, so there is nothing to include — the element position is skipped.
+**Void in collection literals (array and object):** Void is an **error** in collection literals. Use `deleted()` to conditionally omit elements/fields, or add an `else` branch to provide a value in all cases.
 ```bloblang
-output.items = [1, if false { 2 }, 3]   # Result: [1, 3]
-```
+# Arrays
+output.items = [1, if false { 2 }, 3]                        # ERROR: void in array literal
+output.items = [1, if false { 2 } else { deleted() }, 3]     # OK: [1, 3]
+output.items = [1, if false { 2 } else { 0 }, 3]             # OK: [1, 0, 3]
 
-**Void in object literals:** No value was produced for the field, so the field is omitted.
-```bloblang
+# Objects
 output.user = {
   "id": input.id,
-  "email": if input.verified { input.email }  # Void if not verified: field omitted
+  "email": if input.verified { input.email }                  # ERROR: void in object literal
 }
-# If not verified: {"id": ...} (no email field)
+output.user = {
+  "id": input.id,
+  "email": if input.verified { input.email } else { deleted() }  # OK: field omitted if not verified
+}
 ```
 
-**Void vs `deleted()`:** Both cause elements to be absent from collections and fields to be omitted from objects, but they are different concepts. Void means "no value was produced" — nothing happens. `deleted()` is an active deletion marker that removes existing fields (see Section 9.2). The distinction matters in assignments:
+**Void vs `deleted()`:** These are different concepts. Void means "no value was produced" — nothing happens. `deleted()` is an active deletion marker that removes existing fields and elements (see Section 9.2). Void is only meaningful in assignments (where it causes a no-op); in all other contexts it is an error. The distinction in assignments:
 ```bloblang
 output.status = "pending"
 output.status = if false { "override" }  # Void: keeps "pending" (no-op)
@@ -142,7 +146,7 @@ input.items.filter(x -> if x > 0 { true })         # ERROR when x <= 0: filter r
 input.items.filter(x -> if x > 0 { true } else { false })  # OK: always returns bool
 ```
 
-**Void in match arms:** Match arms are transparent — void produced by a case arm flows out of the match expression and behaves exactly as it would from any other expression. The surrounding context (assignment, collection, etc.) determines what happens.
+**Void in match arms:** Match arms are transparent — void produced by a case arm flows out of the match expression and behaves exactly as it would from any other expression. In an assignment context, void causes the assignment to be skipped; in other contexts (collection literals, expressions, etc.) void is an error.
 ```bloblang
 output.result = match input.x {
   "a" => if false { "value" },   # Void: assignment skipped, prior value (if any) preserved
@@ -157,8 +161,8 @@ output.result = match input.x {
 | Output field assignment (`output.x = void`) | Assignment skipped; prior value (if any) preserved |
 | Variable declaration (`$x = void`) | Variable not created; references error |
 | Variable reassignment (`$x = void`, `$x` exists) | Assignment skipped; prior value preserved |
-| Collection literal (`[1, void, 3]`) | Element skipped (`[1, 3]`) |
-| Object literal (`{"a": void}`) | Field omitted (`{}`) |
+| Collection literal (`[1, void, 3]`) | Error |
+| Object literal (`{"a": void}`) | Error |
 | Function/map argument (`f(void)`) | Error |
 | `map_array` lambda return | Error (value required) |
 | `map_object` lambda return | Error (value required) |
@@ -213,7 +217,7 @@ match input.type() as t {
 
 ### Three Match Forms
 
-**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected.
+**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected. If a case expression evaluates to a **boolean**, a runtime error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly.
 
 ```bloblang
 output.sound = match input.animal {
@@ -227,6 +231,16 @@ output.sound = match input.animal as a {
   a == "cat" => "meow",
   a == "dog" => "woof",
   _ => "unknown",
+}
+
+# Boolean case values are an error in equality match:
+output.tier = match input.score {
+  input.score >= 100 => "gold",  # ERROR: case evaluated to boolean in equality match
+}
+# Fix: use 'as' for boolean conditions
+output.tier = match input.score as s {
+  s >= 100 => "gold",
+  _ => "other",
 }
 ```
 
@@ -253,7 +267,7 @@ output.category = match {
 }
 ```
 
-**Key distinction:** Without `as`, case values are compared by equality against the matched expression. With `as`, case expressions must be booleans.
+**Key distinction:** Without `as`, case values are compared by equality against the matched expression (and boolean case values are an error). With `as`, case expressions must be booleans.
 
 **Wildcard `_`:** In all three match forms, `_` is an unconditional catch-all — it always matches regardless of context. In equality match it matches any value; in boolean match forms it is not evaluated as a boolean expression but simply matches unconditionally. `_` is a syntactic form, not an expression — it can only appear as a match case pattern, not in arbitrary expression positions.
 

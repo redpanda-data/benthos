@@ -108,8 +108,14 @@ $key = "kafka_topic"
 output.topic = input@[$key]
 output@[$key] = "new-topic"
 
-# Delete metadata
+# Delete metadata key
 output@.kafka_key = deleted()
+
+# Clear all metadata
+output@ = {}                    # Removes all keys
+
+# Cannot delete metadata object itself
+output@ = deleted()             # ERROR: metadata is always an object
 ```
 
 **Types:**
