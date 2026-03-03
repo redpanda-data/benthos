@@ -32,7 +32,7 @@
 
 ### 7. Methods used in examples but not defined in the spec
 
-`.contains()` is used in Section 8.7 (`["int32", "int64"].contains(input.value.type())`) but is not listed in the required methods of Section 12.1. Similarly, `.flat_map()`, `.take()`, `.drop()`, `.any()`, `.all()`, `.join()`, `.fold()`, and others appear in the optimization section (12.2) as lazy/terminal methods but are never defined. The spec should either define these or mark them as optional with a clear note.
+`.contains()` is used in Section 8.7 (`["int32", "int64"].contains(input.value.type())`) but is not listed in the standard library (Section 13). Similarly, `.flat_map()`, `.take()`, `.drop()`, `.any()`, `.all()`, `.join()`, `.fold()`, and others appear in the optimization section (12.2) as lazy/terminal methods but are never defined. `.parse_json()` is used in Section 9.3 but also undefined. The spec should either add these to the standard library or mark them as optional with a clear note.
 
 ### 8. No mechanism to convert codepoint (int32) back to a string character
 
