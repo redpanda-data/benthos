@@ -788,17 +788,18 @@ Merge two objects. If both objects contain the same key, the value from `other` 
   {"a": 1}.merge({})                            # {"a": 1}
   ```
 
-### `.without(keys...)`
+### `.without(keys)`
 
 Return a new object with the specified keys removed. Keys that don't exist are ignored.
 
 - **Receiver:** object
-- **Parameters:** one or more key names (strings)
+- **Parameters:** `keys` (array of strings)
 - **Returns:** object
 - **Examples:**
   ```bloblang
-  {"a": 1, "b": 2, "c": 3}.without("a", "c")   # {"b": 2}
-  {"a": 1}.without("x")                          # {"a": 1}
+  {"a": 1, "b": 2, "c": 3}.without(["a", "c"])   # {"b": 2}
+  {"a": 1}.without(["x"])                          # {"a": 1}
+  {"a": 1, "b": 2}.without([])                     # {"a": 1, "b": 2}
   ```
 
 ### `.key_values()`
