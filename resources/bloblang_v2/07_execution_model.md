@@ -21,7 +21,7 @@ output.user.name = input.name     # Adds output.user.name
 output@.kafka_topic = "processed" # Adds output metadata
 ```
 
-**Initial state:** `output` starts as empty object `{}`.
+**Initial state:** `output` starts as empty object `{}`. `output@` (metadata) starts as empty object `{}`.
 
 **Reading non-existent fields:** Accessing a field that doesn't exist returns `null` rather than erroring:
 ```bloblang
@@ -271,7 +271,7 @@ $b = $a
 $b.x = 2                             # $b is {"x": 2}, $a is still {"x": 1}
 ```
 
-**Statement contexts only:** Variable path assignment (`$var.field = expr`) is an assignment statement, not a variable declaration. It is only available in statement contexts (top-level and if/match statement bodies). In expression contexts (if/match expressions, lambdas, map bodies), only whole-variable declaration (`$var = expr`) is allowed.
+Variable path assignment (`$var.field = expr`) is available in all contexts. In expression contexts (if/match expressions, lambdas, map bodies), only variable assignments are allowed (no `output` assignments). In statement contexts (top-level, if/match statements), both variable and `output` assignments are allowed.
 
 ## 7.7 Evaluation Order
 

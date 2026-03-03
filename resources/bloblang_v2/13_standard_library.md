@@ -2,6 +2,8 @@
 
 All implementations must provide these functions and methods. This is the complete required standard library — implementations may offer additional functions and methods beyond this list.
 
+**Regular expressions:** All regex parameters use [RE2 syntax](https://github.com/google/re2/wiki/Syntax). RE2 guarantees linear-time matching (no catastrophic backtracking). Notable exclusions from RE2: backreferences and lookahead/lookbehind assertions are not supported.
+
 ---
 
 ## 13.1 Functions
@@ -378,7 +380,7 @@ Return the string repeated `count` times. Error if count is negative.
 Test if a string matches a regular expression. Returns true if the pattern matches any part of the string.
 
 - **Receiver:** string
-- **Parameters:** `pattern` (string — regular expression)
+- **Parameters:** `pattern` (string — RE2 regular expression)
 - **Returns:** bool
 - **Examples:**
   ```bloblang
@@ -392,7 +394,7 @@ Test if a string matches a regular expression. Returns true if the pattern match
 Return all non-overlapping matches of a regular expression.
 
 - **Receiver:** string
-- **Parameters:** `pattern` (string — regular expression)
+- **Parameters:** `pattern` (string — RE2 regular expression)
 - **Returns:** array of strings
 - **Examples:**
   ```bloblang
@@ -405,7 +407,7 @@ Return all non-overlapping matches of a regular expression.
 Replace all matches of a regular expression with a replacement string.
 
 - **Receiver:** string
-- **Parameters:** `pattern` (string — regular expression), `replacement` (string)
+- **Parameters:** `pattern` (string — RE2 regular expression), `replacement` (string)
 - **Returns:** string
 - **Example:** `"foo 123 bar 456".re_replace_all("[0-9]+", "N")` → `"foo N bar N"`
 
@@ -871,19 +873,19 @@ Round a float to `n` decimal places using **half-even rounding** (banker's round
 Parse a string into a timestamp using the given format string.
 
 - **Receiver:** string
-- **Parameters:** `format` (string — Go-style time format, e.g. `"2006-01-02"`)
+- **Parameters:** `format` (string — [strftime](https://pubs.opengroup.org/onlinepubs/9699919799/functions/strftime.html) format, e.g. `"%Y-%m-%d"`)
 - **Returns:** timestamp
 - **Errors:** if the string does not match the format
-- **Example:** `"2024-03-01".ts_parse("2006-01-02")`
+- **Example:** `"2024-03-01".ts_parse("%Y-%m-%d")`
 
 ### `.ts_format(format)`
 
 Format a timestamp as a string using the given format string.
 
 - **Receiver:** timestamp
-- **Parameters:** `format` (string — Go-style time format)
+- **Parameters:** `format` (string — strftime format)
 - **Returns:** string
-- **Example:** `now().ts_format("2006-01-02")` → `"2024-03-01"`
+- **Example:** `now().ts_format("%Y-%m-%d")` → `"2024-03-01"`
 
 ### `.ts_unix()`
 
@@ -930,6 +932,20 @@ Convert a Unix timestamp (seconds since epoch) to a timestamp. Integer receivers
   1709500000.123456789.ts_from_unix()  # nanosecond precision from fractional part
   ```
 
+### `.ts_add(nanos)`
+
+Add a duration in nanoseconds to a timestamp. Negative values subtract.
+
+- **Receiver:** timestamp
+- **Parameters:** `nanos` (int64 — duration in nanoseconds)
+- **Returns:** timestamp
+- **Examples:**
+  ```bloblang
+  now().ts_add(1000000000)          # 1 second later
+  now().ts_add(-60000000000)        # 1 minute ago
+  now().ts_add(86400 * 1000000000)  # 1 day later
+  ```
+
 ---
 
 ## 13.9 Error Handling Methods
@@ -943,8 +959,8 @@ Handle errors. Called only when the expression to its left produces an error. If
 - **Returns:** any (either the original value or the lambda's result)
 - **Examples:**
   ```bloblang
-  input.date.ts_parse("2006-01-02").catch(err -> null)
-  input.date.ts_parse("2006-01-02").catch(err -> throw("parse failed: " + err.what))
+  input.date.ts_parse("%Y-%m-%d").catch(err -> null)
+  input.date.ts_parse("%Y-%m-%d").catch(err -> throw("parse failed: " + err.what))
   ```
 - **See:** Section 8.2
 

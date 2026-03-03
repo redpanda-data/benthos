@@ -156,8 +156,8 @@ output.result = some_function(arg1, param2: arg2)  # ERROR
 ```bloblang
 output.upper = input.text.uppercase()
 output.len = input.items.length()
-output.parsed = input.date.ts_parse("2006-01-02")
-output.parsed = input.date.ts_parse(format: "2006-01-02")  # Named
+output.parsed = input.date.ts_parse("%Y-%m-%d")
+output.parsed = input.date.ts_parse(format: "%Y-%m-%d")  # Named
 ```
 
 **Method Chaining:**
@@ -256,7 +256,7 @@ output.category = if input.score >= 80 {
 
 # With block-scoped variables
 output.age = if input.birthdate != null {
-  $parsed = input.birthdate.ts_parse("2006-01-02")
+  $parsed = input.birthdate.ts_parse("%Y-%m-%d")
   $now = now()
   ($now.ts_unix() - $parsed.ts_unix()) / 31536000
 } else {
@@ -400,7 +400,7 @@ $snap = output.user
 output.user.name = "changed"          # $snap unaffected
 ```
 
-Variable path assignment is only available in statement contexts (top-level and if/match statement bodies). In expression contexts, only whole-variable assignment (`$var = expr`) is allowed.
+Variable path assignment (`$var.field = expr`) is available in all contexts — both statement contexts (top-level, if/match statement bodies) and expression contexts (if/match expressions, lambdas, map bodies). In expression contexts, only variable assignments are allowed (no `output` assignments).
 
 Variables are **block-scoped** with shadowing support (inner blocks can declare new variables with the same name).
 

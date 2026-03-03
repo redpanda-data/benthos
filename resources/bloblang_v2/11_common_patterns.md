@@ -24,8 +24,8 @@ output.product = input.order?.items?[0]?.product?.name.or("Unknown")
 
 ```bloblang
 output.parsed = input.date
-  .ts_parse("2006-01-02")
-  .catch(err -> input.date.ts_parse("2006/01/02"))
+  .ts_parse("%Y-%m-%d")
+  .catch(err -> input.date.ts_parse("%Y/%m/%d"))
   .catch(err -> null)
 ```
 
@@ -103,8 +103,8 @@ output.user = if input.user_type == "premium" {
 }
 
 output.timestamp = match input.date_format as f {
-  f == "iso8601" => input.date.ts_parse("2006-01-02T15:04:05Z07:00").ts_unix(),
+  f == "iso8601" => input.date.ts_parse("%Y-%m-%dT%H:%M:%S%z").ts_unix(),
   f == "unix" => input.date.int64(),
-  _ => input.date.ts_parse("2006-01-02").ts_unix(),
+  _ => input.date.ts_parse("%Y-%m-%d").ts_unix(),
 }
 ```

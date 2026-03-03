@@ -88,7 +88,16 @@ Optimize repeated concatenation:
 "a" + "b" + "c" + "d"  # May use string builder instead of intermediate strings
 ```
 
-## 12.3 Error Messages
+## 12.3 Intrinsic Methods
+
+`.catch()` and `.or()` are parsed as regular method calls (via the `method_chain` grammar production) but require special handling by the runtime. They **cannot** be implemented as ordinary methods:
+
+- **`.catch(err -> expr)`** — Must intercept errors from the left-hand expression chain. Normal methods are skipped when the receiver is an error; `.catch()` is the opposite — it activates only on errors and passes through successful values unchanged. See Section 8.2.
+- **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
+
+Implementations should recognize these during compilation/interpretation and emit specialized instructions rather than routing them through the general method dispatch path.
+
+## 12.4 Error Messages
 
 Provide clear error messages with context:
 ```
@@ -102,14 +111,14 @@ Include:
 - Clear description
 - Suggested fix when possible
 
-## 12.4 Performance Expectations
+## 12.5 Performance Expectations
 
 **Lazy evaluation benefits:**
 - Filter + Map + Take (10K items): 10-15x faster
 - Long pipeline (1M items): 3-5x faster, 99% less memory
 - Early termination (find first in 1M): 100-1000x faster
 
-## 12.5 Testing Requirements
+## 12.6 Testing Requirements
 
 - Results must match eager evaluation exactly
 - Variable materialization must be transparent

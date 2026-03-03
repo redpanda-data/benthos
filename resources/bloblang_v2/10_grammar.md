@@ -5,10 +5,10 @@
 ```
 program         := top_level_statement*
 top_level_statement := statement | map_decl | import_stmt
-statement       := assignment | var_decl | if_stmt | match_stmt
+statement       := assignment | if_stmt | match_stmt
 assignment      := top_level_path '=' expression
-var_decl        := '$' identifier '=' expression
-map_decl        := 'map' identifier '(' [param_list] ')' '{' var_decl* expression '}'
+var_assignment  := var_ref path_component* '=' expression
+map_decl        := 'map' identifier '(' [param_list] ')' '{' var_assignment* expression '}'
 param_list      := param (',' param)*
 param           := identifier | identifier '=' expression
 import_stmt     := 'import' string_literal 'as' identifier
@@ -41,7 +41,7 @@ if_expr         := 'if' expression '{' expr_body '}'
 if_stmt         := 'if' expression '{' stmt_body '}'
                    ('else' 'if' expression '{' stmt_body '}')*
                    ('else' '{' stmt_body '}')?
-expr_body       := var_decl* expression
+expr_body       := var_assignment* expression
 stmt_body       := statement*
 
 match_expr      := 'match' expression ('as' identifier)? '{' expr_match_case (',' expr_match_case)* ','? '}'
@@ -71,7 +71,7 @@ unary_op        := '!' | '-'
 
 lambda_expr     := lambda_params '->' (expression | lambda_block)
 lambda_params   := identifier | '(' param (',' param)* ')'
-lambda_block    := '{' var_decl* expression '}'
+lambda_block    := '{' var_assignment* expression '}'
 paren_expr      := '(' expression ')'
 
 literal         := float_literal | int_literal | string_literal | boolean | null | array | object
@@ -93,7 +93,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 ## Key Points
 
 - **Top-level only:** Map declarations (`map_decl`) and imports (`import_stmt`) can only appear at the top level of a program, not inside statement bodies. Control flow statements (`if_stmt`, `match_stmt`) can be nested
-- **Variables:** `$var` for declaration and reference. Variable path assignment (`$var.field = expr`, `$var[0] = expr`) goes through the `assignment` production (not `var_decl`) and supports the same field access, indexing, and auto-creation semantics as `output`. Since it is an `assignment`, it is only available in statement contexts.
+- **Variables:** `$var` for declaration and reference. Variable assignment uses `var_assignment` in expression contexts (map bodies, lambda blocks, if/match expressions) and `assignment` in statement contexts (top-level, if/match statements). Both support path assignment (`$var.field = expr`, `$var[0] = expr`) with the same field access, indexing, and auto-creation semantics as `output`. The difference: `var_assignment` only targets variables, while `assignment` also targets `output` and `output@`.
 - **Metadata:** `input@.key` (read), `output@.key` (write). Root metadata assignment (`output@ = expr`) requires the value to be an object at runtime (error otherwise); `output@ = deleted()` is also an error since metadata cannot be deleted (Section 9.2).
 - **Context-dependent paths:**
   - **Top-level assignments:** Must use `output`, `input`, or `$variable` (no bare identifiers)
@@ -111,13 +111,13 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body
 - **Side effects:**
   - Expressions cannot assign to `output` or `output@`
-  - Lambda blocks: Variable declarations + final expression (no side effects)
+  - Lambda blocks: Variable assignments + final expression (no `output` side effects)
   - Map bodies: Same as lambda blocks — isolated functions that return values
   - Maps cannot reference `input`, `output`, or top-level `$variables` (only their parameters)
 - **Control flow forms:**
   - `if_expr` / `match_expr`: Used in assignments, contain `expr_body` (no `output` assignments)
   - `if_stmt` / `match_stmt`: Standalone statements, contain `stmt_body` (may assign to `output`)
-  - `expr_body`: Variable declarations + final expression (no side effects)
+  - `expr_body`: Variable assignments + final expression (no `output` side effects)
   - `stmt_body`: Zero or more statements (no trailing expression). Empty bodies are valid (no-op).
 - **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false. The grammar cannot distinguish expressions that may produce void from those that always produce values; this is a runtime semantic. See Section 4.1 for full void behavior.
 - **Type coercion:** `+` requires same type family (no cross-family implicit conversion). Numeric types are promoted using promotion rules; non-numeric types require exact type match.
@@ -138,12 +138,14 @@ result = input.value             # ❌ Invalid: bare identifier not allowed at t
 ```bloblang
 map transform(data) {
   $temp = data.field             # ✅ Valid: 'data' in expression (RHS)
+  $temp.extra = "added"          # ✅ Valid: variable path assignment
   data.field * 2                 # ✅ Valid: 'data' in expression
 }
 
 map invalid(data) {
   data = input.x                 # ❌ Invalid: cannot assign to parameter
   data.field = 10                # ❌ Invalid: cannot assign through parameter
+  output.x = data.field          # ❌ Invalid: cannot assign to output in map body
 }
 ```
 
