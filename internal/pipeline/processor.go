@@ -18,6 +18,7 @@ import (
 // The processor will read from a source, perform some processing, and then
 // either propagate a new message or drop it.
 type Processor struct {
+	noCloseProcs  bool
 	msgProcessors []processor.V1
 
 	messagesOut chan message.Transaction
@@ -46,10 +47,11 @@ func (p *Processor) loop() {
 	defer cnDone()
 
 	defer func() {
-		// Signal all children to close.
-		for _, c := range p.msgProcessors {
-			if err := c.Close(closeNowCtx); err != nil {
-				break
+		if !p.noCloseProcs {
+			for _, c := range p.msgProcessors {
+				if err := c.Close(closeNowCtx); err != nil {
+					break
+				}
 			}
 		}
 

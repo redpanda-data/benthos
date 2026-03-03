@@ -20,7 +20,8 @@ import (
 // channel. Inputs remain coupled to their outputs as they propagate the
 // response channel in the transaction.
 type Pool struct {
-	workers []processor.Pipeline
+	workers       []processor.Pipeline
+	msgProcessors []processor.V1
 
 	log log.Modular
 
@@ -37,14 +38,17 @@ func NewPool(threads int, log log.Modular, msgProcessors ...processor.V1) (*Pool
 	}
 
 	p := &Pool{
-		workers:     make([]processor.Pipeline, threads),
-		log:         log,
-		messagesOut: make(chan message.Transaction),
-		shutSig:     shutdown.NewSignaller(),
+		workers:       make([]processor.Pipeline, threads),
+		msgProcessors: msgProcessors,
+		log:           log,
+		messagesOut:   make(chan message.Transaction),
+		shutSig:       shutdown.NewSignaller(),
 	}
 
 	for i := range p.workers {
-		p.workers[i] = NewProcessor(msgProcessors...)
+		proc := NewProcessor(msgProcessors...)
+		proc.noCloseProcs = true
+		p.workers[i] = proc
 	}
 
 	return p, nil
@@ -64,6 +68,12 @@ func (p *Pool) loop() {
 	defer func() {
 		for _, c := range p.workers {
 			if err := c.WaitForClose(closeNowCtx); err != nil {
+				break
+			}
+		}
+
+		for _, c := range p.msgProcessors {
+			if err := c.Close(closeNowCtx); err != nil {
 				break
 			}
 		}

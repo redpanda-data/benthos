@@ -5,6 +5,7 @@ package pipeline_test
 import (
 	"context"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +20,25 @@ import (
 
 	_ "github.com/redpanda-data/benthos/v4/internal/impl/pure"
 )
+
+// blockingProcessor blocks ProcessBatch until blockCh is closed, then passes
+// messages through unchanged. closeFn is called on Close.
+type blockingProcessor struct {
+	blockCh chan struct{}
+	closeFn func()
+}
+
+func (b *blockingProcessor) ProcessBatch(_ context.Context, msg message.Batch) ([]message.Batch, error) {
+	<-b.blockCh
+	return []message.Batch{msg}, nil
+}
+
+func (b *blockingProcessor) Close(_ context.Context) error {
+	if b.closeFn != nil {
+		b.closeFn()
+	}
+	return nil
+}
 
 func TestPoolBasic(t *testing.T) {
 	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
@@ -260,6 +280,77 @@ func TestPoolMultiThreads(t *testing.T) {
 
 	proc.TriggerCloseNow()
 	require.NoError(t, proc.WaitForClose(ctx))
+}
+
+func TestPoolProcessorsNotClosedEarly(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	var (
+		mu      sync.Mutex
+		closed  bool
+		closeCh = make(chan struct{})
+		blockCh = make(chan struct{})
+	)
+
+	proc := &blockingProcessor{
+		blockCh: blockCh,
+		closeFn: func() {
+			mu.Lock()
+			defer mu.Unlock()
+			closed = true
+			close(closeCh)
+		},
+	}
+
+	pool, err := pipeline.NewPool(2, log.Noop(), proc)
+	require.NoError(t, err)
+
+	tChan := make(chan message.Transaction)
+	resChan := make(chan error, 1)
+
+	require.NoError(t, pool.Consume(tChan))
+
+	// Send one message — one worker picks it up and blocks, the other will
+	// see the channel close and exit.
+	select {
+	case tChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte("hello")}), resChan):
+	case <-ctx.Done():
+		t.Fatal("timed out sending message")
+	}
+
+	// Close the input channel. One worker exits, but the other is blocked.
+	close(tChan)
+
+	// Give the exiting worker time to run its defer. If the bug were present,
+	// it would call Close() on the shared processor here.
+	time.Sleep(50 * time.Millisecond)
+
+	mu.Lock()
+	closedEarly := closed
+	mu.Unlock()
+	require.False(t, closedEarly, "processor was closed while another worker was still processing")
+
+	// Unblock the processing worker.
+	close(blockCh)
+
+	// Drain the output.
+	select {
+	case procT := <-pool.TransactionChan():
+		require.NoError(t, procT.Ack(ctx, nil))
+	case <-ctx.Done():
+		t.Fatal("timed out reading output")
+	}
+
+	// Wait for close — this is where the pool should close processors.
+	require.NoError(t, pool.WaitForClose(ctx))
+
+	// Now the processor should be closed.
+	select {
+	case <-closeCh:
+	case <-ctx.Done():
+		t.Fatal("processor was never closed")
+	}
 }
 
 func TestPoolMultiNaturalClose(t *testing.T) {
