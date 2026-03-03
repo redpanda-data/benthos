@@ -179,6 +179,7 @@ null == 0            # false (null vs numeric)
 - **Equality and comparison:** Timestamps can be compared with `==`, `!=`, `<`, `>`, `<=`, `>=`. Earlier times are less than later times.
 - **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). No other arithmetic operations are supported — adding two timestamps, or adding a number to a timestamp, is an error. Use `.ts_unix()` and related methods for numeric conversions.
 - **Methods:** `.ts_format()`, `.ts_unix()`, `.ts_unix_milli()`, `.ts_unix_micro()`, `.ts_unix_nano()`, `.type()`, `.string()`.
+- **Construction from numeric:** `.ts_from_unix()` on int64 or float64 (float provides sub-second precision). See Section 13.8.
 - **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings. When converted with `.string()`, the result is also RFC 3339.
 
 ```bloblang

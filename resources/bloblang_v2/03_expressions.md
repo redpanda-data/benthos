@@ -136,7 +136,7 @@ output.valid = a < b && b < c # OK: explicit logical combination
 ```bloblang
 output.id = uuid_v4()
 output.time = now()
-output.random = random()
+output.roll = random_int(1, 6)
 ```
 
 **Named arguments:** Functions, user maps, and lambdas support named arguments:
@@ -200,6 +200,17 @@ input.items.map_array(item -> {
 ```
 
 Lambda blocks must end with an expression (the return value). Statement-only blocks are invalid.
+
+**Default parameters:**
+```bloblang
+$greet = (name, greeting = "Hello") -> greeting + ", " + name
+output.a = $greet("Alice")                  # "Hello, Alice"
+output.b = $greet("Alice", "Hi")            # "Hi, Alice"
+output.c = $greet(name: "Alice")            # "Hello, Alice"
+output.d = $greet(name: "Alice", greeting: "Hey")  # "Hey, Alice"
+```
+
+Parameters with defaults must come after all required parameters. Default expressions are evaluated at call time.
 
 **First-class (stored in variables):**
 ```bloblang

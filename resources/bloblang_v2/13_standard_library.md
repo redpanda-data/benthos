@@ -87,14 +87,24 @@ These are the only way to create non-default numeric types, since literals are a
 
 Convert a value to its string representation.
 
-- **Receiver:** any type
+- **Receiver:** any type (except lambda — error)
 - **Returns:** string
+- **Conversion rules:**
+  - Numeric types: decimal representation (`42` → `"42"`, `3.14` → `"3.14"`)
+  - Bool: `"true"` or `"false"`
+  - Null: `"null"`
+  - Timestamp: RFC 3339 format (e.g., `"2024-03-01T12:00:00Z"`)
+  - Bytes: UTF-8 decode (error if bytes are not valid UTF-8)
+  - Array, object: compact JSON (equivalent to `.format_json()`)
+  - Lambda: error
 - **Examples:**
   ```bloblang
   42.string()          # "42" (int64 → string)
   3.14.string()        # "3.14" (float64 → string)
   true.string()        # "true"
   null.string()        # "null"
+  [1, 2].string()      # "[1,2]"
+  {"a": 1}.string()    # "{\"a\":1}"
   ```
 
 ### `.int32()`
@@ -160,7 +170,14 @@ Convert a value to boolean.
 
 - **Receiver:** string (`"true"`, `"false"`), numeric (0 = false, non-zero = true)
 - **Returns:** bool
-- **Example:** `"true".bool()` → `true`
+- **Special float values:** Infinity and negative Infinity are `true` (non-zero). NaN is an error (neither zero nor non-zero).
+- **Examples:**
+  ```bloblang
+  "true".bool()    # true
+  "false".bool()   # false
+  1.bool()         # true
+  0.bool()         # false
+  ```
 
 ### `.bytes()`
 
@@ -471,7 +488,14 @@ Transform each element of an array. Returns a new array.
 
 ### `.sort()`
 
-Sort an array in ascending order. Sort is **stable** (equal elements preserve relative order). All elements must be the same type family — mixed types are an error. Numeric types are promoted before comparison using the standard promotion rules (Section 2.3).
+Sort an array in ascending order. Sort is **stable** (equal elements preserve relative order). All elements must belong to the same sortable type family — mixing across families is an error.
+
+**Sortable type families:**
+- **Numeric** (int32, int64, uint32, uint64, float32, float64): promoted before comparison using standard rules (Section 2.3)
+- **String**: compared lexicographically by Unicode codepoint
+- **Timestamp**: compared chronologically
+
+Bool, null, bytes, array, object, and lambda are not sortable — an array containing these types will error. Cross-family mixing (e.g., numbers with strings) is also an error.
 
 - **Receiver:** array
 - **Returns:** array
@@ -480,7 +504,7 @@ Sort an array in ascending order. Sort is **stable** (equal elements preserve re
   [3, 1, 2].sort()           # [1, 2, 3]
   ["b", "a", "c"].sort()     # ["a", "b", "c"]
   [3, 1.5, 2].sort()         # [1.5, 2, 3] (int64 promoted to float64)
-  [1, "a", true].sort()      # ERROR: cannot sort mixed types
+  [1, "a", true].sort()      # ERROR: cannot sort mixed type families
   ```
 
 ### `.sort_by(elem -> key)`
@@ -666,13 +690,14 @@ Reduce an array to a single value by applying an accumulator function to each el
 
 ### `.map_object((key, value) -> expr)`
 
-Transform each value of an object. Returns a new object with the same keys.
+Transform each entry of an object. Returns a new object with values replaced by the lambda's return value.
 
+- The lambda must take exactly two parameters (key, value) — a one-parameter form is not supported
 - The lambda must return a value for every entry — void is an error
 - If the lambda returns `deleted()`, the key-value pair is removed from the result
 
 - **Receiver:** object
-- **Parameters:** lambda (two parameters: key string, value any → any)
+- **Parameters:** lambda (exactly two parameters: key string, value any → any)
 - **Returns:** object
 - **Examples:**
   ```bloblang
@@ -715,7 +740,7 @@ Return a new object containing only entries for which the lambda returns `true`.
 
 ### `.keys()`
 
-Return the keys of an object as an array of strings. Order is random.
+Return the keys of an object as an array of strings. Order is not guaranteed and may vary between calls. No correspondence is guaranteed between `.keys()` and `.values()` ordering — use `.key_values()` when you need key-value pairs.
 
 - **Receiver:** object
 - **Returns:** array of strings
@@ -723,7 +748,7 @@ Return the keys of an object as an array of strings. Order is random.
 
 ### `.values()`
 
-Return the values of an object as an array. Order is random.
+Return the values of an object as an array. Order is not guaranteed and may vary between calls. No correspondence is guaranteed between `.keys()` and `.values()` ordering — use `.key_values()` when you need key-value pairs.
 
 - **Receiver:** object
 - **Returns:** array
@@ -787,7 +812,7 @@ Convert an object to an array of `{"key": k, "value": v}` objects. Order is rand
 
 ### `.abs()`
 
-Return the absolute value.
+Return the absolute value. For integer types, errors if the result overflows (the most-negative value of each signed type has no positive counterpart).
 
 - **Receiver:** int32, int64, float32, float64 (errors on unsigned types — already non-negative)
 - **Returns:** same type as receiver
@@ -796,6 +821,7 @@ Return the absolute value.
   (-5).abs()      # 5 (int64)
   3.14.abs()      # 3.14 (float64)
   (-3.14).abs()   # 3.14 (float64)
+  (-2147483648).int32().abs()  # ERROR: int32 overflow
   ```
 
 ### `.floor()`
@@ -890,6 +916,19 @@ Convert a timestamp to a Unix timestamp in nanoseconds.
 - **Receiver:** timestamp
 - **Returns:** int64
 - **Example:** `now().ts_unix_nano()` → `1709500000000000000`
+
+### `.ts_from_unix()`
+
+Convert a Unix timestamp (seconds since epoch) to a timestamp. Integer receivers produce second-precision timestamps. Float receivers provide sub-second precision — the fractional part is interpreted as fractions of a second (up to nanosecond precision).
+
+- **Receiver:** int64, float64 (and other numeric types via standard promotion)
+- **Returns:** timestamp
+- **Examples:**
+  ```bloblang
+  1709500000.ts_from_unix()       # timestamp: 2024-03-03T...Z (second precision)
+  1709500000.5.ts_from_unix()     # timestamp: 2024-03-03T...500000000Z (sub-second)
+  1709500000.123456789.ts_from_unix()  # nanosecond precision from fractional part
+  ```
 
 ---
 

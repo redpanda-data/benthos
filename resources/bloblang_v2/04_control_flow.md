@@ -242,9 +242,18 @@ output.tier = match input.score as s {
   s >= 100 => "gold",
   _ => "other",
 }
+
+# Note: this also means you cannot equality-match on boolean values,
+# since the case literals true/false are themselves booleans:
+output.label = match input.flag {
+  true => "yes",    # ERROR: case evaluated to boolean in equality match
+  false => "no",
+}
+# Fix: use if/else for boolean values
+output.label = if input.flag { "yes" } else { "no" }
 ```
 
-**2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. The `as` binding is available in both case conditions and result expressions. Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown. The wildcard `_` is exempt from this requirement — it always matches unconditionally.
+**2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. The `as` binding is available in case conditions, result expressions, and statement bodies (for match statements). Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown. The wildcard `_` is exempt from this requirement — it always matches unconditionally.
 
 ```bloblang
 output.tier = match input.score as s {
