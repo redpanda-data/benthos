@@ -4,7 +4,7 @@
 
 Errors propagate through expressions:
 ```bloblang
-output.parsed = input.date.ts_parse("2006-01-02")
+output.parsed = input.date.ts_parse("%Y-%m-%d")
 # Throws error if parsing fails
 
 output.sound = match input.animal {
@@ -24,25 +24,25 @@ Common error sources:
 
 Handle errors with `.catch()`. The method takes a lambda with a single parameter — the error object — and is called only when the expression to its left produces an error. If the expression succeeds, `.catch()` returns its value unchanged. If the lambda itself errors, that error propagates and can be caught by a subsequent `.catch()`.
 
-**Scope:** Errors propagate through method chains — if any method in the chain errors, subsequent methods are skipped and the error flows to the next `.catch()`. This means `.catch()` catches any error produced anywhere in the entire expression chain to its left, not just the immediately preceding method call.
+**Scope:** Errors propagate through method chains — if any method in the chain errors, subsequent methods are skipped and the error flows to the next `.catch()`. This means `.catch()` catches any error produced anywhere in the entire expression chain to its left, not just the immediately preceding method call. All runtime errors are catchable with `.catch()` — the sole exception is exceeding the recursion limit (Section 5.2), which halts execution immediately.
 
-**The error object** has a single field:
+**The error object** is a plain object (`{"what": "..."}`) with a single field:
 - `.what` — a string containing the error message
 
 ```bloblang
 # Inspect the error
-output.parsed = input.date.ts_parse("2006-01-02").catch(err -> {
+output.parsed = input.date.ts_parse("%Y-%m-%d").catch(err -> {
   $msg = "parse failed: " + err.what
   throw($msg)
 })
 
 # Ignore the error, provide fallback value
-output.parsed = input.date.ts_parse("2006-01-02").catch(err -> null)
+output.parsed = input.date.ts_parse("%Y-%m-%d").catch(err -> null)
 
 # Chain multiple attempts
 output.parsed = input.date
-  .ts_parse("2006-01-02")                                    # Try format 1
-  .catch(err -> input.date.ts_parse("2006/01/02"))           # If format 1 fails, try format 2
+  .ts_parse("%Y-%m-%d")                                    # Try format 1
+  .catch(err -> input.date.ts_parse("%Y/%m/%d"))           # If format 1 fails, try format 2
   .catch(err -> null)                                        # If format 2 also fails, use null
 ```
 

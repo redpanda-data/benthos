@@ -94,8 +94,8 @@ output.result = utils::transform(input.data)
 ## Compression Summary
 
 **Original:** 18 sections, ~45 pages
-**Compressed:** 12 sections, ~28 pages
-**Reduction:** 33% fewer files, 38% smaller
+**Compressed:** 13 sections, ~28 pages
+**Reduction:** 28% fewer files, 38% smaller
 **Information:** 100% preserved
 
 ### What Changed
