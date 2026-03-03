@@ -53,6 +53,21 @@ Generate an array of integers from `start` (inclusive) to `stop` (exclusive) wit
   range(0, 5, 0)      # ERROR: step cannot be zero
   ```
 
+### `char(codepoint)`
+
+Convert a Unicode codepoint (int32) to a single-character string. This is the inverse of string indexing (`"hello"[0]` → `104`).
+
+- **Parameters:** `codepoint` (int32 or int64 — must be a valid Unicode codepoint)
+- **Returns:** string
+- **Errors:** if the value is not a valid Unicode codepoint
+- **Examples:**
+  ```bloblang
+  char(104)        # "h"
+  char(233)        # "é"
+  char(128512)     # "😀"
+  char("hello"[0]) # "h" (round-trip from string indexing)
+  ```
+
 ### `throw(message)`
 
 Throw a custom error. The error propagates and can be caught with `.catch()`. If uncaught, it halts the mapping.
@@ -595,7 +610,7 @@ Remove duplicate elements, preserving the first occurrence of each value. Compar
   ["a", "b", "a"].unique()        # ["a", "b"]
   ```
 
-### `.enumerated()`
+### `.enumerate()`
 
 Convert an array to an array of `{"index": i, "value": v}` objects.
 
@@ -603,7 +618,7 @@ Convert an array to an array of `{"index": i, "value": v}` objects.
 - **Returns:** array of objects
 - **Example:**
   ```bloblang
-  ["a", "b", "c"].enumerated()
+  ["a", "b", "c"].enumerate()
   # [{"index": 0, "value": "a"}, {"index": 1, "value": "b"}, {"index": 2, "value": "c"}]
   ```
 
@@ -712,6 +727,23 @@ Transform each value of an object. Returns a new object with the same keys.
   {"a": 1, "b": -2}.map_object((k, v) -> if v > 0 { v } else { deleted() })  # {"a": 1}
   ```
 - **See:** Section 4.1 for void and deleted() behavior in lambda returns
+
+### `.map_keys(key -> expr)`
+
+Transform each key of an object. Returns a new object with transformed keys and original values.
+
+- The lambda must return a string for every key — non-string return values are an error
+- If the lambda returns `deleted()`, the key-value pair is removed from the result
+
+- **Receiver:** object
+- **Parameters:** lambda (one parameter: key string → string)
+- **Returns:** object
+- **Examples:**
+  ```bloblang
+  {"a": 1, "b": 2}.map_keys(k -> k.uppercase())             # {"A": 1, "B": 2}
+  {"name": "Alice", "age": 30}.map_keys(k -> "user_" + k)   # {"user_name": "Alice", "user_age": 30}
+  {"a": 1, "b": 2}.map_keys(k -> if k == "a" { k } else { deleted() })  # {"a": 1}
+  ```
 
 ### `.keys()`
 
