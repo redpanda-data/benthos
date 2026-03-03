@@ -390,6 +390,12 @@ func (t *Type) Label() string {
 	return t.label
 }
 
+// StreamID returns the identifier of the stream this manager belongs to or an
+// empty string when running outside of streams mode.
+func (t *Type) StreamID() string {
+	return t.stream
+}
+
 // WithAddedMetrics returns a modified version of the manager where metrics are
 // registered to both the current metrics target as well as the provided one.
 func (t *Type) WithAddedMetrics(m metrics.Type) bundle.NewManagement {

@@ -104,6 +104,14 @@ func (r *Resources) Path() []string {
 	return r.mgr.Path()
 }
 
+// StreamID returns the identifier of the stream this component belongs to or
+// an empty string when running outside streams mode. In streams mode each
+// stream gets a unique identifier (typically the config file name) that can be
+// used to scope per-stream state in process-global stores like GetOrSetGeneric.
+func (r *Resources) StreamID() string {
+	return r.mgr.StreamID()
+}
+
 // Logger returns a logger preset with context about the component the resources
 // were provided to.
 func (r *Resources) Logger() *Logger {

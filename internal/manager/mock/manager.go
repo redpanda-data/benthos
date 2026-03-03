@@ -150,6 +150,9 @@ func (m *Manager) Path() []string { return nil }
 // Label always returns empty.
 func (m *Manager) Label() string { return "" }
 
+// StreamID always returns empty.
+func (m *Manager) StreamID() string { return "" }
+
 // Metrics returns a no-op metrics.
 func (m *Manager) Metrics() metrics.Type { return m.M }
 
