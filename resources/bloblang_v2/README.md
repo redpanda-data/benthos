@@ -30,7 +30,8 @@ This is a **compressed version** of the Bloblang V2 specification - same informa
 9. **[Special Features](09_special_features.md)** - Dynamic fields, message filtering, non-structured data
 10. **[Grammar Reference](10_grammar.md)** - Formal grammar definition
 11. **[Common Patterns](11_common_patterns.md)** - Practical examples and idioms
-12. **[Implementation Guide](12_implementation_guide.md)** - Built-ins, optional optimizations, performance
+12. **[Implementation Guide](12_implementation_guide.md)** - Optional optimizations, performance
+13. **[Standard Library](13_standard_library.md)** - Required functions and methods reference
 
 ---
 
@@ -109,10 +110,12 @@ output.result = utils::transform(input.data)
 ## For Implementers
 
 See **Section 12: Implementation Guide** for:
-- Built-in functions and methods reference
 - Optional optimization strategies (iterators, fusion)
 - Performance expectations
 - Testing requirements
+
+See **Section 13: Standard Library** for:
+- Complete reference of all required functions and methods
 
 ---
 
