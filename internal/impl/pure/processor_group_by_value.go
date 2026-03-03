@@ -28,7 +28,9 @@ func init() {
 			Description(`
 This allows you to group messages using arbitrary fields within their content or metadata, process them individually, and send them to unique locations as per their group.
 
-The functionality of this processor depends on being applied across messages that are batched. You can find out more about batching xref:configuration:batching.adoc[in this doc].`).
+The functionality of this processor depends on being applied across messages that are batched. You can find out more about batching xref:configuration:batching.adoc[in this doc].
+
+To further divide each group into individual messages, follow this processor with a `+"xref:components:processors/split.adoc[`split` processor]"+`.`).
 			Footnotes(`
 == Examples
 
