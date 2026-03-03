@@ -28,7 +28,7 @@ The resulting archived message adopts the metadata of the _first_ message part o
 
 The functionality of this processor depends on being applied across messages that are batched. You can find out more about batching xref:configuration:batching.adoc[in this doc].
 
-To reverse this process use the ` + "xref:components:processors/unarchive.adoc[`unarchive` processor]" + ` followed by a ` + "xref:components:processors/split.adoc[`split` processor]" + ` to process each message individually.`).
+To reverse this process use the `+"xref:components:processors/unarchive.adoc[`unarchive` processor]"+` followed by a `+"xref:components:processors/split.adoc[`split` processor]"+` to process each message individually.`).
 		Field(service.NewStringAnnotatedEnumField("format", map[string]string{
 			`concatenate`: `Join the raw contents of each message into a single binary message.`,
 			`tar`:         `Archive messages to a unix standard tape archive.`,
