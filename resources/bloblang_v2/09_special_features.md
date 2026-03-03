@@ -37,15 +37,21 @@ output = deleted()              # Document marked for deletion (metadata persist
 # Delete metadata key
 output@.key = deleted()         # Specific key removed
 
-# Delete all metadata
-output@ = deleted()             # All metadata removed
+# Clear all metadata (replace with empty object)
+output@ = {}                    # All metadata keys removed
+
+# Replace all metadata
+output@ = {"key": "value"}     # Replaces all metadata with this object
+
+# Cannot delete metadata — it is always an object
+output@ = deleted()             # ERROR: cannot delete metadata object
 ```
 
-**`output` vs `output@` deletion — different semantics:**
+**`output` vs `output@` — deletion and assignment:**
 
 `output` can hold any type (object, array, string, bytes, etc.), so `output = deleted()` removes the document entirely — it is marked for deletion and reads as `null`. Restoring it requires a root reassignment (`output = value`); field assignment through a deleted document is a type error since there is no underlying structure.
 
-`output@` is always an object (a key-value map of metadata). It has no other valid form. `output@ = deleted()` clears all keys from the metadata object but the underlying object remains. Because the object still exists, assigning individual keys after clearing is always valid.
+`output@` is always an object (a key-value map of metadata). It cannot be deleted — `output@ = deleted()` is an error. To clear all metadata keys, assign an empty object: `output@ = {}`. You can also replace all metadata with an object literal or copy from input: `output@ = input@`.
 
 ```bloblang
 # Document deletion: removes the document, reads as null
@@ -55,9 +61,10 @@ output = "hello"                # OK: root reassignment restores document
 output = deleted()
 output.field = "value"          # ERROR: cannot assign field on non-object (null)
 
-# Metadata deletion: clears all keys, object still exists
-output@ = deleted()             # All metadata keys removed (object remains empty)
-output@.key = "value"           # OK: assigning key to the (empty) metadata object
+# Metadata: cannot be deleted, only cleared or replaced
+output@ = deleted()             # ERROR: cannot delete metadata object
+output@ = {}                    # OK: clears all metadata keys
+output@.key = "value"           # OK: assigning key to the metadata object
 ```
 
 **Restoration of deleted output:** Only root reassignment restores a deleted document:
@@ -103,11 +110,10 @@ output.user = {
 # If email not verified, field "email" is removed from object
 ```
 
-**`deleted()` vs void (if-without-else):** Both cause elements to be absent from collections, but they are different concepts. `deleted()` is an active deletion marker. Void (from an if-without-else when false) means no value was produced — the element is skipped because there is nothing to include. See Section 4.1 for void semantics.
+**`deleted()` vs void (if-without-else):** These are different concepts. `deleted()` is an active deletion marker that removes elements and fields from collections. Void (from an if-without-else when false) means "no value was produced" and is an **error** in collection literals — use `deleted()` or an `else` branch instead. Void is only meaningful in assignments, where it causes the assignment to be skipped. See Section 4.1 for full void semantics.
 ```bloblang
-# These produce the same result in collections, but via different mechanisms:
 output.items = [1, deleted(), 3]          # [1, 3] — deleted: element actively removed
-output.items = [1, if false { 2 }, 3]     # [1, 3] — void: no value produced, element skipped
+output.items = [1, if false { 2 }, 3]     # ERROR: void in collection literal
 ```
 
 **Nested structures (recursive deletion):**
@@ -132,8 +138,8 @@ output.user = {
 
 # Arrays of objects
 output.users = [
-  {"name": "Alice", "email": if true { "a@example.com" }},
-  {"name": "Bob", "email": if false { "b@example.com" }}  # email omitted
+  {"name": "Alice", "email": if true { "a@example.com" } else { deleted() }},
+  {"name": "Bob", "email": if false { "b@example.com" } else { deleted() }}
 ]
 # Result: [{"name": "Alice", "email": "a@example.com"}, {"name": "Bob"}]
 ```
@@ -179,13 +185,14 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 `deleted()` behaves differently depending on context:
 
 **Triggers deletion (no error):**
-- Assignment targets: `output.field = deleted()`, `output = deleted()`, `output@.key = deleted()`
+- Assignment targets: `output.field = deleted()`, `output = deleted()`, `output@.key = deleted()`, `$var = deleted()`
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
 - `map_array` lambda return value: element is filtered out
 - `map_object` lambda return value: key-value pair is removed from result
 
 **Causes runtime error:**
+- Metadata root assignment: `output@ = deleted()` (metadata is always an object, cannot be deleted)
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls: `deleted().type()`, `deleted().uppercase()`
 - Used as function arguments: `some_function(deleted())`
@@ -245,18 +252,18 @@ output.user = {
   }
 }
 
-# Conditional array elements - if without else produces void, skipping the element
+# Conditional array elements - use deleted() to omit elements
 output.items = [
   input.a,
-  if input.b != null { input.b },  # Void if b is null: element skipped
+  if input.b != null { input.b } else { deleted() },  # Omitted if b is null
   input.c
 ]
 # If b is null: [input.a, input.c]
 
-# Similar result using deleted(), but different mechanism (active removal vs no value)
+# Void is an error in collection literals — always use deleted() or an else branch
 output.items = [
   input.a,
-  if input.b != null { input.b } else { deleted() },
+  if input.b != null { input.b },  # ERROR: void in array literal when b is null
   input.c
 ]
 ```

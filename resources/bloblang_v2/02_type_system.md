@@ -22,7 +22,7 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 
 **Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
 
-**Void:** Void is not a runtime type — it is the absence of a value, produced when an if-expression without `else` has a false condition (Section 4.1). Void cannot be stored in variables, passed as arguments, or used in expressions (all are errors). It only exists transiently to signal "no value was produced," and the surrounding context determines what happens (assignment skipped, collection element omitted, etc.). Since void can never be the receiver of a method call, `.type()` on void is not possible. See Section 4.1 for full void semantics.
+**Void:** Void is not a runtime type — it is the absence of a value, produced when an if-expression without `else` has a false condition (Section 4.1). Void cannot be stored in variables, passed as arguments, used in expressions, or included in collection literals (all are errors). It only exists transiently to signal "no value was produced," and is only meaningful in assignments where it causes the assignment to be skipped (a no-op). Since void can never be the receiver of a method call, `.type()` on void is not possible. See Section 4.1 for full void semantics.
 
 ## 2.2 Type Introspection
 
@@ -63,12 +63,14 @@ When arithmetic, comparison, or equality operators are applied to operands of di
 
 **Promotion rules (applied in order):**
 
-| Operand types | Promoted to | Rationale |
-|---------------|-------------|-----------|
+| Operand types | Promoted to | Error condition |
+|---------------|-------------|----------------|
 | Same type | No promotion | `int64 + int64 → int64` |
 | Same signedness, different width | Wider type | `int32 + int64 → int64`, `float32 + float64 → float64` |
-| Signed + unsigned integer | int64 | `int32 + uint32 → int64`, `int64 + uint64 → int64` |
-| Any integer + any float | float64 | `int64 + float32 → float64`, `uint32 + float64 → float64` |
+| Signed + unsigned integer | int64 | Error if uint64 value > 2^63-1 (cannot fit in int64) |
+| Any integer + any float | float64 | Error if integer magnitude > 2^53 (cannot be represented exactly) |
+
+**Promotion is checked, not silent.** All widening promotions that are lossless (e.g., int32 → int64, float32 → float64) always succeed. Promotions that may lose data are validated at runtime and **throw an error** if the value cannot be represented exactly in the target type. This applies to both operands — if either operand cannot be safely promoted, the operation errors.
 
 **Division always produces a float:**
 
@@ -91,14 +93,16 @@ When arithmetic, comparison, or equality operators are applied to operands of di
 output.a = 5 + 3                    # 8 (int64)
 output.b = 5.0 + 3.0                # 8.0 (float64)
 
-# Different width: promote to wider
+# Different width: promote to wider (always lossless)
 output.c = 5.int32() + 10           # 15 (int64: int32 promoted to int64)
 
-# Signed + unsigned: promote to int64
-output.d = 5.int32() + 10.uint32()  # 15 (int64)
+# Signed + unsigned: promote to int64 (checked)
+output.d = 5.int32() + 10.uint32()  # 15 (int64: both fit)
+output.bad = 5 + 9999999999999999999.uint64()  # ERROR: uint64 value exceeds int64 range
 
-# Integer + float: promote to float64
-output.e = 5 + 3.0                  # 8.0 (float64)
+# Integer + float: promote to float64 (checked)
+output.e = 5 + 3.0                  # 8.0 (float64: 5 fits exactly)
+output.bad = 9007199254740993 + 1.0 # ERROR: int64 value exceeds float64 exact range (> 2^53)
 
 # Division: always float
 output.f = 7 / 2                    # 3.5 (float64)
@@ -119,9 +123,13 @@ output.bad = 7.0 / 0.0              # ERROR: division by zero
 output.bad = 7 % 0                  # ERROR: modulo by zero
 ```
 
-**Note:** Promoting uint64 to int64 may overflow for values larger than 2^63-1 (the maximum int64 value). Promoting int64 or uint64 to float64 may lose precision for values larger than 2^53. Use explicit conversion if exact large-integer arithmetic is required.
+**Integer overflow:** Integer arithmetic that overflows the result type is always a runtime error. This applies to all integer types (int32, int64, uint32, uint64) and all arithmetic operators (`+`, `-`, `*`, `%`). Implementations must detect overflow and throw an error rather than wrapping or saturating.
 
-**Integer overflow:** Overflow behavior for integer arithmetic (e.g., int64 max + 1) is implementation-defined. Implementations may wrap, saturate, or error.
+```bloblang
+output.bad = 9223372036854775807 + 1    # ERROR: int64 overflow
+output.bad = (-2147483648).int32() - 1.int32()  # ERROR: int32 overflow
+output.ok = 9223372036854775807.uint64() + 1.uint64()  # 9223372036854775808 (uint64, no overflow)
+```
 
 **Special float values (NaN, Infinity):** Division by zero is always an error — it does not produce Infinity or NaN. However, NaN and Infinity values may enter the system through input data. When they do, Bloblang follows IEEE 754 semantics:
 - `NaN == NaN` is `false` (NaN is not equal to anything, including itself)
