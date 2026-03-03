@@ -18,7 +18,7 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 | `bytes` | Byte array (operations are byte-based) | `"hello".bytes()` |
 | `array` | Ordered collection | `[1, "two", true]` |
 | `object` | Key-value map | `{"key": "value"}` |
-| `timestamp` | Point in time with nanosecond precision | `now()`, `"2024-03-01".ts_parse("2006-01-02")` |
+| `timestamp` | Point in time with nanosecond precision | `now()`, `"2024-03-01".ts_parse("%Y-%m-%d")` |
 | `lambda` | Function value | `x -> x * 2` |
 
 **Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
@@ -56,7 +56,7 @@ output.ok = 5.string() + "3"        # "53" (explicit conversion)
 - Arithmetic (`-`, `*`, `/`, `%`): Require numeric types (null errors), with promotion
 - Comparison (`>`, `<`, `>=`, `<=`): Require comparable same types (null errors), with numeric promotion
 - Equality (`==`, `!=`): Numeric types use promotion then compare by value; non-numeric types require same type and value; cross-family is always `false` (see below)
-- Logical (`&&`, `||`): Require booleans
+- Logical (`!`, `&&`, `||`): Require booleans
 
 ### Numeric Type Promotion
 
@@ -141,11 +141,11 @@ output.ok = 9223372036854775807.uint64() + 1.uint64()  # 9223372036854775808 (ui
 
 **Equality Semantics:**
 
-For non-numeric types, both type and value must match for equality to return `true`. Different non-numeric types always return `false` (not an error).
+For non-numeric types, both type and value must match for equality to return `true`. Different non-numeric types always return `false` (not an error). **Exception:** lambdas cannot be compared for equality — any `==` or `!=` with a lambda operand is a runtime error.
 
 For numeric types, the same promotion rules used for arithmetic apply before comparison. Both operands are promoted to a common numeric type, then compared by value. This means `5 == 5.0` is `true` (int64 promoted to float64, values match).
 
-Cross-family comparisons (numeric vs non-numeric) always return `false`.
+Cross-family comparisons (numeric vs non-numeric) always return `false` (except lambdas, which error).
 
 ```bloblang
 # Numeric equality: promotion rules applied
@@ -170,6 +170,9 @@ null == 0            # false (null vs numeric)
 [1, 2] == [2, 1]     # false (different order — arrays are ordered)
 {"a": 1} == {"a": 1} # true (same keys and values)
 {"a": 1, "b": 2} == {"b": 2, "a": 1}  # true (key order irrelevant for objects)
+
+# Lambdas: equality is an error
+(x -> x) == (x -> x) # ERROR: lambdas cannot be compared for equality
 ```
 
 **Object key ordering:** Object key ordering is **not preserved**. Programs must not depend on iteration order in `map_object`, JSON serialization order, or any other context where keys are enumerated. Object equality compares keys and values regardless of order.
@@ -177,8 +180,8 @@ null == 0            # false (null vs numeric)
 **Timestamp semantics:** Timestamps represent a point in time with nanosecond precision. They support:
 
 - **Equality and comparison:** Timestamps can be compared with `==`, `!=`, `<`, `>`, `<=`, `>=`. Earlier times are less than later times.
-- **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). No other arithmetic operations are supported — adding two timestamps, or adding a number to a timestamp, is an error. Use `.ts_unix()` and related methods for numeric conversions.
-- **Methods:** `.ts_format()`, `.ts_unix()`, `.ts_unix_milli()`, `.ts_unix_micro()`, `.ts_unix_nano()`, `.type()`, `.string()`.
+- **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). No other arithmetic operations are supported — adding two timestamps, or adding a number to a timestamp, is an error. Use `.ts_add(nanos)` to offset a timestamp by a duration, or `.ts_unix()` and related methods for numeric conversions.
+- **Methods:** `.ts_format()`, `.ts_add()`, `.ts_unix()`, `.ts_unix_milli()`, `.ts_unix_micro()`, `.ts_unix_nano()`, `.type()`, `.string()`.
 - **Construction from numeric:** `.ts_from_unix()` on int64 or float64 (float provides sub-second precision). See Section 13.8.
 - **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings. When converted with `.string()`, the result is also RFC 3339.
 
