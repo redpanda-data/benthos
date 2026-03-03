@@ -19,7 +19,7 @@ Generate a random UUID v4 string.
 Return the current timestamp.
 
 - **Parameters:** none
-- **Returns:** timestamp (supports `.ts_format()`, `.ts_unix()`, and timestamp arithmetic)
+- **Returns:** timestamp
 - **Example:** `now().ts_unix()` → `1709500000`
 
 ### `random()`
@@ -178,13 +178,14 @@ Convert a value to a byte array (UTF-8 encoding for strings).
 Return the type name of a value as a string. Works on any type including null.
 
 - **Receiver:** any type (including null)
-- **Returns:** string — one of `"string"`, `"int32"`, `"int64"`, `"uint32"`, `"uint64"`, `"float32"`, `"float64"`, `"bool"`, `"null"`, `"bytes"`, `"array"`, `"object"`, `"lambda"`
+- **Returns:** string — one of `"string"`, `"int32"`, `"int64"`, `"uint32"`, `"uint64"`, `"float32"`, `"float64"`, `"bool"`, `"null"`, `"bytes"`, `"timestamp"`, `"array"`, `"object"`, `"lambda"`
 - **Examples:**
   ```bloblang
   "hello".type()       # "string"
   42.type()            # "int64"
   3.14.type()          # "float64"
   null.type()          # "null"
+  now().type()         # "timestamp"
   [1, 2].type()        # "array"
   {"a": 1}.type()      # "object"
   ```
