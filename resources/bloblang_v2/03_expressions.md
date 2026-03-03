@@ -309,13 +309,13 @@ Raw string rules:
 - Newlines and whitespace are preserved as-is
 - Cannot contain a literal backtick character
 
-**Arrays:**
+**Arrays:** (trailing commas are permitted)
 ```bloblang
 [1, 2, 3]
 ["a", input.field, uuid_v4()]
 ```
 
-**Objects:**
+**Objects:** (trailing commas are permitted)
 ```bloblang
 {"name": "Alice", "age": 30}
 {"id": input.id, "timestamp": now()}
