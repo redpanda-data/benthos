@@ -12,9 +12,9 @@ Implementations may optimize without changing observable behavior. Results must 
 
 **Strategy:** Methods may return internal iterators instead of materializing arrays immediately.
 
-**Lazy methods:** `.filter()`, `.map_array()`, `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()`
+**Lazy methods (from standard library):** `.filter()`, `.map_array()`, `.flat_map()`, `.take()`, `.drop()`. Implementations offering `.take_while()` and `.skip_while()` may also make these lazy.
 
-**Terminal methods:** `.sort()`, `.reverse()`, `.length()`, `.first()`, `.last()`, `.any()`, `.all()`, `.join()`, `.fold()`
+**Terminal methods (from standard library):** `.sort()`, `.reverse()`, `.length()`, `.first()`, `.last()`, `.any()`, `.all()`, `.join()`, `.fold()`
 
 **Materialization points:**
 - Variable assignment: `$var = iterator` → array
