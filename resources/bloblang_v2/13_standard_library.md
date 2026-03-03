@@ -22,14 +22,6 @@ Return the current timestamp.
 - **Returns:** timestamp
 - **Example:** `now().ts_unix()` → `1709500000`
 
-### `random()`
-
-Return a random float64 in the range [0.0, 1.0).
-
-- **Parameters:** none
-- **Returns:** float64
-- **Example:** `random()` → `0.7312...`
-
 ### `random_int(min, max)`
 
 Return a random int64 in the inclusive range [min, max]. Error if min > max.
@@ -107,23 +99,32 @@ Convert a value to its string representation.
 
 ### `.int32()`
 
-Convert a value to int32. Errors if the value cannot be represented as int32 (out of range or non-numeric string).
+Convert a value to int32. Errors if the value cannot be represented as int32 (out of range or non-numeric string). Float values are **truncated** toward zero (fractional part discarded). Errors if the truncated value is out of int32 range.
 
 - **Receiver:** numeric types, string
 - **Returns:** int32
-- **Example:** `"42".int32()` → `42` (int32)
+- **Examples:**
+  ```bloblang
+  "42".int32()       # 42 (int32)
+  3.7.int32()        # 3 (int32: truncated toward zero)
+  (-3.7).int32()     # -3 (int32: truncated toward zero)
+  ```
 
 ### `.int64()`
 
-Convert a value to int64. Errors if the value cannot be represented as int64.
+Convert a value to int64. Errors if the value cannot be represented as int64. Float values are **truncated** toward zero.
 
 - **Receiver:** numeric types, string
 - **Returns:** int64
-- **Example:** `"42".int64()` → `42` (int64)
+- **Examples:**
+  ```bloblang
+  "42".int64()       # 42 (int64)
+  3.9.int64()        # 3 (int64: truncated toward zero)
+  ```
 
 ### `.uint32()`
 
-Convert a value to uint32. Errors if the value is negative or out of range.
+Convert a value to uint32. Errors if the value is negative or out of range. Float values are **truncated** toward zero.
 
 - **Receiver:** numeric types, string
 - **Returns:** uint32
@@ -131,7 +132,7 @@ Convert a value to uint32. Errors if the value is negative or out of range.
 
 ### `.uint64()`
 
-Convert a value to uint64. Errors if the value is negative or out of range.
+Convert a value to uint64. Errors if the value is negative or out of range. Float values are **truncated** toward zero.
 
 - **Receiver:** numeric types, string
 - **Returns:** uint64
@@ -254,7 +255,7 @@ Remove the given suffix from the end of the string. If the string does not end w
 
 ### `.contains(substring)`
 
-Check if a string contains a substring. Also works on arrays and objects (see Sections 13.5 and 13.6).
+Check if a string contains a substring. Also works on arrays (see Section 13.5). For object key checking, see `.has_key()` (Section 13.6).
 
 - **Receiver:** string
 - **Parameters:** `substring` (string)
@@ -320,7 +321,7 @@ Replace all occurrences of a substring.
 
 ### `.slice(low, high)`
 
-Extract a substring by codepoint indices. `low` is inclusive, `high` is exclusive. Negative indices count from the end. Also works on arrays (see Section 13.5).
+Extract a substring by codepoint indices. `low` is inclusive, `high` is exclusive. Negative indices count from the end. Indices are clamped to the string length — out-of-bounds indices do not error. If `low >= high` after clamping, returns an empty string. Also works on arrays (see Section 13.5).
 
 - **Receiver:** string
 - **Parameters:** `low` (int64), `high` (int64)
@@ -330,6 +331,8 @@ Extract a substring by codepoint indices. `low` is inclusive, `high` is exclusiv
   "hello world".slice(0, 5)    # "hello"
   "hello world".slice(6, 11)   # "world"
   "hello world".slice(-5, -1)  # "worl"
+  "hello".slice(0, 100)        # "hello" (high clamped to length)
+  "hello".slice(3, 1)          # "" (low >= high)
   ```
 
 ### `.reverse()`
@@ -407,35 +410,9 @@ Return the number of elements. Also works on strings (codepoints), bytes (byte c
   {"a": 1, "b": 2}.length() # 2
   ```
 
-### `.first()`
-
-Return the first element of an array. Error on empty arrays.
-
-- **Receiver:** array
-- **Returns:** any (the element)
-- **Examples:**
-  ```bloblang
-  [1, 2, 3].first()            # 1
-  [null, 1].first()             # null (first element is null)
-  [].first()                    # ERROR: empty array
-  [].first().catch(err -> 0)    # 0
-  ```
-
-### `.last()`
-
-Return the last element of an array. Error on empty arrays.
-
-- **Receiver:** array
-- **Returns:** any (the element)
-- **Examples:**
-  ```bloblang
-  [1, 2, 3].last()             # 3
-  [].last()                     # ERROR: empty array
-  ```
-
 ### `.contains(value)`
 
-Check if an array contains a value (compared by equality). Also works on strings (see Section 13.4) and objects (see Section 13.6).
+Check if an array contains a value (compared by equality). Also works on strings (see Section 13.4). For object key checking, see `.has_key()` (Section 13.6).
 
 - **Receiver:** array
 - **Parameters:** `value` (any)
@@ -445,6 +422,20 @@ Check if an array contains a value (compared by equality). Also works on strings
   [1, 2, 3].contains(2)           # true
   [1, 2, 3].contains(4)           # false
   ["a", "b"].contains("b")        # true
+  ```
+
+### `.index_of(value)`
+
+Return the index of the first occurrence of a value in an array (compared by equality), or -1 if not found.
+
+- **Receiver:** array
+- **Parameters:** `value` (any)
+- **Returns:** int64
+- **Examples:**
+  ```bloblang
+  [10, 20, 30].index_of(20)       # 1
+  [10, 20, 30].index_of(99)       # -1
+  ["a", "b", "c"].index_of("b")   # 1
   ```
 
 ### `.filter(elem -> bool)`
@@ -477,19 +468,6 @@ Transform each element of an array. Returns a new array.
   [1, -2, 3].map_array(x -> if x > 0 { x * 10 })               # ERROR: void when x <= 0
   ```
 - **See:** Section 4.1 for void and deleted() behavior in lambda returns
-
-### `.flat_map(elem -> array)`
-
-Transform each element into an array and flatten the results into a single array. The lambda must return an array for every element — void is an error. If the lambda returns `deleted()`, the element is omitted.
-
-- **Receiver:** array
-- **Parameters:** lambda (one parameter → array)
-- **Returns:** array
-- **Examples:**
-  ```bloblang
-  [1, 2, 3].flat_map(x -> [x, x * 10])           # [1, 10, 2, 20, 3, 30]
-  ["a,b", "c,d"].flat_map(x -> x.split(","))      # ["a", "b", "c", "d"]
-  ```
 
 ### `.sort()`
 
@@ -530,7 +508,7 @@ Reverse an array. Also works on strings (see Section 13.4).
 
 ### `.slice(low, high)`
 
-Extract a subarray by indices. `low` is inclusive, `high` is exclusive. Negative indices count from the end. Also works on strings (see Section 13.4).
+Extract a subarray by indices. `low` is inclusive, `high` is exclusive. Negative indices count from the end. Indices are clamped to the array length — out-of-bounds indices do not error. If `low >= high` after clamping, returns an empty array. Also works on strings (see Section 13.4).
 
 - **Receiver:** array
 - **Parameters:** `low` (int64), `high` (int64)
@@ -539,33 +517,8 @@ Extract a subarray by indices. `low` is inclusive, `high` is exclusive. Negative
   ```bloblang
   [1, 2, 3, 4, 5].slice(1, 3)    # [2, 3]
   [1, 2, 3, 4, 5].slice(-2, 5)   # [4, 5]
-  ```
-
-### `.take(n)`
-
-Return the first `n` elements of an array. If `n` exceeds the array length, returns the entire array.
-
-- **Receiver:** array
-- **Parameters:** `n` (int64, must be >= 0)
-- **Returns:** array
-- **Examples:**
-  ```bloblang
-  [1, 2, 3, 4, 5].take(3)    # [1, 2, 3]
-  [1, 2].take(10)             # [1, 2]
-  [1, 2, 3].take(0)           # []
-  ```
-
-### `.drop(n)`
-
-Return the array with the first `n` elements removed. If `n` exceeds the array length, returns an empty array.
-
-- **Receiver:** array
-- **Parameters:** `n` (int64, must be >= 0)
-- **Returns:** array
-- **Examples:**
-  ```bloblang
-  [1, 2, 3, 4, 5].drop(2)    # [3, 4, 5]
-  [1, 2].drop(10)             # []
+  [1, 2, 3].slice(0, 100)        # [1, 2, 3] (high clamped to length)
+  [1, 2, 3].slice(3, 1)          # [] (low >= high)
   ```
 
 ### `.append(value)`
@@ -681,7 +634,7 @@ Join array elements into a string with a delimiter. All elements must be strings
 
 ### `.sum()`
 
-Sum all numeric elements. Returns 0 for empty arrays. All elements must be numeric — non-numeric elements are an error. The result type follows standard promotion rules.
+Sum all numeric elements. All elements must be numeric — non-numeric elements are an error. The result type follows standard promotion rules. Returns `0` (int64) for empty arrays.
 
 - **Receiver:** array of numeric values
 - **Returns:** numeric (promoted type)
@@ -735,6 +688,7 @@ Transform each key of an object. Returns a new object with transformed keys and 
 
 - The lambda must return a string for every key — non-string return values are an error
 - If the lambda returns `deleted()`, the key-value pair is removed from the result
+- If two keys map to the same string, this is a runtime error (duplicate keys are not allowed)
 
 - **Receiver:** object
 - **Parameters:** lambda (one parameter: key string → string)
@@ -746,9 +700,22 @@ Transform each key of an object. Returns a new object with transformed keys and 
   {"a": 1, "b": 2}.map_keys(k -> if k == "a" { k } else { deleted() })  # {"a": 1}
   ```
 
+### `.filter_object((key, value) -> bool)`
+
+Return a new object containing only entries for which the lambda returns `true`. The lambda must return a boolean — non-boolean return values (including void) are an error.
+
+- **Receiver:** object
+- **Parameters:** lambda (two parameters: key string, value any → bool)
+- **Returns:** object
+- **Examples:**
+  ```bloblang
+  {"a": 1, "b": 2, "c": 3}.filter_object((k, v) -> v > 1)       # {"b": 2, "c": 3}
+  {"name": "Alice", "age": 30}.filter_object((k, v) -> k == "name")  # {"name": "Alice"}
+  ```
+
 ### `.keys()`
 
-Return the keys of an object as an array of strings. Order is not guaranteed.
+Return the keys of an object as an array of strings. Order is random.
 
 - **Receiver:** object
 - **Returns:** array of strings
@@ -756,23 +723,23 @@ Return the keys of an object as an array of strings. Order is not guaranteed.
 
 ### `.values()`
 
-Return the values of an object as an array. Order is not guaranteed, but matches the order of `.keys()` for the same object in the same call.
+Return the values of an object as an array. Order is random.
 
 - **Receiver:** object
 - **Returns:** array
 - **Example:** `{"a": 1, "b": 2}.values()` → `[1, 2]` (order not guaranteed)
 
-### `.contains(key)`
+### `.has_key(key)`
 
-Check if an object contains a key. Also works on strings (see Section 13.4) and arrays (see Section 13.5).
+Check if an object contains the given key.
 
 - **Receiver:** object
 - **Parameters:** `key` (string)
 - **Returns:** bool
 - **Examples:**
   ```bloblang
-  {"a": 1, "b": 2}.contains("a")     # true
-  {"a": 1, "b": 2}.contains("c")     # false
+  {"a": 1, "b": 2}.has_key("a")     # true
+  {"a": 1, "b": 2}.has_key("c")     # false
   ```
 
 ### `.merge(other)`
@@ -804,7 +771,7 @@ Return a new object with the specified keys removed. Keys that don't exist are i
 
 ### `.key_values()`
 
-Convert an object to an array of `{"key": k, "value": v}` objects. Order is not guaranteed.
+Convert an object to an array of `{"key": k, "value": v}` objects. Order is random.
 
 - **Receiver:** object
 - **Returns:** array of objects

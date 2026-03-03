@@ -80,7 +80,7 @@ When arithmetic, comparison, or equality operators are applied to operands of di
 | float32 / float32 | float32 |
 | All other combinations | float64 |
 
-**Modulo follows standard promotion rules** (not the division rule). The result type is determined by the promoted operand type. For float operands, modulo uses `fmod` semantics (IEEE 754 remainder):
+**Modulo follows standard promotion rules** (not the division rule). The result type is determined by the promoted operand type. For float operands, modulo uses **truncated division remainder** semantics (equivalent to C `fmod`), where the result has the same sign as the dividend:
 
 | Operand types | Result type | Example |
 |---------------|-------------|---------|
