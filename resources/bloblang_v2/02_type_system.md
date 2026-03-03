@@ -18,6 +18,7 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 | `bytes` | Byte array (operations are byte-based) | `"hello".bytes()` |
 | `array` | Ordered collection | `[1, "two", true]` |
 | `object` | Key-value map | `{"key": "value"}` |
+| `timestamp` | Point in time with nanosecond precision | `now()`, `"2024-03-01".ts_parse("2006-01-02")` |
 | `lambda` | Function value | `x -> x * 2` |
 
 **Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
@@ -172,6 +173,23 @@ null == 0            # false (null vs numeric)
 ```
 
 **Object key ordering:** Object key ordering is **not preserved**. Programs must not depend on iteration order in `map_object`, JSON serialization order, or any other context where keys are enumerated. Object equality compares keys and values regardless of order.
+
+**Timestamp semantics:** Timestamps represent a point in time with nanosecond precision. They support:
+
+- **Equality and comparison:** Timestamps can be compared with `==`, `!=`, `<`, `>`, `<=`, `>=`. Earlier times are less than later times.
+- **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). No other arithmetic operations are supported — adding two timestamps, or adding a number to a timestamp, is an error. Use `.ts_unix()` and related methods for numeric conversions.
+- **Methods:** `.ts_format()`, `.ts_unix()`, `.ts_unix_milli()`, `.ts_unix_micro()`, `.ts_unix_nano()`, `.type()`, `.string()`.
+- **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings. When converted with `.string()`, the result is also RFC 3339.
+
+```bloblang
+$a = now()
+$b = now()
+$a < $b                    # true (earlier < later)
+$a == $a                   # true
+$b - $a                    # int64: nanoseconds between the two timestamps
+$a + 1                     # ERROR: cannot add timestamp and int64
+$a.string()                # "2024-03-01T12:00:00.000000000Z" (RFC 3339)
+```
 
 ## 2.4 Null Handling
 
