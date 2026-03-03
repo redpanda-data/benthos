@@ -277,7 +277,7 @@ output.category = match {
 }
 ```
 
-**Match semantics:** There are three forms: `match expr { ... }` compares each case value by equality against the matched expression. `match expr as x { ... }` binds the matched value to `x` and each case must be a boolean expression. `match { ... }` (no expression) also requires each case to be a boolean expression. In all boolean forms, cases are evaluated in order, first `true` wins, and a non-boolean case throws an error.
+**Match semantics:** There are three forms: `match expr { ... }` compares each case value by equality against the matched expression — if a case evaluates to a boolean, it throws an error (use `as` for boolean conditions, or `if`/`else` to match boolean values). `match expr as x { ... }` binds the matched value to `x` and each case must be a boolean expression. `match { ... }` (no expression) also requires each case to be a boolean expression. In all boolean forms, cases are evaluated in order, first `true` wins, and a non-boolean case throws an error.
 
 **Purity:** Conditional expressions cannot assign to `output` or `output@`.
 
