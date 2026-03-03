@@ -42,7 +42,7 @@ input.data[-1]      # Bytes: last byte as int32
 **Semantics:**
 - **Objects:** Indexed by string, returns field value (dynamic field access)
 - **Arrays:** Indexed by number, returns element at position
-- **Strings:** Indexed by number (codepoint position), returns int32 (Unicode codepoint value). Negative indices count from the end.
+- **Strings:** Indexed by number (codepoint position), returns int32 (Unicode codepoint value). Negative indices count from the end. **Note:** Integer literals are int64, so `"hello"[0] == 104` involves int32→int64 promotion, which is always lossless and succeeds. Use `char()` to convert back to a string.
 - **Bytes:** Indexed by number (byte position), returns int32 (byte value 0-255). Negative indices count from the end.
 
 **String indexing is codepoint-based, not grapheme-based:**

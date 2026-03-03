@@ -34,26 +34,26 @@
 
 **Resolved:** Created Section 13 (Standard Library) as the canonical reference for all required functions and methods. All previously-undefined methods (`.contains()`, `.flat_map()`, `.take()`, `.drop()`, `.any()`, `.all()`, `.join()`, `.fold()`, `.parse_json()`, etc.) are now defined there, along with many additional methods inspired by the original Bloblang language.
 
-### 8. No mechanism to convert codepoint (int32) back to a string character
+### ~~8. No mechanism to convert codepoint (int32) back to a string character~~
 
-String indexing returns int32 codepoint values (`"hello"[0]` → `104`), but the spec provides no function to convert back (e.g., `char(104)` → `"h"`). This makes string indexing a one-way operation, limiting its usefulness.
+**Resolved:** Added `char(codepoint)` function to the standard library (Section 13.1). `char(104)` → `"h"`. This is the inverse of string indexing.
 
-### 9. `map_object` cannot transform keys
+### ~~9. `map_object` cannot transform keys~~
 
-`map_object((key, value) -> expr)` only replaces the value; keys are always preserved. There's no built-in way to rename or transform object keys in a single operation. This forces awkward workarounds for a common transformation need.
+**Resolved:** Added `.map_keys(key -> expr)` to the standard library (Section 13.6). This transforms keys while preserving values, complementing `.map_object()` which transforms values while preserving keys.
 
 ---
 
 ## Low Priority / Nitpicks
 
-### 10. `match as` binding scope not explicitly stated for result expressions
+### ~~10. `match as` binding scope not explicitly stated for result expressions~~
 
-Section 4.3 shows `c` used in result bodies of match arms, but the prose in Section 4.2 never explicitly states that the `as` binding is available in both case conditions AND result expressions. It's implied by examples but should be stated.
+**Resolved:** Section 4.2 now explicitly states that the `as` binding is available in both case conditions and result expressions.
 
-### 11. Grammar's `match_expr` doesn't distinguish equality vs boolean forms
+### ~~11. Grammar's `match_expr` doesn't distinguish equality vs boolean forms~~
 
-The grammar uses the same `expr_match_case` production for all three match forms. The equality-vs-boolean distinction is purely semantic, not syntactic. This is fine for implementation but means the grammar alone is insufficient to understand the language — it requires the prose from Section 4.2.
+**Resolved:** Added a comment block in the grammar (Section 10) explicitly noting that the three match forms share the same syntactic production, and listing the semantic rules that a post-parse pass must enforce.
 
-### 12. String/byte indexing returns int32, but literals default to int64
+### ~~12. String/byte indexing returns int32, but literals default to int64~~
 
-`"hello"[0]` returns `104` as int32, while `104` as a literal is int64. So `"hello"[0] == 104` requires implicit int32→int64 promotion. This works correctly per the promotion rules but is a minor surprise.
+**Resolved:** Added a note in Section 3.1 clarifying that string indexing returns int32 while literals are int64, and that the int32→int64 promotion is always lossless. Also noted that `char()` converts codepoints back to strings.

@@ -48,6 +48,14 @@ match_stmt      := 'match' expression ('as' identifier)? '{' stmt_match_case (',
 expr_match_case := (expression | '_') '=>' (expression | '{' expr_body '}')
 stmt_match_case := (expression | '_') '=>' '{' stmt_body '}'
 
+# Note: The grammar uses the same case production for all three match forms
+# (equality, boolean with 'as', boolean without expression). The distinction
+# between these forms is semantic, not syntactic. A semantic pass must enforce:
+#   - With 'as': case expressions must evaluate to boolean (Section 4.2)
+#   - Without 'as' (equality form): case expressions that evaluate to boolean
+#     are a runtime error (Section 4.2)
+#   - Without expression: case expressions must evaluate to boolean (Section 4.2)
+
 # Note: this is a simplified flat production. Operator precedence, associativity,
 # and non-associativity rules are defined in Section 3.2 and must be applied by
 # the parser. In particular, chaining non-associative operators (e.g., a < b < c)
