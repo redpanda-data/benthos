@@ -176,6 +176,7 @@ output.result = filter_negative(input.value)  # Field deleted if value < 0
 deleted() + 5                   # ERROR: cannot perform arithmetic on deleted
 deleted() == deleted()          # ERROR: cannot compare deleted values
 deleted().type()                # ERROR: cannot call methods on deleted value
+deleted()?.field                # ERROR: ?. only short-circuits on null, not deleted
 ```
 
 These operations result in **runtime errors** (or compile-time errors if detectable by implementation).

@@ -12,9 +12,9 @@ Implementations may optimize without changing observable behavior. Results must 
 
 **Strategy:** Methods may return internal iterators instead of materializing arrays immediately.
 
-**Lazy methods (from standard library):** `.filter()`, `.map_array()`, `.flat_map()`, `.take()`, `.drop()`. Implementations offering `.take_while()` and `.skip_while()` may also make these lazy.
+**Lazy methods (from standard library):** `.filter()`, `.map_array()`. Additional extension methods like `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()` may also be made lazy if offered.
 
-**Terminal methods (from standard library):** `.sort()`, `.reverse()`, `.length()`, `.first()`, `.last()`, `.any()`, `.all()`, `.join()`, `.fold()`
+**Terminal methods (from standard library):** `.sort()`, `.reverse()`, `.length()`, `.any()`, `.all()`, `.join()`, `.fold()`
 
 **Materialization points:**
 - Variable assignment: `$var = iterator` → array
@@ -25,15 +25,14 @@ Implementations may optimize without changing observable behavior. Results must 
 **Example:**
 ```bloblang
 # Direct chain (stays lazy)
-output.top = input.items
+output.active_values = input.items
   .filter(x -> x.active)
   .map_array(x -> x.value)
-  .take(10)
-# Single pass, processes only ~10 items
+# Single pass, no intermediate array
 
 # Variable breaks chain (materializes)
 $filtered = input.items.filter(x -> x.active)  # Materializes
-output.top = $filtered.take(10)                 # Two passes
+output.values = $filtered.map_array(x -> x.value)  # Second pass
 ```
 
 **Benefit:** 10-100x faster for large datasets, no intermediate allocations.
@@ -58,9 +57,8 @@ output.results = input.items
 
 ### Early Termination
 
-`.take()`, `.any()`, `.all()` should stop processing when result is determined:
+`.any()`, `.all()` should stop processing when result is determined:
 ```bloblang
-input.items.take(10)          # Stop after 10 items
 input.items.any(x -> x > 100) # Stop at first match
 input.items.all(x -> x > 0)   # Stop at first non-match
 ```

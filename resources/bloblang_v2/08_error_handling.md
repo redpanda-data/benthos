@@ -24,6 +24,8 @@ Common error sources:
 
 Handle errors with `.catch()`. The method takes a lambda with a single parameter — the error object — and is called only when the expression to its left produces an error. If the expression succeeds, `.catch()` returns its value unchanged. If the lambda itself errors, that error propagates and can be caught by a subsequent `.catch()`.
 
+**Scope:** Errors propagate through method chains — if any method in the chain errors, subsequent methods are skipped and the error flows to the next `.catch()`. This means `.catch()` catches any error produced anywhere in the entire expression chain to its left, not just the immediately preceding method call.
+
 **The error object** has a single field:
 - `.what` — a string containing the error message
 
@@ -112,9 +114,10 @@ input.user?.name    # OK: returns null if user is null, or user.name if user is 
 input.date.ts_parse("format").catch(err -> null)  # null if parse fails
 ```
 
-**`.or()`**: Handles `null`, not errors. Short-circuits: argument only evaluated if receiver is null.
+**`.or()`**: Handles `null`, not errors. Short-circuits: argument only evaluated if receiver is null. If the receiver is an error, the error propagates through `.or()` uncaught.
 ```bloblang
 input.name.or("default")  # "default" if name is null
+(5 / 0).or("default")     # ERROR propagates: .or() does not catch errors
 ```
 
 **Combine for both:**
@@ -143,12 +146,11 @@ input.user?.address?.city.or("Unknown")  # Combine null-safe navigation with def
 
 **When a method returns null:** The null propagates to the next operation:
 ```bloblang
-[null, "a"].first().uppercase()       # ERROR: first() returns null, uppercase requires string
-[null, "a"].first()?.uppercase()      # OK: returns null (null-safe skips uppercase)
+input.items[0]?.uppercase()      # OK: returns null if first element is null (null-safe skips uppercase)
+input.items[0].uppercase()       # ERROR if first element is null (uppercase requires string)
 
-# first() errors on empty arrays — use .catch() for fallback
-input.items.first().uppercase()                    # ERROR if array is empty
-input.items.first().catch(err -> "").uppercase()    # OK: provides default on empty array
+# Out-of-bounds errors — use .catch() for fallback
+input.items[0].catch(err -> "").uppercase()    # OK: provides default on empty array
 ```
 
 ## 8.7 Validation Methods
