@@ -84,8 +84,8 @@ Convert a value to its string representation.
 - **Returns:** string
 - **Examples:**
   ```bloblang
-  42.string()          # "42"
-  3.14.string()        # "3.14"
+  42.string()          # "42" (int64 → string)
+  3.14.string()        # "3.14" (float64 → string)
   true.string()        # "true"
   null.string()        # "null"
   ```
@@ -673,6 +673,7 @@ Sum all numeric elements. Returns 0 for empty arrays. All elements must be numer
   ```bloblang
   [1, 2, 3].sum()        # 6 (int64)
   [1.5, 2.5].sum()       # 4.0 (float64)
+  [1, 1.5, 2].sum()      # 4.5 (float64: int64 promoted to float64)
   [].sum()                # 0 (int64)
   ```
 
@@ -791,9 +792,9 @@ Return the absolute value.
 - **Returns:** same type as receiver
 - **Examples:**
   ```bloblang
-  (-5).abs()      # 5
-  3.14.abs()      # 3.14
-  (-3.14).abs()   # 3.14
+  (-5).abs()      # 5 (int64)
+  3.14.abs()      # 3.14 (float64)
+  (-3.14).abs()   # 3.14 (float64)
   ```
 
 ### `.floor()`
@@ -804,8 +805,8 @@ Return the largest integer value less than or equal to the number.
 - **Returns:** same float type as receiver
 - **Examples:**
   ```bloblang
-  3.7.floor()     # 3.0
-  (-3.2).floor()  # -4.0
+  3.7.floor()     # 3.0 (float64)
+  (-3.2).floor()  # -4.0 (float64)
   ```
 
 ### `.ceil()`
@@ -816,8 +817,8 @@ Return the smallest integer value greater than or equal to the number.
 - **Returns:** same float type as receiver
 - **Examples:**
   ```bloblang
-  3.2.ceil()      # 4.0
-  (-3.7).ceil()   # -3.0
+  3.2.ceil()      # 4.0 (float64)
+  (-3.7).ceil()   # -3.0 (float64)
   ```
 
 ### `.round(n)`
@@ -825,7 +826,7 @@ Return the smallest integer value greater than or equal to the number.
 Round a float to `n` decimal places using **half-even rounding** (banker's rounding, IEEE 754 default).
 
 - **Receiver:** float32, float64
-- **Parameters:** `n` (integer — number of decimal places)
+- **Parameters:** `n` (int64 — number of decimal places)
 - **Returns:** same float type as receiver
 - **Examples:**
   ```bloblang
