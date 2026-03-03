@@ -1,5 +1,7 @@
 # 10. Grammar Reference
 
+**Statement separation:** Statements are separated by newlines. Multiple statements on a single line are not allowed — each statement must begin on its own line. Newlines inside balanced delimiters (`()`, `[]`, `{}`) are treated as whitespace and do not separate statements, allowing expressions and blocks to span multiple lines freely.
+
 ```
 program         := top_level_statement*
 top_level_statement := statement | map_decl | import_stmt
@@ -7,7 +9,8 @@ statement       := assignment | var_decl | if_stmt | match_stmt
 assignment      := top_level_path '=' expression
 var_decl        := '$' identifier '=' expression
 map_decl        := 'map' identifier '(' [param_list] ')' '{' var_decl* expression '}'
-param_list      := identifier (',' identifier)*
+param_list      := param (',' param)*
+param           := identifier | identifier '=' expression
 import_stmt     := 'import' string_literal 'as' identifier
 
 expression      := literal | expr_path | function_call | method_chain |
@@ -67,7 +70,7 @@ unary_expr      := unary_op expression
 unary_op        := '!' | '-'
 
 lambda_expr     := lambda_params '->' (expression | lambda_block)
-lambda_params   := identifier | '(' identifier (',' identifier)* ')'
+lambda_params   := identifier | '(' param (',' param)* ')'
 lambda_block    := '{' var_decl* expression '}'
 paren_expr      := '(' expression ')'
 
@@ -103,7 +106,9 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
 - **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments)
 - **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments
-- **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body
+- **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default expressions are evaluated at call time.
+- **Arity:** Positional calls must provide at least the required parameter count and at most the total count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
+- **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body
 - **Side effects:**
   - Expressions cannot assign to `output` or `output@`
   - Lambda blocks: Variable declarations + final expression (no side effects)

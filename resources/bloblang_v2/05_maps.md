@@ -22,6 +22,11 @@ map calculate(x, y, z) {
   x + y * z
 }
 
+# Default parameters (must come after required parameters)
+map format_price(amount, currency = "USD", decimals = 2) {
+  currency + " " + amount.round(decimals).string()
+}
+
 # Invocation
 output.headers = default_headers()
 output.result = name(input.data)
@@ -30,11 +35,23 @@ output.calc = calculate(1, 2, 3)
 # Invocation - named arguments (for maps with parameters)
 output.result = name(parameter: input.data)
 output.calc = calculate(x: 1, y: 2, z: 3)
+
+# Using defaults — positional (trailing optional args omitted)
+output.price = format_price(99.99)                # "USD 99.99"
+output.price = format_price(99.99, "EUR")         # "EUR 99.99"
+output.price = format_price(99.99, "EUR", 0)      # "EUR 100"
+
+# Using defaults — named (missing optional args use defaults)
+output.price = format_price(amount: 99.99)                          # "USD 99.99"
+output.price = format_price(amount: 99.99, decimals: 0)             # "USD 100"
+output.price = format_price(amount: 99.99, currency: "EUR")         # "EUR 99.99"
 ```
 
 Maps are **isolated functions**: they take zero or more parameters, optionally declare variables, and return a value. They cannot reference `input` or `output`.
 
 **Argument styles:** Functions can be called with positional or named arguments, but not both in the same call.
+
+**Default parameters:** Parameters may have default values (`param = expr`). Parameters with defaults must come after all required parameters. Default expressions are evaluated at call time, not at definition time.
 
 ## 5.2 Examples
 
@@ -101,6 +118,7 @@ output = walk_tree(input)
 - Maps are isolated: the map body has no access to external state (`input`, `output`, top-level variables). The result is determined by the parameter values, but note that closures passed as arguments may carry captured mutable state (Section 3.4), so the same lambda value can produce different results across calls
 - Call with positional arguments (match order) or named arguments (match names)
 - **Cannot mix** positional and named arguments in the same call
+- **Arity:** Positional calls must provide at least the required parameter count and at most the total parameter count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
 - **Parameter shadowing:** Parameter names shadow any map names with the same name within the map body. The parameter always wins. Imported namespaces are not affected since they use `::` syntax — `namespace::func()` is always unambiguous regardless of parameter names.
 
 ```bloblang
