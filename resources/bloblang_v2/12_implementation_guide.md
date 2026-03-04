@@ -93,7 +93,7 @@ Optimize repeated concatenation:
 `.catch()` and `.or()` are parsed as regular method calls (via the `method_chain` grammar production) but require special handling by the runtime. They **cannot** be implemented as ordinary methods:
 
 - **`.catch(err -> expr)`** — Must intercept errors from the left-hand expression chain. Normal methods are skipped when the receiver is an error; `.catch()` is the opposite — it activates only on errors and passes through successful values unchanged. See Section 8.2.
-- **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
+- **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null or void. Additionally, `.or()` is the only method that can be called on void — all other methods error on void receivers. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
 
 Implementations should recognize these during compilation/interpretation and emit specialized instructions rather than routing them through the general method dispatch path.
 

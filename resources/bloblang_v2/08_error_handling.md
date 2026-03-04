@@ -6,18 +6,11 @@ Errors propagate through expressions:
 ```bloblang
 output.parsed = input.date.ts_parse("%Y-%m-%d")
 # Throws error if parsing fails
-
-output.sound = match input.animal {
-  "cat" => "meow",
-  "dog" => "woof",
-}
-# Throws error if animal is neither "cat" nor "dog" (non-exhaustive match)
 ```
 
 Common error sources:
 - Type mismatches (e.g., `5 + "text"`)
 - Failed method calls (e.g., parsing, out-of-bounds access)
-- Non-exhaustive match expressions
 - Explicit `throw()` calls
 
 ## 8.2 Catch Method
@@ -48,7 +41,9 @@ output.parsed = input.date
 
 ## 8.3 Or Method
 
-Provide default for null values. `.or()` uses **short-circuit evaluation**: the argument expression is only evaluated if the receiver value is null. If the receiver is non-null, the argument is never evaluated and the receiver value is returned directly.
+Provide default for null or void values. `.or()` uses **short-circuit evaluation**: the argument expression is only evaluated if the receiver is null or void. If the receiver has a value (non-null, non-void), the argument is never evaluated and the receiver value is returned directly.
+
+`.or()` is the only method that can be called on void — all other method calls on void are errors. This makes `.or()` useful for providing defaults in deeply nested expressions involving if-without-else or non-exhaustive match:
 
 ```bloblang
 output.name = input.user.name.or("Anonymous")
@@ -56,6 +51,12 @@ output.count = input.items?.length().or(0)
 
 # Short-circuit: throw() is only evaluated if name is null
 output.name = input.name.or(throw("name is required"))
+
+# Rescues void from if-without-else
+output.label = (if input.premium { "VIP" }).or("standard")
+
+# Rescues void from non-exhaustive match
+output.sound = (match input.animal { "cat" => "meow", "dog" => "woof" }).or("unknown")
 ```
 
 ## 8.4 Throw Function
@@ -114,10 +115,12 @@ input.user?.name    # OK: returns null if user is null, or user.name if user is 
 input.date.ts_parse("format").catch(err -> null)  # null if parse fails
 ```
 
-**`.or()`**: Handles `null`, not errors. Short-circuits: argument only evaluated if receiver is null. If the receiver is an error, the error propagates through `.or()` uncaught.
+**`.or()`**: Handles `null` and `void`, not errors. Short-circuits: argument only evaluated if receiver is null or void. If the receiver is an error, the error propagates through `.or()` uncaught.
 ```bloblang
-input.name.or("default")  # "default" if name is null
-(5 / 0).or("default")     # ERROR propagates: .or() does not catch errors
+input.name.or("default")                                   # "default" if name is null
+(if false { "hello" }).or("world")                         # "world" (void rescued)
+(match input.x { "a" => 1 }).or(0)                        # 0 if no case matched (void rescued)
+(5 / 0).or("default")                                      # ERROR propagates: .or() does not catch errors
 ```
 
 **Combine for both:**

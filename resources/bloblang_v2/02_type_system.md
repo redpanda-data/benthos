@@ -23,7 +23,7 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 
 **Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
 
-**Void:** Void is not a runtime type — it is the absence of a value, produced when an if-expression without `else` has a false condition (Section 4.1). Void cannot be stored in variables, passed as arguments, used in expressions, or included in collection literals (all are errors). It only exists transiently to signal "no value was produced," and is only meaningful in assignments where it causes the assignment to be skipped (a no-op). Since void can never be the receiver of a method call, `.type()` on void is not possible. See Section 4.1 for full void semantics.
+**Void:** Void is not a runtime type — it is the absence of a value, produced when an if-expression without `else` has a false condition, or when a match expression without `_` has no matching case (Section 4.1). Void cannot be stored in variables, passed as arguments, used in expressions, or included in collection literals (all are errors). It only exists transiently to signal "no value was produced," and is only meaningful in assignments where it causes the assignment to be skipped (a no-op). The sole exception is `.or()`, which rescues void by returning its argument (Section 8.3). Other method calls on void are errors — e.g., `.type()` on void is not possible. See Section 4.1 for full void semantics.
 
 ## 2.2 Type Introspection
 
@@ -99,7 +99,7 @@ output.c = 5.int32() + 10           # 15 (int64: int32 promoted to int64)
 
 # Signed + unsigned: promote to int64 (checked)
 output.d = 5.int32() + 10.uint32()  # 15 (int64: both fit)
-output.bad = 5 + 9999999999999999999.uint64()  # ERROR: uint64 value exceeds int64 range
+output.bad = 5 + "9999999999999999999".uint64()  # ERROR: uint64 value exceeds int64 range
 
 # Integer + float: promote to float64 (checked)
 output.e = 5 + 3.0                  # 8.0 (float64: 5 fits exactly)
@@ -138,6 +138,7 @@ output.ok = 9223372036854775807.uint64() + 1.uint64()  # 9223372036854775808 (ui
 - `NaN > x`, `NaN < x`, `NaN >= x`, `NaN <= x` are all `false` for any `x`
 - Arithmetic with NaN produces NaN
 - Infinity compares normally (`Infinity > 1.0` is `true`, `Infinity == Infinity` is `true`)
+- Negative zero: `-0.0 == 0.0` is `true`, `-0.0 < 0.0` is `false` (they are equal per IEEE 754). `.string()` normalizes to `"0"`.
 
 **Equality Semantics:**
 
@@ -182,8 +183,8 @@ null == 0            # false (null vs numeric)
 - **Equality and comparison:** Timestamps can be compared with `==`, `!=`, `<`, `>`, `<=`, `>=`. Earlier times are less than later times.
 - **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). No other arithmetic operations are supported — adding two timestamps, or adding a number to a timestamp, is an error. Use `.ts_add(nanos)` to offset a timestamp by a duration, or `.ts_unix()` and related methods for numeric conversions.
 - **Methods:** `.ts_format()`, `.ts_add()`, `.ts_unix()`, `.ts_unix_milli()`, `.ts_unix_micro()`, `.ts_unix_nano()`, `.type()`, `.string()`.
-- **Construction from numeric:** `.ts_from_unix()` on int64 or float64 (float provides sub-second precision). See Section 13.8.
-- **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings. When converted with `.string()`, the result is also RFC 3339.
+- **Construction from numeric:** `.ts_from_unix()` on any numeric type (integers widened to int64 for second precision; floats widened to float64 for sub-second precision). See Section 13.8.
+- **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings. When converted with `.string()`, the result is also RFC 3339. Trailing fractional zeros are trimmed (e.g., `.500000000` becomes `.5`; whole-second timestamps omit the fractional part entirely).
 
 ```bloblang
 $a = now()
@@ -192,7 +193,7 @@ $a < $b                    # true (earlier < later)
 $a == $a                   # true
 $b - $a                    # int64: nanoseconds between the two timestamps
 $a + 1                     # ERROR: cannot add timestamp and int64
-$a.string()                # "2024-03-01T12:00:00.000000000Z" (RFC 3339)
+$a.string()                # "2024-03-01T12:00:00Z" (RFC 3339, trailing zeros trimmed)
 ```
 
 ## 2.4 Null Handling
@@ -214,8 +215,8 @@ null != 5            # true
 input.user?.name           # null if user is null (no error)
 input.items?[0]            # null if items is null (no error)
 
-# ✅ .or() provides defaults for null values
-input.value.or("default")  # "default" if value is null
+# ✅ .or() provides defaults for null or void
+input.value.or("default")  # "default" if value is null or void
 ```
 
 ## 2.5 Type Conversions

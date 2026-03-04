@@ -175,3 +175,42 @@ $multiplier = 3
 output.b = apply(5, $fn)  # 15 — $fn's captured $multiplier changed
 ```
 - Testable: Easy to test in isolation
+
+## 5.5 Maps as Values
+
+Maps are **first-class values** — a map name used without parentheses evaluates to a lambda value. This allows maps to be passed as arguments, stored in variables, and used anywhere a lambda is expected.
+
+```bloblang
+map double(x) { x * 2 }
+
+# Pass map directly to higher-order methods
+output.doubled = input.items.map_array(double)          # Same as: map_array(x -> double(x))
+
+# Store map in a variable
+$fn = double
+output.result = $fn(21)                                 # 42
+
+# Namespace-qualified references also work as values
+import "./math.blobl" as math
+output.results = input.items.map_array(math::double)    # Same as: map_array(x -> math::double(x))
+$fn = math::double
+output.result = $fn(21)                                 # 42
+```
+
+**Type:** Map references evaluate to `lambda`. Their `.type()` returns `"lambda"`.
+
+**Parameter info preserved:** Named arguments, defaults, and arity are preserved when a map is used as a value:
+```bloblang
+map greet(name, greeting = "Hello") { greeting + ", " + name }
+
+$fn = greet
+output.a = $fn("Alice")                   # "Hello, Alice"
+output.b = $fn(name: "Alice")             # "Hello, Alice"
+output.c = $fn("Alice", "Hi")             # "Hi, Alice"
+```
+
+**Shadowing:** Parameter names still shadow map names within map and lambda bodies (Section 5.3). A bare identifier always resolves to the innermost binding — parameter first, then map name:
+```bloblang
+map double(x) { x * 2 }
+input.items.map_array(double -> double + 1)   # 'double' is the parameter, not the map
+```

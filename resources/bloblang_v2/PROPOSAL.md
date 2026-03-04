@@ -68,7 +68,7 @@ deleted().or("fallback")            # deletion marker
 nothing().or("fallback")            # internal nothing type
 ```
 
-V2 separates these cleanly: `.or()` handles only null, `.catch()` handles only errors.
+V2 separates these cleanly: `.or()` handles null and void (absence of a value), `.catch()` handles only errors.
 
 ### The pipe `|` looks like logical OR but is coalesce
 
@@ -79,7 +79,7 @@ The `|` operator is a null/error coalesce, not a logical OR — but it uses the 
 root.city = this.user.address.city | "Unknown"
 ```
 
-V2 removes `|` entirely and provides `?.` for null-safe navigation and `.or()` for explicit null fallback.
+V2 removes `|` entirely and provides `?.` for null-safe navigation and `.or()` for explicit null/void fallback.
 
 ### Numbers silently coerce to booleans
 

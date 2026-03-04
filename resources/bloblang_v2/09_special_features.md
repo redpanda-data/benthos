@@ -29,10 +29,10 @@ output.value = input?.user?[$field_name]
 
 ```bloblang
 # Delete output field
-output.field = deleted()        # Field marked for deletion
+output.field = deleted()        # Field removed from output
 
-# Delete entire document
-output = deleted()              # Document marked for deletion (metadata persists)
+# Drop entire message (immediately exits the mapping)
+output = deleted()              # Message dropped, no further statements execute
 
 # Delete metadata key
 output@.key = deleted()         # Specific key removed
@@ -47,36 +47,37 @@ output@ = {"key": "value"}     # Replaces all metadata with this object
 output@ = deleted()             # ERROR: cannot delete metadata object
 ```
 
-**`output` vs `output@` — deletion and assignment:**
+**`output = deleted()` — immediate message drop:**
 
-`output` can hold any type (object, array, string, bytes, etc.), so `output = deleted()` removes the document entirely — it is marked for deletion and reads as `null`. Restoring it requires a root reassignment (`output = value`); field assignment through a deleted document is a type error since there is no underlying structure.
+`output = deleted()` drops the entire message (document + metadata) from the stream and **immediately exits the mapping**. No subsequent statements execute. This is a terminal operation — there is no way to "restore" a deleted output.
+
+```bloblang
+output = deleted()
+output.field = "value"          # Never executes — mapping already exited
+output@.kafka_topic = "topic"   # Never executes — mapping already exited
+```
+
+To conditionally drop messages, use an if expression or match:
+```bloblang
+# Conditional drop — if spam, message is dropped and mapping exits
+output = if input.spam { deleted() } else { input }
+
+# Using match
+output = match input.type {
+  "spam" => deleted(),
+  _ => input,
+}
+```
+
+**`output@` cannot be deleted:**
 
 `output@` is always an object (a key-value map of metadata). It cannot be deleted — `output@ = deleted()` is an error. To clear all metadata keys, assign an empty object: `output@ = {}`. You can also replace all metadata with an object literal or copy from input: `output@ = input@`.
 
 ```bloblang
-# Document deletion: removes the document, reads as null
-output = deleted()
-$val = output                   # $val is null
-output = "hello"                # OK: root reassignment restores document
-output = deleted()
-output.field = "value"          # ERROR: cannot assign field on non-object (null)
-
 # Metadata: cannot be deleted, only cleared or replaced
 output@ = deleted()             # ERROR: cannot delete metadata object
 output@ = {}                    # OK: clears all metadata keys
 output@.key = "value"           # OK: assigning key to the metadata object
-```
-
-**Restoration of deleted output:** Only root reassignment restores a deleted document:
-```bloblang
-output = deleted()              # Document deleted
-output = "hello"                # Document restored with new value
-
-# Same error as assigning through any non-object value:
-output = deleted()
-output.field = "value"          # ERROR: cannot assign field on non-object (null)
-output = "hello"
-output.field = "value"          # ERROR: cannot assign field on non-object (string)
 ```
 
 **Variable deletion:** Assigning `deleted()` to a variable **removes the variable**:
@@ -85,9 +86,9 @@ $val = deleted()                # Variable $val is deleted (ceases to exist)
 output.field = $val             # ERROR: variable $val does not exist
 ```
 
-### deleted() as a First-Class Value
+### deleted() in Expressions
 
-**Any expression can yield `deleted()`**, including maps, lambdas, if expressions, and match expressions. When `deleted()` flows through expressions and is assigned or included in a collection, it causes removal:
+**Any expression can yield `deleted()`**, including maps, lambdas, if expressions, and match expressions. When `deleted()` flows through expressions and is assigned to a field or included in a collection, it causes removal. When it flows to a root output assignment (`output = deleted()`), it drops the message and exits the mapping.
 
 **In array operations:**
 ```bloblang
@@ -110,7 +111,7 @@ output.user = {
 # If email not verified, field "email" is removed from object
 ```
 
-**`deleted()` vs void (if-without-else):** These are different concepts. `deleted()` is an active deletion marker that removes elements and fields from collections. Void (from an if-without-else when false) means "no value was produced" and is an **error** in collection literals — use `deleted()` or an `else` branch instead. Void is only meaningful in assignments, where it causes the assignment to be skipped. See Section 4.1 for full void semantics.
+**`deleted()` vs void:** These are different concepts. `deleted()` is an active deletion marker that removes elements and fields from collections. Void (from an if-without-else when false, or a match-without-`_` when no case matches) means "no value was produced" and is an **error** in collection literals — use `deleted()`, an `else` branch, or a `_` case instead. Void is only meaningful in assignments, where it causes the assignment to be skipped. See Section 4.1 for full void semantics.
 ```bloblang
 output.items = [1, deleted(), 3]          # [1, 3] — deleted: element actively removed
 output.items = [1, if false { 2 }, 3]     # ERROR: void in collection literal
@@ -152,14 +153,20 @@ output.users = [
 output.category = if input.spam { deleted() } else { input.category }
 # If spam, output.category field doesn't exist (not even with null value)
 
-# Message filtering
+# Message drop — deleted() flows to root assignment, exits mapping
 output = if input.spam { deleted() } else { input }
-# If spam, entire document deleted
+# If spam, message is dropped and mapping exits immediately
 
 # deleted() from a match arm flows out identically
 output.result = match input.x {
   "b" => deleted(),    # Field actively removed if x == "b"
   _ => input.x,
+}
+
+# Message drop via match
+output = match input.type {
+  "spam" => deleted(),   # Message dropped, mapping exits
+  _ => input,
 }
 ```
 
@@ -186,43 +193,30 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 `deleted()` behaves differently depending on context:
 
 **Triggers deletion (no error):**
-- Assignment targets: `output.field = deleted()`, `output = deleted()`, `output@.key = deleted()`, `$var = deleted()`
+- Field assignment: `output.field = deleted()` — removes the field
+- Root output assignment: `output = deleted()` — drops the message and exits the mapping
+- Metadata key assignment: `output@.key = deleted()` — removes the key
+- Variable assignment: `$var = deleted()` — removes the variable
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
 - `map_array` lambda return value: element is filtered out
 - `map_object` lambda return value: key-value pair is removed from result
+- `map_keys` lambda return value: key-value pair is removed from result
 
 **Causes runtime error:**
-- Metadata root assignment: `output@ = deleted()` (metadata is always an object, cannot be deleted)
+- Metadata root assignment: `output@ = deleted()` (cannot delete metadata object)
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls: `deleted().type()`, `deleted().uppercase()`
 - Used as function arguments: `some_function(deleted())`
 - Lambda return values in methods other than `map_array`/`map_object` (e.g., `filter`, `sort`)
 
-The distinction: `deleted()` is a special marker that triggers deletion when flowing into an assignment or collection, but cannot be used as a normal value in computations.
+The distinction: `deleted()` is a special marker that triggers deletion when flowing into an assignment or collection, but cannot be used as a normal value in computations. When it flows to the root output assignment, it drops the entire message and immediately exits the mapping.
 
-**Metadata persistence during execution:**
+**Routing messages instead of dropping them:**
+
+To route failed/spam messages to a dead letter topic (rather than dropping them), the output document must exist:
 ```bloblang
-# Metadata persists even if output is temporarily deleted
-output = deleted()
-output@.kafka_topic = "processed"   # Metadata set
-output = "hello"                    # Output restored
-# At end: both output and metadata exist
-```
-
-**Important:** If output is deleted **at the end of execution**, the entire message (document + metadata) is removed from the stream. Metadata assignments are meaningless for deleted messages:
-
-```bloblang
-# INCORRECT: These metadata assignments serve no purpose
-output = deleted()
-output@.reason = "spam_detected"    # Pointless - message will be removed
-output@.kafka_topic = "dead_letter" # Pointless - message will be removed
-# Result: Entire message deleted, metadata ignored
-```
-
-To route failed/spam messages, the output document must exist:
-```bloblang
-# CORRECT: Route spam to dead letter with document
+# Route spam to dead letter with document intact
 output = input                       # Keep document (or create error document)
 output@.reason = "spam_detected"     # Metadata for routing
 output@.kafka_topic = "dead_letter"  # Route to dead letter topic
