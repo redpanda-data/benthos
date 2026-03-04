@@ -117,7 +117,7 @@ $x = if false { 42 }    # Void: assignment skipped, $x keeps its value
 output.result = $x       # 10
 ```
 
-**Void as a function/map argument:** Passing void as an argument is invalid and causes a mapping error (similar to `deleted()`).
+**Void as a function/map argument:** Passing void as an argument is invalid and causes a runtime error (similar to `deleted()`).
 ```bloblang
 map double(val) { val * 2 }
 output.result = double(if false { 42 })  # ERROR: void argument
@@ -154,6 +154,8 @@ output.result = match input.x {
 }
 ```
 
+**Sources of void:** Void is produced by an if-expression without `else` when the condition is false, and by a match expression without `_` when no case matches (Section 4.2). In both cases, void follows the same rules:
+
 **Summary of void behavior by context:**
 
 | Context | Behavior |
@@ -168,6 +170,8 @@ output.result = match input.x {
 | `map_object` lambda return | Error (value required) |
 | `filter` lambda return | Error (boolean required) |
 | Other lambda return | Propagates to consuming context |
+| `.or()` receiver (`void.or(x)`) | Returns `x` (void rescued) |
+| Other method call (`void.type()`) | Error |
 | Expression operand (`void + 1`) | Error |
 
 ## 4.2 Match Expressions vs Statements
@@ -181,16 +185,20 @@ output.sound = match input.animal {
 }
 ```
 
-**Exhaustiveness:** Match expressions and statements are **not required** to be exhaustive. If no case matches at runtime, the mapping **throws an error**. Use `_` as a catch-all to handle unexpected values:
+**Exhaustiveness:** Match expressions and statements are **not required** to be exhaustive. If no case matches, the match produces **void** — exactly like an if-expression without `else`. The void behavior follows the same rules as Section 4.1:
+
+- **Match expression** (in assignment): void causes the assignment to be skipped (no-op)
+- **Match statement**: no-op (no side effects, execution continues)
+- **Match in collection literal**: void is an error (use `_` or `deleted()`)
 
 ```bloblang
-# Not exhaustive - will error if animal is "bird"
+# Not exhaustive - void if animal is "bird" (assignment skipped)
 output.sound = match input.animal {
   "cat" => "meow",
   "dog" => "woof",
 }
 
-# Exhaustive - always matches
+# Exhaustive - always produces a value
 output.sound = match input.animal {
   "cat" => "meow",
   "dog" => "woof",
@@ -253,7 +261,7 @@ output.label = match input.flag {
 output.label = if input.flag { "yes" } else { "no" }
 ```
 
-**2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. The `as` binding is available in case conditions, result expressions, and statement bodies (for match statements). Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown. The wildcard `_` is exempt from this requirement — it always matches unconditionally.
+**2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. The `as` binding is available in case conditions, result expressions, and statement bodies (for match statements). It is block-scoped to the match — it cannot be referenced after the match closes. Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown. The wildcard `_` is exempt from this requirement — it always matches unconditionally.
 
 ```bloblang
 output.tier = match input.score as s {

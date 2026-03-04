@@ -13,14 +13,14 @@ Access nested data: `input.user.email`, `output.result.id`
 
 **Important:** Bare identifiers (parameters and match bindings) are read-only and can only be used in expressions on the right-hand side. They cannot be assigned to.
 
-**Name resolution:** Every bare identifier in an expression must resolve to a bound name — a map parameter, lambda parameter, or match `as` binding. An unresolved bare identifier is a **compile-time error**. This catches typos like `inpt.field` (instead of `input.field`) at compile time rather than allowing them to parse and fail later.
+**Name resolution:** Every bare identifier in an expression must resolve to a bound name — a map parameter, lambda parameter, match `as` binding, or a map name (Section 5.5). Namespace-qualified references (`namespace::name`) also resolve to map values. An unresolved bare identifier is a **compile-time error**. This catches typos like `inpt.field` (instead of `input.field`) at compile time rather than allowing them to parse and fail later. When a name matches both a parameter and a map, the parameter wins (Section 5.3).
 
-**Quoted field names:** Use `."quoted"` for fields with special characters, spaces, or any name. Dot required before quote:
+**Field names:** Keywords are valid as field names without quoting — `input.map`, `output.if`, `data.match` all work. Use `."quoted"` for fields with special characters, spaces, or names starting with digits:
 ```bloblang
-input."field with spaces"
-output."special-chars"."nested.field"
-user."123"                    # Field name that starts with number
-data."any field"              # Can quote any field, not just special ones
+input.map                    # Valid: keyword as field name
+input."field with spaces"    # Quoting needed: spaces
+output."special-chars"       # Quoting needed: contains hyphen
+data."123"                   # Quoting needed: starts with digit
 ```
 
 ### Indexing
@@ -316,8 +316,8 @@ Newlines are preserved as-is.`
 ```
 
 Raw string rules:
-- Content between backticks is taken verbatim (no escape sequences)
-- Newlines and whitespace are preserved as-is
+- Content between backticks is taken strictly verbatim (no escape sequences, no stripping)
+- All characters between the backticks are included, including any leading or trailing newlines
 - Cannot contain a literal backtick character
 
 **Arrays:** (trailing commas are permitted)
@@ -364,6 +364,13 @@ output.items[0].name = "first"
 # Collision with non-object/non-array value is an error
 output.user = "Alice"
 output.user.name = "Alice"     # ERROR: output.user is a string, not an object
+```
+
+**Array index gaps:** Assigning to an index beyond the current length of an array fills intermediate indices with `null`:
+```bloblang
+$arr = [10, 20]
+$arr[5] = 30                   # [10, 20, null, null, null, 30]
+output.items[2] = "x"         # output.items is [null, null, "x"]
 ```
 
 **Variable Declaration:**
@@ -422,7 +429,7 @@ output@.kafka_key = input.id
 **Deletion:**
 ```bloblang
 output.password = deleted()      # Remove field
-output = deleted()               # Filter entire message
+output = deleted()               # Drop message, exit mapping
 ```
 
 ## 3.8 Variable Scope & Shadowing

@@ -24,11 +24,11 @@ top_level_context_root := 'output' metadata_accessor? | var_ref
 
 # Expression paths: allow bare identifiers (resolved by semantic analysis, see below)
 expr_path       := expr_context_root path_component*
-expr_context_root := ('output' | 'input') metadata_accessor? | var_ref | identifier
+expr_context_root := ('output' | 'input') metadata_accessor? | var_ref | qualified_name | identifier
 
 metadata_accessor := '@'
 path_component  := '.' field_name | '?.' field_name | '[' expression ']' | '?[' expression ']'
-field_name      := identifier | string_literal
+field_name      := word | string_literal
 var_ref         := '$' identifier
 
 function_call   := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
@@ -75,7 +75,7 @@ lambda_block    := '{' var_assignment* expression '}'
 paren_expr      := '(' expression ')'
 
 literal         := float_literal | int_literal | string_literal | boolean | null | array | object
-int_literal     := [0-9]+
+int_literal     := [0-9]+                          # Must fit int64; overflow is a compile-time error
 float_literal   := [0-9]+ '.' [0-9]+
 string_literal  := '"' string_char* '"' | '`' raw_char* '`'
 string_char     := [^"\\\n] | escape_seq
@@ -88,6 +88,9 @@ key_value       := expression ':' expression
 arg_list        := positional_args | named_args
 positional_args := expression (',' expression)*
 named_args      := identifier ':' expression (',' identifier ':' expression)*
+word            := [a-zA-Z_][a-zA-Z0-9_]*          # Raw lexical pattern (includes keywords)
+identifier      := word - keyword                    # Excludes keywords; used for variable/map/param names
+keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' | 'import' | 'true' | 'false' | 'null' | '_'
 ```
 
 ## Key Points
@@ -96,15 +99,15 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
 - **Variables:** `$var` for declaration and reference. Variable assignment uses `var_assignment` in expression contexts (map bodies, lambda blocks, if/match expressions) and `assignment` in statement contexts (top-level, if/match statements). Both support path assignment (`$var.field = expr`, `$var[0] = expr`) with the same field access, indexing, and auto-creation semantics as `output`. The difference: `var_assignment` only targets variables, while `assignment` also targets `output` and `output@`.
 - **Metadata:** `input@.key` (read), `output@.key` (write). Root metadata assignment (`output@ = expr`) requires the value to be an object at runtime (error otherwise); `output@ = deleted()` is also an error since metadata cannot be deleted (Section 9.2).
 - **Context-dependent paths:**
-  - **Top-level assignments:** Must use `output`, `input`, or `$variable` (no bare identifiers)
+  - **Top-level assignments:** Targets must be `output` (with optional `@` for metadata) or `$variable`. `input` is read-only and cannot be assigned to.
   - **Map/lambda bodies:** Can use bare identifiers for parameters **in expressions only** (e.g., `data.field` where `data` is a parameter). Parameters are read-only and cannot be assigned to.
   - **Match with `as`:** Creates a read-only binding in expressions (e.g., `match input.x as val { val.field ... }`)
-  - **Name resolution:** The grammar's `expr_context_root` accepts `identifier` in all expression contexts for simplicity. A separate semantic pass must verify that every bare identifier resolves to a bound name (map parameter, lambda parameter, or match `as` binding). Unresolved bare identifiers are a compile-time error (Section 3.1).
-- **Quoted fields:** Use `."string"` for field names (dot required before quote): `input."field name"`
+  - **Name resolution:** The grammar's `expr_context_root` accepts `identifier` and `qualified_name` in all expression contexts. A separate semantic pass must verify that every bare identifier resolves to a bound name — a map parameter, lambda parameter, match `as` binding, or map name (Section 5.5). Namespace-qualified references (`namespace::name`) resolve to map values from imported modules. Unresolved identifiers are a compile-time error (Section 3.1). When a name matches both a parameter and a map, the parameter wins (Section 5.3).
+- **Field names:** Field names after `.` and `?.` use `word` (any `[a-zA-Z_][a-zA-Z0-9_]*` token, including keywords). Keywords are valid as field names without quoting: `input.map`, `output.if`. Use `."string"` for names with special characters or spaces: `input."field name"`. Declarations (variables, maps, parameters) use `identifier`, which excludes keywords.
 - **Object literals:** Keys are expressions that **must** evaluate to strings at runtime (error if not): `{"key": value}` or `{$var: value}`. Use `.string()` for explicit type conversion.
 - **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int32), bytes (byte position, returns int32). Negative indices supported for arrays, strings, and bytes.
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
-- **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments)
+- **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments). Maps are first-class: `name` or `namespace::name` without parentheses evaluates to a lambda value (Section 5.5)
 - **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments
 - **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default expressions are evaluated at call time.
 - **Arity:** Positional calls must provide at least the required parameter count and at most the total count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
@@ -119,7 +122,7 @@ named_args      := identifier ':' expression (',' identifier ':' expression)*
   - `if_stmt` / `match_stmt`: Standalone statements, contain `stmt_body` (may assign to `output`)
   - `expr_body`: Variable assignments + final expression (no `output` side effects)
   - `stmt_body`: Zero or more statements (no trailing expression). Empty bodies are valid (no-op).
-- **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false. The grammar cannot distinguish expressions that may produce void from those that always produce values; this is a runtime semantic. See Section 4.1 for full void behavior.
+- **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false, or from match expressions without `_` when no case matches. The grammar cannot distinguish expressions that may produce void from those that always produce values; this is a runtime semantic. See Section 4.1 for full void behavior.
 - **Type coercion:** `+` requires same type family (no cross-family implicit conversion). Numeric types are promoted using promotion rules; non-numeric types require exact type match.
 - **Operator precedence and associativity:** The `binary_expr` production is a simplified flat rule. Implementations must apply the precedence, associativity, and non-associativity rules from Section 3.2. Precedence (high to low): field access > unary > multiplicative > additive > comparison > equality > logical AND > logical OR. Arithmetic and logical operators are left-associative; comparison and equality operators are non-associative (chaining is a parse error).
 

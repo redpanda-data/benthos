@@ -115,7 +115,12 @@ output@.kafka_key = deleted()
 output@ = {}                    # Removes all keys
 
 # Cannot delete metadata object itself
-output@ = deleted()             # ERROR: metadata is always an object
+output@ = deleted()             # ERROR: cannot delete metadata object
+
+# Metadata root must be an object
+output@ = "string"              # ERROR: metadata must be an object
+output@ = [1, 2, 3]            # ERROR: metadata must be an object
+output@ = 42                   # ERROR: metadata must be an object
 ```
 
 **Types:**
@@ -130,11 +135,11 @@ output@.routing = {"region": "us-west", "priority": 10}
 
 **Copy all metadata:**
 ```bloblang
-output@ = input@                    # Deep copy all metadata
+output@ = input@                    # Logical copy (COW) all metadata
 output@.kafka_topic = "new-topic"   # Override specific
 ```
 
-`output@ = input@` performs a **deep copy** — output metadata is fully independent of input metadata. Modifying output metadata (including nested values like `output@.tags[0]`) never affects input metadata. This follows from the immutability of `input`.
+`output@ = input@` performs a **logical copy** (copy-on-write) — output metadata is fully independent of input metadata. Modifying output metadata (including nested values like `output@.tags[0]`) never affects input metadata. This is the same COW semantics used for document copy and variable assignment.
 
 Undefined metadata keys return `null`.
 
@@ -249,6 +254,7 @@ output.z = $value  # Still 20 (inner scope doesn't affect outer)
 $record = {"name": "Alice", "scores": [10, 20]}
 $record.name = "Bob"                  # {"name": "Bob", "scores": [10, 20]}
 $record.scores[2] = 30               # {"name": "Bob", "scores": [10, 20, 30]}
+$record.scores[5] = 99               # Gaps filled with null: [10, 20, 30, null, null, 99]
 $record.address.city = "London"       # Auto-creates: {"name": "Bob", ..., "address": {"city": "London"}}
 $record.name = deleted()              # Removes field: {"scores": [...], "address": {...}}
 ```
@@ -277,7 +283,7 @@ Variable path assignment (`$var.field = expr`) is available in all contexts. In 
 
 Statements execute sequentially, top-to-bottom.
 Variables must be declared before use.
-**Map declarations are hoisted** — maps can be called before their declaration in the file. All maps are resolved before execution begins, so declaration order does not matter.
+**Map declarations are hoisted** — maps can be called before their declaration in the file. All maps are resolved before execution begins, so declaration order does not matter. Duplicate map names within the same file are a compile-time error.
 
 ```bloblang
 # Map used before its declaration — valid
