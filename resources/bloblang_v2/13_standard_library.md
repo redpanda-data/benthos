@@ -73,7 +73,7 @@ Throw a custom error. The error propagates and can be caught with `.catch()`. If
 
 ### `deleted()`
 
-Return a deletion marker. When assigned to a target, removes it. When included in a collection literal, omits the element/field.
+Return a deletion marker. When assigned to a field, variable, or metadata key, removes it. When included in a collection literal, omits the element/field. When assigned to the root output (`output = deleted()`), drops the entire message and immediately exits the mapping.
 
 - **Parameters:** none
 - **Returns:** deletion marker (not a runtime type)
@@ -230,14 +230,6 @@ Convert a string to lowercase.
 - **Returns:** string
 - **Example:** `"HELLO".lowercase()` → `"hello"`
 
-### `.capitalize()`
-
-Convert the first character of each word to uppercase and the rest to lowercase.
-
-- **Receiver:** string
-- **Returns:** string
-- **Example:** `"hello world".capitalize()` → `"Hello World"`
-
 ### `.trim()`
 
 Remove leading and trailing whitespace.
@@ -327,6 +319,7 @@ Split a string by a delimiter.
   ```bloblang
   "a,b,c".split(",")      # ["a", "b", "c"]
   "hello".split("")        # ["h", "e", "l", "l", "o"]
+  "👋🏽".split("")          # ["👋", "🏽"] (splits by codepoint, not grapheme)
   ```
 
 ### `.replace_all(old, new)`
@@ -660,7 +653,7 @@ Join array elements into a string with a delimiter. All elements must be strings
 
 ### `.sum()`
 
-Sum all numeric elements. All elements must be numeric — non-numeric elements are an error. The result type follows standard promotion rules. Returns `0` (int64) for empty arrays.
+Sum all numeric elements. All elements must be numeric — non-numeric elements are an error. Elements are pairwise promoted using the same rules as `+` (Section 2.3) — e.g., mixing int64 and float64 promotes all to float64. Returns `0` (int64) for empty arrays.
 
 - **Receiver:** array of numeric values
 - **Returns:** numeric (promoted type)
@@ -814,9 +807,9 @@ Convert an object to an array of `{"key": k, "value": v}` objects. Order is rand
 
 ### `.abs()`
 
-Return the absolute value. For integer types, errors if the result overflows (the most-negative value of each signed type has no positive counterpart).
+Return the absolute value. For signed integer types, errors if the result overflows (the most-negative value of each signed type has no positive counterpart). For unsigned types, returns the value unchanged.
 
-- **Receiver:** int32, int64, float32, float64 (errors on unsigned types — already non-negative)
+- **Receiver:** any numeric type
 - **Returns:** same type as receiver
 - **Examples:**
   ```bloblang
@@ -923,7 +916,7 @@ Convert a timestamp to a Unix timestamp in nanoseconds.
 
 Convert a Unix timestamp (seconds since epoch) to a timestamp. Integer receivers produce second-precision timestamps. Float receivers provide sub-second precision — the fractional part is interpreted as fractions of a second (up to nanosecond precision).
 
-- **Receiver:** int64, float64 (and other numeric types via standard promotion)
+- **Receiver:** any numeric type (integers are widened to int64; float32 is widened to float64)
 - **Returns:** timestamp
 - **Examples:**
   ```bloblang
@@ -966,15 +959,17 @@ Handle errors. Called only when the expression to its left produces an error. If
 
 ### `.or(default)`
 
-Provide a default value for null. Uses **short-circuit evaluation** — the argument is only evaluated if the receiver is null.
+Provide a default value for null or void. Uses **short-circuit evaluation** — the argument is only evaluated if the receiver is null or void. This is the only method that can be called on void.
 
-- **Receiver:** any expression
+- **Receiver:** any expression (including void)
 - **Parameters:** `default` (any expression, lazily evaluated)
-- **Returns:** any (either the original non-null value or the default)
+- **Returns:** any (either the original value, or the default if receiver was null/void)
 - **Examples:**
   ```bloblang
   input.name.or("Anonymous")
   input.name.or(throw("name is required"))  # throw() only evaluated if name is null
+  (if false { "hello" }).or("world")        # "world" (void rescued)
+  (match input.x { "a" => 1 }).or(0)       # 0 if no case matched (void rescued)
   ```
 - **See:** Section 8.3
 
@@ -986,23 +981,29 @@ Provide a default value for null. Uses **short-circuit evaluation** — the argu
 
 Parse a JSON string into a value. Errors if the string is not valid JSON.
 
+**Numeric type mapping:** JSON numbers without a decimal point or exponent are parsed as int64 (matching Bloblang integer literal rules). JSON numbers with a decimal point or exponent are parsed as float64 (matching Bloblang float literal rules). Integer values that exceed int64 range are an error.
+
 - **Receiver:** string, bytes
 - **Returns:** any (the parsed value)
 - **Examples:**
   ```bloblang
   `{"name":"Alice"}`.parse_json()    # {"name": "Alice"}
-  `[1,2,3]`.parse_json()            # [1, 2, 3]
+  `[1,2,3]`.parse_json()            # [1, 2, 3] (int64 elements)
   `"hello"`.parse_json()            # "hello"
+  `42`.parse_json()                 # 42 (int64: no decimal point)
+  `3.14`.parse_json()               # 3.14 (float64: has decimal point)
+  `1e3`.parse_json()                # 1000.0 (float64: has exponent)
   ```
 
 ### `.format_json()`
 
-Serialize a value to a JSON string.
+Serialize a value to a JSON string. Timestamp values are formatted as RFC 3339 strings (Section 2.3).
 
 - **Receiver:** any type (except lambda)
 - **Returns:** string
 - **Examples:**
   ```bloblang
-  {"name": "Alice"}.format_json()   # `{"name":"Alice"}`
-  [1, 2, 3].format_json()          # `[1,2,3]`
+  {"name": "Alice"}.format_json()       # `{"name":"Alice"}`
+  [1, 2, 3].format_json()              # `[1,2,3]`
+  {"time": now()}.format_json()         # `{"time":"2024-03-01T12:00:00Z"}`
   ```

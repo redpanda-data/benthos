@@ -55,7 +55,7 @@ output.user = normalize_user(input.user_data)
 **Metadata:** `input@.key` (read), `output@.key` (write)
 
 **Literals:**
-- Numbers: `42`, `3.14` (negative numbers use unary minus: `-10`). **Note:** `-10` is not a single token — it is unary minus applied to `10`. Since method calls bind tighter than unary minus, `-10.string()` parses as `-(10.string())` which is an error. Use `(-10).string()` instead.
+- Numbers: `42`, `3.14` (negative numbers use unary minus: `-10`). Integer literals are int64; float literals are float64. Exponent notation (e.g., `1e3`) is not supported in literals — use `.parse_json()` or explicit arithmetic instead. Literals that exceed the range of their type are a compile-time error. **Note:** `-10` is not a single token — it is unary minus applied to `10`. Since method calls bind tighter than unary minus, `-10.string()` parses as `-(10.string())` which is an error. Use `(-10).string()` instead.
 - Strings: `"hello"`, `"escape\n"`, or `` `raw multiline` ``
 - Booleans: `true`, `false`
 - Null: `null`
@@ -64,11 +64,11 @@ output.user = normalize_user(input.user_data)
 
 **Comments:** `#` to end-of-line
 
-**Identifiers:** `[a-zA-Z_][a-zA-Z0-9_]*` (excluding keywords; notably `_` alone is not a valid identifier)
+**Identifiers:** `[a-zA-Z_][a-zA-Z0-9_]*` excluding keywords (notably `_` alone is not a valid identifier). Used for variable names, map names, and parameter names — these cannot be keywords.
 
-**Quoted fields:** Use `."quoted"` syntax for field names with special characters or spaces. Dot required before quote:
+**Field names:** Field names after `.` and `?.` accept any word (`[a-zA-Z_][a-zA-Z0-9_]*` including keywords) — `input.map`, `output.if`, `data.match` are all valid. Use `."quoted"` for names with special characters or spaces:
 ```bloblang
-input."field with spaces"
-output."special.field".nested
-user."any-name"             # Can quote any field, not just special chars
+input.map                   # Valid: keyword as field name
+input."field with spaces"   # Quoting needed: spaces
+output."special.field"      # Quoting needed: contains dot
 ```
