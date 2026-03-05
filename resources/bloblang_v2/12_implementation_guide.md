@@ -57,11 +57,7 @@ output.results = input.items
 
 ### Early Termination
 
-`.any()`, `.all()` should stop processing when result is determined:
-```bloblang
-input.items.any(x -> x > 100) # Stop at first match
-input.items.all(x -> x > 0)   # Stop at first non-match
-```
+**Note:** `.any()` and `.all()` short-circuiting is a **required semantic**, not an optional optimization — see Section 13.6. Implementations must not evaluate elements beyond the determined result.
 
 ### Constant Folding
 
@@ -93,7 +89,7 @@ Optimize repeated concatenation:
 `.catch()` and `.or()` are parsed as regular method calls (via the `method_chain` grammar production) but require special handling by the runtime. They **cannot** be implemented as ordinary methods:
 
 - **`.catch(err -> expr)`** — Must intercept errors from the left-hand expression chain. Normal methods are skipped when the receiver is an error; `.catch()` is the opposite — it activates only on errors and passes through successful values unchanged. See Section 8.2.
-- **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null, void, or `deleted()`. Additionally, `.or()` is the only method that can be called on void or `deleted()` — all other methods error on void and `deleted()` receivers. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
+- **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null, void, or `deleted()`. Additionally, `.or()` and `.catch()` are the only methods that can be called on void or `deleted()` — all other methods error on void and `deleted()` receivers. `.catch()` passes void and `deleted()` through unchanged (they are not errors); `.or()` actively rescues them. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
 
 Implementations should recognize these during compilation/interpretation and emit specialized instructions rather than routing them through the general method dispatch path.
 

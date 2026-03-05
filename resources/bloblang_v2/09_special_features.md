@@ -80,10 +80,9 @@ output@ = {}                    # OK: clears all metadata keys
 output@.key = "value"           # OK: assigning key to the metadata object
 ```
 
-**Variable deletion:** Assigning `deleted()` to a variable **removes the variable**:
+**Variable assignment:** Assigning `deleted()` to a variable is a runtime error — variables cannot be deleted.
 ```bloblang
-$val = deleted()                # Variable $val is deleted (ceases to exist)
-output.field = $val             # ERROR: variable $val does not exist
+$val = deleted()                # ERROR: cannot assign deleted() to a variable
 ```
 
 ### deleted() in Expressions
@@ -197,19 +196,19 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 - Field assignment: `output.field = deleted()` — removes the field
 - Root output assignment: `output = deleted()` — drops the message and exits the mapping
 - Metadata key assignment: `output@.key = deleted()` — removes the key
-- Variable assignment: `$var = deleted()` — removes the variable
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
 - `map` lambda return value: element is filtered out
 
 **Causes runtime error:**
+- Variable assignment: `$var = deleted()` (cannot assign deleted to a variable)
 - Metadata root assignment: `output@ = deleted()` (cannot delete metadata object)
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls (except `.or()`): `deleted().type()`, `deleted().uppercase()`
 - Used as function arguments: `some_function(deleted())`
 - Lambda return values in methods that do not support deletion (e.g., `filter`, `sort`). The standard library method that supports `deleted()` as a lambda return is `map`; extension methods may also support it.
 
-The distinction: `deleted()` is a special marker that triggers deletion when flowing into an assignment or collection, but cannot be used as a normal value in computations. The sole exception is `.or()`, which rescues `deleted()` and returns its argument (Section 8.3). When `deleted()` flows to the root output assignment, it drops the entire message and immediately exits the mapping.
+The distinction: `deleted()` is a special marker that triggers deletion when flowing into a field/metadata assignment or collection, but cannot be used as a normal value in computations. Assigning `deleted()` to a variable (`$var = deleted()`) is an error; however, assigning `deleted()` to a field *within* a variable (`$var.field = deleted()`) removes that field from the variable's value. The sole exception to method restrictions is `.or()`, which rescues `deleted()` and returns its argument (Section 8.3). When `deleted()` flows to the root output assignment, it drops the entire message and immediately exits the mapping.
 
 **Routing messages instead of dropping them:**
 

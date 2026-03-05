@@ -51,7 +51,7 @@ Maps are **isolated functions**: they take zero or more parameters, optionally d
 
 **Argument styles:** Functions can be called with positional or named arguments, but not both in the same call.
 
-**Default parameters:** Parameters may have default values (`param = expr`). Parameters with defaults must come after all required parameters. Default expressions are evaluated at call time, not at definition time.
+**Default parameters:** Parameters may have default values (`param = literal`). Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`) — expressions, function calls, and references to other parameters are not allowed in defaults.
 
 ## 5.2 Examples
 
@@ -198,6 +198,8 @@ output.result = $fn(21)                                 # 42
 ```
 
 **Type:** Map references evaluate to `lambda`. Their `.type()` returns `"lambda"`.
+
+**Note:** Map name references are resolved at compile time and produce lambda values directly — they are not "returned from" a call. This does not violate the lambda return restriction (Section 2.1), which applies to the *result of calling* a map, function, or lambda at runtime.
 
 **Cannot return lambdas:** Maps (and lambdas) cannot return lambda values — if a map body produces a lambda as its result, this is a runtime error. Lambdas are for parameterizing operations, not for building higher-order call chains. See Section 2.1 for full lambda restrictions.
 

@@ -210,7 +210,7 @@ output.c = $greet(name: "Alice")            # "Hello, Alice"
 output.d = $greet(name: "Alice", greeting: "Hey")  # "Hey, Alice"
 ```
 
-Parameters with defaults must come after all required parameters. Default expressions are evaluated at call time.
+Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`).
 
 **First-class (stored in variables):**
 ```bloblang
@@ -392,7 +392,7 @@ $user = {"name": "Alice"}
 $user.name = "Bob"                    # Deep mutation: {"name": "Bob"}
 $user.address.city = "London"         # Auto-creates intermediates
 $user.tags[0] = "admin"              # Index assignment
-$user.address = deleted()             # Removes the field
+$user.address = deleted()             # Removes the field from the object inside $user
 
 $val = "hello"
 $val.field = "x"                      # ERROR: cannot assign field on string
@@ -410,15 +410,6 @@ output.user.name = "changed"          # $snap unaffected
 Variable path assignment (`$var.field = expr`) is available in all contexts — both statement contexts (top-level, if/match statement bodies) and expression contexts (if/match expressions, lambdas, map bodies). In expression contexts, only variable assignments are allowed (no `output` assignments).
 
 Variables are **block-scoped** with shadowing support (inner blocks can declare new variables with the same name).
-
-**Variable deletion:**
-```bloblang
-$val = 10
-$val = deleted()      # Variable is removed (ceases to exist)
-$val                  # ERROR: variable does not exist
-```
-
-Assigning `deleted()` to a variable removes it entirely from the current scope.
 
 **Metadata Assignment:**
 ```bloblang

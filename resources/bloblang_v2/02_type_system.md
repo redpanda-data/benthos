@@ -23,6 +23,8 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 
 **Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
 
+**No Unicode normalization:** Strings are compared codepoint-by-codepoint without normalization. Different Unicode representations of the same visual character (e.g., precomposed `é` U+00E9 vs decomposed `e` U+0065 + `◌́` U+0301) are **not equal** and may have different `.length()` values. This matches the behavior of Go, Rust, and most systems languages. If input data may contain mixed normalization forms, use an explicit normalization step before comparison.
+
 **Lambda restrictions:** Lambdas are computation values, not data values — they cannot be serialized or returned from calls.
 
 *Assignment:* The only valid assignment target for a lambda is a plain variable (`$fn = x -> x * 2`). Assigning a lambda to any other target is a runtime error:
@@ -198,7 +200,7 @@ null == 0            # false (null vs numeric)
 - **Equality and comparison:** Timestamps can be compared with `==`, `!=`, `<`, `>`, `<=`, `>=`. Earlier times are less than later times.
 - **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). No other arithmetic operations are supported — adding two timestamps, or adding a number to a timestamp, is an error. Use `.ts_add(nanos)` to offset a timestamp by a duration, or `.ts_unix()` and related methods for numeric conversions.
 - **Methods:** `.ts_format()`, `.ts_add()`, `.ts_unix()`, `.ts_unix_milli()`, `.ts_unix_micro()`, `.ts_unix_nano()`, `.type()`, `.string()`.
-- **Construction from numeric:** `.ts_from_unix()` on any numeric type (integers widened to int64 for second precision; floats widened to float64 for sub-second precision). See Section 13.8.
+- **Construction from numeric:** `.ts_from_unix()` on any numeric type (integers widened to int64 for second precision; floats widened to float64 for sub-second precision). See Section 13.9.
 - **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings. When converted with `.string()`, the result is also RFC 3339. Trailing fractional zeros are trimmed (e.g., `.500000000` becomes `.5`; whole-second timestamps omit the fractional part entirely).
 
 ```bloblang

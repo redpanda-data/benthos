@@ -73,7 +73,7 @@ Throw a custom error. The error propagates and can be caught with `.catch()`. If
 
 ### `deleted()`
 
-Return a deletion marker. When assigned to a field, variable, or metadata key, removes it. When included in a collection literal, omits the element/field. When assigned to the root output (`output = deleted()`), drops the entire message and immediately exits the mapping.
+Return a deletion marker. When assigned to a field or metadata key, removes it. When included in a collection literal, omits the element/field. When assigned to the root output (`output = deleted()`), drops the entire message and immediately exits the mapping. Assigning `deleted()` to a variable (`$var = deleted()`) is a runtime error.
 
 - **Parameters:** none
 - **Returns:** deletion marker (not a runtime type)
@@ -212,7 +212,97 @@ Return the type name of a value as a string. Works on any type including null.
 
 ---
 
-## 13.4 String Methods
+## 13.4 Sequence Methods
+
+These methods work on multiple sequence-like types: strings (codepoint-based), arrays (element-based), and bytes (byte-based). Each method is documented once; per-type behavior is noted where it differs.
+
+### `.length()`
+
+Return the length of a sequence, or the number of keys in an object.
+
+- **Receiver:** string, array, bytes, object
+- **Returns:** int64
+- **Semantics:** strings count codepoints, arrays count elements, bytes count bytes, objects count keys
+- **Examples:**
+  ```bloblang
+  "hello".length()           # 5 (codepoints)
+  [1, 2, 3].length()        # 3 (elements)
+  "hello".bytes().length()   # 5 (bytes)
+  {"a": 1, "b": 2}.length() # 2 (keys)
+  ```
+
+### `.contains(target)`
+
+Check if a sequence contains the given target.
+
+- **Receiver:** string, array, bytes
+- **Parameters:** `target` — string (for string/bytes receiver) or any (for array receiver)
+- **Returns:** bool
+- **Semantics:**
+  - **string:** searches for a substring
+  - **array:** searches for an element by equality
+  - **bytes:** searches for a byte subsequence (target must be bytes)
+- **Examples:**
+  ```bloblang
+  "hello world".contains("world")     # true
+  [1, 2, 3].contains(2)              # true
+  "hello".bytes().contains("ll".bytes())  # true
+  ```
+- **Note:** For object key checking, see `.has_key()` (Section 13.7).
+
+### `.index_of(target)`
+
+Return the index of the first occurrence of the target, or -1 if not found.
+
+- **Receiver:** string, array, bytes
+- **Parameters:** `target` — string (for string receiver), any (for array receiver), bytes (for bytes receiver)
+- **Returns:** int64
+- **Semantics:**
+  - **string:** returns codepoint index of first occurrence of substring
+  - **array:** returns element index of first match by equality
+  - **bytes:** returns byte index of first occurrence of byte subsequence
+- **Examples:**
+  ```bloblang
+  "hello world".index_of("world")    # 6
+  [10, 20, 30].index_of(20)         # 1
+  "hello".bytes().index_of("ll".bytes())  # 2
+  ```
+
+### `.slice(low, high)`
+
+Extract a subsequence. `low` is inclusive, `high` is exclusive. Negative indices count from the end. Indices are clamped to the length — out-of-bounds indices do not error. If `low >= high` after clamping, returns an empty value of the same type.
+
+- **Receiver:** string, array, bytes
+- **Parameters:** `low` (int64), `high` (int64)
+- **Returns:** same type as receiver
+- **Semantics:** strings slice by codepoint, arrays by element, bytes by byte
+- **Examples:**
+  ```bloblang
+  "hello world".slice(0, 5)          # "hello"
+  "hello world".slice(-5, -1)        # "worl"
+  [1, 2, 3, 4, 5].slice(1, 3)       # [2, 3]
+  "hello".bytes().slice(0, 3)        # bytes("hel")
+  "hello".slice(0, 100)              # "hello" (high clamped to length)
+  [1, 2, 3].slice(3, 1)             # [] (low >= high)
+  ```
+
+### `.reverse()`
+
+Reverse a sequence.
+
+- **Receiver:** string, array, bytes
+- **Returns:** same type as receiver
+- **Semantics:** strings reverse by codepoint, arrays by element, bytes by byte
+- **Examples:**
+  ```bloblang
+  "hello".reverse()                  # "olleh"
+  [1, 2, 3].reverse()               # [3, 2, 1]
+  "hello".bytes().reverse()          # bytes("olleh")
+  ```
+
+---
+
+## 13.5 String Methods
 
 ### `.uppercase()`
 
@@ -264,19 +354,6 @@ Remove the given suffix from the end of the string. If the string does not end w
   "hello world".trim_suffix("xyz")      # "hello world"
   ```
 
-### `.contains(substring)`
-
-Check if a string contains a substring. Also works on arrays (see Section 13.5). For object key checking, see `.has_key()` (Section 13.6).
-
-- **Receiver:** string
-- **Parameters:** `substring` (string)
-- **Returns:** bool
-- **Examples:**
-  ```bloblang
-  "hello world".contains("world")   # true
-  "hello world".contains("xyz")     # false
-  ```
-
 ### `.has_prefix(prefix)`
 
 Check if a string starts with the given prefix.
@@ -295,19 +372,6 @@ Check if a string ends with the given suffix.
 - **Returns:** bool
 - **Example:** `"hello world".has_suffix("world")` → `true`
 
-### `.index_of(substring)`
-
-Return the codepoint index of the first occurrence of a substring, or -1 if not found.
-
-- **Receiver:** string
-- **Parameters:** `substring` (string)
-- **Returns:** int64
-- **Examples:**
-  ```bloblang
-  "hello world".index_of("world")   # 6
-  "hello world".index_of("xyz")     # -1
-  ```
-
 ### `.split(delimiter)`
 
 Split a string by a delimiter.
@@ -320,6 +384,7 @@ Split a string by a delimiter.
   "a,b,c".split(",")      # ["a", "b", "c"]
   "hello".split("")        # ["h", "e", "l", "l", "o"]
   "👋🏽".split("")          # ["👋", "🏽"] (splits by codepoint, not grapheme)
+  "".split("")             # [] (no codepoints)
   ```
 
 ### `.replace_all(old, new)`
@@ -330,30 +395,6 @@ Replace all occurrences of a substring.
 - **Parameters:** `old` (string), `new` (string)
 - **Returns:** string
 - **Example:** `"hello world".replace_all("o", "0")` → `"hell0 w0rld"`
-
-### `.slice(low, high)`
-
-Extract a substring by codepoint indices. `low` is inclusive, `high` is exclusive. Negative indices count from the end. Indices are clamped to the string length — out-of-bounds indices do not error. If `low >= high` after clamping, returns an empty string. Also works on arrays (see Section 13.5).
-
-- **Receiver:** string
-- **Parameters:** `low` (int64), `high` (int64)
-- **Returns:** string
-- **Examples:**
-  ```bloblang
-  "hello world".slice(0, 5)    # "hello"
-  "hello world".slice(6, 11)   # "world"
-  "hello world".slice(-5, -1)  # "worl"
-  "hello".slice(0, 100)        # "hello" (high clamped to length)
-  "hello".slice(3, 1)          # "" (low >= high)
-  ```
-
-### `.reverse()`
-
-Reverse a string by codepoints. Also works on arrays (see Section 13.5).
-
-- **Receiver:** string
-- **Returns:** string
-- **Example:** `"hello".reverse()` → `"olleh"`
 
 ### `.repeat(count)`
 
@@ -406,49 +447,7 @@ Replace all matches of a regular expression with a replacement string.
 
 ---
 
-## 13.5 Array Methods
-
-### `.length()`
-
-Return the number of elements. Also works on strings (codepoints), bytes (byte count), and objects (key count).
-
-- **Receiver:** array, string, bytes, object
-- **Returns:** int64
-- **Examples:**
-  ```bloblang
-  [1, 2, 3].length()        # 3
-  "hello".length()           # 5 (codepoints)
-  "hello".bytes().length()   # 5 (bytes)
-  {"a": 1, "b": 2}.length() # 2
-  ```
-
-### `.contains(value)`
-
-Check if an array contains a value (compared by equality). Also works on strings (see Section 13.4). For object key checking, see `.has_key()` (Section 13.6).
-
-- **Receiver:** array
-- **Parameters:** `value` (any)
-- **Returns:** bool
-- **Examples:**
-  ```bloblang
-  [1, 2, 3].contains(2)           # true
-  [1, 2, 3].contains(4)           # false
-  ["a", "b"].contains("b")        # true
-  ```
-
-### `.index_of(value)`
-
-Return the index of the first occurrence of a value in an array (compared by equality), or -1 if not found.
-
-- **Receiver:** array
-- **Parameters:** `value` (any)
-- **Returns:** int64
-- **Examples:**
-  ```bloblang
-  [10, 20, 30].index_of(20)       # 1
-  [10, 20, 30].index_of(99)       # -1
-  ["a", "b", "c"].index_of("b")   # 1
-  ```
+## 13.6 Array Methods
 
 ### `.filter(elem -> bool)`
 
@@ -492,6 +491,8 @@ Sort an array in ascending order. Sort is **stable** (equal elements preserve re
 
 Bool, null, bytes, array, object, and lambda are not sortable — an array containing these types will error. Cross-family mixing (e.g., numbers with strings) is also an error.
 
+**NaN ordering:** NaN values sort after all other numeric values (including Infinity). This follows the total ordering convention used by Go and Java rather than IEEE 754 comparison semantics. Multiple NaN values maintain their relative order (stable sort).
+
 - **Receiver:** array
 - **Returns:** array
 - **Examples:**
@@ -515,29 +516,6 @@ Sort an array using a key function. Sort is **stable**. The lambda extracts a so
   # [{"name": "Alice"}, {"name": "Bob"}]
 
   [3, -1, 2].sort_by(x -> x.abs())   # [-1, 2, 3] (sorted by absolute value)
-  ```
-
-### `.reverse()`
-
-Reverse an array. Also works on strings (see Section 13.4).
-
-- **Receiver:** array
-- **Returns:** array
-- **Example:** `[1, 2, 3].reverse()` → `[3, 2, 1]`
-
-### `.slice(low, high)`
-
-Extract a subarray by indices. `low` is inclusive, `high` is exclusive. Negative indices count from the end. Indices are clamped to the array length — out-of-bounds indices do not error. If `low >= high` after clamping, returns an empty array. Also works on strings (see Section 13.4).
-
-- **Receiver:** array
-- **Parameters:** `low` (int64), `high` (int64)
-- **Returns:** array
-- **Examples:**
-  ```bloblang
-  [1, 2, 3, 4, 5].slice(1, 3)    # [2, 3]
-  [1, 2, 3, 4, 5].slice(-2, 5)   # [4, 5]
-  [1, 2, 3].slice(0, 100)        # [1, 2, 3] (high clamped to length)
-  [1, 2, 3].slice(3, 1)          # [] (low >= high)
   ```
 
 ### `.append(value)`
@@ -569,6 +547,7 @@ Flatten nested arrays by one level. Non-array elements are kept as-is.
   [[1, 2], [3, 4]].flatten()          # [1, 2, 3, 4]
   [[1, [2]], [3]].flatten()            # [1, [2], 3] (one level only)
   [1, 2, 3].flatten()                  # [1, 2, 3] (no nesting, unchanged)
+  [1, [], 2].flatten()                 # [1, 2] (empty array spliced as zero elements)
   ```
 
 ### `.unique()`
@@ -597,7 +576,7 @@ Convert an array to an array of `{"index": i, "value": v}` objects.
 
 ### `.any(elem -> bool)`
 
-Test if any element satisfies the predicate. Returns `false` for empty arrays. Short-circuits on first `true`.
+Test if any element satisfies the predicate. Returns `false` for empty arrays. **Must** short-circuit on first `true` — subsequent elements are not evaluated (this is a required semantic, not an optimization).
 
 - **Receiver:** array
 - **Parameters:** lambda (one parameter → bool)
@@ -611,7 +590,7 @@ Test if any element satisfies the predicate. Returns `false` for empty arrays. S
 
 ### `.all(elem -> bool)`
 
-Test if all elements satisfy the predicate. Returns `true` for empty arrays. Short-circuits on first `false`.
+Test if all elements satisfy the predicate. Returns `true` for empty arrays. **Must** short-circuit on first `false` — subsequent elements are not evaluated (this is a required semantic, not an optimization).
 
 - **Receiver:** array
 - **Parameters:** lambda (one parameter → bool)
@@ -697,7 +676,7 @@ Convert an array of `{"k": k, "v": v}` objects back into an object. Last value w
 
 ---
 
-## 13.6 Object Methods
+## 13.7 Object Methods
 
 ### `.iter_kv()`
 
@@ -771,7 +750,7 @@ Return a new object with the specified keys removed. Keys that don't exist are i
 
 ---
 
-## 13.7 Numeric Methods
+## 13.8 Numeric Methods
 
 ### `.abs()`
 
@@ -813,21 +792,23 @@ Return the smallest integer value greater than or equal to the number.
 
 ### `.round(n)`
 
-Round a float to `n` decimal places using **half-even rounding** (banker's rounding, IEEE 754 default).
+Round a float to `n` decimal places using **half-even rounding** (banker's rounding, IEEE 754 default). Negative `n` rounds to powers of 10: `-1` rounds to nearest 10, `-2` to nearest 100, etc.
 
 - **Receiver:** float32, float64
-- **Parameters:** `n` (int64 — number of decimal places)
+- **Parameters:** `n` (int64 — number of decimal places; negative values round to powers of 10)
 - **Returns:** same float type as receiver
 - **Examples:**
   ```bloblang
   3.456.round(2)     # 3.46
   2.5.round(0)       # 2.0 (half-even: rounds to nearest even)
   3.5.round(0)       # 4.0 (half-even: rounds to nearest even)
+  1234.0.round(-2)   # 1200.0 (round to nearest hundred)
+  1250.0.round(-2)   # 1200.0 (half-even: rounds to nearest even hundred)
   ```
 
 ---
 
-## 13.8 Time Methods
+## 13.9 Time Methods
 
 ### `.ts_parse(format)`
 
@@ -909,7 +890,7 @@ Add a duration in nanoseconds to a timestamp. Negative values subtract.
 
 ---
 
-## 13.9 Error Handling Methods
+## 13.10 Error Handling Methods
 
 ### `.catch(err -> expr)`
 
@@ -927,7 +908,7 @@ Handle errors. Called only when the expression to its left produces an error. If
 
 ### `.or(default)`
 
-Provide a default value for null, void, or `deleted()`. Uses **short-circuit evaluation** — the argument is only evaluated if the receiver is null, void, or `deleted()`. This is the only method that can be called on void or `deleted()`.
+Provide a default value for null, void, or `deleted()`. Uses **short-circuit evaluation** — the argument is only evaluated if the receiver is null, void, or `deleted()`. Along with `.catch()`, this is one of only two methods that can be called on void or `deleted()`. `.catch()` passes them through unchanged; `.or()` actively rescues them.
 
 - **Receiver:** any expression (including void and `deleted()`)
 - **Parameters:** `default` (any expression, lazily evaluated)
@@ -944,7 +925,7 @@ Provide a default value for null, void, or `deleted()`. Uses **short-circuit eva
 
 ---
 
-## 13.10 Parsing Methods
+## 13.11 Parsing Methods
 
 ### `.parse_json()`
 
@@ -966,7 +947,7 @@ Parse a JSON string into a value. Errors if the string is not valid JSON.
 
 ### `.format_json()`
 
-Serialize a value to a JSON string. Timestamp values are formatted as RFC 3339 strings (Section 2.3).
+Serialize a value to a JSON string. Object keys are sorted lexicographically. Timestamp values are formatted as RFC 3339 strings (Section 2.3).
 
 - **Receiver:** any type (except lambda)
 - **Returns:** string
