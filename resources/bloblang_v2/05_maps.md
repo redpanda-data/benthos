@@ -145,25 +145,31 @@ map transform(math) {
 
 ## 5.4 Isolation Constraints
 
-Maps are isolated functions — they cannot access `input`, `output`, or top-level variables:
+Maps are isolated functions — they cannot access `input`, `output`, or top-level variables. To use external context, pass it as a parameter:
 
 ```bloblang
 map transform(data) {
   data.value * 2           # ✅ Valid: isolated transformation
 }
 
-map invalid(data) {
-  output.x = data.value    # ❌ Invalid: cannot reference output
-  data.value               # ❌ Invalid: cannot assign to output
+# ❌ Cannot access input inside a map
+map invalid(items) {
+  items.map(x -> x * input.multiplier)   # ERROR: cannot access input
 }
+
+# ✅ Pass external context as a parameter instead
+map scale(items, multiplier) {
+  items.map(x -> x * multiplier)
+}
+output.result = scale(input.items, input.multiplier)
 ```
 
 **Why isolated?**
-- Predictable: No hidden dependencies on `input`, `output`, or global state
+- Predictable: No direct access to `input`, `output`, or global state — all data enters through parameters
 - Composable: Can be used anywhere, including in lambdas
-- No hidden dependencies: Cannot read or modify global state
+- Testable: Easy to test in isolation
 
-**Closure caveat:** If a closure (lambda that captures variables by reference) is passed as an argument, the closure carries external mutable state. The map itself remains isolated — it has no direct access to the captured variables — but the same lambda variable can produce different results if its captured state changes between calls:
+**Closure caveat:** Maps cannot directly access external state, but closures passed as arguments can carry captured mutable references into a map. The map itself remains isolated — it has no direct access to the captured variables — but the same closure can produce different results if its captured state changes between calls. This is an inherent trade-off: closures are useful for parameterizing maps with external context, but they weaken the isolation boundary. Keep closures passed to maps simple and avoid relying on mutable captured state when predictability matters.
 ```bloblang
 $multiplier = 2
 $fn = x -> x * $multiplier
@@ -174,7 +180,6 @@ output.a = apply(5, $fn)  # 10
 $multiplier = 3
 output.b = apply(5, $fn)  # 15 — $fn's captured $multiplier changed
 ```
-- Testable: Easy to test in isolation
 
 ## 5.5 Maps as Values
 

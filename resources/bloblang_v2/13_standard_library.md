@@ -725,6 +725,30 @@ Convert an object to an array of `{"k": k, "v": v}` objects. Order is not guaran
   # {"b": 2, "c": 3}
   ```
 
+### `.keys()`
+
+Return the keys of an object as an array of strings. Order is not guaranteed.
+
+- **Receiver:** object
+- **Returns:** array of strings
+- **Examples:**
+  ```bloblang
+  {"a": 1, "b": 2}.keys()           # ["a", "b"] (order not guaranteed)
+  {}.keys()                          # []
+  ```
+
+### `.values()`
+
+Return the values of an object as an array. Order is not guaranteed, but corresponds to the same order as `.keys()` within a single call.
+
+- **Receiver:** object
+- **Returns:** array of any
+- **Examples:**
+  ```bloblang
+  {"a": 1, "b": 2}.values()         # [1, 2] (order not guaranteed)
+  {}.values()                        # []
+  ```
+
 ### `.has_key(key)`
 
 Check if an object contains the given key.
@@ -880,7 +904,7 @@ Convert a timestamp to a Unix timestamp in nanoseconds.
 
 ### `.ts_from_unix()`
 
-Convert a Unix timestamp (seconds since epoch) to a timestamp. Integer receivers produce second-precision timestamps. Float receivers provide sub-second precision — the fractional part is interpreted as fractions of a second (up to nanosecond precision).
+Convert a Unix timestamp (seconds since epoch) to a timestamp. Integer receivers produce second-precision timestamps. Float receivers provide sub-second precision — the fractional part is interpreted as fractions of a second. **Precision note:** float64 has ~15-17 significant decimal digits. For current Unix timestamps (~10 integer digits), this leaves ~6-7 fractional digits of precision — sufficient for microseconds but not nanoseconds. For full nanosecond precision, use `.ts_from_unix_nano()` with an int64 value instead.
 
 - **Receiver:** any numeric type (integers are widened to int64; float32 is widened to float64)
 - **Returns:** timestamp
@@ -888,7 +912,44 @@ Convert a Unix timestamp (seconds since epoch) to a timestamp. Integer receivers
   ```bloblang
   1709500000.ts_from_unix()       # timestamp: 2024-03-03T...Z (second precision)
   1709500000.5.ts_from_unix()     # timestamp: 2024-03-03T...500000000Z (sub-second)
-  1709500000.123456789.ts_from_unix()  # nanosecond precision from fractional part
+  1709500000.123456.ts_from_unix()  # ~microsecond precision (float64 limit)
+  ```
+
+### `.ts_from_unix_milli()`
+
+Convert a Unix timestamp in milliseconds to a timestamp. Provides exact millisecond precision using integer arithmetic.
+
+- **Receiver:** int64
+- **Returns:** timestamp
+- **Examples:**
+  ```bloblang
+  1709500000000.ts_from_unix_milli()       # same as 1709500000.ts_from_unix()
+  1709500000123.ts_from_unix_milli()       # exact millisecond precision
+  ```
+
+### `.ts_from_unix_micro()`
+
+Convert a Unix timestamp in microseconds to a timestamp. Provides exact microsecond precision using integer arithmetic.
+
+- **Receiver:** int64
+- **Returns:** timestamp
+- **Examples:**
+  ```bloblang
+  1709500000000000.ts_from_unix_micro()       # same as 1709500000.ts_from_unix()
+  1709500000123456.ts_from_unix_micro()       # exact microsecond precision
+  ```
+
+### `.ts_from_unix_nano()`
+
+Convert a Unix timestamp in nanoseconds to a timestamp. Provides exact nanosecond precision using integer arithmetic. This is the lossless round-trip counterpart to `.ts_unix_nano()`.
+
+- **Receiver:** int64
+- **Returns:** timestamp
+- **Examples:**
+  ```bloblang
+  1709500000000000000.ts_from_unix_nano()          # same as 1709500000.ts_from_unix()
+  1709500000123456789.ts_from_unix_nano()          # exact nanosecond precision
+  now().ts_unix_nano().ts_from_unix_nano()          # lossless round-trip
   ```
 
 ### `.ts_add(nanos)`

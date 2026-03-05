@@ -19,24 +19,30 @@ param_list      := param (',' param)*
 param           := identifier | identifier '=' literal
 import_stmt     := 'import' string_literal 'as' identifier
 
-expression      := literal | expr_path | function_call | method_chain |
-                   control_expr | binary_expr | unary_expr |
-                   lambda_expr | paren_expr
+expression      := postfix_expr | binary_expr | unary_expr | lambda_expr
 control_expr    := if_expr | match_expr
 
-# Expression paths: allow bare identifiers (resolved by semantic analysis, see below)
-expr_path       := expr_context_root path_component*
-expr_context_root := ('output' | 'input') metadata_accessor? | var_ref | qualified_name | identifier
+# Postfix expressions: a primary followed by zero or more field access, indexing, or method calls.
+# This unified production allows chaining any postfix operation on any expression result:
+#   input.items.filter(x -> x > 0)[0]       — index a method result
+#   extract_user(input.data).name            — field access on a call result
+#   "a,b,c".split(",")[0]                    — index a method on a literal
+postfix_expr    := primary_expr postfix_op*
+primary_expr    := literal | context_root | call_expr | control_expr | paren_expr
+context_root    := ('output' | 'input') metadata_accessor? | var_ref | qualified_name | identifier
+
+postfix_op      := path_component | method_call
+path_component  := '.' field_name | '?.' field_name | '[' expression ']' | '?[' expression ']'
+# Note: '.' field_name and '.' word '(' ... ')' both start with '.'. Disambiguation:
+# after '.' word, if '(' follows it is a method call; otherwise it is field access.
+method_call     := '.' word '(' [arg_list] ')' | '?.' word '(' [arg_list] ')'
 
 metadata_accessor := '@'
-path_component  := '.' field_name | '?.' field_name | '[' expression ']' | '?[' expression ']'
 field_name      := word | string_literal
 var_ref         := '$' identifier
 
-function_call   := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
+call_expr       := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
 qualified_name  := identifier '::' identifier
-method_chain    := expression (method_call)+
-method_call     := '.' identifier '(' [arg_list] ')' | '?.' identifier '(' [arg_list] ')'
 
 if_expr         := 'if' expression '{' expr_body '}'
                    ('else' 'if' expression '{' expr_body '}')*
@@ -101,23 +107,24 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
 
 ## Key Points
 
-- **Top-level only:** Map declarations (`map_decl`) and imports (`import_stmt`) can only appear at the top level of a program, not inside statement bodies. Control flow statements (`if_stmt`, `match_stmt`) can be nested
+- **Unified postfix chains:** The `postfix_expr` production unifies field access, indexing, and method calls into a single chain. Any expression result can be followed by any combination of `.field`, `[index]`, and `.method()` operations. This means `func().field`, `expr.method()[0]`, and `literal["key"]` are all valid.
+- **Top-level only:** Map declarations (`map_decl`) and imports (`import_stmt`) can only appear at the top level of a program, not inside statement bodies. Control flow statements (`if_stmt`, `match_stmt`) can be nested.
 - **Variables:** `$var` for declaration and reference. The grammar has two assignment productions that reflect context restrictions: `assignment` (used in statement contexts: top-level, if/match statement bodies) can target `output`, `output@`, or `$variables`; `var_assignment` (used in expression contexts: map bodies, lambda blocks, if/match expressions) can only target `$variables`. Both support path assignment (`$var.field = expr`, `$var[0] = expr`) with the same field access, indexing, and auto-creation semantics as `output`.
 - **Metadata:** `input@.key` (read), `output@.key` (write). Root metadata assignment (`output@ = expr`) requires the value to be an object at runtime (error otherwise); `output@ = deleted()` is also an error since metadata cannot be deleted (Section 9.2).
 - **Context-dependent paths:**
   - **Top-level assignments:** Targets must be `output` (with optional `@` for metadata) or `$variable`. `input` is read-only and cannot be assigned to.
   - **Map/lambda bodies:** Can use bare identifiers for parameters **in expressions only** (e.g., `data.field` where `data` is a parameter). Parameters are read-only and cannot be assigned to.
   - **Match with `as`:** Creates a read-only binding in expressions (e.g., `match input.x as val { val.field ... }`)
-  - **Name resolution:** The grammar's `expr_context_root` accepts `identifier` and `qualified_name` in all expression contexts. A separate semantic pass must verify that every bare identifier resolves to a bound name — a map parameter, lambda parameter, match `as` binding, or map name (Section 5.5). Namespace-qualified references (`namespace::name`) resolve to map values from imported modules. Unresolved identifiers are a compile-time error (Section 3.1). When a name matches both a parameter and a map, the parameter wins (Section 5.3).
-- **Field names:** Field names after `.` and `?.` use `word` (any `[a-zA-Z_][a-zA-Z0-9_]*` token, including keywords). Keywords are valid as field names without quoting: `input.map`, `output.if`. Use `."string"` for names with special characters or spaces: `input."field name"`. Declarations (variables, maps, parameters) use `identifier`, which excludes keywords.
+  - **Name resolution:** The grammar's `context_root` accepts `identifier` and `qualified_name` in all expression contexts. A separate semantic pass must verify that every bare identifier resolves to a bound name — a map parameter, lambda parameter, match `as` binding, or map name (Section 5.5). Namespace-qualified references (`namespace::name`) resolve to map values from imported modules. Unresolved identifiers are a compile-time error (Section 3.1). When a name matches both a parameter and a map, the parameter wins (Section 5.3).
+- **Field and method names:** Field names after `.` and `?.` use `word` (any `[a-zA-Z_][a-zA-Z0-9_]*` token, including keywords). Keywords are valid as field names without quoting: `input.map`, `output.if`. Use `."string"` for names with special characters or spaces: `input."field name"`. Method names in `method_call` also use `word`, so standard library methods like `.map()` work despite `map` being a keyword. Declarations (variables, maps, parameters) use `identifier`, which excludes keywords.
 - **Object literals:** Keys are expressions that **must** evaluate to strings at runtime (error if not): `{"key": value}` or `{$var: value}`. Use `.string()` for explicit type conversion.
-- **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int64), bytes (byte position, returns int64). Negative indices supported for arrays, strings, and bytes.
-- **Null-safe:** `?.` and `?[` short-circuit to `null` for field access and indexing; `?.method()` short-circuits to `null` for method calls
-- **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments). Maps are first-class: `name` or `namespace::name` without parentheses evaluates to a lambda value (Section 5.5)
-- **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments. Duplicate named arguments are a compile-time error
+- **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int64), bytes (byte position, returns int64). Negative indices supported for arrays, strings, and bytes. Indexing is a `postfix_op` and can follow any expression — including function calls, method chains, and literals.
+- **Null-safe:** `?.` and `?[` short-circuit to `null` for field access and indexing; `?.method()` short-circuits to `null` for method calls.
+- **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments). Maps are first-class: `name` or `namespace::name` without parentheses evaluates to a lambda value (Section 5.5).
+- **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments. Duplicate named arguments are a compile-time error.
 - **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`).
 - **Arity:** Positional calls must provide at least the required parameter count and at most the total count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
-- **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body
+- **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body.
 - **Side effects:**
   - Expressions cannot assign to `output` or `output@`
   - Lambda blocks: Variable assignments + final expression (no `output` side effects)
@@ -128,9 +135,10 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
   - `if_stmt` / `match_stmt`: Standalone statements, contain `stmt_body` (may assign to `output`)
   - `expr_body`: Variable assignments + final expression (no `output` side effects)
   - `stmt_body`: Zero or more statements (no trailing expression). Empty bodies are valid (no-op).
-- **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false, or from match expressions without `_` when no case matches. The grammar cannot distinguish expressions that may produce void from those that always produce values; this is a runtime semantic. See Section 4.1 for full void behavior.
+- **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false, or from match expressions without `_` when no case matches. In most contexts void is a runtime semantic, but one case is enforced statically: variable declarations (the first assignment to a name in a scope) with a void-producing RHS (bare if-without-else or match-without-`_`) are a **compile-time error** (Section 4.1). This ensures every declared variable always has a value.
 - **Type coercion:** `+` requires same type family (no cross-family implicit conversion). Numeric types are promoted using promotion rules; non-numeric types require exact type match.
-- **Operator precedence and associativity:** The `binary_expr` production is a simplified flat rule. Implementations must apply the precedence, associativity, and non-associativity rules from Section 3.2. Precedence (high to low): field access and method calls > unary > multiplicative > additive > comparison > equality > logical AND > logical OR. Arithmetic and logical operators are left-associative; comparison and equality operators are non-associative (chaining is a parse error).
+- **Operator precedence and associativity:** The `binary_expr` production is a simplified flat rule. Implementations must apply the precedence, associativity, and non-associativity rules from Section 3.2. Precedence (high to low): postfix operations (field access, indexing, method calls) > unary > multiplicative > additive > comparison > equality > logical AND > logical OR. Arithmetic and logical operators are left-associative; comparison and equality operators are non-associative (chaining is a parse error).
+- **`{}` disambiguation:** In contexts where `{}` could be either an empty object literal or an empty block (e.g., inside a map body or lambda block), it is parsed as an empty object literal. Blocks (`expr_body`, `lambda_block`) require at least one expression, so an empty `{}` cannot be a valid block.
 
 ## Context Examples
 

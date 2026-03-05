@@ -86,7 +86,7 @@ Optimize repeated concatenation:
 
 ## 12.3 Intrinsic Methods
 
-`.catch()` and `.or()` are parsed as regular method calls (via the `method_chain` grammar production) but require special handling by the runtime. They **cannot** be implemented as ordinary methods:
+`.catch()` and `.or()` are parsed as regular method calls (via the `method_call` postfix operation in `postfix_expr`) but require special handling by the runtime. They **cannot** be implemented as ordinary methods:
 
 - **`.catch(err -> expr)`** — Must intercept errors from the left-hand expression chain. Normal methods are skipped when the receiver is an error; `.catch()` is the opposite — it activates only on errors and passes through successful values unchanged. See Section 8.2.
 - **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null, void, or `deleted()`. Additionally, `.or()` and `.catch()` are the only methods that can be called on void or `deleted()` — all other methods error on void and `deleted()` receivers. `.catch()` passes void and `deleted()` through unchanged (they are not errors); `.or()` actively rescues them. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
