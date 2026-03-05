@@ -87,6 +87,15 @@ map walk(node) {
 output = walk(input)
 ```
 
+## Unary Minus with Methods
+
+```bloblang
+# Method calls bind tighter than unary minus
+# -10.string()      # ERROR: parses as -(10.string()) = -("10")
+(-10).string()      # OK: "-10"
+(-3.14).abs()       # OK: 3.14
+```
+
 ## Complex Conditional Transformations
 
 ```bloblang

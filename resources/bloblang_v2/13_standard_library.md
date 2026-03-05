@@ -2,6 +2,8 @@
 
 All implementations must provide these functions and methods. This is the complete required standard library — implementations may offer additional functions and methods beyond this list.
 
+**Named arguments:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps: positional and named arguments cannot be mixed in the same call, and duplicate named arguments are a compile-time error (Section 3.3).
+
 **Regular expressions:** All regex parameters use [RE2 syntax](https://github.com/google/re2/wiki/Syntax). RE2 guarantees linear-time matching (no catastrophic backtracking). Notable exclusions from RE2: backreferences and lookahead/lookbehind assertions are not supported.
 
 ---
@@ -92,7 +94,8 @@ Convert a value to its string representation.
 - **Receiver:** any type (except lambda — error)
 - **Returns:** string
 - **Conversion rules:**
-  - Numeric types: decimal representation (`42` → `"42"`, `3.14` → `"3.14"`)
+  - Integer types: decimal representation (`42` → `"42"`, `-10` → `"-10"`)
+  - Float types: shortest exact decimal representation that always includes a decimal point or exponent, ensuring the result is distinguishable from an integer string. `0.0` → `"0.0"`, `3.14` → `"3.14"`, `1000000.0` → `"1e+06"` or `"1000000.0"` (implementation picks shortest). Negative zero normalizes to `"0.0"` (not `"-0.0"`). NaN produces `"NaN"`, Infinity produces `"Infinity"`, negative Infinity produces `"-Infinity"`.
   - Bool: `"true"` or `"false"`
   - Null: `"null"`
   - Timestamp: RFC 3339 format (e.g., `"2024-03-01T12:00:00Z"`)
@@ -103,6 +106,7 @@ Convert a value to its string representation.
   ```bloblang
   42.string()          # "42" (int64 → string)
   3.14.string()        # "3.14" (float64 → string)
+  0.0.string()         # "0.0" (float64 — always includes decimal point)
   true.string()        # "true"
   null.string()        # "null"
   [1, 2].string()      # "[1,2]"
@@ -183,11 +187,22 @@ Convert a value to boolean.
 
 ### `.bytes()`
 
-Convert a value to a byte array (UTF-8 encoding for strings).
+Convert a value to a byte array. For strings, returns the UTF-8 encoding. For all other supported types, equivalent to `.string().bytes()` (UTF-8 encoding of the string representation).
 
-- **Receiver:** string, bytes
+- **Receiver:** any type (except lambda — error)
 - **Returns:** bytes
-- **Example:** `"hello".bytes()` → byte array (5 bytes)
+- **Conversion rules:**
+  - String: UTF-8 encoding
+  - Bytes: returned as-is
+  - All other types (numeric, bool, null, timestamp, array, object): UTF-8 encoding of `.string()` result
+  - Lambda: error
+- **Examples:**
+  ```bloblang
+  "hello".bytes()          # byte array (5 bytes)
+  "hello".bytes().bytes()  # byte array (unchanged)
+  42.bytes()               # byte array of "42" (2 bytes)
+  true.bytes()             # byte array of "true" (4 bytes)
+  ```
 
 ---
 
@@ -500,6 +515,7 @@ Bool, null, bytes, array, object, and lambda are not sortable — an array conta
   [3, 1, 2].sort()           # [1, 2, 3]
   ["b", "a", "c"].sort()     # ["a", "b", "c"]
   [3, 1.5, 2].sort()         # [1.5, 2, 3] (int64 promoted to float64)
+  [].sort()                  # [] (empty array, trivially valid)
   [1, "a", true].sort()      # ERROR: cannot sort mixed type families
   ```
 
@@ -604,7 +620,7 @@ Test if all elements satisfy the predicate. Returns `true` for empty arrays. **M
 
 ### `.find(elem -> bool)`
 
-Return the first element that satisfies the predicate. Error if no element matches — use `.catch()` to handle.
+Return the first element that satisfies the predicate. **Must** short-circuit — subsequent elements are not evaluated after the first match (this is a required semantic, not an optimization). Error if no element matches — use `.catch()` to handle.
 
 **Design note:** `.find()` errors on no match (rather than returning a sentinel) because there is no natural sentinel value for an arbitrary element — any value (including `null`) could be a legitimate array element. In contrast, `.index_of()` returns `-1` because indices are non-negative integers, making `-1` an unambiguous "not found" sentinel. Use `.catch()` to provide a fallback when no element matches.
 
@@ -664,13 +680,14 @@ Reduce an array to a single value by applying an accumulator function to each el
 
 Convert an array of `{"k": k, "v": v}` objects back into an object. Last value wins on duplicate keys.
 
-- **Receiver:** array of objects (each must have exactly `"k"` (string) and `"v"` (any) fields)
+- **Receiver:** array of objects (each must have `"k"` (string) and `"v"` (any) fields; extra fields are ignored)
 - **Returns:** object
-- **Errors:** if any element is not an object with `"k"` and `"v"` fields, or if `"k"` is not a string
+- **Errors:** if any element is not an object, is missing `"k"` or `"v"` fields, or if `"k"` is not a string
 - **Examples:**
   ```bloblang
   [{"k": "a", "v": 1}, {"k": "b", "v": 2}].collect_kv()     # {"a": 1, "b": 2}
   [{"k": "a", "v": 1}, {"k": "a", "v": 2}].collect_kv()     # {"a": 2} (last value wins)
+  [{"k": "a", "v": 1, "extra": true}].collect_kv()           # {"a": 1} (extra fields ignored)
   [{"k": "a", "v": 1}, {"bad": true}].collect_kv()           # ERROR: element missing "k"/"v" fields
   ```
 
@@ -908,10 +925,10 @@ Handle errors. Called only when the expression to its left produces an error. If
 
 ### `.or(default)`
 
-Provide a default value for null, void, or `deleted()`. Uses **short-circuit evaluation** — the argument is only evaluated if the receiver is null, void, or `deleted()`. Along with `.catch()`, this is one of only two methods that can be called on void or `deleted()`. `.catch()` passes them through unchanged; `.or()` actively rescues them.
+Provide a default value for null, void, or `deleted()`. Takes exactly one argument — zero or multiple arguments are a compile-time error. Uses **short-circuit evaluation** — the argument is only evaluated if the receiver is null, void, or `deleted()`. Along with `.catch()`, this is one of only two methods that can be called on void or `deleted()`. `.catch()` passes them through unchanged; `.or()` actively rescues them.
 
 - **Receiver:** any expression (including void and `deleted()`)
-- **Parameters:** `default` (any expression, lazily evaluated)
+- **Parameters:** `default` (any expression, lazily evaluated; exactly one argument required)
 - **Returns:** any (either the original value, or the default if receiver was null/void/deleted)
 - **Examples:**
   ```bloblang
@@ -931,7 +948,7 @@ Provide a default value for null, void, or `deleted()`. Uses **short-circuit eva
 
 Parse a JSON string into a value. Errors if the string is not valid JSON.
 
-**Numeric type mapping:** JSON numbers without a decimal point or exponent are parsed as int64 (matching Bloblang integer literal rules). JSON numbers with a decimal point or exponent are parsed as float64 (matching Bloblang float literal rules). Integer values that exceed int64 range are an error.
+**Numeric type mapping:** JSON numbers without a decimal point or exponent are parsed as int64 if the value fits in int64 range; if it exceeds int64 range, the value is parsed as float64 (which may lose precision for very large integers). JSON numbers with a decimal point or exponent are parsed as float64 (matching Bloblang float literal rules).
 
 - **Receiver:** string, bytes
 - **Returns:** any (the parsed value)
