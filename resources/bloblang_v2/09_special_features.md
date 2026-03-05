@@ -203,7 +203,7 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 
 **Causes runtime error:**
 - Variable assignment: `$var = deleted()` (cannot assign deleted to a variable)
-- Array index assignment: `$arr[0] = deleted()`, `output.items[0] = deleted()` (cannot delete array elements by index — use `.filter()` to remove elements)
+- Array index assignment: `$arr[0] = deleted()`, `output.items[0] = deleted()` (cannot delete array elements by index — the semantics are ambiguous: should remaining elements shift down, or should a gap be left? Use `.filter()` to remove elements instead)
 - Metadata root assignment: `output@ = deleted()` (cannot delete metadata object)
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls (except `.or()`): `deleted().type()`, `deleted().uppercase()`

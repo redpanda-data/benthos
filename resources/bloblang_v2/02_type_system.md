@@ -200,7 +200,7 @@ null == 0            # false (null vs numeric)
 - **Equality and comparison:** Timestamps can be compared with `==`, `!=`, `<`, `>`, `<=`, `>=`. Earlier times are less than later times.
 - **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). No other arithmetic operations are supported — adding two timestamps, or adding a number to a timestamp, is an error. Use `.ts_add(nanos)` to offset a timestamp by a duration, or `.ts_unix()` and related methods for numeric conversions. **Note:** int64 nanoseconds can represent approximately ±292 years; subtracting timestamps further apart than this is an integer overflow error (Section 2.3).
 - **Methods:** `.ts_format()`, `.ts_add()`, `.ts_unix()`, `.ts_unix_milli()`, `.ts_unix_micro()`, `.ts_unix_nano()`, `.type()`, `.string()`.
-- **Construction from numeric:** `.ts_from_unix()` on any numeric type (integers widened to int64 for second precision; floats widened to float64 for sub-second precision). See Section 13.9.
+- **Construction from numeric:** `.ts_from_unix()` on any numeric type (integers for second precision; floats for sub-second precision, limited by float64's ~15-17 significant digits). For exact sub-second precision, use `.ts_from_unix_milli()`, `.ts_from_unix_micro()`, or `.ts_from_unix_nano()` on int64 values. See Section 13.9.
 - **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings. When converted with `.string()`, the result is also RFC 3339. Trailing fractional zeros are trimmed (e.g., `.500000000` becomes `.5`; whole-second timestamps omit the fractional part entirely).
 
 ```bloblang

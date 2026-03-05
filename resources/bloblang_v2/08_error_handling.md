@@ -41,6 +41,8 @@ All runtime errors are catchable with `.catch()` — the sole exception is excee
 **The error object** is a plain object (`{"what": "..."}`) with a single field:
 - `.what` — a string containing the error message
 
+The error is structured as an object (rather than a plain string) to allow future extension with additional fields (e.g., error codes, source locations) without breaking existing handlers.
+
 ```bloblang
 # Inspect the error
 output.parsed = input.date.ts_parse("%Y-%m-%d").catch(err -> {
