@@ -19,11 +19,26 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 | `array` | Ordered collection | `[1, "two", true]` |
 | `object` | Key-value map | `{"key": "value"}` |
 | `timestamp` | Point in time with nanosecond precision | `now()`, `"2024-03-01".ts_parse("%Y-%m-%d")` |
-| `lambda` | Function value | `x -> x * 2` |
+| `lambda` | Function value (see assignment restrictions below) | `x -> x * 2` |
 
 **Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
 
-**Void:** Void is not a runtime type — it is the absence of a value, produced when an if-expression without `else` has a false condition, or when a match expression without `_` has no matching case (Section 4.1). Void cannot be stored in variables, passed as arguments, used in expressions, or included in collection literals (all are errors). It only exists transiently to signal "no value was produced," and is only meaningful in assignments where it causes the assignment to be skipped (a no-op). The sole exception is `.or()`, which rescues void by returning its argument (Section 8.3). Other method calls on void are errors — e.g., `.type()` on void is not possible. See Section 4.1 for full void semantics.
+**Lambda restrictions:** Lambdas are computation values, not data values — they cannot be serialized or returned from calls.
+
+*Assignment:* The only valid assignment target for a lambda is a plain variable (`$fn = x -> x * 2`). Assigning a lambda to any other target is a runtime error:
+- `output.field = lambda` — error
+- `output@.key = lambda` — error
+- `$var.field = lambda` — error (nested field of a variable)
+
+*Collection literals:* Lambdas cannot appear inside array or object literals. This is a runtime error regardless of the assignment target:
+- `[x -> x * 2]` — error
+- `{"fn": x -> x}` — error
+
+*Return values:* Maps, lambdas, functions, and methods cannot return lambda values. If a map body, lambda body, or method produces a lambda as its result, this is a runtime error. Lambdas can be passed as arguments (e.g., `.map(x -> x * 2)`) and stored in plain variables, but they cannot flow out of a call as a return value.
+
+These restrictions ensure that lambdas remain in the computation domain — they are used to parameterize operations, not to build data structures or create higher-order call chains.
+
+**Void:** Void is not a runtime type — it is the absence of a value, produced when an if-expression without `else` has a false condition, or when a match expression without `_` has no matching case (Section 4.1). Void cannot be stored in variables, passed as arguments, used in expressions, or included in collection literals (all are errors). It only exists transiently to signal "no value was produced," and is only meaningful in assignments where it causes the assignment to be skipped (a no-op). The sole exception is `.or()`, which rescues void (and also null and `deleted()`) by returning its argument (Section 8.3). Other method calls on void are errors — e.g., `.type()` on void is not possible. See Section 4.1 for full void semantics.
 
 ## 2.2 Type Introspection
 
@@ -176,7 +191,7 @@ null == 0            # false (null vs numeric)
 (x -> x) == (x -> x) # ERROR: lambdas cannot be compared for equality
 ```
 
-**Object key ordering:** Object key ordering is **not preserved**. Programs must not depend on iteration order in `map_object`, JSON serialization order, or any other context where keys are enumerated. Object equality compares keys and values regardless of order.
+**Object key ordering:** Object key ordering is **not preserved**. Programs must not depend on iteration order in `iter_kv`, JSON serialization order, or any other context where keys are enumerated. Object equality compares keys and values regardless of order.
 
 **Timestamp semantics:** Timestamps represent a point in time with nanosecond precision. They support:
 
@@ -215,8 +230,8 @@ null != 5            # true
 input.user?.name           # null if user is null (no error)
 input.items?[0]            # null if items is null (no error)
 
-# ✅ .or() provides defaults for null or void
-input.value.or("default")  # "default" if value is null or void
+# ✅ .or() provides defaults for null, void, or deleted()
+input.value.or("default")  # "default" if value is null, void, or deleted()
 ```
 
 ## 2.5 Type Conversions

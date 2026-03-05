@@ -49,7 +49,7 @@ output@ = deleted()             # ERROR: cannot delete metadata object
 
 **`output = deleted()` — immediate message drop:**
 
-`output = deleted()` drops the entire message (document + metadata) from the stream and **immediately exits the mapping**. No subsequent statements execute. This is a terminal operation — there is no way to "restore" a deleted output.
+`output = deleted()` drops the entire message (document + metadata) from the stream and **immediately exits the mapping**. No subsequent statements execute. This is a terminal operation — there is no way to "restore" a deleted output. It is specifically the *assignment* of `deleted()` to `output` (the root document) that triggers the exit — merely evaluating `deleted()` in an expression does not exit the mapping.
 
 ```bloblang
 output = deleted()
@@ -95,8 +95,8 @@ output.field = $val             # ERROR: variable $val does not exist
 # Array literal - deleted elements removed
 output.items = [1, deleted(), 3]              # Result: [1, 3]
 
-# map_array - deleted elements filtered out
-output.positive = input.numbers.map_array(x -> if x > 0 { x } else { deleted() })
+# map - deleted elements filtered out
+output.positive = input.numbers.map(x -> if x > 0 { x } else { deleted() })
 # Input: [-1, 2, -3, 4] → Output: [2, 4]
 ```
 
@@ -178,15 +178,16 @@ map filter_negative(val) {
 output.result = filter_negative(input.value)  # Field deleted if value < 0
 ```
 
-**Operations on `deleted()` are errors:**
+**Operations on `deleted()` are errors (except `.or()`):**
 ```bloblang
 deleted() + 5                   # ERROR: cannot perform arithmetic on deleted
 deleted() == deleted()          # ERROR: cannot compare deleted values
 deleted().type()                # ERROR: cannot call methods on deleted value
 deleted()?.field                # ERROR: ?. only short-circuits on null, not deleted
+deleted().or("fallback")        # OK: returns "fallback" (.or() rescues deleted)
 ```
 
-These operations result in **runtime errors** (or compile-time errors if detectable by implementation).
+These operations result in **runtime errors** (or compile-time errors if detectable by implementation). The sole exception is `.or()`, which rescues `deleted()` the same way it rescues null and void (Section 8.3).
 
 **When deleted() Causes Errors vs Deletion:**
 
@@ -199,18 +200,16 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 - Variable assignment: `$var = deleted()` — removes the variable
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
-- `map_array` lambda return value: element is filtered out
-- `map_object` lambda return value: key-value pair is removed from result
-- `map_keys` lambda return value: key-value pair is removed from result
+- `map` lambda return value: element is filtered out
 
 **Causes runtime error:**
 - Metadata root assignment: `output@ = deleted()` (cannot delete metadata object)
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
-- Method calls: `deleted().type()`, `deleted().uppercase()`
+- Method calls (except `.or()`): `deleted().type()`, `deleted().uppercase()`
 - Used as function arguments: `some_function(deleted())`
-- Lambda return values in methods other than `map_array`/`map_object` (e.g., `filter`, `sort`)
+- Lambda return values in methods that do not support deletion (e.g., `filter`, `sort`). The standard library method that supports `deleted()` as a lambda return is `map`; extension methods may also support it.
 
-The distinction: `deleted()` is a special marker that triggers deletion when flowing into an assignment or collection, but cannot be used as a normal value in computations. When it flows to the root output assignment, it drops the entire message and immediately exits the mapping.
+The distinction: `deleted()` is a special marker that triggers deletion when flowing into an assignment or collection, but cannot be used as a normal value in computations. The sole exception is `.or()`, which rescues `deleted()` and returns its argument (Section 8.3). When `deleted()` flows to the root output assignment, it drops the entire message and immediately exits the mapping.
 
 **Routing messages instead of dropping them:**
 

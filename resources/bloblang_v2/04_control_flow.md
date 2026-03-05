@@ -41,7 +41,7 @@ output.value = if input.flag {
 $result = if input.score > 80 { "high" } else { "low" }
 
 # Expression context (lambda body)
-input.items.map_array(x -> if x > 0 { x * 2 } else { 0 })
+input.items.map(x -> if x > 0 { x * 2 } else { 0 })
 
 # ERROR: Statement body cannot end with expression
 if input.flag {
@@ -79,7 +79,7 @@ output.field2 = if false { "value" }    # Void: field doesn't exist (no prior as
 # JSON output: {"field1": null} (field2 omitted)
 ```
 
-**Void in collection literals (array and object):** Void is an **error** in collection literals. Use `deleted()` to conditionally omit elements/fields, or add an `else` branch to provide a value in all cases.
+**Void and lambdas in collection literals (array and object):** Void is an **error** in collection literals. Use `deleted()` to conditionally omit elements/fields, or add an `else` branch to provide a value in all cases. Lambdas are also an **error** in collection literals — they cannot appear as elements or values (see Section 2.1).
 ```bloblang
 # Arrays
 output.items = [1, if false { 2 }, 3]                        # ERROR: void in array literal
@@ -131,15 +131,15 @@ output.flag = !(if false { true })       # ERROR: void in expression
 
 **Void as a lambda return value:** Void propagates transparently out of a lambda — the lambda itself does not error. The consuming context then determines what happens:
 
-- **`map_array` / `map_object`**: void is an error — the lambda must return a value for every element. Use an explicit `else` branch to keep elements unchanged, or return `deleted()` to remove them.
+- **`map`**: void is an error — the lambda must return a value for every element. Use an explicit `else` branch to keep elements unchanged, or return `deleted()` to remove them. Extension methods may also support `deleted()` as a lambda return value.
 - **`filter`**: requires a boolean — void is an error.
-- Methods that require a specific type will error if they receive void.
+- Other methods that require a specific type will error if they receive void.
 
 ```bloblang
-# map_array: void is an error, must always return a value
-input.items.map_array(x -> if x > 0 { x * 2 } else { x })     # Positive doubled, others kept
-input.items.map_array(x -> if x > 0 { x * 2 })                 # ERROR when x <= 0: void
-input.items.map_array(x -> if x > 0 { x } else { deleted() })  # Non-positive elements removed
+# map: void is an error, must always return a value
+input.items.map(x -> if x > 0 { x * 2 } else { x })     # Positive doubled, others kept
+input.items.map(x -> if x > 0 { x * 2 })                 # ERROR when x <= 0: void
+input.items.map(x -> if x > 0 { x } else { deleted() })  # Non-positive elements removed
 
 # filter requires a boolean: receiving void is an error
 input.items.filter(x -> if x > 0 { true })         # ERROR when x <= 0: filter received void, not bool
@@ -166,13 +166,14 @@ output.result = match input.x {
 | Collection literal (`[1, void, 3]`) | Error |
 | Object literal (`{"a": void}`) | Error |
 | Function/map argument (`f(void)`) | Error |
-| `map_array` lambda return | Error (value required) |
-| `map_object` lambda return | Error (value required) |
+| `map` lambda return | Error (value required) |
 | `filter` lambda return | Error (boolean required) |
 | Other lambda return | Propagates to consuming context |
 | `.or()` receiver (`void.or(x)`) | Returns `x` (void rescued) |
 | Other method call (`void.type()`) | Error |
 | Expression operand (`void + 1`) | Error |
+
+**Note:** `.or()` also rescues `deleted()` — see Section 8.3.
 
 ## 4.2 Match Expressions vs Statements
 
@@ -210,10 +211,10 @@ output.sound = match input.animal {
 ```bloblang
 match input.type() as t {
   t == "object" => {
-    output = input.map_object((key, value) -> transform(value))
+    output = input.iter_kv().map(e -> {"k": e.k, "v": transform(e.v)}).collect_kv()
   },
   t == "array" => {
-    output = input.map_array(elem -> transform(elem))
+    output = input.map(elem -> transform(elem))
   },
   _ => {
     output = input
