@@ -35,7 +35,8 @@ var_ref         := '$' identifier
 
 function_call   := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
 qualified_name  := identifier '::' identifier
-method_chain    := expression ('.' identifier '(' [arg_list] ')')+
+method_chain    := expression (method_call)+
+method_call     := '.' identifier '(' [arg_list] ')' | '?.' identifier '(' [arg_list] ')'
 
 if_expr         := 'if' expression '{' expr_body '}'
                    ('else' 'if' expression '{' expr_body '}')*
@@ -81,15 +82,18 @@ int_literal     := [0-9]+                          # Must fit int64; overflow is
 float_literal   := [0-9]+ '.' [0-9]+
 string_literal  := '"' string_char* '"' | '`' raw_char* '`'
 string_char     := [^"\\\n] | escape_seq
-escape_seq      := '\\' ( '"' | '\\' | 'n' | 't' | 'r' | 'u' hex hex hex hex )
+escape_seq      := '\\' ( '"' | '\\' | 'n' | 't' | 'r' | 'u' hex hex hex hex | 'u{' hex+ '}' )
+                   # \uXXXX: exactly 4 hex digits (BMP only, U+0000–U+FFFF)
+                   # \u{X...}: 1–6 hex digits (any valid Unicode codepoint, U+0000–U+10FFFF)
+                   # Surrogate codepoints (U+D800–U+DFFF) are invalid in both forms
 raw_char        := [^`]
 array           := '[' [expression (',' expression)* ','?] ']'
 object          := '{' [key_value (',' key_value)* ','?] '}'
 key_value       := expression ':' expression
 
 arg_list        := positional_args | named_args
-positional_args := expression (',' expression)*
-named_args      := identifier ':' expression (',' identifier ':' expression)*
+positional_args := expression (',' expression)* ','?
+named_args      := identifier ':' expression (',' identifier ':' expression)* ','?
 word            := [a-zA-Z_][a-zA-Z0-9_]*          # Raw lexical pattern (includes keywords)
 identifier      := word - keyword                    # Excludes keywords; used for variable/map/param names
 keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' | 'import' | 'true' | 'false' | 'null' | '_'
@@ -108,9 +112,9 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
 - **Field names:** Field names after `.` and `?.` use `word` (any `[a-zA-Z_][a-zA-Z0-9_]*` token, including keywords). Keywords are valid as field names without quoting: `input.map`, `output.if`. Use `."string"` for names with special characters or spaces: `input."field name"`. Declarations (variables, maps, parameters) use `identifier`, which excludes keywords.
 - **Object literals:** Keys are expressions that **must** evaluate to strings at runtime (error if not): `{"key": value}` or `{$var: value}`. Use `.string()` for explicit type conversion.
 - **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int64), bytes (byte position, returns int64). Negative indices supported for arrays, strings, and bytes.
-- **Null-safe:** `?.` and `?[` short-circuit to `null`
+- **Null-safe:** `?.` and `?[` short-circuit to `null` for field access and indexing; `?.method()` short-circuits to `null` for method calls
 - **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments). Maps are first-class: `name` or `namespace::name` without parentheses evaluates to a lambda value (Section 5.5)
-- **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments
+- **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments. Duplicate named arguments are a compile-time error
 - **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`).
 - **Arity:** Positional calls must provide at least the required parameter count and at most the total count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
 - **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body

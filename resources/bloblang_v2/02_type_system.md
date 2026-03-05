@@ -155,7 +155,7 @@ output.ok = 9223372036854775807.uint64() + 1.uint64()  # 9223372036854775808 (ui
 - `NaN > x`, `NaN < x`, `NaN >= x`, `NaN <= x` are all `false` for any `x`
 - Arithmetic with NaN produces NaN
 - Infinity compares normally (`Infinity > 1.0` is `true`, `Infinity == Infinity` is `true`)
-- Negative zero: `-0.0 == 0.0` is `true`, `-0.0 < 0.0` is `false` (they are equal per IEEE 754). `.string()` normalizes to `"0"`.
+- Negative zero: `-0.0 == 0.0` is `true`, `-0.0 < 0.0` is `false` (they are equal per IEEE 754). `.string()` normalizes to `"0.0"` (not `"-0.0"`).
 
 **Equality Semantics:**
 
@@ -198,7 +198,7 @@ null == 0            # false (null vs numeric)
 **Timestamp semantics:** Timestamps represent a point in time with nanosecond precision. They support:
 
 - **Equality and comparison:** Timestamps can be compared with `==`, `!=`, `<`, `>`, `<=`, `>=`. Earlier times are less than later times.
-- **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). No other arithmetic operations are supported — adding two timestamps, or adding a number to a timestamp, is an error. Use `.ts_add(nanos)` to offset a timestamp by a duration, or `.ts_unix()` and related methods for numeric conversions.
+- **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). No other arithmetic operations are supported — adding two timestamps, or adding a number to a timestamp, is an error. Use `.ts_add(nanos)` to offset a timestamp by a duration, or `.ts_unix()` and related methods for numeric conversions. **Note:** int64 nanoseconds can represent approximately ±292 years; subtracting timestamps further apart than this is an integer overflow error (Section 2.3).
 - **Methods:** `.ts_format()`, `.ts_add()`, `.ts_unix()`, `.ts_unix_milli()`, `.ts_unix_micro()`, `.ts_unix_nano()`, `.type()`, `.string()`.
 - **Construction from numeric:** `.ts_from_unix()` on any numeric type (integers widened to int64 for second precision; floats widened to float64 for sub-second precision). See Section 13.9.
 - **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings. When converted with `.string()`, the result is also RFC 3339. Trailing fractional zeros are trimmed (e.g., `.500000000` becomes `.5`; whole-second timestamps omit the fractional part entirely).
