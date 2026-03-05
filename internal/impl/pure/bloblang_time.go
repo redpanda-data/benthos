@@ -440,7 +440,7 @@ func init() {
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Converts a timestamp to a unix timestamp (seconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer representing seconds.")
+		Description("Converts a timestamp to a unix timestamp (seconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer when there is no sub-second precision, or a float otherwise.")
 
 	formatTSUnixSpecDep := asDeprecated(formatTSUnixSpec)
 
@@ -458,11 +458,21 @@ func init() {
 				`{"ts":1257894000}`,
 				`{"timestamp":1257894000}`,
 			},
+		).
+		Example("Extracting with fractional seconds preserves precision.",
+			`root.created_at_unix = this.created_at.ts_unix()`,
+			[2]string{
+				`{"created_at":"2020-08-14T11:45:26.371Z"}`,
+				`{"created_at_unix":1597405526.371}`,
+			},
 		)
 
 	formatTSUnixCtor := func(args *bloblang.ParsedParams) (bloblang.Method, error) {
 		return bloblang.TimestampMethod(func(target time.Time) (any, error) {
-			return target.Unix(), nil
+			if target.Nanosecond() == 0 {
+				return target.Unix(), nil
+			}
+			return float64(target.Unix()) + float64(target.Nanosecond())/1e9, nil
 		}), nil
 	}
 

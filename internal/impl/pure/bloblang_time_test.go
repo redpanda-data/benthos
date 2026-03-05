@@ -115,6 +115,16 @@ func TestTimestampMethods(t *testing.T) {
 			output:  int64(1257894000),
 		},
 		{
+			name:    "check ts_unix fractional from string",
+			mapping: `root = "2020-08-14T11:45:26.371Z".ts_unix()`,
+			output:  float64(1597405526.371),
+		},
+		{
+			name:    "check ts_unix fractional from number",
+			mapping: `root = 1657734018.5.ts_unix()`,
+			output:  float64(1657734018.5),
+		},
+		{
 			name:    "check ts_unix_milli",
 			mapping: `root = "2009-11-10T23:00:00Z".ts_unix_milli()`,
 			output:  int64(1257894000000),
