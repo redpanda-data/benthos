@@ -17,7 +17,20 @@ Common error sources:
 
 Handle errors with `.catch()`. The method takes a lambda with a single parameter — the error object — and is called only when the expression to its left produces an error. If the expression succeeds, `.catch()` returns its value unchanged. If the lambda itself errors, that error propagates and can be caught by a subsequent `.catch()`.
 
-**Scope:** Errors propagate through method chains — if any method in the chain errors, subsequent methods are skipped and the error flows to the next `.catch()`. This means `.catch()` catches any error produced anywhere in the entire expression chain to its left, not just the immediately preceding method call. All runtime errors are catchable with `.catch()` — the sole exception is exceeding the recursion limit (Section 5.2), which halts execution immediately.
+**Scope:** `.catch()` catches any error produced by its receiver expression — the entire expression that the grammar parses as the left-hand side of the `.catch()` method call. Errors propagate through method chains: if any method errors, subsequent methods are skipped and the error flows to the next `.catch()`.
+
+```bloblang
+# Catches errors from ts_parse or uppercase (either one)
+input.date.ts_parse("%Y-%m-%d").uppercase().catch(err -> null)
+
+# Parentheses define the boundary — catches errors from the addition and .string()
+(input.a + input.b).string().catch(err -> "0")
+
+# Catches errors from .map() (e.g., lambda errors), not from inside individual elements
+input.items.map(x -> x.value / x.count).catch(err -> [])
+```
+
+All runtime errors are catchable with `.catch()` — the sole exception is exceeding the recursion limit (Section 5.2), which halts execution immediately.
 
 **The error object** is a plain object (`{"what": "..."}`) with a single field:
 - `.what` — a string containing the error message
@@ -41,9 +54,9 @@ output.parsed = input.date
 
 ## 8.3 Or Method
 
-Provide default for null or void values. `.or()` uses **short-circuit evaluation**: the argument expression is only evaluated if the receiver is null or void. If the receiver has a value (non-null, non-void), the argument is never evaluated and the receiver value is returned directly.
+Provide default for null, void, or deleted values. `.or()` uses **short-circuit evaluation**: the argument expression is only evaluated if the receiver is null, void, or `deleted()`. If the receiver has a value, the argument is never evaluated and the receiver value is returned directly.
 
-`.or()` is the only method that can be called on void — all other method calls on void are errors. This makes `.or()` useful for providing defaults in deeply nested expressions involving if-without-else or non-exhaustive match:
+`.or()` is the only method that can be called on void or `deleted()` — all other method calls on void or `deleted()` are errors. This makes `.or()` useful for providing defaults in deeply nested expressions involving if-without-else, non-exhaustive match, or expressions that may yield `deleted()`:
 
 ```bloblang
 output.name = input.user.name.or("Anonymous")
@@ -57,6 +70,9 @@ output.label = (if input.premium { "VIP" }).or("standard")
 
 # Rescues void from non-exhaustive match
 output.sound = (match input.animal { "cat" => "meow", "dog" => "woof" }).or("unknown")
+
+# Rescues deleted() — useful when calling maps that may return deleted()
+output.field = some_map(input.value).or("placeholder")
 ```
 
 ## 8.4 Throw Function
@@ -115,11 +131,12 @@ input.user?.name    # OK: returns null if user is null, or user.name if user is 
 input.date.ts_parse("format").catch(err -> null)  # null if parse fails
 ```
 
-**`.or()`**: Handles `null` and `void`, not errors. Short-circuits: argument only evaluated if receiver is null or void. If the receiver is an error, the error propagates through `.or()` uncaught.
+**`.or()`**: Handles `null`, `void`, and `deleted()`, not errors. Short-circuits: argument only evaluated if receiver is null, void, or deleted. If the receiver is an error, the error propagates through `.or()` uncaught.
 ```bloblang
 input.name.or("default")                                   # "default" if name is null
 (if false { "hello" }).or("world")                         # "world" (void rescued)
 (match input.x { "a" => 1 }).or(0)                        # 0 if no case matched (void rescued)
+some_map(input.value).or("fallback")                       # "fallback" if map returned deleted()
 (5 / 0).or("default")                                      # ERROR propagates: .or() does not catch errors
 ```
 

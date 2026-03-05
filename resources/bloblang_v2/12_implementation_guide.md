@@ -12,7 +12,7 @@ Implementations may optimize without changing observable behavior. Results must 
 
 **Strategy:** Methods may return internal iterators instead of materializing arrays immediately.
 
-**Lazy methods (from standard library):** `.filter()`, `.map_array()`. Additional extension methods like `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()` may also be made lazy if offered.
+**Lazy methods (from standard library):** `.filter()`, `.map()`. Additional extension methods like `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()` may also be made lazy if offered.
 
 **Terminal methods (from standard library):** `.sort()`, `.reverse()`, `.length()`, `.any()`, `.all()`, `.join()`, `.fold()`
 
@@ -27,12 +27,12 @@ Implementations may optimize without changing observable behavior. Results must 
 # Direct chain (stays lazy)
 output.active_values = input.items
   .filter(x -> x.active)
-  .map_array(x -> x.value)
+  .map(x -> x.value)
 # Single pass, no intermediate array
 
 # Variable breaks chain (materializes)
 $filtered = input.items.filter(x -> x.active)  # Materializes
-output.values = $filtered.map_array(x -> x.value)  # Second pass
+output.values = $filtered.map(x -> x.value)  # Second pass
 ```
 
 **Benefit:** 10-100x faster for large datasets, no intermediate allocations.
@@ -46,7 +46,7 @@ Combine multiple operations into single loop:
 # User code
 output.results = input.items
   .filter(x -> x.active)
-  .map_array(x -> x.value * 2)
+  .map(x -> x.value * 2)
   .filter(x -> x > 0)
 
 # Implementation may fuse into:
@@ -93,7 +93,7 @@ Optimize repeated concatenation:
 `.catch()` and `.or()` are parsed as regular method calls (via the `method_chain` grammar production) but require special handling by the runtime. They **cannot** be implemented as ordinary methods:
 
 - **`.catch(err -> expr)`** — Must intercept errors from the left-hand expression chain. Normal methods are skipped when the receiver is an error; `.catch()` is the opposite — it activates only on errors and passes through successful values unchanged. See Section 8.2.
-- **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null or void. Additionally, `.or()` is the only method that can be called on void — all other methods error on void receivers. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
+- **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null, void, or `deleted()`. Additionally, `.or()` is the only method that can be called on void or `deleted()` — all other methods error on void and `deleted()` receivers. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
 
 Implementations should recognize these during compilation/interpretation and emit specialized instructions rather than routing them through the general method dispatch path.
 
