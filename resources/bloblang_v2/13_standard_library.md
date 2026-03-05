@@ -95,13 +95,14 @@ Convert a value to its string representation.
 - **Returns:** string
 - **Conversion rules:**
   - Integer types: decimal representation (`42` → `"42"`, `-10` → `"-10"`)
-  - Float types: shortest exact decimal representation that always includes a decimal point or exponent, ensuring the result is distinguishable from an integer string. `0.0` → `"0.0"`, `3.14` → `"3.14"`, `1000000.0` → `"1e+06"` or `"1000000.0"` (implementation picks shortest). Negative zero normalizes to `"0.0"` (not `"-0.0"`). NaN produces `"NaN"`, Infinity produces `"Infinity"`, negative Infinity produces `"-Infinity"`.
+  - Float types: shortest decimal representation that round-trips exactly back to the same float value, always including either a decimal point or exponent to distinguish the result from an integer string. When a non-exponent form and an exponent form have the same length, prefer the non-exponent form. `0.0` → `"0.0"`, `3.14` → `"3.14"`, `1000000.0` → `"1e+06"` (exponent form is shorter). Negative zero normalizes to `"0.0"` (not `"-0.0"`). NaN produces `"NaN"`, Infinity produces `"Infinity"`, negative Infinity produces `"-Infinity"`.
   - Bool: `"true"` or `"false"`
   - Null: `"null"`
   - Timestamp: RFC 3339 format (e.g., `"2024-03-01T12:00:00Z"`)
   - Bytes: UTF-8 decode (error if bytes are not valid UTF-8)
-  - Array, object: compact JSON (equivalent to `.format_json()`)
+  - Array, object: compact JSON (equivalent to `.format_json()` — object keys sorted lexicographically)
   - Lambda: error
+  - **Containers with bytes:** If an array or object contains a bytes value (at any nesting depth), `.string()` errors — bytes have no implicit serialization format. Convert bytes explicitly before including them in structures that will be stringified.
 - **Examples:**
   ```bloblang
   42.string()          # "42" (int64 → string)
@@ -578,6 +579,21 @@ Remove duplicate elements, preserving the first occurrence of each value. Compar
   ["a", "b", "a"].unique()        # ["a", "b"]
   ```
 
+### `.without_index(index)`
+
+Return a new array with the element at the given index removed. Remaining elements shift down. Negative indices count from the end. Out-of-bounds indices are an error.
+
+- **Receiver:** array
+- **Parameters:** `index` (int64)
+- **Returns:** array
+- **Examples:**
+  ```bloblang
+  [10, 20, 30].without_index(1)     # [10, 30]
+  [10, 20, 30].without_index(0)     # [20, 30]
+  [10, 20, 30].without_index(-1)    # [10, 20]
+  [10, 20, 30].without_index(5)     # ERROR: index out of bounds
+  ```
+
 ### `.enumerate()`
 
 Convert an array to an array of `{"index": i, "value": v}` objects.
@@ -676,54 +692,51 @@ Reduce an array to a single value by applying an accumulator function to each el
   ["a", "b"].fold("", (tally, x) -> tally + x + ",")  # "a,b,"
   ```
 
-### `.collect_kv()`
+### `.collect()`
 
-Convert an array of `{"k": k, "v": v}` objects back into an object. Last value wins on duplicate keys.
+Convert an array of `{"key": k, "value": v}` objects back into an object. Last value wins on duplicate keys.
 
-- **Receiver:** array of objects (each must have `"k"` (string) and `"v"` (any) fields; extra fields are ignored)
+- **Receiver:** array of objects (each must have `"key"` (string) and `"value"` (any) fields; extra fields are ignored)
 - **Returns:** object
-- **Errors:** if any element is not an object, is missing `"k"` or `"v"` fields, or if `"k"` is not a string
+- **Errors:** if any element is not an object, is missing `"key"` or `"value"` fields, or if `"key"` is not a string
 - **Examples:**
   ```bloblang
-  [{"k": "a", "v": 1}, {"k": "b", "v": 2}].collect_kv()     # {"a": 1, "b": 2}
-  [{"k": "a", "v": 1}, {"k": "a", "v": 2}].collect_kv()     # {"a": 2} (last value wins)
-  [{"k": "a", "v": 1, "extra": true}].collect_kv()           # {"a": 1} (extra fields ignored)
-  [{"k": "a", "v": 1}, {"bad": true}].collect_kv()           # ERROR: element missing "k"/"v" fields
+  [{"key": "a", "value": 1}, {"key": "b", "value": 2}].collect()     # {"a": 1, "b": 2}
+  [{"key": "a", "value": 1}, {"key": "a", "value": 2}].collect()     # {"a": 2} (last value wins)
+  [{"key": "a", "value": 1, "extra": true}].collect()                 # {"a": 1} (extra fields ignored)
+  [{"key": "a", "value": 1}, {"bad": true}].collect()                 # ERROR: element missing "key"/"value" fields
   ```
 
 ---
 
 ## 13.7 Object Methods
 
-### `.iter_kv()`
+### `.iter()`
 
-Convert an object to an array of `{"k": k, "v": v}` objects. Order is not guaranteed.
+Convert an object to an array of `{"key": k, "value": v}` objects. Order is not guaranteed.
 
 - **Receiver:** object
-- **Returns:** array of objects (each with string field `"k"` and any-typed field `"v"`)
+- **Returns:** array of objects (each with string field `"key"` and any-typed field `"value"`)
 - **Examples:**
   ```bloblang
-  {"a": 1, "b": 2}.iter_kv()
-  # [{"k": "a", "v": 1}, {"k": "b", "v": 2}] (order not guaranteed)
+  {"a": 1, "b": 2}.iter()
+  # [{"key": "a", "value": 1}, {"key": "b", "value": 2}] (order not guaranteed)
 
   # Extract keys
-  {"a": 1, "b": 2}.iter_kv().map(e -> e.k)         # ["a", "b"] (order not guaranteed)
+  {"a": 1, "b": 2}.iter().map(e -> e.key)         # ["a", "b"] (order not guaranteed)
 
   # Extract values
-  {"a": 1, "b": 2}.iter_kv().map(e -> e.v)          # [1, 2] (order not guaranteed)
+  {"a": 1, "b": 2}.iter().map(e -> e.value)        # [1, 2] (order not guaranteed)
 
-  # Transform values
-  {"a": 1, "b": 2}.iter_kv().map(e -> {"k": e.k, "v": e.v * 10}).collect_kv()
-  # {"a": 10, "b": 20}
-
-  # Transform keys
-  {"a": 1, "b": 2}.iter_kv().map(e -> {"k": e.k.uppercase(), "v": e.v}).collect_kv()
-  # {"A": 1, "B": 2}
+  # Complex transforms — use iter/collect
+  {"a": 1, "b": 2}.iter().map(e -> {"key": e.key.uppercase(), "value": e.value * 10}).collect()
+  # {"A": 10, "B": 20}
 
   # Filter entries
-  {"a": 1, "b": 2, "c": 3}.iter_kv().filter(e -> e.v > 1).collect_kv()
+  {"a": 1, "b": 2, "c": 3}.iter().filter(e -> e.value > 1).collect()
   # {"b": 2, "c": 3}
   ```
+- **Note:** For common transforms, prefer the dedicated methods `.map_values()`, `.map_keys()`, `.map_entries()`, and `.filter_entries()` — they are more concise. Use `.iter()`/`.collect()` for complex transforms that don't fit those patterns.
 
 ### `.keys()`
 
@@ -787,6 +800,58 @@ Return a new object with the specified keys removed. Keys that don't exist are i
   {"a": 1, "b": 2, "c": 3}.without(["a", "c"])   # {"b": 2}
   {"a": 1}.without(["x"])                          # {"a": 1}
   {"a": 1, "b": 2}.without([])                     # {"a": 1, "b": 2}
+  ```
+
+### `.map_values(value -> expr)`
+
+Transform the values of an object, keeping keys unchanged. Returns a new object.
+
+- **Receiver:** object
+- **Parameters:** lambda (one parameter: value → any)
+- **Returns:** object
+- **Examples:**
+  ```bloblang
+  {"a": 1, "b": 2}.map_values(v -> v * 10)              # {"a": 10, "b": 20}
+  {"a": "hello", "b": "world"}.map_values(v -> v.uppercase())  # {"a": "HELLO", "b": "WORLD"}
+  ```
+
+### `.map_keys(key -> expr)`
+
+Transform the keys of an object, keeping values unchanged. Returns a new object. The lambda must return a string — non-string return values are an error. If multiple keys map to the same new key, last value wins.
+
+- **Receiver:** object
+- **Parameters:** lambda (one parameter: key (string) → string)
+- **Returns:** object
+- **Examples:**
+  ```bloblang
+  {"a": 1, "b": 2}.map_keys(k -> k.uppercase())         # {"A": 1, "B": 2}
+  {"user_name": "Alice"}.map_keys(k -> k.replace_all("_", "-"))  # {"user-name": "Alice"}
+  ```
+
+### `.map_entries((key, value) -> {"key": k, "value": v})`
+
+Transform both keys and values of an object. The lambda receives two parameters (key, value) and must return an object with `"key"` (string) and `"value"` (any) fields. If multiple entries produce the same key, last value wins.
+
+- **Receiver:** object
+- **Parameters:** lambda (two parameters: key (string), value (any) → object with `"key"` and `"value"` fields)
+- **Returns:** object
+- **Examples:**
+  ```bloblang
+  {"a": 1, "b": 2}.map_entries((k, v) -> {"key": k.uppercase(), "value": v * 10})
+  # {"A": 10, "B": 20}
+  ```
+
+### `.filter_entries((key, value) -> bool)`
+
+Filter entries of an object. The lambda receives two parameters (key, value) and must return a boolean. Returns a new object containing only entries for which the lambda returns `true`.
+
+- **Receiver:** object
+- **Parameters:** lambda (two parameters: key (string), value (any) → bool)
+- **Returns:** object
+- **Examples:**
+  ```bloblang
+  {"a": 1, "b": 2, "c": 3}.filter_entries((k, v) -> v > 1)    # {"b": 2, "c": 3}
+  {"aa": 1, "b": 2}.filter_entries((k, v) -> k.length() > 1)   # {"aa": 1}
   ```
 
 ---
@@ -1011,7 +1076,7 @@ Parse a JSON string into a value. Errors if the string is not valid JSON.
 
 **Numeric type mapping:** JSON numbers without a decimal point or exponent are parsed as int64 if the value fits in int64 range; if it exceeds int64 range, the value is parsed as float64 (which may lose precision for very large integers). JSON numbers with a decimal point or exponent are parsed as float64 (matching Bloblang float literal rules).
 
-- **Receiver:** string, bytes
+- **Receiver:** string, bytes (bytes are interpreted as UTF-8-encoded JSON; errors if bytes are not valid UTF-8)
 - **Returns:** any (the parsed value)
 - **Examples:**
   ```bloblang
@@ -1027,8 +1092,12 @@ Parse a JSON string into a value. Errors if the string is not valid JSON.
 
 Serialize a value to a JSON string. Object keys are sorted lexicographically. Timestamp values are formatted as RFC 3339 strings (Section 2.3).
 
-- **Receiver:** any type (except lambda)
+- **Receiver:** any type (except lambda and bytes)
 - **Returns:** string
+- **Errors:** if the value is or contains a lambda or bytes value (at any nesting depth). Bytes have no implicit JSON serialization — convert explicitly (e.g., to a base64 or hex string) before serializing. NaN and Infinity float values also error (not representable in JSON).
+- **Numeric serialization:**
+  - Integer types (int32, int64, uint32, uint64): serialized as JSON integers (no decimal point, no quotes). Large uint64 values (> 2^53) are serialized as-is — the JSON spec imposes no range limit, though consumers using float64 may lose precision.
+  - Float types (float32, float64): serialized as the shortest decimal representation that round-trips exactly. Exponent notation is permitted (e.g., `1e+06`). Unlike `.string()`, a decimal point is not required — JSON numbers are unambiguously numeric regardless of form.
 - **Examples:**
   ```bloblang
   {"name": "Alice"}.format_json()       # `{"name":"Alice"}`

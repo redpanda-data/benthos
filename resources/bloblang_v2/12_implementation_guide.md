@@ -14,7 +14,7 @@ Implementations may optimize without changing observable behavior. Results must 
 
 **Lazy methods (from standard library):** `.filter()`, `.map()`. Additional extension methods like `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()` may also be made lazy if offered.
 
-**Terminal methods (from standard library):** `.sort()`, `.reverse()`, `.length()`, `.any()`, `.all()`, `.join()`, `.fold()`
+**Terminal methods (from standard library):** `.sort()`, `.reverse()`, `.length()`, `.any()`, `.all()`, `.join()`, `.fold()`, `.collect()`
 
 **Materialization points:**
 - Variable assignment: `$var = iterator` → array

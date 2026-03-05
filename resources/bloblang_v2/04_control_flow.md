@@ -190,7 +190,7 @@ output.sound = match input.animal {
 }
 ```
 
-**Exhaustiveness:** Match expressions and statements are **not required** to be exhaustive. If no case matches (including a match with zero cases), the match produces **void** — exactly like an if-expression without `else`. The void behavior follows the same rules as Section 4.1:
+**Exhaustiveness:** Match expressions and statements are **not required** to be exhaustive. If no case matches, the match produces **void** — exactly like an if-expression without `else`. The void behavior follows the same rules as Section 4.1:
 
 - **Match expression** (in assignment): void causes the assignment to be skipped (no-op)
 - **Match statement**: no-op (no side effects, execution continues)
@@ -215,7 +215,7 @@ output.sound = match input.animal {
 ```bloblang
 match input.type() as t {
   t == "object" => {
-    output = input.iter_kv().map(e -> {"k": e.k, "v": transform(e.v)}).collect_kv()
+    output = input.map_values(v -> transform(v))
   },
   t == "array" => {
     output = input.map(elem -> transform(elem))

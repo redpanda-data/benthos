@@ -97,7 +97,7 @@ output.total = calculate_total(subtotal: 100, tax_rate: 0.1)
 ```bloblang
 map walk_tree(node) {
   match node.type() as t {
-    t == "object" => node.iter_kv().map(e -> {"k": e.k, "v": walk_tree(e.v)}).collect_kv(),
+    t == "object" => node.map_values(v -> walk_tree(v)),
     t == "array" => node.map(elem -> walk_tree(elem)),
     t == "string" => node.uppercase(),
     _ => node,
@@ -207,6 +207,8 @@ output.result = $fn(21)                                 # 42
 **Note:** Map name references are resolved at compile time and produce lambda values directly — they are not "returned from" a call. This does not violate the lambda return restriction (Section 2.1), which applies to the *result of calling* a map, function, or lambda at runtime.
 
 **Cannot return lambdas:** Maps (and lambdas) cannot return lambda values — if a map body produces a lambda as its result, this is a runtime error. Lambdas are for parameterizing operations, not for building higher-order call chains. See Section 2.1 for full lambda restrictions.
+
+**Void from map bodies:** If a map body's final expression is an if-without-else or match-without-`_`, the map can produce void when the condition is false or no case matches. Void from a map call follows the same propagation rules as void from any other expression (Section 4.1) — it will be a runtime error in most calling contexts (variable declarations, collection literals, function arguments, etc.). To avoid this, always include an `else` branch or `_` case in a map body's final expression.
 
 **Parameter info preserved:** Named arguments, defaults, and arity are preserved when a map is used as a value:
 ```bloblang

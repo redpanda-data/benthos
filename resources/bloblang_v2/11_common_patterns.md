@@ -39,9 +39,7 @@ output.results = input.items
   .sort()
 
 # Object transformation
-output.uppercased = input.data.iter_kv()
-  .map(e -> {"k": e.k, "v": e.v.trim().uppercase()})
-  .collect_kv()
+output.uppercased = input.data.map_values(v -> v.trim().uppercase())
 ```
 
 ## Indexing Patterns
@@ -78,7 +76,7 @@ output@.content_type = "application/json"
 ```bloblang
 map walk(node) {
   match node.type() as t {
-    t == "object" => node.iter_kv().map(e -> {"k": e.k, "v": walk(e.v)}).collect_kv(),
+    t == "object" => node.map_values(v -> walk(v)),
     t == "array" => node.map(elem -> walk(elem)),
     t == "string" => node.uppercase(),
     _ => node,
@@ -94,6 +92,20 @@ output = walk(input)
 # -10.string()      # ERROR: parses as -(10.string()) = -("10")
 (-10).string()      # OK: "-10"
 (-3.14).abs()       # OK: 3.14
+```
+
+## Boolean Dispatch
+
+```bloblang
+# match equality form cannot match boolean values — use if/else instead
+output.label = if input.flag { "yes" } else { "no" }
+
+# For multi-way boolean dispatch, use match-without-expression or match-with-as
+output.status = match {
+  input.enabled && input.verified => "active",
+  input.enabled => "pending",
+  _ => "disabled",
+}
 ```
 
 ## Complex Conditional Transformations
