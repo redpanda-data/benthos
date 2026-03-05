@@ -187,7 +187,7 @@ output.sound = match input.animal {
 }
 ```
 
-**Exhaustiveness:** Match expressions and statements are **not required** to be exhaustive. If no case matches, the match produces **void** — exactly like an if-expression without `else`. The void behavior follows the same rules as Section 4.1:
+**Exhaustiveness:** Match expressions and statements are **not required** to be exhaustive. If no case matches (including a match with zero cases), the match produces **void** — exactly like an if-expression without `else`. The void behavior follows the same rules as Section 4.1:
 
 - **Match expression** (in assignment): void causes the assignment to be skipped (no-op)
 - **Match statement**: no-op (no side effects, execution continues)
@@ -227,7 +227,7 @@ match input.type() as t {
 
 ### Three Match Forms
 
-**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected. If a case expression evaluates to a **boolean**, a runtime error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly.
+**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected. Case expressions are ordinary expressions with the same scope access as the surrounding context (variables, `input`, `output`, etc. as appropriate). If a case expression evaluates to a **boolean**, a runtime error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly.
 
 ```bloblang
 output.sound = match input.animal {

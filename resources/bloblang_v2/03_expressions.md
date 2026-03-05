@@ -89,12 +89,18 @@ input.items?[0]?.name        # null-safe indexing
 input.contact?.email.or("no-email@example.com")
 ```
 
-**Note:** `?.` and `?[]` only short-circuit on `null` values. Type errors (e.g., accessing a field on a string) still throw errors.
+**Null-safe method calls:** `?.` also works before method calls. If the receiver is null, the method is not called and `null` is returned. Arguments are not evaluated.
+```bloblang
+input.value?.uppercase()        # null if value is null (method not called)
+input.user?.name?.trim()        # chains null-safe field access and null-safe method call
+```
+
+**Note:** `?.`, `?[]`, and `?.method()` only short-circuit on `null` values. Type errors (e.g., accessing a field on a string, or calling a string method on a number) still throw errors.
 
 ## 3.2 Operators
 
 **Precedence** (high to low):
-1. Field access, indexing, method calls: `.`, `?.`, `[]`, `?[]`, `.method()`
+1. Field access, indexing, method calls: `.`, `?.`, `[]`, `?[]`, `.method()`, `?.method()`
 2. Unary: `!`, `-`
 3. Multiplicative: `*`, `/`, `%`
 4. Additive: `+`, `-`
@@ -150,6 +156,9 @@ output.result = some_function(param3: arg3, param1: arg1, param2: arg2)
 
 # Cannot mix positional and named
 output.result = some_function(arg1, param2: arg2)  # ERROR
+
+# Duplicate named arguments are a compile-time error
+output.result = some_function(param1: arg1, param1: arg2)  # ERROR
 ```
 
 **Methods** (chained):
@@ -305,7 +314,7 @@ Regular strings use double quotes with backslash escape sequences:
 "backslash: \\"            # \\ literal backslash
 ```
 
-Escape sequences: `\\`, `\"`, `\n`, `\t`, `\r`, `\uXXXX` (Unicode codepoint).
+Escape sequences: `\\`, `\"`, `\n`, `\t`, `\r`, `\uXXXX` (4-digit Unicode codepoint, BMP only), `\u{X...}` (1–6 hex digit Unicode codepoint, any plane). Examples: `\u0041` for 'A', `\u{1F600}` for '😀', `\u{41}` for 'A'.
 
 Raw strings use backticks. No escape processing — content is used as-is:
 ```bloblang

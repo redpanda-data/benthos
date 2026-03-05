@@ -46,7 +46,7 @@ output.user = normalize_user(input.user_data)
 
 **Keywords:** `input`, `output`, `if`, `else`, `match`, `as`, `map`, `import`, `true`, `false`, `null`, `_`
 
-**Operators:** `.`, `?.`, `@`, `::`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `!=`, `<`, `<=`, `&&`, `||`, `=>`, `->`
+**Operators:** `.`, `?.`, `@`, `::`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `!=`, `<`, `<=`, `&&`, `||`, `=>`, `->` (`?.` applies to field access, indexing, and method calls)
 
 **Delimiters:** `(`, `)`, `{`, `}`, `[`, `]`, `?[`, `,`, `:`
 
@@ -56,7 +56,7 @@ output.user = normalize_user(input.user_data)
 
 **Literals:**
 - Numbers: `42`, `3.14` (negative numbers use unary minus: `-10`). Integer literals are int64; float literals are float64. Exponent notation (e.g., `1e3`) is not supported in literals — use `.parse_json()` or explicit arithmetic instead. Literals that exceed the range of their type are a compile-time error. **Note:** `-10` is not a single token — it is unary minus applied to `10`. Since method calls bind tighter than unary minus, `-10.string()` parses as `-(10.string())` which is an error. Use `(-10).string()` instead.
-- Strings: `"hello"`, `"escape\n"`, or `` `raw multiline` ``
+- Strings: `"hello"`, `"escape\n"`, `"\u{1F600}"`, or `` `raw multiline` ``
 - Booleans: `true`, `false`
 - Null: `null`
 - Arrays: `[1, 2, 3]`, `["a", input.field, uuid_v4()]`

@@ -121,7 +121,7 @@ When a `throw()` error is **not caught** by `.catch()`, it halts the entire mapp
 
 ## 8.5 Null-Safe vs Error-Safe
 
-**Null-safe operators** (`?.`, `?[]`): Handle `null`, not errors
+**Null-safe operators** (`?.`, `?[]`, `?.method()`): Handle `null`, not errors
 ```bloblang
 input.user?.name    # null if user is null, error if user is non-object
 
