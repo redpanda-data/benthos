@@ -104,10 +104,13 @@ output.status = if false { "override" }  # Void: keeps "pending" (no-op)
 output.status = deleted()                # Deleted: removes the field entirely
 ```
 
-**Void in variable declarations:** The variable is not created. Subsequent references to it error as if the variable were never defined.
+**Void in variable declarations:** A variable declaration (the first assignment to a name in a given scope) **cannot** have a void-producing expression as its right-hand side. If the RHS is a bare if-without-else or match-without-`_` (the only void-producing forms), this is a **compile-time error**. This ensures every declared variable always has a value — there is no "uninitialized variable" state at runtime.
 ```bloblang
-$x = if false { 42 }    # Void: $x is not created
-output.y = $x            # ERROR: variable $x does not exist
+$x = if input.flag { 42 }              # COMPILE ERROR: declaration may produce void
+$x = match input.x { "a" => 1 }       # COMPILE ERROR: declaration may produce void
+
+$x = (if input.flag { 42 }).or(0)     # OK: .or() rescues void, always produces a value
+$x = if input.flag { 42 } else { 0 }  # OK: else branch ensures a value
 ```
 
 **Void in variable reassignment:** If a variable already exists and is reassigned a void expression, the assignment is skipped and the variable retains its prior value.
@@ -161,7 +164,7 @@ output.result = match input.x {
 | Context | Behavior |
 |---------|----------|
 | Output field assignment (`output.x = void`) | Assignment skipped; prior value (if any) preserved |
-| Variable declaration (`$x = void`) | Variable not created; references error |
+| Variable declaration (`$x = void`) | Compile-time error (declarations must produce a value) |
 | Variable reassignment (`$x = void`, `$x` exists) | Assignment skipped; prior value preserved |
 | Collection literal (`[1, void, 3]`) | Error |
 | Object literal (`{"a": void}`) | Error |
@@ -227,7 +230,7 @@ match input.type() as t {
 
 ### Three Match Forms
 
-**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected. Case expressions are ordinary expressions with the same scope access as the surrounding context (variables, `input`, `output`, etc. as appropriate). If a case expression evaluates to a **boolean**, a runtime error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly.
+**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected. Case expressions are ordinary expressions with the same scope access as the surrounding context (variables, `input`, `output`, etc. as appropriate). If a case expression evaluates to a **boolean**, an error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly. Implementations **should** detect boolean-typed case expressions at compile time when possible — comparison operators (`>`, `>=`, `<`, `<=`, `==`, `!=`), logical operators (`&&`, `||`, `!`), and boolean literals (`true`, `false`) always produce booleans and can be rejected statically. Cases involving dynamic values that happen to be boolean at runtime remain runtime errors.
 
 ```bloblang
 output.sound = match input.animal {
