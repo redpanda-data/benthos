@@ -97,8 +97,8 @@ output.total = calculate_total(subtotal: 100, tax_rate: 0.1)
 ```bloblang
 map walk_tree(node) {
   match node.type() as t {
-    t == "object" => node.map_object((key, value) -> walk_tree(value)),
-    t == "array" => node.map_array(elem -> walk_tree(elem)),
+    t == "object" => node.iter_kv().map(e -> {"k": e.k, "v": walk_tree(e.v)}).collect_kv(),
+    t == "array" => node.map(elem -> walk_tree(elem)),
     t == "string" => node.uppercase(),
     _ => node,
   }
@@ -184,7 +184,7 @@ Maps are **first-class values** — a map name used without parentheses evaluate
 map double(x) { x * 2 }
 
 # Pass map directly to higher-order methods
-output.doubled = input.items.map_array(double)          # Same as: map_array(x -> double(x))
+output.doubled = input.items.map(double)          # Same as: map(x -> double(x))
 
 # Store map in a variable
 $fn = double
@@ -192,12 +192,14 @@ output.result = $fn(21)                                 # 42
 
 # Namespace-qualified references also work as values
 import "./math.blobl" as math
-output.results = input.items.map_array(math::double)    # Same as: map_array(x -> math::double(x))
+output.results = input.items.map(math::double)    # Same as: map(x -> math::double(x))
 $fn = math::double
 output.result = $fn(21)                                 # 42
 ```
 
 **Type:** Map references evaluate to `lambda`. Their `.type()` returns `"lambda"`.
+
+**Cannot return lambdas:** Maps (and lambdas) cannot return lambda values — if a map body produces a lambda as its result, this is a runtime error. Lambdas are for parameterizing operations, not for building higher-order call chains. See Section 2.1 for full lambda restrictions.
 
 **Parameter info preserved:** Named arguments, defaults, and arity are preserved when a map is used as a value:
 ```bloblang
@@ -212,5 +214,5 @@ output.c = $fn("Alice", "Hi")             # "Hi, Alice"
 **Shadowing:** Parameter names still shadow map names within map and lambda bodies (Section 5.3). A bare identifier always resolves to the innermost binding — parameter first, then map name:
 ```bloblang
 map double(x) { x * 2 }
-input.items.map_array(double -> double + 1)   # 'double' is the parameter, not the map
+input.items.map(double -> double + 1)   # 'double' is the parameter, not the map
 ```

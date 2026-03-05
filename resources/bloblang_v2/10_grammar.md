@@ -6,8 +6,14 @@
 program         := top_level_statement*
 top_level_statement := statement | map_decl | import_stmt
 statement       := assignment | if_stmt | match_stmt
-assignment      := top_level_path '=' expression
+
+# Statement contexts (top-level, if/match statement bodies): can assign to output, metadata, or variables
+assignment      := assign_target '=' expression
+assign_target   := 'output' metadata_accessor? path_component* | var_ref path_component*
+
+# Expression contexts (map bodies, lambda blocks, if/match expressions): can only assign to variables
 var_assignment  := var_ref path_component* '=' expression
+
 map_decl        := 'map' identifier '(' [param_list] ')' '{' var_assignment* expression '}'
 param_list      := param (',' param)*
 param           := identifier | identifier '=' expression
@@ -17,10 +23,6 @@ expression      := literal | expr_path | function_call | method_chain |
                    control_expr | binary_expr | unary_expr |
                    lambda_expr | paren_expr
 control_expr    := if_expr | match_expr
-
-# Top-level paths (in assignments): only output or $variables (input is read-only)
-top_level_path  := top_level_context_root path_component*
-top_level_context_root := 'output' metadata_accessor? | var_ref
 
 # Expression paths: allow bare identifiers (resolved by semantic analysis, see below)
 expr_path       := expr_context_root path_component*
@@ -96,7 +98,7 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
 ## Key Points
 
 - **Top-level only:** Map declarations (`map_decl`) and imports (`import_stmt`) can only appear at the top level of a program, not inside statement bodies. Control flow statements (`if_stmt`, `match_stmt`) can be nested
-- **Variables:** `$var` for declaration and reference. Variable assignment uses `var_assignment` in expression contexts (map bodies, lambda blocks, if/match expressions) and `assignment` in statement contexts (top-level, if/match statements). Both support path assignment (`$var.field = expr`, `$var[0] = expr`) with the same field access, indexing, and auto-creation semantics as `output`. The difference: `var_assignment` only targets variables, while `assignment` also targets `output` and `output@`.
+- **Variables:** `$var` for declaration and reference. The grammar has two assignment productions that reflect context restrictions: `assignment` (used in statement contexts: top-level, if/match statement bodies) can target `output`, `output@`, or `$variables`; `var_assignment` (used in expression contexts: map bodies, lambda blocks, if/match expressions) can only target `$variables`. Both support path assignment (`$var.field = expr`, `$var[0] = expr`) with the same field access, indexing, and auto-creation semantics as `output`.
 - **Metadata:** `input@.key` (read), `output@.key` (write). Root metadata assignment (`output@ = expr`) requires the value to be an object at runtime (error otherwise); `output@ = deleted()` is also an error since metadata cannot be deleted (Section 9.2).
 - **Context-dependent paths:**
   - **Top-level assignments:** Targets must be `output` (with optional `@` for metadata) or `$variable`. `input` is read-only and cannot be assigned to.
@@ -105,7 +107,7 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
   - **Name resolution:** The grammar's `expr_context_root` accepts `identifier` and `qualified_name` in all expression contexts. A separate semantic pass must verify that every bare identifier resolves to a bound name — a map parameter, lambda parameter, match `as` binding, or map name (Section 5.5). Namespace-qualified references (`namespace::name`) resolve to map values from imported modules. Unresolved identifiers are a compile-time error (Section 3.1). When a name matches both a parameter and a map, the parameter wins (Section 5.3).
 - **Field names:** Field names after `.` and `?.` use `word` (any `[a-zA-Z_][a-zA-Z0-9_]*` token, including keywords). Keywords are valid as field names without quoting: `input.map`, `output.if`. Use `."string"` for names with special characters or spaces: `input."field name"`. Declarations (variables, maps, parameters) use `identifier`, which excludes keywords.
 - **Object literals:** Keys are expressions that **must** evaluate to strings at runtime (error if not): `{"key": value}` or `{$var: value}`. Use `.string()` for explicit type conversion.
-- **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int32), bytes (byte position, returns int32). Negative indices supported for arrays, strings, and bytes.
+- **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int64), bytes (byte position, returns int64). Negative indices supported for arrays, strings, and bytes.
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
 - **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments). Maps are first-class: `name` or `namespace::name` without parentheses evaluates to a lambda value (Section 5.5)
 - **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments
@@ -124,7 +126,7 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
   - `stmt_body`: Zero or more statements (no trailing expression). Empty bodies are valid (no-op).
 - **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false, or from match expressions without `_` when no case matches. The grammar cannot distinguish expressions that may produce void from those that always produce values; this is a runtime semantic. See Section 4.1 for full void behavior.
 - **Type coercion:** `+` requires same type family (no cross-family implicit conversion). Numeric types are promoted using promotion rules; non-numeric types require exact type match.
-- **Operator precedence and associativity:** The `binary_expr` production is a simplified flat rule. Implementations must apply the precedence, associativity, and non-associativity rules from Section 3.2. Precedence (high to low): field access > unary > multiplicative > additive > comparison > equality > logical AND > logical OR. Arithmetic and logical operators are left-associative; comparison and equality operators are non-associative (chaining is a parse error).
+- **Operator precedence and associativity:** The `binary_expr` production is a simplified flat rule. Implementations must apply the precedence, associativity, and non-associativity rules from Section 3.2. Precedence (high to low): field access and method calls > unary > multiplicative > additive > comparison > equality > logical AND > logical OR. Arithmetic and logical operators are left-associative; comparison and equality operators are non-associative (chaining is a parse error).
 
 ## Context Examples
 
@@ -154,7 +156,7 @@ map invalid(data) {
 
 **Lambda body (bare identifiers only in expressions):**
 ```bloblang
-input.items.map_array(item -> item.value * 2)  # ✅ Valid: 'item' in expression
+input.items.map(item -> item.value * 2)  # ✅ Valid: 'item' in expression
 input.items.filter(x -> x.active)              # ✅ Valid: 'x' in expression
 ```
 

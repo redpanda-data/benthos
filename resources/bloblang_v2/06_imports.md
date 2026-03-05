@@ -92,7 +92,7 @@ Maps can call themselves without namespace prefix:
 ```bloblang
 map walk(node) {
   match node.type() as t {
-    t == "object" => node.map_object((key, value) -> walk(value)),
+    t == "object" => node.iter_kv().map(e -> {"k": e.k, "v": walk(e.v)}).collect_kv(),
     _ => node,
   }
 }

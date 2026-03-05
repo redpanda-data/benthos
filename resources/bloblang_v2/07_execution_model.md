@@ -124,11 +124,13 @@ output@ = 42                   # ERROR: metadata must be an object
 ```
 
 **Types:**
-Metadata values can be any type (string, number, bool, null, bytes, array, object):
+Metadata values can be any serializable type (string, number, bool, null, bytes, array, object, timestamp). Lambdas cannot be stored in metadata — assigning a lambda to a metadata key is a runtime error (see Section 2.1 for lambda assignment restrictions).
 ```bloblang
 output@.retry_count = 5
 output@.tags = ["urgent", "customer-service"]
 output@.routing = {"region": "us-west", "priority": 10}
+output@.created_at = now()
+output@.callback = x -> x * 2    # ERROR: lambdas cannot be stored in metadata
 ```
 
 **Note:** While the language allows any metadata type, message systems (Kafka, AMQP, etc.) often only support string metadata. In practice, implementations serialize non-string values to JSON strings when interfacing with such systems. For example, `output@.tags = ["a", "b"]` would be stored as the string `'["a","b"]'` in Kafka metadata.
@@ -164,7 +166,7 @@ Undefined metadata keys return `null`.
 output.x = input.y                        # ✅ Read input, write output
 
 # Top-level lambda: can read input/output
-output.items = input.data.map_array(x -> {
+output.items = input.data.map(x -> {
   $multiplier = input.config.multiplier   # ✅ Can read input
   $base = output.base_value               # ✅ Can read output
   x * $multiplier
@@ -178,7 +180,7 @@ map transform(data) {
 
 # Lambda inside map: also no input/output access
 map process(items) {
-  items.map_array(x -> {
+  items.map(x -> {
     $val = input.config                   # ❌ ERROR: cannot access input
     x * 2                                 # ✅ OK: use parameters and variables
   })

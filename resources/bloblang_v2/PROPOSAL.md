@@ -40,8 +40,8 @@ root.result = this.dict.map_each(key + ": " + value)
 V2 fixes this with explicit lambda parameters:
 ```bloblang
 # V2: no ambiguity
-output.names = input.users.map_array(user -> user.name.uppercase())
-output.result = input.dict.map_object((k, v) -> k + ": " + v)
+output.names = input.users.map(user -> user.name.uppercase())
+output.result = input.dict.iter_kv().map(e -> {"k": e.k, "v": e.k + ": " + e.v}).collect_kv()
 ```
 
 ### Bare identifiers silently resolve to `this.field`

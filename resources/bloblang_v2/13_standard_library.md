@@ -18,7 +18,7 @@ Generate a random UUID v4 string.
 
 ### `now()`
 
-Return the current timestamp.
+Return the current timestamp. Each call returns a fresh timestamp — consecutive calls may return different values, including within `.map()` lambdas.
 
 - **Parameters:** none
 - **Returns:** timestamp
@@ -49,9 +49,9 @@ Generate an array of integers from `start` (inclusive) to `stop` (exclusive) wit
 
 ### `char(codepoint)`
 
-Convert a Unicode codepoint (int32) to a single-character string. This is the inverse of string indexing (`"hello"[0]` → `104`).
+Convert a Unicode codepoint to a single-character string. This is the inverse of string indexing (`"hello"[0]` → `104`).
 
-- **Parameters:** `codepoint` (int32 or int64 — must be a valid Unicode codepoint)
+- **Parameters:** `codepoint` (any integer type — must be a valid Unicode codepoint)
 - **Returns:** string
 - **Errors:** if the value is not a valid Unicode codepoint
 - **Examples:**
@@ -463,7 +463,7 @@ Return a new array containing only elements for which the lambda returns `true`.
   [1, -2, 3].filter(x -> x > 0)        # [1, 3]
   ```
 
-### `.map_array(elem -> expr)`
+### `.map(elem -> expr)`
 
 Transform each element of an array. Returns a new array.
 
@@ -475,9 +475,9 @@ Transform each element of an array. Returns a new array.
 - **Returns:** array
 - **Examples:**
   ```bloblang
-  [1, 2, 3].map_array(x -> x * 2)                              # [2, 4, 6]
-  [1, -2, 3].map_array(x -> if x > 0 { x } else { deleted() }) # [1, 3]
-  [1, -2, 3].map_array(x -> if x > 0 { x * 10 })               # ERROR: void when x <= 0
+  [1, 2, 3].map(x -> x * 2)                              # [2, 4, 6]
+  [1, -2, 3].map(x -> if x > 0 { x } else { deleted() }) # [1, 3]
+  [1, -2, 3].map(x -> if x > 0 { x * 10 })               # ERROR: void when x <= 0
   ```
 - **See:** Section 4.1 for void and deleted() behavior in lambda returns
 
@@ -627,6 +627,8 @@ Test if all elements satisfy the predicate. Returns `true` for empty arrays. Sho
 
 Return the first element that satisfies the predicate. Error if no element matches — use `.catch()` to handle.
 
+**Design note:** `.find()` errors on no match (rather than returning a sentinel) because there is no natural sentinel value for an arbitrary element — any value (including `null`) could be a legitimate array element. In contrast, `.index_of()` returns `-1` because indices are non-negative integers, making `-1` an unambiguous "not found" sentinel. Use `.catch()` to provide a fallback when no element matches.
+
 - **Receiver:** array
 - **Parameters:** lambda (one parameter → bool)
 - **Returns:** any (the element)
@@ -679,75 +681,53 @@ Reduce an array to a single value by applying an accumulator function to each el
   ["a", "b"].fold("", (tally, x) -> tally + x + ",")  # "a,b,"
   ```
 
+### `.collect_kv()`
+
+Convert an array of `{"k": k, "v": v}` objects back into an object. Last value wins on duplicate keys.
+
+- **Receiver:** array of objects (each must have exactly `"k"` (string) and `"v"` (any) fields)
+- **Returns:** object
+- **Errors:** if any element is not an object with `"k"` and `"v"` fields, or if `"k"` is not a string
+- **Examples:**
+  ```bloblang
+  [{"k": "a", "v": 1}, {"k": "b", "v": 2}].collect_kv()     # {"a": 1, "b": 2}
+  [{"k": "a", "v": 1}, {"k": "a", "v": 2}].collect_kv()     # {"a": 2} (last value wins)
+  [{"k": "a", "v": 1}, {"bad": true}].collect_kv()           # ERROR: element missing "k"/"v" fields
+  ```
+
 ---
 
 ## 13.6 Object Methods
 
-### `.map_object((key, value) -> expr)`
+### `.iter_kv()`
 
-Transform each entry of an object. Returns a new object with values replaced by the lambda's return value.
-
-- The lambda must take exactly two parameters (key, value) — a one-parameter form is not supported
-- The lambda must return a value for every entry — void is an error
-- If the lambda returns `deleted()`, the key-value pair is removed from the result
+Convert an object to an array of `{"k": k, "v": v}` objects. Order is not guaranteed.
 
 - **Receiver:** object
-- **Parameters:** lambda (exactly two parameters: key string, value any → any)
-- **Returns:** object
+- **Returns:** array of objects (each with string field `"k"` and any-typed field `"v"`)
 - **Examples:**
   ```bloblang
-  {"a": 1, "b": 2}.map_object((k, v) -> v * 10)             # {"a": 10, "b": 20}
-  {"x": "hello"}.map_object((k, v) -> v.uppercase())         # {"x": "HELLO"}
-  {"a": 1, "b": -2}.map_object((k, v) -> if v > 0 { v } else { deleted() })  # {"a": 1}
+  {"a": 1, "b": 2}.iter_kv()
+  # [{"k": "a", "v": 1}, {"k": "b", "v": 2}] (order not guaranteed)
+
+  # Extract keys
+  {"a": 1, "b": 2}.iter_kv().map(e -> e.k)         # ["a", "b"] (order not guaranteed)
+
+  # Extract values
+  {"a": 1, "b": 2}.iter_kv().map(e -> e.v)          # [1, 2] (order not guaranteed)
+
+  # Transform values
+  {"a": 1, "b": 2}.iter_kv().map(e -> {"k": e.k, "v": e.v * 10}).collect_kv()
+  # {"a": 10, "b": 20}
+
+  # Transform keys
+  {"a": 1, "b": 2}.iter_kv().map(e -> {"k": e.k.uppercase(), "v": e.v}).collect_kv()
+  # {"A": 1, "B": 2}
+
+  # Filter entries
+  {"a": 1, "b": 2, "c": 3}.iter_kv().filter(e -> e.v > 1).collect_kv()
+  # {"b": 2, "c": 3}
   ```
-- **See:** Section 4.1 for void and deleted() behavior in lambda returns
-
-### `.map_keys(key -> expr)`
-
-Transform each key of an object. Returns a new object with transformed keys and original values.
-
-- The lambda must return a string for every key — non-string return values are an error
-- If the lambda returns `deleted()`, the key-value pair is removed from the result
-- If two keys map to the same string, this is a runtime error (duplicate keys are not allowed)
-
-- **Receiver:** object
-- **Parameters:** lambda (one parameter: key string → string)
-- **Returns:** object
-- **Examples:**
-  ```bloblang
-  {"a": 1, "b": 2}.map_keys(k -> k.uppercase())             # {"A": 1, "B": 2}
-  {"name": "Alice", "age": 30}.map_keys(k -> "user_" + k)   # {"user_name": "Alice", "user_age": 30}
-  {"a": 1, "b": 2}.map_keys(k -> if k == "a" { k } else { deleted() })  # {"a": 1}
-  ```
-
-### `.filter_object((key, value) -> bool)`
-
-Return a new object containing only entries for which the lambda returns `true`. The lambda must return a boolean — non-boolean return values (including void) are an error.
-
-- **Receiver:** object
-- **Parameters:** lambda (two parameters: key string, value any → bool)
-- **Returns:** object
-- **Examples:**
-  ```bloblang
-  {"a": 1, "b": 2, "c": 3}.filter_object((k, v) -> v > 1)       # {"b": 2, "c": 3}
-  {"name": "Alice", "age": 30}.filter_object((k, v) -> k == "name")  # {"name": "Alice"}
-  ```
-
-### `.keys()`
-
-Return the keys of an object as an array of strings. Order is not guaranteed and may vary between calls. No correspondence is guaranteed between `.keys()` and `.values()` ordering — use `.key_values()` when you need key-value pairs.
-
-- **Receiver:** object
-- **Returns:** array of strings
-- **Example:** `{"a": 1, "b": 2}.keys()` → `["a", "b"]` (order not guaranteed)
-
-### `.values()`
-
-Return the values of an object as an array. Order is not guaranteed and may vary between calls. No correspondence is guaranteed between `.keys()` and `.values()` ordering — use `.key_values()` when you need key-value pairs.
-
-- **Receiver:** object
-- **Returns:** array
-- **Example:** `{"a": 1, "b": 2}.values()` → `[1, 2]` (order not guaranteed)
 
 ### `.has_key(key)`
 
@@ -787,18 +767,6 @@ Return a new object with the specified keys removed. Keys that don't exist are i
   {"a": 1, "b": 2, "c": 3}.without(["a", "c"])   # {"b": 2}
   {"a": 1}.without(["x"])                          # {"a": 1}
   {"a": 1, "b": 2}.without([])                     # {"a": 1, "b": 2}
-  ```
-
-### `.key_values()`
-
-Convert an object to an array of `{"key": k, "value": v}` objects. Order is random.
-
-- **Receiver:** object
-- **Returns:** array of objects
-- **Example:**
-  ```bloblang
-  {"a": 1, "b": 2}.key_values()
-  # [{"key": "a", "value": 1}, {"key": "b", "value": 2}] (order not guaranteed)
   ```
 
 ---
@@ -959,17 +927,18 @@ Handle errors. Called only when the expression to its left produces an error. If
 
 ### `.or(default)`
 
-Provide a default value for null or void. Uses **short-circuit evaluation** — the argument is only evaluated if the receiver is null or void. This is the only method that can be called on void.
+Provide a default value for null, void, or `deleted()`. Uses **short-circuit evaluation** — the argument is only evaluated if the receiver is null, void, or `deleted()`. This is the only method that can be called on void or `deleted()`.
 
-- **Receiver:** any expression (including void)
+- **Receiver:** any expression (including void and `deleted()`)
 - **Parameters:** `default` (any expression, lazily evaluated)
-- **Returns:** any (either the original value, or the default if receiver was null/void)
+- **Returns:** any (either the original value, or the default if receiver was null/void/deleted)
 - **Examples:**
   ```bloblang
   input.name.or("Anonymous")
   input.name.or(throw("name is required"))  # throw() only evaluated if name is null
   (if false { "hello" }).or("world")        # "world" (void rescued)
   (match input.x { "a" => 1 }).or(0)       # 0 if no case matched (void rescued)
+  some_map(input.value).or("fallback")      # "fallback" if map returned deleted()
   ```
 - **See:** Section 8.3
 

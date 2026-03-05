@@ -31,10 +31,10 @@ input.items[-1]     # Array: last element
 input.items[-2]     # Array: second-to-last element
 input["field"]      # Object: dynamic field access
 input[$var]         # Object: dynamic field access with variable
-input.name[0]       # String: first codepoint as int32 (Unicode codepoint value)
-input.name[-1]      # String: last codepoint as int32
-input.data[0]       # Bytes: first byte as int32 0-255
-input.data[-1]      # Bytes: last byte as int32
+input.name[0]       # String: first codepoint as int64 (Unicode codepoint value)
+input.name[-1]      # String: last codepoint as int64
+input.data[0]       # Bytes: first byte as int64 (0-255)
+input.data[-1]      # Bytes: last byte as int64
 ```
 
 **Negative indexing:** For arrays, strings, and bytes, negative indices count from the end: `-1` is last, `-2` is second-to-last, etc. Out-of-bounds negative indices throw errors.
@@ -42,25 +42,25 @@ input.data[-1]      # Bytes: last byte as int32
 **Semantics:**
 - **Objects:** Indexed by string, returns field value (dynamic field access)
 - **Arrays:** Indexed by number, returns element at position
-- **Strings:** Indexed by number (codepoint position), returns int32 (Unicode codepoint value). Negative indices count from the end. **Note:** Integer literals are int64, so `"hello"[0] == 104` involves int32→int64 promotion, which is always lossless and succeeds. Use `char()` to convert back to a string.
-- **Bytes:** Indexed by number (byte position), returns int32 (byte value 0-255). Negative indices count from the end.
+- **Strings:** Indexed by number (codepoint position), returns int64 (Unicode codepoint value). Negative indices count from the end. Use `char()` to convert back to a string.
+- **Bytes:** Indexed by number (byte position), returns int64 (byte value 0-255). Negative indices count from the end.
 
 **String indexing is codepoint-based, not grapheme-based:**
 ```bloblang
 # Simple characters (1 codepoint each)
-"hello"[0]       # 104 (int32: codepoint for 'h')
-"café"[3]        # 233 (int32: codepoint for 'é')
+"hello"[0]       # 104 (int64: codepoint for 'h')
+"café"[3]        # 233 (int64: codepoint for 'é')
 
 # Emoji (1 codepoint)
-"😀"[0]          # 128512 (int32: codepoint for 😀)
+"😀"[0]          # 128512 (int64: codepoint for 😀)
 
 # Complex graphemes (multiple codepoints)
-"👋🏽"[0]         # 128075 (int32: base emoji 👋)
-"👋🏽"[1]         # 127995 (int32: skin tone modifier 🏽)
+"👋🏽"[0]         # 128075 (int64: base emoji 👋)
+"👋🏽"[1]         # 127995 (int64: skin tone modifier 🏽)
 
 # Family emoji with ZWJ (zero-width joiners)
-"👨‍👩‍👧‍👦"[0]    # 128104 (int32: man 👨)
-"👨‍👩‍👧‍👦"[1]    # 8205 (int32: zero-width joiner)
+"👨‍👩‍👧‍👦"[0]    # 128104 (int64: man 👨)
+"👨‍👩‍👧‍👦"[1]    # 8205 (int64: zero-width joiner)
 ```
 
 **All string operations are codepoint-based:**
@@ -72,7 +72,7 @@ input.data[-1]      # Bytes: last byte as int32
 
 **Byte operations are byte-based:**
 ```bloblang
-"hello".bytes()[0]          # 104 (int32: byte value of 'h')
+"hello".bytes()[0]          # 104 (int64: byte value of 'h')
 "hello".bytes().length()    # 5 (bytes)
 "👋".bytes().length()       # 4 (UTF-8 encoding uses 4 bytes)
 ```
@@ -94,7 +94,7 @@ input.contact?.email.or("no-email@example.com")
 ## 3.2 Operators
 
 **Precedence** (high to low):
-1. Field access, indexing: `.`, `?.`, `[]`, `?[]`
+1. Field access, indexing, method calls: `.`, `?.`, `[]`, `?[]`, `.method()`
 2. Unary: `!`, `-`
 3. Multiplicative: `*`, `/`, `%`
 4. Additive: `+`, `-`
@@ -181,18 +181,18 @@ Lambda parameters are **read-only** and available as bare identifiers within the
 
 **Single parameter:**
 ```bloblang
-input.items.map_array(item -> item.value * 2)   # 'item' is read-only parameter
+input.items.map(item -> item.value * 2)   # 'item' is read-only parameter
 input.items.filter(x -> x > 10)
 ```
 
 **Multiple parameters:**
 ```bloblang
-input.data.map_object((key, value) -> value.uppercase())
+input.data.iter_kv().map(e -> {"k": e.k, "v": e.v.uppercase()}).collect_kv()
 ```
 
 **Multi-statement body:**
 ```bloblang
-input.items.map_array(item -> {
+input.items.map(item -> {
   $base = item.price * item.quantity
   $tax = $base * 0.1
   $base + $tax
@@ -219,7 +219,7 @@ $double = x -> x * 2
 
 # Positional arguments
 output.sum = $add(5, 10)
-output.doubled = input.items.map_array($double)
+output.doubled = input.items.map($double)
 
 # Named arguments
 output.sum = $add(a: 5, b: 10)
@@ -237,7 +237,7 @@ output.result = $fn(10)    # 12: $fn sees the current value of $x (2), not the v
 **Parameter shadowing:** Lambda parameter names shadow any map names with the same name within the lambda body. The parameter always wins. Imported namespaces are not affected since they use `::` syntax.
 ```bloblang
 map double(x) { x * 2 }
-input.items.map_array(double -> double * 2)     # double is the parameter, not the map
+input.items.map(double -> double * 2)     # double is the parameter, not the map
 ```
 
 **Purity:** Lambdas cannot assign to `output` or `output@` (no side effects).

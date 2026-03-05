@@ -35,14 +35,13 @@ output.parsed = input.date
 # Filter, map, sort
 output.results = input.items
   .filter(item -> item.active)
-  .map_array(item -> item.name.uppercase())
+  .map(item -> item.name.uppercase())
   .sort()
 
 # Object transformation
-output.uppercased = input.data.map_object((key, value) -> {
-  $trimmed = value.trim()
-  $trimmed.uppercase()
-})
+output.uppercased = input.data.iter_kv()
+  .map(e -> {"k": e.k, "v": e.v.trim().uppercase()})
+  .collect_kv()
 ```
 
 ## Indexing Patterns
@@ -52,8 +51,8 @@ output.uppercased = input.data.map_object((key, value) -> {
 output.first = input.items[0].catch(err -> null)
 output.last = input.items[-1].catch(err -> null)
 
-# Strings (codepoint position, returns int32)
-output.first_codepoint = input.name[0]          # int32 Unicode codepoint
+# Strings (codepoint position, returns int64)
+output.first_codepoint = input.name[0]          # int64 Unicode codepoint
 
 # Dynamic indexing
 output.selected = input.options[input.index].catch(err -> "invalid")
@@ -79,8 +78,8 @@ output@.content_type = "application/json"
 ```bloblang
 map walk(node) {
   match node.type() as t {
-    t == "object" => node.map_object((key, value) -> walk(value)),
-    t == "array" => node.map_array(elem -> walk(elem)),
+    t == "object" => node.iter_kv().map(e -> {"k": e.k, "v": walk(e.v)}).collect_kv(),
+    t == "array" => node.map(elem -> walk(elem)),
     t == "string" => node.uppercase(),
     _ => node,
   }

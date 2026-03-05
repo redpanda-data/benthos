@@ -22,7 +22,7 @@ output.city = input.user?.address?.city.or("Unknown")
 # Functional pipeline
 output.active_users = input.users
   .filter(user -> user.active)
-  .map_array(user -> user.name)
+  .map(user -> user.name)
   .sort()
 
 # Pattern matching
