@@ -3,6 +3,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.67.0 - 2026-03-05
+
+### Added
+
+- Profiling: allow specifying mutex profiling rate (@rockwotj)
+- Go API: Add `Resources.StreamID()` in `service` package (@mmatczuk)
+
 ## 4.66.0 - 2026-02-27
 
 ### Added
