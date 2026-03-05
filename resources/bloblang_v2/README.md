@@ -1,12 +1,4 @@
-# Bloblang V2 Technical Specification (Compressed)
-
-**Version:** 2.0
-**Date:** 2026-02-11
-**Status:** Complete
-
-This is a **compressed version** of the Bloblang V2 specification - same information, more concise presentation.
-
----
+# Bloblang V2 Technical Specification
 
 ## Core Principles
 
@@ -42,7 +34,7 @@ This is a **compressed version** of the Bloblang V2 specification - same informa
 ```bloblang
 # Assignment
 output.field = input.field
-output@.metadata = input@.metadata
+output@.key = input@.key
 
 # Variables
 $user = input.user
@@ -89,24 +81,6 @@ output.result = utils::transform(input.data)
 - **Namespace imports:** `import "..." as name`
 - **First-class lambdas:** Multi-param, multi-statement
 
----
-
-## Compression Summary
-
-**Original:** 18 sections, ~45 pages
-**Compressed:** 13 sections, ~28 pages
-**Reduction:** 28% fewer files, 38% smaller
-**Information:** 100% preserved
-
-### What Changed
-
-- **Merged** related sections (Overview+Lexical, Type+Coercion, Expressions+Statements, Execution+Context+Metadata, Built-ins+Optimizations)
-- **Compressed** verbose prose (kept technical precision)
-- **Consolidated** redundant examples (kept best ones)
-- **Maintained** all semantic details
-
----
-
 ## For Implementers
 
 See **Section 12: Implementation Guide** for:
@@ -119,29 +93,12 @@ See **Section 13: Standard Library** for:
 
 ---
 
-## For Users
+## Review Process (for AI agents)
 
-See original uncompressed specification in parent directory for:
-- More detailed explanations
-- Additional examples
-- Verbose descriptions
-- Development history
+This spec is maintained through iterative review with an AI agent. To run a review cycle:
 
----
+1. **Audit** — Read the full spec and review it for inconsistencies, ambiguities, and ergonomic issues. Write findings into a `REVIEW.md` file, ordered by severity, so they can be addressed one at a time.
+2. **Resolve** — With the spec in context, walk through each review item. For each item, present an explanation of the issue along with proposed solutions to choose from. After each item is addressed, re-review the changes against the spec to ensure no new issues were introduced, then mark the item as resolved in `REVIEW.md`.
+3. **Final pass** — Once all items are resolved, perform a full review of the spec with respect to the changes made. Address any remaining concerns. Repeat this step until no issues are found.
+4. **Clean up** — Delete `REVIEW.md`, confirm the changes are acceptable, and commit.
 
-## Command-Line Reference
-
-```bash
-# List available functions
-rpk connect blobl --list-functions
-
-# List available methods
-rpk connect blobl --list-methods
-
-# Interactive execution
-rpk connect blobl
-```
-
----
-
-**This compressed spec is functionally complete and production-ready.**

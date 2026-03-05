@@ -32,6 +32,12 @@ input.items.map(x -> x.value / x.count).catch(err -> [])
 
 All runtime errors are catchable with `.catch()` — the sole exception is exceeding the recursion limit (Section 5.2), which halts execution immediately.
 
+**Void passes through `.catch()` unchanged.** Void is not an error — it is the absence of a value. `.catch()` only activates on errors, so void flows through transparently. If void then encounters a method that requires a value, *that* produces an error which can be caught by a subsequent `.catch()`:
+```bloblang
+(if false { 1 }).catch(err -> 0)                    # void (catch not triggered, no error occurred)
+(if false { 1 }).string().catch(err -> "boo!")       # "boo!" (.string() errors on void, catch triggers)
+```
+
 **The error object** is a plain object (`{"what": "..."}`) with a single field:
 - `.what` — a string containing the error message
 
@@ -56,7 +62,7 @@ output.parsed = input.date
 
 Provide default for null, void, or deleted values. `.or()` uses **short-circuit evaluation**: the argument expression is only evaluated if the receiver is null, void, or `deleted()`. If the receiver has a value, the argument is never evaluated and the receiver value is returned directly.
 
-`.or()` is the only method that can be called on void or `deleted()` — all other method calls on void or `deleted()` are errors. This makes `.or()` useful for providing defaults in deeply nested expressions involving if-without-else, non-exhaustive match, or expressions that may yield `deleted()`:
+`.or()` and `.catch()` are the only methods that can be called on void or `deleted()` — all other method calls on void or `deleted()` are errors. `.catch()` passes void and `deleted()` through unchanged (they are not errors), while `.or()` actively rescues them by returning its argument. This makes `.or()` useful for providing defaults in deeply nested expressions involving if-without-else, non-exhaustive match, or expressions that may yield `deleted()`:
 
 ```bloblang
 output.name = input.user.name.or("Anonymous")

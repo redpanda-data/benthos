@@ -16,7 +16,7 @@ var_assignment  := var_ref path_component* '=' expression
 
 map_decl        := 'map' identifier '(' [param_list] ')' '{' var_assignment* expression '}'
 param_list      := param (',' param)*
-param           := identifier | identifier '=' expression
+param           := identifier | identifier '=' literal
 import_stmt     := 'import' string_literal 'as' identifier
 
 expression      := literal | expr_path | function_call | method_chain |
@@ -111,7 +111,7 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
 - **Null-safe:** `?.` and `?[` short-circuit to `null`
 - **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments). Maps are first-class: `name` or `namespace::name` without parentheses evaluates to a lambda value (Section 5.5)
 - **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments
-- **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default expressions are evaluated at call time.
+- **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`).
 - **Arity:** Positional calls must provide at least the required parameter count and at most the total count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
 - **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body
 - **Side effects:**

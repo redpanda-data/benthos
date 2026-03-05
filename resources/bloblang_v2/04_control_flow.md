@@ -169,6 +169,7 @@ output.result = match input.x {
 | `map` lambda return | Error (value required) |
 | `filter` lambda return | Error (boolean required) |
 | Other lambda return | Propagates to consuming context |
+| `.catch()` receiver (`void.catch(...)`) | Void passes through (catch not triggered — void is not an error) |
 | `.or()` receiver (`void.or(x)`) | Returns `x` (void rescued) |
 | Other method call (`void.type()`) | Error |
 | Expression operand (`void + 1`) | Error |
