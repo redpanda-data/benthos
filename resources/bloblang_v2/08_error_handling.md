@@ -81,6 +81,11 @@ output.sound = (match input.animal { "cat" => "meow", "dog" => "woof" }).or("unk
 
 # Rescues deleted() — useful when calling maps that may return deleted()
 output.field = some_map(input.value).or("placeholder")
+
+# .or() can itself return deleted() — deletion rules then apply in the calling context
+output.field = input.name.or(deleted())
+# If name is null: .or() returns deleted(), field is removed from output
+# If name has a value: .or() returns the value, field is assigned normally
 ```
 
 ## 8.4 Throw Function

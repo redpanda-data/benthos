@@ -144,7 +144,7 @@ output.users = [
 # Result: [{"name": "Alice", "email": "a@example.com"}, {"name": "Bob"}]
 ```
 
-`deleted()` works recursively at all nesting levels - elements are omitted wherever they appear in the structure.
+`deleted()` is evaluated independently at each nesting level during literal construction — each `deleted()` call acts locally in the literal where it appears, removing the element or field at that position. There is no "recursive propagation"; inner literals are constructed first, and their `deleted()` markers are resolved before the outer literal sees the result.
 
 **In conditional expressions and match arms:** Match arms are transparent — `deleted()` produced by a case arm flows out of the match expression and behaves exactly as it would from any other expression.
 ```bloblang

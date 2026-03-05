@@ -196,7 +196,7 @@ input.items.filter(x -> x > 10)
 
 **Multiple parameters:**
 ```bloblang
-input.data.iter_kv().map(e -> {"k": e.k, "v": e.v.uppercase()}).collect_kv()
+input.data.map_values(v -> v.uppercase())
 ```
 
 **Multi-statement body:**

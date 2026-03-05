@@ -15,7 +15,7 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 | `float64` | 64-bit IEEE 754 float (default for float literals) | `3.14`, `-10.5` (unary minus) |
 | `bool` | Boolean | `true`, `false` |
 | `null` | Null value | `null` |
-| `bytes` | Byte array (operations are byte-based) | `"hello".bytes()` |
+| `bytes` | Byte array (operations are byte-based; no implicit JSON serialization — see Section 13.11) | `"hello".bytes()` |
 | `array` | Ordered collection | `[1, "two", true]` |
 | `object` | Key-value map | `{"key": "value"}` |
 | `timestamp` | Point in time with nanosecond precision | `now()`, `"2024-03-01".ts_parse("%Y-%m-%d")` |
@@ -193,7 +193,7 @@ null == 0            # false (null vs numeric)
 (x -> x) == (x -> x) # ERROR: lambdas cannot be compared for equality
 ```
 
-**Object key ordering:** Object key ordering is **not preserved**. Programs must not depend on iteration order in `iter_kv`, JSON serialization order, or any other context where keys are enumerated. Object equality compares keys and values regardless of order.
+**Object key ordering:** Object key ordering is **not preserved**. Programs must not depend on iteration order in `.iter()`, JSON serialization order, or any other context where keys are enumerated. Object equality compares keys and values regardless of order.
 
 **Timestamp semantics:** Timestamps represent a point in time with nanosecond precision. They support:
 

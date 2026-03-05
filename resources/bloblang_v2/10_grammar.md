@@ -86,12 +86,15 @@ paren_expr      := '(' expression ')'
 literal         := float_literal | int_literal | string_literal | boolean | null | array | object
 int_literal     := [0-9]+                          # Must fit int64; overflow is a compile-time error
 float_literal   := [0-9]+ '.' [0-9]+
+boolean         := 'true' | 'false'
+null            := 'null'
 string_literal  := '"' string_char* '"' | '`' raw_char* '`'
 string_char     := [^"\\\n] | escape_seq
 escape_seq      := '\\' ( '"' | '\\' | 'n' | 't' | 'r' | 'u' hex hex hex hex | 'u{' hex+ '}' )
                    # \uXXXX: exactly 4 hex digits (BMP only, U+0000–U+FFFF)
                    # \u{X...}: 1–6 hex digits (any valid Unicode codepoint, U+0000–U+10FFFF)
                    # Surrogate codepoints (U+D800–U+DFFF) are invalid in both forms
+hex             := [0-9a-fA-F]
 raw_char        := [^`]
 array           := '[' [expression (',' expression)* ','?] ']'
 object          := '{' [key_value (',' key_value)* ','?] '}'

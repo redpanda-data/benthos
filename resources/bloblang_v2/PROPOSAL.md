@@ -41,7 +41,7 @@ V2 fixes this with explicit lambda parameters:
 ```bloblang
 # V2: no ambiguity
 output.names = input.users.map(user -> user.name.uppercase())
-output.result = input.dict.iter_kv().map(e -> {"k": e.k, "v": e.k + ": " + e.v}).collect_kv()
+output.result = input.dict.map_entries((k, v) -> {"key": k, "value": k + ": " + v})
 ```
 
 ### Bare identifiers silently resolve to `this.field`
