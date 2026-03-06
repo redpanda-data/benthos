@@ -812,7 +812,7 @@ root.h2 = this.value.hash(algorithm: "crc32", polynomial: "Koopman").encode("hex
 			`{"h1":"c99465aa","h2":"df373d3c"}`,
 		),
 	).
-		Param(ParamString("algorithm", "The hasing algorithm to use.")).
+		Param(ParamString("algorithm", "The hashing algorithm to use.")).
 		Param(ParamString("key", "An optional key to use.").Optional()).
 		Param(ParamString("polynomial", "An optional polynomial key to use when selecting the `crc32` algorithm, otherwise ignored. Options are `IEEE` (default), `Castagnoli` and `Koopman`").Default("IEEE")),
 	func(args *ParsedParams) (simpleMethod, error) {
