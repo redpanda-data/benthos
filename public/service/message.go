@@ -158,6 +158,15 @@ func NewMessage(content []byte) *Message {
 	}
 }
 
+// NewMessageWithContext creates a new message with an initial raw bytes content
+// and an associated context. The initial content can be nil, which is
+// recommended if you intend to set it with structured contents.
+func NewMessageWithContext(ctx context.Context, content []byte) *Message {
+	return &Message{
+		part: message.WithContext(ctx, message.NewPart(content)),
+	}
+}
+
 // NewInternalMessage returns a message wrapped around an instantiation of the
 // internal message package. This function is for internal use only and intended
 // as a scaffold for internal components migrating to the new APIs.
