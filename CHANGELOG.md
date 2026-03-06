@@ -3,6 +3,13 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.68.0 - TBD
+
+### Added
+
+- Go API: Add `NewMessageWithContext` to `service` package for constructing messages with an associated context. (@prakhargarg105)
+
+
 ## 4.67.0 - 2026-03-05
 
 ### Added
