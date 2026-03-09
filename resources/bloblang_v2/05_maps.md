@@ -27,6 +27,11 @@ map format_price(amount, currency = "USD", decimals = 2) {
   currency + " " + amount.round(decimals).string()
 }
 
+# Discard parameters (match a call signature, ignore unused args)
+map handle_event(_, _, payload) {
+  payload.uppercase()
+}
+
 # Invocation
 output.headers = default_headers()
 output.result = name(input.data)
@@ -116,8 +121,10 @@ output = walk_tree(input)
 - Parameters are available as bare identifiers within the map body (e.g., `data.field`)
 - Variables declared within maps (using `$`) can be reassigned
 - Maps are isolated: the map body has no access to external state (`input`, `output`, top-level variables). The result is determined by the parameter values, but note that closures passed as arguments may carry captured mutable state (Section 3.4), so the same lambda value can produce different results across calls
+- **Discard parameters (`_`):** `_` can be used as a parameter name to accept and ignore an argument. It is not bound — referencing `_` in the body is a compile error. Multiple `_` parameters are allowed in the same parameter list. Discard parameters cannot have defaults.
 - Call with positional arguments (match order) or named arguments (match names)
 - **Cannot mix** positional and named arguments in the same call
+- **`_` restricts to positional calls:** Maps with any `_` parameters can only be called positionally. Named calls to such maps are a compile error since `_` has no name to target.
 - **Arity:** Positional calls must provide at least the required parameter count and at most the total parameter count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
 - **Parameter shadowing:** Parameter names shadow any map names with the same name within the map body. The parameter always wins. Imported namespaces are not affected since they use `::` syntax — `namespace::func()` is always unambiguous regardless of parameter names.
 
@@ -183,7 +190,7 @@ output.b = apply(5, $fn)  # 15 — $fn's captured $multiplier changed
 
 ## 5.5 Maps as Values
 
-Maps are **first-class values** — a map name used without parentheses evaluates to a lambda value. This allows maps to be passed as arguments, stored in variables, and used anywhere a lambda is expected.
+Maps and standard library functions are **first-class values** — a map name or standard library function name used without parentheses evaluates to a lambda value. This allows them to be passed as arguments, stored in variables, and used anywhere a lambda is expected.
 
 ```bloblang
 map double(x) { x * 2 }
@@ -195,6 +202,11 @@ output.doubled = input.items.map(double)          # Same as: map(x -> double(x))
 $fn = double
 output.result = $fn(21)                                 # 42
 
+# Standard library functions are also first-class values
+output.ids = input.items.map(x -> uuid_v4())      # Call in lambda
+$generator = uuid_v4                               # Store stdlib function as value
+output.id = $generator()                           # Call via variable
+
 # Namespace-qualified references also work as values
 import "./math.blobl" as math
 output.results = input.items.map(math::double)    # Same as: map(x -> math::double(x))
@@ -202,9 +214,9 @@ $fn = math::double
 output.result = $fn(21)                                 # 42
 ```
 
-**Type:** Map references evaluate to `lambda`. Their `.type()` returns `"lambda"`.
+**Type:** Map and standard library function references evaluate to `lambda`. Their `.type()` returns `"lambda"`.
 
-**Note:** Map name references are resolved at compile time and produce lambda values directly — they are not "returned from" a call. This does not violate the lambda return restriction (Section 2.1), which applies to the *result of calling* a map, function, or lambda at runtime.
+**Note:** Name references are resolved at compile time and produce lambda values directly — they are not "returned from" a call. This does not violate the lambda return restriction (Section 2.1), which applies to the *result of calling* a map, function, or lambda at runtime.
 
 **Cannot return lambdas:** Maps (and lambdas) cannot return lambda values — if a map body produces a lambda as its result, this is a runtime error. Lambdas are for parameterizing operations, not for building higher-order call chains. See Section 2.1 for full lambda restrictions.
 
@@ -220,7 +232,7 @@ output.b = $fn(name: "Alice")             # "Hello, Alice"
 output.c = $fn("Alice", "Hi")             # "Hi, Alice"
 ```
 
-**Shadowing:** Parameter names still shadow map names within map and lambda bodies (Section 5.3). A bare identifier always resolves to the innermost binding — parameter first, then map name:
+**Shadowing:** Parameter names shadow map and standard library function names within map and lambda bodies (Section 5.3). A bare identifier always resolves to the innermost binding — parameter first, then map name, then standard library function:
 ```bloblang
 map double(x) { x * 2 }
 input.items.map(double -> double + 1)   # 'double' is the parameter, not the map

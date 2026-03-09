@@ -16,7 +16,7 @@ var_assignment  := var_ref path_component* '=' expression
 
 map_decl        := 'map' identifier '(' [param_list] ')' '{' var_assignment* expression '}'
 param_list      := param (',' param)*
-param           := identifier | identifier '=' literal
+param           := identifier | identifier '=' literal | '_'
 import_stmt     := 'import' string_literal 'as' identifier
 
 expression      := postfix_expr | binary_expr | unary_expr | lambda_expr
@@ -79,7 +79,7 @@ unary_expr      := unary_op expression
 unary_op        := '!' | '-'
 
 lambda_expr     := lambda_params '->' (expression | lambda_block)
-lambda_params   := identifier | '(' param (',' param)* ')'
+lambda_params   := identifier | '_' | '(' param (',' param)* ')'
 lambda_block    := '{' var_assignment* expression '}'
 paren_expr      := '(' expression ')'
 
@@ -110,6 +110,8 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
 
 ## Key Points
 
+- **Disambiguation of `match` with `{`:** After `match`, if the next token is `{`, it is always the match body (boolean match without expression), never an object literal as the matched expression. This eliminates the ambiguity between `match { cases... }` and `match <object_literal> { cases... }`. In practice, matching on a literal is dead code — the matched expression should always be dynamic. If parenthesization is ever needed for clarity, `match (expr) { ... }` works for any expression.
+- **Disambiguation of `call_expr` vs `context_root`:** Both productions can start with `identifier` (or `qualified_name`). The parser must use one token of lookahead after the identifier (or after the second identifier in `qualified_name`) to check for `(`: if present, it is a `call_expr`; otherwise, it is a `context_root`. This is standard LL(1) lookahead — the grammar is unambiguous but implementers should be aware of the need for it.
 - **Unified postfix chains:** The `postfix_expr` production unifies field access, indexing, and method calls into a single chain. Any expression result can be followed by any combination of `.field`, `[index]`, and `.method()` operations. This means `func().field`, `expr.method()[0]`, and `literal["key"]` are all valid.
 - **Top-level only:** Map declarations (`map_decl`) and imports (`import_stmt`) can only appear at the top level of a program, not inside statement bodies. Control flow statements (`if_stmt`, `match_stmt`) can be nested.
 - **Variables:** `$var` for declaration and reference. The grammar has two assignment productions that reflect context restrictions: `assignment` (used in statement contexts: top-level, if/match statement bodies) can target `output`, `output@`, or `$variables`; `var_assignment` (used in expression contexts: map bodies, lambda blocks, if/match expressions) can only target `$variables`. Both support path assignment (`$var.field = expr`, `$var[0] = expr`) with the same field access, indexing, and auto-creation semantics as `output`.
@@ -118,16 +120,17 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
   - **Top-level assignments:** Targets must be `output` (with optional `@` for metadata) or `$variable`. `input` is read-only and cannot be assigned to.
   - **Map/lambda bodies:** Can use bare identifiers for parameters **in expressions only** (e.g., `data.field` where `data` is a parameter). Parameters are read-only and cannot be assigned to.
   - **Match with `as`:** Creates a read-only binding in expressions (e.g., `match input.x as val { val.field ... }`)
-  - **Name resolution:** The grammar's `context_root` accepts `identifier` and `qualified_name` in all expression contexts. A separate semantic pass must verify that every bare identifier resolves to a bound name — a map parameter, lambda parameter, match `as` binding, or map name (Section 5.5). Namespace-qualified references (`namespace::name`) resolve to map values from imported modules. Unresolved identifiers are a compile-time error (Section 3.1). When a name matches both a parameter and a map, the parameter wins (Section 5.3).
+  - **Name resolution:** The grammar's `context_root` accepts `identifier` and `qualified_name` in all expression contexts. A separate semantic pass must verify that every bare identifier resolves to a bound name — a map parameter, lambda parameter, match `as` binding, map name, or standard library function name (Section 5.5). Namespace-qualified references (`namespace::name`) resolve to map values from imported modules. Unresolved identifiers are a compile-time error (Section 3.1). Resolution priority (innermost wins): parameters > maps > standard library functions. User-defined maps shadow standard library functions of the same name.
 - **Field and method names:** Field names after `.` and `?.` use `word` (any `[a-zA-Z_][a-zA-Z0-9_]*` token, including keywords). Keywords are valid as field names without quoting: `input.map`, `output.if`. Use `."string"` for names with special characters or spaces: `input."field name"`. Method names in `method_call` also use `word`, so standard library methods like `.map()` work despite `map` being a keyword. Declarations (variables, maps, parameters) use `identifier`, which excludes keywords.
 - **Object literals:** Keys are expressions that **must** evaluate to strings at runtime (error if not): `{"key": value}` or `{$var: value}`. Use `.string()` for explicit type conversion.
 - **Indexing:** `[expr]` on objects (string index), arrays (numeric index), strings (codepoint position, returns int64), bytes (byte position, returns int64). Negative indices supported for arrays, strings, and bytes. Indexing is a `postfix_op` and can follow any expression — including function calls, method chains, and literals.
 - **Null-safe:** `?.` and `?[` short-circuit to `null` for field access and indexing; `?.method()` short-circuits to `null` for method calls.
-- **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments). Maps are first-class: `name` or `namespace::name` without parentheses evaluates to a lambda value (Section 5.5).
+- **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments). Maps and standard library functions are first-class: `name` or `namespace::name` without parentheses evaluates to a lambda value (Section 5.5).
 - **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments. Duplicate named arguments are a compile-time error.
-- **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`).
+- **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`). Discard parameters (`_`) cannot have defaults.
+- **Discard parameters:** `_` is allowed as a parameter in maps and lambdas. It accepts an argument but does not bind it — `_` cannot be referenced in the body. Multiple `_` parameters are allowed. Maps or lambdas with `_` parameters can only be called positionally (named calls are a compile error).
 - **Arity:** Positional calls must provide at least the required parameter count and at most the total count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
-- **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body.
+- **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, discard `_ -> expr` or `(_, b) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body. `_` parameters are not bound and cannot be referenced.
 - **Side effects:**
   - Expressions cannot assign to `output` or `output@`
   - Lambda blocks: Variable assignments + final expression (no `output` side effects)

@@ -137,6 +137,14 @@ output@.callback = x -> x * 2    # ERROR: lambdas cannot be stored in metadata
 
 **Note:** While the language allows any metadata type, message systems (Kafka, AMQP, etc.) often only support string metadata. In practice, implementations serialize non-string values to JSON strings when interfacing with such systems. For example, `output@.tags = ["a", "b"]` would be stored as the string `'["a","b"]'` in Kafka metadata. Bytes values in metadata are an error during serialization — convert explicitly (e.g., to a base64 string) before storing in metadata that will be serialized.
 
+**Reading metadata as a whole:** `input@` and `output@` without a path component evaluate to the entire metadata object. The result is always an object (`.type()` returns `"object"`), even when empty.
+```bloblang
+output.all_meta = input@            # Read all input metadata as an object
+output.meta_type = input@.type()    # "object"
+output.has_meta = input@.length()   # Number of metadata keys
+output.keys = input@.keys()         # Array of metadata key names
+```
+
 **Copy all metadata:**
 ```bloblang
 output@ = input@                    # Logical copy (COW) all metadata
