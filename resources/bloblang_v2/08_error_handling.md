@@ -17,11 +17,15 @@ Common error sources:
 
 Handle errors with `.catch()`. The method takes a lambda with a single parameter — the error object — and is called only when the expression to its left produces an error. If the expression succeeds, `.catch()` returns its value unchanged. If the lambda itself errors, that error propagates and can be caught by a subsequent `.catch()`.
 
-**Scope:** `.catch()` catches any error produced by its receiver expression — the entire expression that the grammar parses as the left-hand side of the `.catch()` method call. Errors propagate through method chains: if any method errors, subsequent methods are skipped and the error flows to the next `.catch()`.
+**Scope:** `.catch()` catches any error produced by its receiver expression — the entire expression that the grammar parses as the left-hand side of the `.catch()` method call. Errors propagate through postfix chains: if any postfix operation (method call, field access, or index access) errors, all subsequent postfix operations are skipped and the error flows to the next `.catch()`.
 
 ```bloblang
 # Catches errors from ts_parse or uppercase (either one)
 input.date.ts_parse("%Y-%m-%d").uppercase().catch(err -> null)
+
+# Field access and indexing are also skipped on error
+# If ts_parse errors, .year (field access) is skipped and the error reaches .catch()
+input.date.ts_parse("%Y-%m-%d").year.string().catch(err -> "unknown")
 
 # Parentheses define the boundary — catches errors from the addition and .string()
 (input.a + input.b).string().catch(err -> "0")

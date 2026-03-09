@@ -2,6 +2,8 @@
 
 All implementations must provide these functions and methods. This is the complete required standard library — implementations may offer additional functions and methods beyond this list.
 
+**First-class values:** Standard library functions share the same namespace as user-defined maps. A function name used without parentheses evaluates to a lambda value (Section 5.5). User-defined maps shadow standard library functions of the same name. Resolution priority: parameters > maps > standard library functions.
+
 **Named arguments:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps: positional and named arguments cannot be mixed in the same call, and duplicate named arguments are a compile-time error (Section 3.3).
 
 **Regular expressions:** All regex parameters use [RE2 syntax](https://github.com/google/re2/wiki/Syntax). RE2 guarantees linear-time matching (no catastrophic backtracking). Notable exclusions from RE2: backreferences and lookahead/lookbehind assertions are not supported.
@@ -62,6 +64,30 @@ Convert a Unicode codepoint to a single-character string. This is the inverse of
   char(233)        # "é"
   char(128512)     # "😀"
   char("hello"[0]) # "h" (round-trip from string indexing)
+  ```
+
+### `timestamp(year, month, day, hour = 0, minute = 0, second = 0, nano = 0, timezone = "UTC")`
+
+Construct a timestamp from individual components.
+
+- **Parameters:**
+  - `year` (int64)
+  - `month` (int64, 1–12)
+  - `day` (int64, 1–31)
+  - `hour` (int64, 0–23, default `0`)
+  - `minute` (int64, 0–59, default `0`)
+  - `second` (int64, 0–59, default `0`)
+  - `nano` (int64, 0–999999999, default `0`)
+  - `timezone` (string, IANA timezone name or `"UTC"`, default `"UTC"`)
+- **Returns:** timestamp
+- **Errors:** if any component is out of range, or if the timezone is not recognized
+- **Examples:**
+  ```bloblang
+  timestamp(2024, 3, 1)                                    # 2024-03-01T00:00:00Z
+  timestamp(2024, 3, 1, 12, 30, 0)                         # 2024-03-01T12:30:00Z
+  timestamp(2024, 3, 1, 12, 30, 0, 0, "America/New_York")  # 2024-03-01T12:30:00-05:00
+  timestamp(year: 2024, month: 3, day: 1)                  # 2024-03-01T00:00:00Z
+  timestamp(year: 2024, month: 12, day: 25, hour: 8)       # 2024-12-25T08:00:00Z
   ```
 
 ### `throw(message)`
@@ -401,6 +427,7 @@ Split a string by a delimiter.
   "hello".split("")        # ["h", "e", "l", "l", "o"]
   "👋🏽".split("")          # ["👋", "🏽"] (splits by codepoint, not grapheme)
   "".split("")             # [] (no codepoints)
+  "".split(",")            # [""] (empty string with non-empty delimiter)
   ```
 
 ### `.replace_all(old, new)`
@@ -465,12 +492,12 @@ Replace all matches of a regular expression with a replacement string.
 
 ## 13.6 Array Methods
 
-### `.filter(elem -> bool)`
+### `.filter(fn)`
 
 Return a new array containing only elements for which the lambda returns `true`. The lambda must return a boolean — non-boolean return values (including void) are an error.
 
 - **Receiver:** array
-- **Parameters:** lambda (one parameter → bool)
+- **Parameters:** `fn` — lambda (one parameter: element → bool)
 - **Returns:** array
 - **Examples:**
   ```bloblang
@@ -478,7 +505,7 @@ Return a new array containing only elements for which the lambda returns `true`.
   [1, -2, 3].filter(x -> x > 0)        # [1, 3]
   ```
 
-### `.map(elem -> expr)`
+### `.map(fn)`
 
 Transform each element of an array. Returns a new array.
 
@@ -486,7 +513,7 @@ Transform each element of an array. Returns a new array.
 - If the lambda returns `deleted()`, the element is omitted from the result
 
 - **Receiver:** array
-- **Parameters:** lambda (one parameter → any)
+- **Parameters:** `fn` — lambda (one parameter: element → any)
 - **Returns:** array
 - **Examples:**
   ```bloblang
@@ -520,12 +547,12 @@ Bool, null, bytes, array, object, and lambda are not sortable — an array conta
   [1, "a", true].sort()      # ERROR: cannot sort mixed type families
   ```
 
-### `.sort_by(elem -> key)`
+### `.sort_by(fn)`
 
 Sort an array using a key function. Sort is **stable**. The lambda extracts a sort key from each element; keys are compared using the same rules as `.sort()`.
 
 - **Receiver:** array
-- **Parameters:** lambda (one parameter → comparable value)
+- **Parameters:** `fn` — lambda (one parameter: element → comparable value)
 - **Returns:** array
 - **Examples:**
   ```bloblang
@@ -569,7 +596,7 @@ Flatten nested arrays by one level. Non-array elements are kept as-is.
 
 ### `.unique()`
 
-Remove duplicate elements, preserving the first occurrence of each value. Comparison uses equality semantics (Section 2.3).
+Remove duplicate elements, preserving the first occurrence of each value. Comparison uses equality semantics (Section 2.3), except that all NaN values are considered equal (consistent with `.sort()`'s total ordering). At most one NaN is retained.
 
 - **Receiver:** array
 - **Returns:** array
@@ -606,12 +633,12 @@ Convert an array to an array of `{"index": i, "value": v}` objects.
   # [{"index": 0, "value": "a"}, {"index": 1, "value": "b"}, {"index": 2, "value": "c"}]
   ```
 
-### `.any(elem -> bool)`
+### `.any(fn)`
 
 Test if any element satisfies the predicate. Returns `false` for empty arrays. **Must** short-circuit on first `true` — subsequent elements are not evaluated (this is a required semantic, not an optimization).
 
 - **Receiver:** array
-- **Parameters:** lambda (one parameter → bool)
+- **Parameters:** `fn` — lambda (one parameter: element → bool)
 - **Returns:** bool
 - **Examples:**
   ```bloblang
@@ -620,12 +647,12 @@ Test if any element satisfies the predicate. Returns `false` for empty arrays. *
   [].any(x -> true)               # false
   ```
 
-### `.all(elem -> bool)`
+### `.all(fn)`
 
 Test if all elements satisfy the predicate. Returns `true` for empty arrays. **Must** short-circuit on first `false` — subsequent elements are not evaluated (this is a required semantic, not an optimization).
 
 - **Receiver:** array
-- **Parameters:** lambda (one parameter → bool)
+- **Parameters:** `fn` — lambda (one parameter: element → bool)
 - **Returns:** bool
 - **Examples:**
   ```bloblang
@@ -634,14 +661,14 @@ Test if all elements satisfy the predicate. Returns `true` for empty arrays. **M
   [].all(x -> false)              # true
   ```
 
-### `.find(elem -> bool)`
+### `.find(fn)`
 
 Return the first element that satisfies the predicate. **Must** short-circuit — subsequent elements are not evaluated after the first match (this is a required semantic, not an optimization). Error if no element matches — use `.catch()` to handle.
 
 **Design note:** `.find()` errors on no match (rather than returning a sentinel) because there is no natural sentinel value for an arbitrary element — any value (including `null`) could be a legitimate array element. In contrast, `.index_of()` returns `-1` because indices are non-negative integers, making `-1` an unambiguous "not found" sentinel. Use `.catch()` to provide a fallback when no element matches.
 
 - **Receiver:** array
-- **Parameters:** lambda (one parameter → bool)
+- **Parameters:** `fn` — lambda (one parameter: element → bool)
 - **Returns:** any (the element)
 - **Examples:**
   ```bloblang
@@ -678,12 +705,42 @@ Sum all numeric elements. All elements must be numeric — non-numeric elements 
   [].sum()                # 0 (int64)
   ```
 
-### `.fold(initial, (tally, elem) -> expr)`
+### `.min()`
+
+Return the minimum element of an array. All elements must belong to the same sortable type family (same rules as `.sort()`). Empty arrays are an error.
+
+- **Receiver:** array of sortable values (numeric, string, or timestamp — not mixed)
+- **Returns:** same type as elements (promoted type for mixed numeric subtypes)
+- **Examples:**
+  ```bloblang
+  [3, 1, 2].min()              # 1 (int64)
+  [3.5, 1.2, 2.8].min()       # 1.2 (float64)
+  [3, 1.5, 2].min()            # 1.5 (float64: int64 promoted)
+  ["c", "a", "b"].min()        # "a"
+  [].min()                     # ERROR: empty array
+  ```
+
+### `.max()`
+
+Return the maximum element of an array. All elements must belong to the same sortable type family (same rules as `.sort()`). Empty arrays are an error.
+
+- **Receiver:** array of sortable values (numeric, string, or timestamp — not mixed)
+- **Returns:** same type as elements (promoted type for mixed numeric subtypes)
+- **Examples:**
+  ```bloblang
+  [3, 1, 2].max()              # 3 (int64)
+  [3.5, 1.2, 2.8].max()       # 3.5 (float64)
+  [3, 1.5, 2].max()            # 3.0 (float64: int64 promoted)
+  ["c", "a", "b"].max()        # "c"
+  [].max()                     # ERROR: empty array
+  ```
+
+### `.fold(initial, fn)`
 
 Reduce an array to a single value by applying an accumulator function to each element. The lambda receives the running tally and the current element, and returns the new tally.
 
 - **Receiver:** array
-- **Parameters:** `initial` (any — starting value), lambda (two parameters: tally, element → any)
+- **Parameters:** `initial` (any — starting value), `fn` — lambda (two parameters: tally, element → any)
 - **Returns:** any (the final tally)
 - **Examples:**
   ```bloblang
@@ -706,6 +763,7 @@ Convert an array of `{"key": k, "value": v}` objects back into an object. Last v
   [{"key": "a", "value": 1, "extra": true}].collect()                 # {"a": 1} (extra fields ignored)
   [{"key": "a", "value": 1}, {"bad": true}].collect()                 # ERROR: element missing "key"/"value" fields
   ```
+- **Note:** `.collect()` returns an object, and object key ordering is not preserved (Section 2.3). Sorting entries before `.collect()` (e.g., `.iter().sort_by(e -> e.key).collect()`) does not produce an object with ordered iteration — the sort order is lost. JSON serialization is deterministic (keys sorted lexicographically by `.format_json()`), but iteration order via `.iter()`, `.keys()`, and `.values()` is not guaranteed.
 
 ---
 
@@ -802,12 +860,12 @@ Return a new object with the specified keys removed. Keys that don't exist are i
   {"a": 1, "b": 2}.without([])                     # {"a": 1, "b": 2}
   ```
 
-### `.map_values(value -> expr)`
+### `.map_values(fn)`
 
 Transform the values of an object, keeping keys unchanged. Returns a new object.
 
 - **Receiver:** object
-- **Parameters:** lambda (one parameter: value → any)
+- **Parameters:** `fn` — lambda (one parameter: value → any)
 - **Returns:** object
 - **Examples:**
   ```bloblang
@@ -815,12 +873,12 @@ Transform the values of an object, keeping keys unchanged. Returns a new object.
   {"a": "hello", "b": "world"}.map_values(v -> v.uppercase())  # {"a": "HELLO", "b": "WORLD"}
   ```
 
-### `.map_keys(key -> expr)`
+### `.map_keys(fn)`
 
 Transform the keys of an object, keeping values unchanged. Returns a new object. The lambda must return a string — non-string return values are an error. If multiple keys map to the same new key, last value wins.
 
 - **Receiver:** object
-- **Parameters:** lambda (one parameter: key (string) → string)
+- **Parameters:** `fn` — lambda (one parameter: key (string) → string)
 - **Returns:** object
 - **Examples:**
   ```bloblang
@@ -828,12 +886,12 @@ Transform the keys of an object, keeping values unchanged. Returns a new object.
   {"user_name": "Alice"}.map_keys(k -> k.replace_all("_", "-"))  # {"user-name": "Alice"}
   ```
 
-### `.map_entries((key, value) -> {"key": k, "value": v})`
+### `.map_entries(fn)`
 
-Transform both keys and values of an object. The lambda receives two parameters (key, value) and must return an object with `"key"` (string) and `"value"` (any) fields. If multiple entries produce the same key, last value wins.
+Transform both keys and values of an object. The lambda receives two parameters (key, value) and must return an object with `"key"` (string) and `"value"` (any) fields. If multiple entries produce the same key, last value wins. **Errors:** lambda returns a non-object, returned object is missing `"key"` or `"value"` field, or `"key"` is not a string.
 
 - **Receiver:** object
-- **Parameters:** lambda (two parameters: key (string), value (any) → object with `"key"` and `"value"` fields)
+- **Parameters:** `fn` — lambda (two parameters: key (string), value (any) → object with `"key"` and `"value"` fields)
 - **Returns:** object
 - **Examples:**
   ```bloblang
@@ -841,12 +899,12 @@ Transform both keys and values of an object. The lambda receives two parameters 
   # {"A": 10, "B": 20}
   ```
 
-### `.filter_entries((key, value) -> bool)`
+### `.filter_entries(fn)`
 
 Filter entries of an object. The lambda receives two parameters (key, value) and must return a boolean. Returns a new object containing only entries for which the lambda returns `true`.
 
 - **Receiver:** object
-- **Parameters:** lambda (two parameters: key (string), value (any) → bool)
+- **Parameters:** `fn` — lambda (two parameters: key (string), value (any) → bool)
 - **Returns:** object
 - **Examples:**
   ```bloblang
@@ -1035,12 +1093,12 @@ Add a duration in nanoseconds to a timestamp. Negative values subtract.
 
 ## 13.10 Error Handling Methods
 
-### `.catch(err -> expr)`
+### `.catch(fn)`
 
 Handle errors. Called only when the expression to its left produces an error. If the expression succeeds, `.catch()` returns its value unchanged. The error object has a single field: `.what` (string, the error message).
 
 - **Receiver:** any expression (catches errors from the left-hand side)
-- **Parameters:** lambda (one parameter: error object → any)
+- **Parameters:** `fn` — lambda (one parameter: error object → any)
 - **Returns:** any (either the original value or the lambda's result)
 - **Examples:**
   ```bloblang
@@ -1074,7 +1132,7 @@ Provide a default value for null, void, or `deleted()`. Takes exactly one argume
 
 Parse a JSON string into a value. Errors if the string is not valid JSON.
 
-**Numeric type mapping:** JSON numbers without a decimal point or exponent are parsed as int64 if the value fits in int64 range; if it exceeds int64 range, the value is parsed as float64 (which may lose precision for very large integers). JSON numbers with a decimal point or exponent are parsed as float64 (matching Bloblang float literal rules).
+**Numeric type mapping:** JSON numbers without a decimal point or exponent are parsed as int64 if the value fits in int64 range; if it exceeds int64 range, the value is parsed as float64 (which may lose precision for very large integers). JSON numbers with a decimal point or exponent are parsed as float64 (matching Bloblang float literal rules). **Note:** Large unsigned integers (between 2^63 and 2^64-1) exceed int64 range and are parsed as float64, which loses precision. To handle these values losslessly, represent them as JSON strings and convert explicitly: `"18446744073709551615".uint64()`.
 
 - **Receiver:** string, bytes (bytes are interpreted as UTF-8-encoded JSON; errors if bytes are not valid UTF-8)
 - **Returns:** any (the parsed value)
@@ -1097,7 +1155,7 @@ Serialize a value to a JSON string. Object keys are sorted lexicographically. Ti
 - **Errors:** if the value is or contains a lambda or bytes value (at any nesting depth). Bytes have no implicit JSON serialization — convert explicitly (e.g., to a base64 or hex string) before serializing. NaN and Infinity float values also error (not representable in JSON).
 - **Numeric serialization:**
   - Integer types (int32, int64, uint32, uint64): serialized as JSON integers (no decimal point, no quotes). Large uint64 values (> 2^53) are serialized as-is — the JSON spec imposes no range limit, though consumers using float64 may lose precision.
-  - Float types (float32, float64): serialized as the shortest decimal representation that round-trips exactly. Exponent notation is permitted (e.g., `1e+06`). Unlike `.string()`, a decimal point is not required — JSON numbers are unambiguously numeric regardless of form.
+  - Float types (float32, float64): serialized as the shortest decimal representation that round-trips exactly, always including either a decimal point or exponent to distinguish from integer serialization. This matches `.string()` behavior and ensures that `.format_json()` → `.parse_json()` preserves the float type. Exponent notation is permitted (e.g., `1e+06`).
 - **Examples:**
   ```bloblang
   {"name": "Alice"}.format_json()       # `{"name":"Alice"}`

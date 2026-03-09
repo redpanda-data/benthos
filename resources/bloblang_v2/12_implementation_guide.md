@@ -37,6 +37,8 @@ output.values = $filtered.map(x -> x.value)  # Second pass
 
 **Benefit:** 10-100x faster for large datasets, no intermediate allocations.
 
+**`deleted()` in lazy `.map()`:** A lazy `.map()` must handle `deleted()` returns by omitting the element from the result, matching eager behavior (Section 9.2). In fused pipelines like `.filter().map()`, a `deleted()` return from `.map()` acts as an additional filter — both mechanisms must compose correctly. The observable result must be identical to eager evaluation.
+
 **Guarantee:** Variables always hold arrays (never iterators), fully reusable.
 
 ### Pipeline Fusion

@@ -13,7 +13,7 @@ Access nested data: `input.user.email`, `output.result.id`
 
 **Important:** Bare identifiers (parameters and match bindings) are read-only and can only be used in expressions on the right-hand side. They cannot be assigned to.
 
-**Name resolution:** Every bare identifier in an expression must resolve to a bound name — a map parameter, lambda parameter, match `as` binding, or a map name (Section 5.5). Namespace-qualified references (`namespace::name`) also resolve to map values. An unresolved bare identifier is a **compile-time error**. This catches typos like `inpt.field` (instead of `input.field`) at compile time rather than allowing them to parse and fail later. When a name matches both a parameter and a map, the parameter wins (Section 5.3).
+**Name resolution:** Every bare identifier in an expression must resolve to a bound name — a map parameter, lambda parameter, match `as` binding, map name, or standard library function name. Namespace-qualified references (`namespace::name`) also resolve to map values. An unresolved bare identifier is a **compile-time error**. This catches typos like `inpt.field` (instead of `input.field`) at compile time rather than allowing them to parse and fail later. Resolution priority (innermost wins): parameters > maps > standard library functions. User-defined maps shadow standard library functions of the same name. See Section 5.5 for using maps and standard library functions as values.
 
 **Field names:** Keywords are valid as field names without quoting — `input.map`, `output.if`, `data.match` all work. Use `."quoted"` for fields with special characters, spaces, or names starting with digits:
 ```bloblang
@@ -210,6 +210,18 @@ input.items.map(item -> {
 
 Lambda blocks must end with an expression (the return value). Statement-only blocks are invalid.
 
+**Discard parameters (`_`):**
+```bloblang
+# Discard unused parameters with _
+input.data.map_entries((_, v) -> v * 2)            # Discard key, use value
+input.items.fold(0, (_, elem) -> elem.value)       # Discard accumulator
+
+# Multiple discards allowed
+$ignore_both = (_, _) -> "constant"
+```
+
+`_` as a parameter means "this argument is required by the call signature but unused." It is not bound — referencing `_` in the body is a compile error (it remains a keyword). Multiple `_` parameters are allowed in the same parameter list. Functions with `_` parameters can only be called positionally — named calls are a compile error since `_` has no name to target.
+
 **Default parameters:**
 ```bloblang
 $greet = (name, greeting = "Hello") -> greeting + ", " + name
@@ -219,7 +231,7 @@ output.c = $greet(name: "Alice")            # "Hello, Alice"
 output.d = $greet(name: "Alice", greeting: "Hey")  # "Hey, Alice"
 ```
 
-Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`).
+Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`). Discard parameters (`_`) cannot have defaults.
 
 **First-class (stored in variables):**
 ```bloblang
@@ -249,7 +261,17 @@ map double(x) { x * 2 }
 input.items.map(double -> double * 2)     # double is the parameter, not the map
 ```
 
-**Purity:** Lambdas cannot assign to `output` or `output@` (no side effects).
+**Purity:** Lambdas cannot assign to `output` or `output@` (no side effects). Additionally, lambdas cannot mutate captured variables — because lambda bodies are expression contexts (Section 3.8), any assignment to a captured variable name creates a new shadow binding in the lambda scope, leaving the outer variable unchanged. This is a key semantic guarantee: lambda invocation has no effect on the caller's variables.
+
+```bloblang
+$x = 1
+$fn = y -> {
+  $x = 100    # Shadows outer $x — creates a NEW $x in the lambda scope
+  y + $x      # Uses local $x (100)
+}
+output.result = $fn(10)  # 110
+output.x = $x            # 1 (outer $x unchanged)
+```
 
 ## 3.5 Conditional Expressions
 
@@ -369,6 +391,12 @@ output.user.address.city = "London"
 # Array auto-creation with index syntax
 output.items[0].name = "first"
 # output.items created as array, output.items[0] created as object
+
+# Dynamic index: auto-creation type determined by index type at runtime
+$key = "name"
+output.data[$key] = "Alice"    # $key is string → output.data created as object
+$idx = 0
+output.list[$idx] = "first"    # $idx is int → output.list created as array
 
 # Collision with non-object/non-array value is an error
 output.user = "Alice"
