@@ -97,3 +97,15 @@ map walk(node) {
   }
 }
 ```
+
+**Mutual recursion** within the same file is also supported. Since map declarations are hoisted (Section 7.7), two maps can call each other regardless of declaration order:
+```bloblang
+map is_even(n) {
+  if n == 0 { true } else { is_odd(n - 1) }
+}
+map is_odd(n) {
+  if n == 0 { false } else { is_even(n - 1) }
+}
+```
+
+**Note:** Mutual recursion across files is not possible — circular imports are prohibited (Section 6.5). Same-file mutual recursion is subject to the same recursion depth limit as self-recursion (Section 5.2).

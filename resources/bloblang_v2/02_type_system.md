@@ -10,7 +10,7 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 | `int32` | 32-bit signed integer | `42.int32()` |
 | `int64` | 64-bit signed integer (default for integer literals) | `42`, `-10` (unary minus) |
 | `uint32` | 32-bit unsigned integer | `42.uint32()` |
-| `uint64` | 64-bit unsigned integer | `42.uint64()` |
+| `uint64` | 64-bit unsigned integer | `42.uint64()`, `"18446744073709551615".uint64()` |
 | `float32` | 32-bit IEEE 754 float | `3.14.float32()` |
 | `float64` | 64-bit IEEE 754 float (default for float literals) | `3.14`, `-10.5` (unary minus) |
 | `bool` | Boolean | `true`, `false` |
@@ -20,6 +20,8 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 | `object` | Key-value map | `{"key": "value"}` |
 | `timestamp` | Point in time with nanosecond precision | `now()`, `"2024-03-01".ts_parse("%Y-%m-%d")` |
 | `lambda` | Function value (see assignment restrictions below) | `x -> x * 2` |
+
+**Large uint64 values:** Integer literals are always int64, so values exceeding int64 range (> 9223372036854775807) cannot be written as bare literals. To create large uint64 values, parse from a string: `"18446744073709551615".uint64()`. Writing the value as a bare literal (e.g., `18446744073709551615.uint64()`) is a compile error because the literal exceeds int64 range before the conversion method is applied.
 
 **Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
 

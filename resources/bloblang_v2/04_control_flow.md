@@ -164,7 +164,7 @@ output.result = match input.x {
 | Context | Behavior |
 |---------|----------|
 | Output field assignment (`output.x = void`) | Assignment skipped; prior value (if any) preserved |
-| Variable declaration (`$x = void`) | Compile-time error (declarations must produce a value) |
+| Variable declaration (`$x = void`) | Error (compile-time when syntactically detectable — bare if-without-else or match-without-`_`; runtime otherwise, e.g., void from a map call) |
 | Variable reassignment (`$x = void`, `$x` exists) | Assignment skipped; prior value preserved |
 | Collection literal (`[1, void, 3]`) | Error |
 | Object literal (`{"a": void}`) | Error |
@@ -230,7 +230,7 @@ match input.type() as t {
 
 ### Three Match Forms
 
-**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected. Case expressions are ordinary expressions with the same scope access as the surrounding context (variables, `input`, `output`, etc. as appropriate). If a case expression evaluates to a **boolean**, an error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly. Implementations **should** detect boolean-typed case expressions at compile time when possible — comparison operators (`>`, `>=`, `<`, `<=`, `==`, `!=`), logical operators (`&&`, `||`, `!`), and boolean literals (`true`, `false`) always produce booleans and can be rejected statically. Cases involving dynamic values that happen to be boolean at runtime remain runtime errors.
+**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected. Case expressions are ordinary expressions with the same scope access as the surrounding context (variables, `input`, `output`, etc. as appropriate). If a case expression evaluates to a **boolean**, an error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly. Boolean literals (`true`, `false`) as case expressions **must** be rejected at compile time. Cases involving dynamic values that happen to be boolean at runtime are runtime errors.
 
 ```bloblang
 output.sound = match input.animal {
@@ -265,6 +265,8 @@ output.label = match input.flag {
 # Fix: use if/else for boolean values
 output.label = if input.flag { "yes" } else { "no" }
 ```
+
+**Rationale for the boolean restriction:** In equality match, a case like `input.score >= 100` is almost always a mistake — the user meant to use `as` for boolean conditions, not compare the matched value against `true`/`false`. Rejecting boolean cases catches this common error. The trade-off is that you cannot equality-match on boolean values (`match input.flag { true => ..., false => ... }`). This is intentional: `if`/`else` handles the boolean case more clearly, and multi-way dispatch on a value that could be `true`, `false`, or a non-boolean is better expressed with `match ... as` or `if`/`else if`/`else` chains.
 
 **2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. The `as` binding is available in case conditions, result expressions, and statement bodies (for match statements). It is block-scoped to the match — it cannot be referenced after the match closes. Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown. The wildcard `_` is exempt from this requirement — it always matches unconditionally.
 
