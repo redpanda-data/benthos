@@ -16,6 +16,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/internal/jsonschema"
+	"github.com/redpanda-data/benthos/v4/internal/manager"
 	"github.com/redpanda-data/benthos/v4/internal/stream"
 	"github.com/redpanda-data/benthos/v4/internal/template"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
@@ -34,8 +35,10 @@ type ConfigSchema struct {
 // FullConfigSchema returns a config schema containing all the standard config
 // fields and all plugin definitions from the environment.
 func (e *Environment) FullConfigSchema(version, dateBuilt string) *ConfigSchema {
+	fields := config.Spec()
+	fields = append(fields, manager.CustomResourceSpecs(e.internal)...)
 	return &ConfigSchema{
-		fields:    config.Spec(),
+		fields:    fields,
 		env:       e,
 		version:   version,
 		dateBuilt: dateBuilt,
