@@ -56,7 +56,7 @@ Maps are **isolated functions**: they take zero or more parameters, optionally d
 
 **Argument styles:** Functions can be called with positional or named arguments, but not both in the same call.
 
-**Default parameters:** Parameters may have default values (`param = literal`). Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`) — expressions, function calls, and references to other parameters are not allowed in defaults.
+**Default parameters:** Parameters may have default values (`param = literal`). Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`) — expressions, function calls, and references to other parameters are not allowed in defaults. **Note:** Since there is no timestamp literal syntax, timestamp defaults are not possible. Use `null` with `.or()` as a workaround: `map query(start = null) { $s = start.or(now()); ... }`.
 
 ## 5.2 Examples
 
@@ -101,10 +101,10 @@ output.total = calculate_total(subtotal: 100, tax_rate: 0.1)
 **Recursion:**
 ```bloblang
 map walk_tree(node) {
-  match node.type() as t {
-    t == "object" => node.map_values(v -> walk_tree(v)),
-    t == "array" => node.map(elem -> walk_tree(elem)),
-    t == "string" => node.uppercase(),
+  match node.type() {
+    "object" => node.map_values(v -> walk_tree(v)),
+    "array" => node.map(elem -> walk_tree(elem)),
+    "string" => node.uppercase(),
     _ => node,
   }
 }
@@ -112,7 +112,7 @@ map walk_tree(node) {
 output = walk_tree(input)
 ```
 
-**Recursion limits:** Maximum recursion depth is implementation-defined. Implementations **must** support at least 1000 recursive calls to ensure basic portability. Exceeding the recursion limit throws a runtime error that stops execution immediately and **cannot be caught** with `.catch()`.
+**Recursion limits:** Maximum recursion depth is implementation-defined. Implementations **must** support at least 1000 levels of recursion depth to ensure basic portability. Exceeding the recursion limit throws a runtime error that stops execution immediately and **cannot be caught** with `.catch()`. Mutual recursion (map A calls map B which calls map A) is valid — maps are hoisted (Section 7.7) — and shares the same depth limit.
 
 ## 5.3 Parameter Semantics
 

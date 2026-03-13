@@ -46,6 +46,8 @@ output.user = normalize_user(input.user_data)
 
 **Keywords:** `input`, `output`, `if`, `else`, `match`, `as`, `map`, `import`, `true`, `false`, `null`, `_`
 
+**Reserved function names:** `deleted`, `throw` — these parse as regular function calls but have special semantics (see Sections 8.4, 9.2, and 12.3). User-defined maps cannot shadow these names.
+
 `_` has context-dependent roles: it serves as the wildcard in match cases (Section 4.2) and as a **discard parameter** in map and lambda parameter lists (Sections 3.4, 5.1).
 
 **Operators:** `.`, `?.`, `@`, `::`, `=`, `+`, `-`, `*`, `/`, `%`, `!`, `>`, `>=`, `==`, `!=`, `<`, `<=`, `&&`, `||`, `=>`, `->` (`?.` applies to field access, indexing, and method calls)

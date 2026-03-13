@@ -275,53 +275,19 @@ output.x = $x            # 1 (outer $x unchanged)
 
 ## 3.5 Conditional Expressions
 
-**If Expression:**
-```bloblang
-output.category = if input.score >= 80 {
-  "high"
-} else if input.score >= 50 {
-  "medium"
-} else {
-  "low"
-}
+If and match can be used as expressions (returning a value) or as statements (containing assignments). See Section 4 for full semantics including void behavior, match forms, and the expression/statement distinction.
 
-# With block-scoped variables
-output.age = if input.birthdate != null {
-  $parsed = input.birthdate.ts_parse("%Y-%m-%d")
-  $now = now()
-  ($now.ts_unix() - $parsed.ts_unix()) / 31536000
-} else {
-  null
-}
+```bloblang
+# If expression
+output.category = if input.score >= 80 { "high" } else { "low" }
+
+# Match: equality, boolean with 'as', boolean without expression
+output.sound = match input.animal { "cat" => "meow", _ => "unknown" }
+output.tier = match input.score as s { s >= 100 => "gold", _ => "other" }
+output.grade = match { input.score >= 90 => "A", _ => "F" }
 ```
 
-**Match Expression:**
-```bloblang
-# Equality match: cases compared against matched value
-output.sound = match input.animal {
-  "cat" => "meow",
-  "dog" => "woof",
-  _ => "unknown",
-}
-
-# Boolean match with 'as': cases must be boolean expressions
-output.tier = match input.score as s {
-  s >= 100 => "gold",
-  s >= 50 => "silver",
-  _ => "bronze",
-}
-
-# Boolean match (no expression): cases must be boolean expressions
-output.category = match {
-  input.score >= 100 => "gold",   # Cases evaluated in order
-  input.score >= 50 => "silver",  # First true case wins
-  _ => "bronze",
-}
-```
-
-**Match semantics:** There are three forms: `match expr { ... }` compares each case value by equality against the matched expression — if a case evaluates to a boolean, it throws an error (use `as` for boolean conditions, or `if`/`else` to match boolean values). `match expr as x { ... }` binds the matched value to `x` and each case must be a boolean expression. `match { ... }` (no expression) also requires each case to be a boolean expression. In all boolean forms, cases are evaluated in order, first `true` wins, and a non-boolean case throws an error.
-
-**Purity:** Conditional expressions cannot assign to `output` or `output@`.
+Conditional expressions cannot assign to `output` or `output@`.
 
 ## 3.6 Literals
 

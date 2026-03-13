@@ -213,11 +213,11 @@ output.sound = match input.animal {
 
 **Match Statement** (multiple assignments):
 ```bloblang
-match input.type() as t {
-  t == "object" => {
+match input.type() {
+  "object" => {
     output = input.map_values(v -> transform(v))
   },
-  t == "array" => {
+  "array" => {
     output = input.map(elem -> transform(elem))
   },
   _ => {
@@ -306,15 +306,19 @@ output.processed = if input.has_discount {
   input.price
 }
 
-output.formatted = match input.currency as c {
-  c == "USD" => {
+output.formatted = match input.currency {
+  "USD" => {
     $symbol = "$"
     $amount = input.amount.round(2)
     $symbol + $amount.string()
   },
+  "EUR" => {
+    $amount = input.amount.round(2)
+    $amount.string() + " EUR"
+  },
   _ => {
     $amount = input.amount.round(2)
-    c + " " + $amount.string()
+    input.currency + " " + $amount.string()
   },
 }
 ```
