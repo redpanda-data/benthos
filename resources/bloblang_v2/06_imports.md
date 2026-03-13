@@ -91,8 +91,8 @@ This restriction prevents mutual recursion across files. Implementations must de
 Maps can call themselves without namespace prefix:
 ```bloblang
 map walk(node) {
-  match node.type() as t {
-    t == "object" => node.map_values(v -> walk(v)),
+  match node.type() {
+    "object" => node.map_values(v -> walk(v)),
     _ => node,
   }
 }

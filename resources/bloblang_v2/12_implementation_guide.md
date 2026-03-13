@@ -14,7 +14,7 @@ Implementations may optimize without changing observable behavior. Results must 
 
 **Lazy methods (from standard library):** `.filter()`, `.map()`. Additional extension methods like `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()` may also be made lazy if offered.
 
-**Terminal methods (from standard library):** `.sort()`, `.reverse()`, `.length()`, `.any()`, `.all()`, `.join()`, `.fold()`, `.collect()`
+**Terminal methods (from standard library):** Any method that needs the full array (e.g., `.sort()`, `.reverse()`, `.length()`, `.fold()`, `.collect()`). See Section 13 for the complete method reference.
 
 **Materialization points:**
 - Variable assignment: `$var = iterator` → array
@@ -93,7 +93,12 @@ Optimize repeated concatenation:
 - **`.catch(err -> expr)`** — Must intercept errors from the left-hand expression chain. Normal methods are skipped when the receiver is an error; `.catch()` is the opposite — it activates only on errors and passes through successful values unchanged. See Section 8.2.
 - **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null, void, or `deleted()`. Additionally, `.or()` and `.catch()` are the only methods that can be called on void or `deleted()` — all other methods error on void and `deleted()` receivers. `.catch()` passes void and `deleted()` through unchanged (they are not errors); `.or()` actively rescues them. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
 
-Implementations should recognize these during compilation/interpretation and emit specialized instructions rather than routing them through the general method dispatch path.
+Similarly, `throw()` and `deleted()` are parsed as regular function calls but require special handling:
+
+- **`throw(message)`** — Produces a runtime error with the given message. Must be recognized so that short-circuit evaluation in `.or(throw("required"))` works correctly (the argument is only evaluated when `.or()` activates). See Section 8.4.
+- **`deleted()`** — Produces a special deletion marker, not a normal value. Must be tracked through assignments and collection literals to trigger field removal, element omission, or message dropping. See Section 9.2.
+
+Implementations should recognize these intrinsic methods and functions during compilation/interpretation and emit specialized instructions rather than routing them through the general dispatch path.
 
 ## 12.4 Error Messages
 

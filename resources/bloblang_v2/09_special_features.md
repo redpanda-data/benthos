@@ -80,7 +80,7 @@ output@ = {}                    # OK: clears all metadata keys
 output@.key = "value"           # OK: assigning key to the metadata object
 ```
 
-**Variable assignment:** Assigning `deleted()` to a variable is a runtime error — variables cannot be deleted.
+**Variable assignment:** Assigning `deleted()` to a variable is a runtime error — variables cannot be deleted (variables must always hold a value — see Section 4.1).
 ```bloblang
 $val = deleted()                # ERROR: cannot assign deleted() to a variable
 ```
@@ -199,18 +199,18 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 - Variable field assignment: `$var.field = deleted()` — removes the field from the variable's value
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
-- `map` lambda return value: element is filtered out
+- Lambda return value in methods that support it (e.g., `.map()`, `.map_values()`, `.map_keys()`, `.map_entries()`): element/entry is omitted from the result. See Section 13 for per-method details
 
 **Causes runtime error:**
-- Variable assignment: `$var = deleted()` (cannot assign deleted to a variable)
-- Array index assignment: `$arr[0] = deleted()`, `output.items[0] = deleted()` (cannot delete array elements by index — the semantics are ambiguous: should remaining elements shift down, or should a gap be left? Use `.filter()` to remove elements instead). However, deleting a **field through** an array index is valid: `output.items[0].name = deleted()` removes the `name` field from the object at index 0 — this is a field deletion, not an array element deletion.
+- Variable assignment: `$var = deleted()` (cannot assign deleted to a variable — variables must always hold a value; see Section 4.1)
+- Array index assignment: `$arr[0] = deleted()`, `output.items[0] = deleted()` (cannot delete array elements by index — the semantics are ambiguous: should remaining elements shift down, or should a gap be left? Use `.without_index(i)` to remove a specific element by index, or `.filter()` to remove elements by condition). However, deleting a **field through** an array index is valid: `output.items[0].name = deleted()` removes the `name` field from the object at index 0 — this is a field deletion, not an array element deletion.
 - Metadata root assignment: `output@ = deleted()` (cannot delete metadata object)
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls (except `.or()`): `deleted().type()`, `deleted().uppercase()`
 - Used as function arguments: `some_function(deleted())`
-- Lambda return values in methods that do not support deletion (e.g., `filter`, `sort`). The standard library method that supports `deleted()` as a lambda return is `map`; extension methods may also support it.
+- Lambda return values in methods that do not support deletion (e.g., `filter`, `sort`). See individual method documentation in Section 13 for which methods support `deleted()` as a lambda return value.
 
-The distinction: `deleted()` is a special marker that triggers deletion when flowing into a field/metadata assignment or collection, but cannot be used as a normal value in computations. Assigning `deleted()` to a variable (`$var = deleted()`) is an error; however, assigning `deleted()` to a field *within* a variable (`$var.field = deleted()`) removes that field from the variable's value. Assigning `deleted()` to an array index (`$arr[0] = deleted()`, `output.items[0] = deleted()`) is an error — use `.filter()` to remove array elements. The sole exception to method restrictions is `.or()`, which rescues `deleted()` and returns its argument (Section 8.3). When `deleted()` flows to the root output assignment, it drops the entire message and immediately exits the mapping.
+The distinction: `deleted()` is a special marker that triggers deletion when flowing into a field/metadata assignment or collection, but cannot be used as a normal value in computations. Assigning `deleted()` to a variable (`$var = deleted()`) is an error; however, assigning `deleted()` to a field *within* a variable (`$var.field = deleted()`) removes that field from the variable's value. Assigning `deleted()` to an array index (`$arr[0] = deleted()`, `output.items[0] = deleted()`) is an error — use `.without_index(i)` to remove by index or `.filter()` to remove by condition. The sole exception to method restrictions is `.or()`, which rescues `deleted()` and returns its argument (Section 8.3). When `deleted()` flows to the root output assignment, it drops the entire message and immediately exits the mapping.
 
 **Routing messages instead of dropping them:**
 

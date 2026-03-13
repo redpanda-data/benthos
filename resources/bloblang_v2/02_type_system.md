@@ -73,7 +73,7 @@ output.ok = 5.string() + "3"        # "53" (explicit conversion)
 
 **Other Operators:**
 - Arithmetic (`-`, `*`, `/`, `%`): Require numeric types (null errors), with promotion
-- Comparison (`>`, `<`, `>=`, `<=`): Require comparable same types (null errors), with numeric promotion
+- Comparison (`>`, `<`, `>=`, `<=`): Require comparable same types (null errors), with numeric promotion. Comparable types are: numeric types (with promotion), timestamps, strings (lexicographic by Unicode codepoint), and bytes (lexicographic by byte value)
 - Equality (`==`, `!=`): Numeric types use promotion then compare by value; non-numeric types require same type and value; cross-family is always `false` (see below)
 - Logical (`!`, `&&`, `||`): Require booleans
 

@@ -90,6 +90,21 @@ Construct a timestamp from individual components.
   timestamp(year: 2024, month: 12, day: 25, hour: 8)       # 2024-12-25T08:00:00Z
   ```
 
+### `second()`
+
+Return the number of nanoseconds in one second (`1000000000`). This is a convenience constant for use with `.ts_add()` and other duration arithmetic.
+
+- **Parameters:** none
+- **Returns:** int64 (`1000000000`)
+- **Examples:**
+  ```bloblang
+  now().ts_add(second())              # 1 second later
+  now().ts_add(second() * 60)         # 1 minute later
+  now().ts_add(second() * 3600)       # 1 hour later
+  now().ts_add(second() * 86400)      # 1 day later
+  now().ts_add(second() * -30)        # 30 seconds ago
+  ```
+
 ### `throw(message)`
 
 Throw a custom error. The error propagates and can be caught with `.catch()`. If uncaught, it halts the mapping.
@@ -183,7 +198,7 @@ Convert a value to uint64. Errors if the value is negative or out of range. Floa
 
 ### `.float32()`
 
-Convert a value to float32. Precision loss may occur for large values.
+Convert a value to float32. Precision loss may occur for large values. Unlike implicit numeric promotion in arithmetic (Section 2.3), explicit conversion methods are unchecked — the caller is opting in to potential precision loss.
 
 - **Receiver:** numeric types, string
 - **Returns:** float32
@@ -191,7 +206,7 @@ Convert a value to float32. Precision loss may occur for large values.
 
 ### `.float64()`
 
-Convert a value to float64. Precision loss may occur for large integers.
+Convert a value to float64. Precision loss may occur for large integers. Unlike implicit numeric promotion in arithmetic (Section 2.3), explicit conversion methods are unchecked — the caller is opting in to potential precision loss.
 
 - **Receiver:** numeric types, string
 - **Returns:** float64
@@ -201,11 +216,12 @@ Convert a value to float64. Precision loss may occur for large integers.
 
 Convert a value to boolean.
 
-- **Receiver:** string (`"true"`, `"false"`), numeric (0 = false, non-zero = true)
+- **Receiver:** bool (identity — returned as-is), string (`"true"`, `"false"`), numeric (0 = false, non-zero = true)
 - **Returns:** bool
 - **Special float values:** Infinity and negative Infinity are `true` (non-zero). NaN is an error (neither zero nor non-zero).
 - **Examples:**
   ```bloblang
+  true.bool()      # true (identity)
   "true".bool()    # true
   "false".bool()   # false
   1.bool()         # true
@@ -864,6 +880,9 @@ Return a new object with the specified keys removed. Keys that don't exist are i
 
 Transform the values of an object, keeping keys unchanged. Returns a new object.
 
+- The lambda must return a value for every entry — void is an error
+- If the lambda returns `deleted()`, the entry is omitted from the result
+
 - **Receiver:** object
 - **Parameters:** `fn` — lambda (one parameter: value → any)
 - **Returns:** object
@@ -871,11 +890,15 @@ Transform the values of an object, keeping keys unchanged. Returns a new object.
   ```bloblang
   {"a": 1, "b": 2}.map_values(v -> v * 10)              # {"a": 10, "b": 20}
   {"a": "hello", "b": "world"}.map_values(v -> v.uppercase())  # {"a": "HELLO", "b": "WORLD"}
+  {"a": 1, "b": -2}.map_values(v -> if v > 0 { v } else { deleted() })  # {"a": 1}
   ```
 
 ### `.map_keys(fn)`
 
 Transform the keys of an object, keeping values unchanged. Returns a new object. The lambda must return a string — non-string return values are an error. If multiple keys map to the same new key, last value wins.
+
+- The lambda must return a value for every entry — void is an error
+- If the lambda returns `deleted()`, the entry is omitted from the result
 
 - **Receiver:** object
 - **Parameters:** `fn` — lambda (one parameter: key (string) → string)
@@ -889,6 +912,9 @@ Transform the keys of an object, keeping values unchanged. Returns a new object.
 ### `.map_entries(fn)`
 
 Transform both keys and values of an object. The lambda receives two parameters (key, value) and must return an object with `"key"` (string) and `"value"` (any) fields. If multiple entries produce the same key, last value wins. **Errors:** lambda returns a non-object, returned object is missing `"key"` or `"value"` field, or `"key"` is not a string.
+
+- The lambda must return a value for every entry — void is an error
+- If the lambda returns `deleted()`, the entry is omitted from the result
 
 - **Receiver:** object
 - **Parameters:** `fn` — lambda (two parameters: key (string), value (any) → object with `"key"` and `"value"` fields)
@@ -979,14 +1005,38 @@ Round a float to `n` decimal places using **half-even rounding** (banker's round
 Parse a string into a timestamp using the given format string.
 
 - **Receiver:** string
-- **Parameters:** `format` (string — [strftime](https://pubs.opengroup.org/onlinepubs/9699919799/functions/strftime.html) format, e.g. `"%Y-%m-%d"`)
+- **Parameters:** `format` (string — strftime format, e.g. `"%Y-%m-%d"`)
 - **Returns:** timestamp
 - **Errors:** if the string does not match the format
 - **Example:** `"2024-03-01".ts_parse("%Y-%m-%d")`
 
+**Required strftime directives:** All implementations must support the following subset. Additional directives are implementation-defined.
+
+| Directive | Meaning | Example |
+|-----------|---------|---------|
+| `%Y` | 4-digit year | `2024` |
+| `%m` | Month (01–12) | `03` |
+| `%d` | Day of month (01–31) | `01` |
+| `%H` | Hour, 24-hour (00–23) | `14` |
+| `%M` | Minute (00–59) | `30` |
+| `%S` | Second (00–59) | `05` |
+| `%f` | Fractional seconds (nanosecond precision, 1–9 digits) | `123456789` |
+| `%z` | UTC offset (`+0000`, `+0530`, `-0800`) | `+0000` |
+| `%Z` | Timezone name (IANA or abbreviation) | `UTC`, `America/New_York` |
+| `%a` | Abbreviated weekday name | `Mon` |
+| `%A` | Full weekday name | `Monday` |
+| `%b` | Abbreviated month name | `Jan` |
+| `%B` | Full month name | `January` |
+| `%p` | AM/PM (uppercase) | `PM` |
+| `%I` | Hour, 12-hour (01–12) | `02` |
+| `%j` | Day of year (001–366) | `061` |
+| `%%` | Literal `%` | `%` |
+
+**Note:** `%f` is not part of POSIX strftime but is widely supported for sub-second precision. When parsing, `%f` consumes 1–9 digits and pads to nanoseconds (e.g., `123` → 123000000 ns). When formatting, `%f` emits exactly 9 digits (zero-padded).
+
 ### `.ts_format(format)`
 
-Format a timestamp as a string using the given format string.
+Format a timestamp as a string using the given format string. Supports the same required directives as `.ts_parse()`.
 
 - **Receiver:** timestamp
 - **Parameters:** `format` (string — strftime format)
@@ -1077,16 +1127,16 @@ Convert a Unix timestamp in nanoseconds to a timestamp. Provides exact nanosecon
 
 ### `.ts_add(nanos)`
 
-Add a duration in nanoseconds to a timestamp. Negative values subtract.
+Add a duration in nanoseconds to a timestamp. Negative values subtract. Use `second()` to avoid raw nanosecond constants.
 
 - **Receiver:** timestamp
 - **Parameters:** `nanos` (int64 — duration in nanoseconds)
 - **Returns:** timestamp
 - **Examples:**
   ```bloblang
-  now().ts_add(1000000000)          # 1 second later
-  now().ts_add(-60000000000)        # 1 minute ago
-  now().ts_add(86400 * 1000000000)  # 1 day later
+  now().ts_add(second())              # 1 second later
+  now().ts_add(second() * -60)        # 1 minute ago
+  now().ts_add(second() * 86400)      # 1 day later
   ```
 
 ---
@@ -1148,11 +1198,11 @@ Parse a JSON string into a value. Errors if the string is not valid JSON.
 
 ### `.format_json()`
 
-Serialize a value to a JSON string. Object keys are sorted lexicographically. Timestamp values are formatted as RFC 3339 strings (Section 2.3).
+Serialize a value to a JSON string. Object keys are sorted lexicographically. Timestamp values are formatted as RFC 3339 strings (Section 2.3). **Note:** Since object key ordering is not preserved (Section 2.3) and keys are sorted on output, `.parse_json().format_json()` may produce different key ordering than the original JSON string.
 
 - **Receiver:** any type (except lambda and bytes)
 - **Returns:** string
-- **Errors:** if the value is or contains a lambda or bytes value (at any nesting depth). Bytes have no implicit JSON serialization — convert explicitly (e.g., to a base64 or hex string) before serializing. NaN and Infinity float values also error (not representable in JSON).
+- **Errors:** if the value is or contains a lambda or bytes value (at any nesting depth). Bytes have no implicit JSON serialization — use `.encode("base64")` or `.encode("hex")` before serializing. NaN and Infinity float values also error (not representable in JSON).
 - **Numeric serialization:**
   - Integer types (int32, int64, uint32, uint64): serialized as JSON integers (no decimal point, no quotes). Large uint64 values (> 2^53) are serialized as-is — the JSON spec imposes no range limit, though consumers using float64 may lose precision.
   - Float types (float32, float64): serialized as the shortest decimal representation that round-trips exactly, always including either a decimal point or exponent to distinguish from integer serialization. This matches `.string()` behavior and ensures that `.format_json()` → `.parse_json()` preserves the float type. Exponent notation is permitted (e.g., `1e+06`).
@@ -1161,4 +1211,38 @@ Serialize a value to a JSON string. Object keys are sorted lexicographically. Ti
   {"name": "Alice"}.format_json()       # `{"name":"Alice"}`
   [1, 2, 3].format_json()              # `[1,2,3]`
   {"time": now()}.format_json()         # `{"time":"2024-03-01T12:00:00Z"}`
+  ```
+
+### `.encode(scheme)`
+
+Encode a value into a string using the specified encoding scheme.
+
+- **Receiver:** string, bytes
+- **Parameters:** `scheme` — string, one of: `"base64"`, `"base64url"`, `"base64rawurl"`, `"hex"`
+- **Returns:** string
+- **Schemes:**
+  - `"base64"` — standard Base64 with padding (RFC 4648)
+  - `"base64url"` — URL-safe Base64 with padding (RFC 4648)
+  - `"base64rawurl"` — URL-safe Base64 without padding (RFC 4648)
+  - `"hex"` — lowercase hexadecimal
+- **Examples:**
+  ```bloblang
+  "hello".bytes().encode("base64")       # "aGVsbG8="
+  "hello".bytes().encode("hex")          # "68656c6c6f"
+  "hello".encode("base64")              # "aGVsbG8=" (string treated as UTF-8 bytes)
+  ```
+
+### `.decode(scheme)`
+
+Decode a string from the specified encoding scheme into bytes.
+
+- **Receiver:** string
+- **Parameters:** `scheme` — string, one of: `"base64"`, `"base64url"`, `"base64rawurl"`, `"hex"`
+- **Returns:** bytes
+- **Errors:** if the input is not valid for the specified scheme
+- **Examples:**
+  ```bloblang
+  "aGVsbG8=".decode("base64")            # bytes("hello")
+  "68656c6c6f".decode("hex")             # bytes("hello")
+  "aGVsbG8=".decode("base64").string()   # "hello"
   ```
