@@ -45,9 +45,9 @@ output.uppercased = input.data.map_values(v -> v.trim().uppercase())
 ## Indexing Patterns
 
 ```bloblang
-# Arrays
-output.first = input.items[0].catch(err -> null)
-output.last = input.items[-1].catch(err -> null)
+# Arrays — null-safe handles missing field, catch handles out-of-bounds
+output.first = input.items?[0].catch(err -> null)
+output.last = input.items?[-1].catch(err -> null)
 
 # Strings (codepoint position, returns int64)
 output.first_codepoint = input.name[0]          # int64 Unicode codepoint
@@ -75,10 +75,10 @@ output@.content_type = "application/json"
 
 ```bloblang
 map walk(node) {
-  match node.type() as t {
-    t == "object" => node.map_values(v -> walk(v)),
-    t == "array" => node.map(elem -> walk(elem)),
-    t == "string" => node.uppercase(),
+  match node.type() {
+    "object" => node.map_values(v -> walk(v)),
+    "array" => node.map(elem -> walk(elem)),
+    "string" => node.uppercase(),
     _ => node,
   }
 }

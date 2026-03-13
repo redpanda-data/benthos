@@ -21,7 +21,7 @@ output.user.name = input.name     # Adds output.user.name
 output@.kafka_topic = "processed" # Adds output metadata
 ```
 
-**Initial state:** `output` starts as empty object `{}`. `output@` (metadata) starts as empty object `{}`.
+**Initial state:** `output` starts as empty object `{}`. `output@` (metadata) starts as empty object `{}`. A mapping with no statements produces `{}` with empty metadata.
 
 **Input type:** `input` holds the incoming message document, which can be any type — object, array, string, bytes, number, bool, or null. Most commonly it is an object (parsed from JSON), but raw/unstructured messages arrive as bytes or string. The type of `input` is determined by the runtime environment, not by Bloblang. Use `.type()` to check, and methods like `.parse_json()` or `.string()` to convert.
 
@@ -135,7 +135,7 @@ output@.created_at = now()
 output@.callback = x -> x * 2    # ERROR: lambdas cannot be stored in metadata
 ```
 
-**Note:** While the language allows any metadata type, message systems (Kafka, AMQP, etc.) often only support string metadata. In practice, implementations serialize non-string values to JSON strings when interfacing with such systems. For example, `output@.tags = ["a", "b"]` would be stored as the string `'["a","b"]'` in Kafka metadata. Bytes values in metadata are an error during serialization — convert explicitly (e.g., to a base64 string) before storing in metadata that will be serialized.
+**Note:** While the language allows any metadata type, message systems (Kafka, AMQP, etc.) often only support string metadata. In practice, implementations serialize non-string values to JSON strings when interfacing with such systems. For example, `output@.tags = ["a", "b"]` would be stored as the string `'["a","b"]'` in Kafka metadata. Bytes values in metadata are an error during serialization — use `.encode("base64")` or `.encode("hex")` before storing in metadata that will be serialized.
 
 **Reading metadata as a whole:** `input@` and `output@` without a path component evaluate to the entire metadata object. The result is always an object (`.type()` returns `"object"`), even when empty.
 ```bloblang
