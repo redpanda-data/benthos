@@ -296,6 +296,19 @@ func (r *Resources) HasProcessor(name string) bool {
 	return r.mgr.ProbeProcessor(name)
 }
 
+// AccessResource returns a custom resource by type name and label. The value
+// is the one returned by the ResourceConstructor during registration. Returns
+// nil and false if the resource does not exist.
+func (r *Resources) AccessResource(typeName, label string) (any, bool) {
+	return r.mgr.GetCustomResource(typeName, label)
+}
+
+// HasResource returns true if a custom resource with the given type name and
+// label has been registered.
+func (r *Resources) HasResource(typeName, label string) bool {
+	return r.mgr.ProbeCustomResource(typeName, label)
+}
+
 // GetGeneric queries the resources for a generic key value, potentially set by
 // another plugin or instantiation of this plugin.
 func (r *Resources) GetGeneric(key any) (any, bool) {
