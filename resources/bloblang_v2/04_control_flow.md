@@ -104,10 +104,11 @@ output.status = if false { "override" }  # Void: keeps "pending" (no-op)
 output.status = deleted()                # Deleted: removes the field entirely
 ```
 
-**Void in variable declarations:** A variable declaration (the first assignment to a name in a given scope) **cannot** have a void-producing expression as its right-hand side. If the RHS is a bare if-without-else or match-without-`_` (the only void-producing forms), this is a **compile-time error**. This ensures every declared variable always has a value — there is no "uninitialized variable" state at runtime.
+**Void in variable declarations:** A variable declaration (the first assignment to a name in a given scope) **cannot** have a void-producing expression as its right-hand side. If void reaches a variable declaration at runtime, it is a **runtime error**. This ensures every declared variable always has a value — there is no "uninitialized variable" state.
 ```bloblang
-$x = if input.flag { 42 }              # COMPILE ERROR: declaration may produce void
-$x = match input.x { "a" => 1 }       # COMPILE ERROR: declaration may produce void
+$x = if input.flag { 42 }              # RUNTIME ERROR if input.flag is false (void)
+$x = match input.x { "a" => 1 }       # RUNTIME ERROR if no case matches (void)
+$x = my_map(input)                     # RUNTIME ERROR if the map produces void
 
 $x = (if input.flag { 42 }).or(0)     # OK: .or() rescues void, always produces a value
 $x = if input.flag { 42 } else { 0 }  # OK: else branch ensures a value
@@ -164,7 +165,7 @@ output.result = match input.x {
 | Context | Behavior |
 |---------|----------|
 | Output field assignment (`output.x = void`) | Assignment skipped; prior value (if any) preserved |
-| Variable declaration (`$x = void`) | Error (compile-time when syntactically detectable — bare if-without-else or match-without-`_`; runtime otherwise, e.g., void from a map call) |
+| Variable declaration (`$x = void`) | Runtime error |
 | Variable reassignment (`$x = void`, `$x` exists) | Assignment skipped; prior value preserved |
 | Collection literal (`[1, void, 3]`) | Error |
 | Object literal (`{"a": void}`) | Error |

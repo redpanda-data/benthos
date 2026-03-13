@@ -21,7 +21,7 @@ output.user.name = input.name     # Adds output.user.name
 output@.kafka_topic = "processed" # Adds output metadata
 ```
 
-**Initial state:** `output` starts as empty object `{}`. `output@` (metadata) starts as empty object `{}`. A mapping with no statements produces `{}` with empty metadata.
+**Initial state:** `output` starts as empty object `{}`. `output@` (metadata) starts as empty object `{}`. A mapping with no statements produces `{}` with empty metadata. Reading `output` itself (without a path) before any assignment returns `{}` — e.g., `output.type()` returns `"object"`.
 
 **Input type:** `input` holds the incoming message document, which can be any type — object, array, string, bytes, number, bool, or null. Most commonly it is an object (parsed from JSON), but raw/unstructured messages arrive as bytes or string. The type of `input` is determined by the runtime environment, not by Bloblang. Use `.type()` to check, and methods like `.parse_json()` or `.string()` to convert.
 
@@ -174,7 +174,7 @@ Undefined metadata keys return `null`.
 | Match `as` binding (top-level) | ✅ | ✅ | ❌ | ✅ |
 | Match `as` binding (inside map) | ❌ | ❌ | ❌ | ✅ (map's local variables only) |
 
-**Key principle:** Maps are fully isolated — they cannot access `input`, `output`, or top-level `$variables`. The only data available inside a map is its parameters and variables declared within the map body. Lambdas and expressions at the top-level can read (but not write) `input` and `output`.
+**Key principle:** Map bodies cannot access `input`, `output`, or top-level `$variables` — the only data available inside a map is its parameters and variables declared within the map body. However, closures passed as arguments can carry external references into a map (see Section 5.4). Lambdas and expressions at the top-level can read (but not write) `input` and `output`.
 
 **Examples:**
 ```bloblang

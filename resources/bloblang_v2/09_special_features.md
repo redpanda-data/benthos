@@ -186,7 +186,7 @@ deleted()?.field                # ERROR: ?. only short-circuits on null, not del
 deleted().or("fallback")        # OK: returns "fallback" (.or() rescues deleted)
 ```
 
-These operations result in **runtime errors** (or compile-time errors if detectable by implementation). The sole exception is `.or()`, which rescues `deleted()` the same way it rescues null and void (Section 8.3). **Method chain propagation:** When `deleted()` hits an unsupported method, the method produces an error. That error then propagates through subsequent methods (skipping them) until caught by `.catch()`, following normal error propagation rules (Section 8.2). For example, `deleted().uppercase().catch(err -> "recovered")` errors at `.uppercase()`, then `.catch()` catches the error and returns `"recovered"`.
+These operations result in **runtime errors**. The sole exception is `.or()`, which rescues `deleted()` the same way it rescues null and void (Section 8.3). **Method chain propagation:** When `deleted()` hits an unsupported method, the method produces an error. That error then propagates through subsequent methods (skipping them) until caught by `.catch()`, following normal error propagation rules (Section 8.2). For example, `deleted().uppercase().catch(err -> "recovered")` errors at `.uppercase()`, then `.catch()` catches the error and returns `"recovered"`.
 
 **When deleted() Causes Errors vs Deletion:**
 
@@ -207,7 +207,7 @@ These operations result in **runtime errors** (or compile-time errors if detecta
 - Metadata root assignment: `output@ = deleted()` (cannot delete metadata object)
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls (except `.or()`): `deleted().type()`, `deleted().uppercase()`
-- Used as function arguments: `some_function(deleted())`
+- Used as function arguments: `some_function(deleted())`. This includes `deleted()` that flows indirectly through expressions — e.g., `some_map(match input.x { "remove" => deleted(), _ => input.x })` is a runtime error if the match arm produces `deleted()`
 - Lambda return values in methods that do not support deletion (e.g., `filter`, `sort`). See individual method documentation in Section 13 for which methods support `deleted()` as a lambda return value.
 
 The distinction: `deleted()` is a special marker that triggers deletion when flowing into a field/metadata assignment or collection, but cannot be used as a normal value in computations. Assigning `deleted()` to a variable (`$var = deleted()`) is an error; however, assigning `deleted()` to a field *within* a variable (`$var.field = deleted()`) removes that field from the variable's value. Assigning `deleted()` to an array index (`$arr[0] = deleted()`, `output.items[0] = deleted()`) is an error — use `.without_index(i)` to remove by index or `.filter()` to remove by condition. The sole exception to method restrictions is `.or()`, which rescues `deleted()` and returns its argument (Section 8.3). When `deleted()` flows to the root output assignment, it drops the entire message and immediately exits the mapping.

@@ -163,7 +163,44 @@ input.user?.age.or(0).catch(err -> -1)
 # null-safe → default for null → fallback for errors
 ```
 
-## 8.6 Method Chaining with Null
+## 8.6 Composing `.or()` and `.catch()`
+
+`.or()` and `.catch()` handle disjoint failure modes — `.or()` rescues null, void, and `deleted()`, while `.catch()` rescues errors. When both are needed, either ordering produces the same result **as long as the `.or()` default never errors and the `.catch()` handler never returns null/void/deleted**:
+
+```bloblang
+# These two are equivalent when defaults are simple literals:
+input.user?.age.or(0).catch(err -> -1)
+input.user?.age.catch(err -> -1).or(0)
+```
+
+When the default or handler is more complex, ordering matters because the output of one feeds into the other:
+
+```bloblang
+# .or() default errors → .catch() catches it
+input.age.or(compute_default()).catch(err -> -1)
+# If age is null: .or() evaluates compute_default().
+# If that errors, .catch() catches it → -1.
+
+# .catch() first → .or() never sees the error
+input.age.catch(err -> -1).or(compute_default())
+# If age is null: .catch() passes null through, .or() evaluates compute_default().
+# If compute_default() errors here, nothing catches it.
+```
+
+```bloblang
+# .catch() handler returns null → .or() rescues it
+input.age.catch(err -> null).or(0)
+# If age is an error: .catch() → null, .or() rescues null → 0.
+
+# .or() first → null from .catch() is not rescued
+input.age.or(0).catch(err -> null)
+# If age is an error: .or() passes error through, .catch() → null.
+# null is the final result (no further .or() to rescue it).
+```
+
+**Rule of thumb:** For simple literal defaults, ordering doesn't matter. If the default or handler is a non-trivial expression, put the one whose argument you want protected by the other method first.
+
+## 8.7 Method Chaining with Null
 
 **Method type requirements:** Methods work on specific types, and calling a method on an incompatible type (including null) results in an error. Some methods like `.type()` accept any type including null, while data transformation methods typically require specific types.
 
@@ -190,7 +227,7 @@ input.items[0].uppercase()       # ERROR if first element is null (uppercase req
 input.items[0].catch(err -> "").uppercase()    # OK: provides default on empty array
 ```
 
-## 8.7 Validation Methods
+## 8.8 Validation Methods
 
 ```bloblang
 # type() - check type

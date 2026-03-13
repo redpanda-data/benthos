@@ -12,7 +12,7 @@ Implementations may optimize without changing observable behavior. Results must 
 
 **Strategy:** Methods may return internal iterators instead of materializing arrays immediately.
 
-**Lazy methods (from standard library):** `.filter()`, `.map()`. Additional extension methods like `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()` may also be made lazy if offered.
+**Lazy methods (from standard library):** `.filter()`, `.map()`. If an implementation adds extension methods beyond the standard library (e.g., `.flat_map()`, `.take()`, `.drop()`, `.take_while()`, `.skip_while()`), these should also be made lazy.
 
 **Terminal methods (from standard library):** Any method that needs the full array (e.g., `.sort()`, `.reverse()`, `.length()`, `.fold()`, `.collect()`). See Section 13 for the complete method reference.
 

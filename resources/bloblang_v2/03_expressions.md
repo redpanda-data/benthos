@@ -315,7 +315,7 @@ Newlines are preserved as-is.`
 Raw string rules:
 - Content between backticks is taken strictly verbatim (no escape sequences, no stripping)
 - All characters between the backticks are included, including any leading or trailing newlines
-- Cannot contain a literal backtick character
+- Cannot contain a literal backtick character (use a regular double-quoted string instead — backticks do not need escaping in regular strings)
 
 **Arrays:** (trailing commas are permitted)
 ```bloblang
@@ -464,11 +464,17 @@ if input.flag {
 output.temp = $temp    # OK: null or "found"
 ```
 
-**Reassignment at the same scope level:**
+**Reassignment at the same scope level:** Assigning to a variable that was declared in the *same* scope is always reassignment (mutation), not shadowing — this applies in both statement and expression contexts. Shadowing only occurs when an inner scope references a variable from an outer scope.
 ```bloblang
 $x = 1
 $x = 2              # Reassignment: same variable, now has value 2
 output.a = $x       # 2
+
+output.b = if true {
+  $a = 1
+  $a = 2            # Reassignment within the same expression body (not shadowing)
+  $a                 # 2
+}
 ```
 
 **Rationale:** Bloblang is mostly functional, but if/match statements are an intentional imperative escape hatch — they can assign to `output` and modify existing outer variables. New variable declarations are always block-scoped in both statement and expression contexts. The key difference: in statement contexts, assigning to an *existing* outer variable modifies it; in expression contexts, it shadows (creates a new inner variable). Neither context leaks new variables to the outer scope.

@@ -116,7 +116,7 @@ output = walk_tree(input)
 
 ## 5.3 Parameter Semantics
 
-- **Maps are fully isolated** — they can only access their parameters and variables declared within the map body. They cannot access `input`, `output`, or top-level `$variables`.
+- **Maps have restricted scope** — they can only access their parameters and variables declared within the map body. They cannot access `input`, `output`, or top-level `$variables`. Note that closures passed as arguments can still carry external references (see Section 5.4).
 - Parameters are **read-only** - they cannot be reassigned or used as assignment targets
 - Parameters are available as bare identifiers within the map body (e.g., `data.field`)
 - Variables declared within maps (using `$`) can be reassigned
@@ -150,13 +150,13 @@ map transform(math) {
 }
 ```
 
-## 5.4 Isolation Constraints
+## 5.4 Scope Restrictions
 
-Maps are isolated functions — they cannot access `input`, `output`, or top-level variables. To use external context, pass it as a parameter:
+Map bodies cannot access `input`, `output`, or top-level `$variables`. The only data available inside a map is its parameters and variables declared within the map body. To use external context, pass it as a parameter:
 
 ```bloblang
 map transform(data) {
-  data.value * 2           # ✅ Valid: isolated transformation
+  data.value * 2           # ✅ Valid
 }
 
 # ❌ Cannot access input inside a map
@@ -171,12 +171,7 @@ map scale(items, multiplier) {
 output.result = scale(input.items, input.multiplier)
 ```
 
-**Why isolated?**
-- Predictable: No direct access to `input`, `output`, or global state — all data enters through parameters
-- Composable: Can be used anywhere, including in lambdas
-- Testable: Easy to test in isolation
-
-**Closure caveat:** Maps cannot directly access external state, but closures passed as arguments can carry captured mutable references into a map. The map itself remains isolated — it has no direct access to the captured variables — but the same closure can produce different results if its captured state changes between calls. This is an inherent trade-off: closures are useful for parameterizing maps with external context, but they weaken the isolation boundary. Keep closures passed to maps simple and avoid relying on mutable captured state when predictability matters.
+**Note on closures:** These restrictions apply to the map body's own code — but closures passed as arguments can carry captured mutable references into a map. The map body has no direct access to the captured variables, but the closure can read and mutate them. This means a closure passed to a map can produce different results if its captured state changes between calls.
 ```bloblang
 $multiplier = 2
 $fn = x -> x * $multiplier
