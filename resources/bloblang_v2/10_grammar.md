@@ -1,9 +1,22 @@
 # 10. Grammar Reference
 
-**Statement separation:** Statements are separated by newlines. Multiple statements on a single line are not allowed — each statement must begin on its own line. Newlines inside balanced delimiters (`()`, `[]`, `{}`) are treated as whitespace and do not separate statements, allowing expressions and blocks to span multiple lines freely.
+**Statement separation:** Statements are separated by newlines. Multiple statements on a single line are not allowed — each statement must begin on its own line. Newlines inside parentheses `()` and brackets `[]` are treated as whitespace and do not produce separator tokens, allowing argument lists, array literals, and grouped expressions to span multiple lines freely. Newlines inside braces `{}` are still significant — they separate statements within block bodies (if/match/map/lambda). In object literals (also delimited by `{}`), entries are comma-separated, so newlines between entries are ignored.
 
 ```
-program         := top_level_statement*
+# --- Lexical: newline handling ---
+# NL represents one or more newline characters that act as statement separators.
+# Inside parentheses () and brackets [] — newlines are treated as whitespace
+# and do not produce NL tokens. The lexer tracks () and [] nesting depth; NL
+# tokens are suppressed when inside these delimiters.
+# Inside braces {} — newlines still produce NL tokens (needed to separate
+# statements in block bodies). Object literals use comma separation, so NL
+# tokens between entries are simply consumed as optional whitespace by the
+# comma-separated list productions.
+# Blank lines (consecutive newlines) and trailing newlines are allowed and
+# collapsed — NL means "one or more newline boundaries."
+# A program may optionally begin or end with NL (leading/trailing blank lines).
+
+program         := NL? (top_level_statement (NL top_level_statement)*)? NL?
 top_level_statement := statement | map_decl | import_stmt
 statement       := assignment | if_stmt | match_stmt
 
@@ -14,7 +27,7 @@ assign_target   := 'output' metadata_accessor? path_component* | var_ref path_co
 # Expression contexts (map bodies, lambda blocks, if/match expressions): can only assign to variables
 var_assignment  := var_ref path_component* '=' expression
 
-map_decl        := 'map' identifier '(' [param_list] ')' '{' var_assignment* expression '}'
+map_decl        := 'map' identifier '(' [param_list] ')' '{' NL? (var_assignment NL)* expression NL? '}'
 param_list      := param (',' param)*
 param           := identifier | identifier '=' literal | '_'
 import_stmt     := 'import' string_literal 'as' identifier
@@ -44,21 +57,21 @@ var_ref         := '$' identifier
 call_expr       := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
 qualified_name  := identifier '::' identifier
 
-if_expr         := 'if' expression '{' expr_body '}'
-                   ('else' 'if' expression '{' expr_body '}')*
-                   ('else' '{' expr_body '}')?
-if_stmt         := 'if' expression '{' stmt_body '}'
-                   ('else' 'if' expression '{' stmt_body '}')*
-                   ('else' '{' stmt_body '}')?
-expr_body       := var_assignment* expression
-stmt_body       := statement*
+if_expr         := 'if' expression '{' NL? expr_body NL? '}'
+                   (NL? 'else' 'if' expression '{' NL? expr_body NL? '}')*
+                   (NL? 'else' '{' NL? expr_body NL? '}')?
+if_stmt         := 'if' expression '{' NL? stmt_body NL? '}'
+                   (NL? 'else' 'if' expression '{' NL? stmt_body NL? '}')*
+                   (NL? 'else' '{' NL? stmt_body NL? '}')?
+expr_body       := (var_assignment NL)* expression
+stmt_body       := (statement (NL statement)*)?
 
-match_expr      := 'match' expression ('as' identifier)? '{' expr_match_case (',' expr_match_case)* ','? '}'
-                 | 'match' '{' expr_match_case (',' expr_match_case)* ','? '}'
-match_stmt      := 'match' expression ('as' identifier)? '{' stmt_match_case (',' stmt_match_case)* ','? '}'
-                 | 'match' '{' stmt_match_case (',' stmt_match_case)* ','? '}'
-expr_match_case := (expression | '_') '=>' (expression | '{' expr_body '}')
-stmt_match_case := (expression | '_') '=>' '{' stmt_body '}'
+match_expr      := 'match' expression ('as' identifier)? '{' NL? expr_match_case (',' NL? expr_match_case)* ','? NL? '}'
+                 | 'match' '{' NL? expr_match_case (',' NL? expr_match_case)* ','? NL? '}'
+match_stmt      := 'match' expression ('as' identifier)? '{' NL? stmt_match_case (',' NL? stmt_match_case)* ','? NL? '}'
+                 | 'match' '{' NL? stmt_match_case (',' NL? stmt_match_case)* ','? NL? '}'
+expr_match_case := (expression | '_') '=>' (expression | '{' NL? expr_body NL? '}')
+stmt_match_case := (expression | '_') '=>' '{' NL? stmt_body NL? '}'
 
 # Note: The grammar uses the same case production for all three match forms
 # (equality, boolean with 'as', boolean without expression). The distinction
@@ -80,7 +93,7 @@ unary_op        := '!' | '-'
 
 lambda_expr     := lambda_params '->' (expression | lambda_block)
 lambda_params   := identifier | '_' | '(' param (',' param)* ')'
-lambda_block    := '{' var_assignment* expression '}'
+lambda_block    := '{' NL? (var_assignment NL)* expression NL? '}'
 paren_expr      := '(' expression ')'
 
 literal         := float_literal | int_literal | string_literal | boolean | null | array | object
@@ -97,7 +110,7 @@ escape_seq      := '\\' ( '"' | '\\' | 'n' | 't' | 'r' | 'u' hex hex hex hex | '
 hex             := [0-9a-fA-F]
 raw_char        := [^`]
 array           := '[' [expression (',' expression)* ','?] ']'
-object          := '{' [key_value (',' key_value)* ','?] '}'
+object          := '{' NL? [key_value (',' NL? key_value)* ','?] NL? '}'
 key_value       := expression ':' expression
 
 arg_list        := positional_args | named_args
@@ -141,7 +154,7 @@ keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' |
   - `if_stmt` / `match_stmt`: Standalone statements, contain `stmt_body` (may assign to `output`)
   - `expr_body`: Variable assignments + final expression (no `output` side effects)
   - `stmt_body`: Zero or more statements (no trailing expression). Empty bodies are valid (no-op).
-- **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false, or from match expressions without `_` when no case matches. In most contexts void is a runtime semantic, but one case is enforced statically: variable declarations (the first assignment to a name in a scope) with a void-producing RHS (bare if-without-else or match-without-`_`) are a **compile-time error** (Section 4.1). This ensures every declared variable always has a value.
+- **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false, or from match expressions without `_` when no case matches. Void is a purely runtime semantic: if void reaches a variable declaration (the first assignment to a name in a scope), it is a **runtime error** (Section 4.1). This ensures every declared variable always has a value.
 - **Type coercion:** `+` requires same type family (no cross-family implicit conversion). Numeric types are promoted using promotion rules; non-numeric types require exact type match.
 - **Operator precedence and associativity:** The `binary_expr` production is a simplified flat rule. Implementations must apply the precedence, associativity, and non-associativity rules from Section 3.2. Precedence (high to low): postfix operations (field access, indexing, method calls) > unary > multiplicative > additive > comparison > equality > logical AND > logical OR. Arithmetic and logical operators are left-associative; comparison and equality operators are non-associative (chaining is a parse error).
 - **`{}` disambiguation:** In contexts where `{}` could be either an empty object literal or an empty block (e.g., inside a map body or lambda block), it is parsed as an empty object literal. Blocks (`expr_body`, `lambda_block`) require at least one expression, so an empty `{}` cannot be a valid block.
