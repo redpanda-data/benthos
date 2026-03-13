@@ -135,6 +135,12 @@ output@.created_at = now()
 output@.callback = x -> x * 2    # ERROR: lambdas cannot be stored in metadata
 ```
 
+**Nested metadata paths:** Metadata paths support the same auto-creation semantics as output paths (Section 3.7). Assigning to a nested metadata path auto-creates intermediate objects:
+```bloblang
+output@.routing.region = "us-west"       # Auto-creates output@.routing as {}
+output@.routing.priority = 10            # output@.routing is {"region": "us-west", "priority": 10}
+```
+
 **Note:** While the language allows any metadata type, message systems (Kafka, AMQP, etc.) often only support string metadata. In practice, implementations serialize non-string values to JSON strings when interfacing with such systems. For example, `output@.tags = ["a", "b"]` would be stored as the string `'["a","b"]'` in Kafka metadata. Bytes values in metadata are an error during serialization — use `.encode("base64")` or `.encode("hex")` before storing in metadata that will be serialized.
 
 **Reading metadata as a whole:** `input@` and `output@` without a path component evaluate to the entire metadata object. The result is always an object (`.type()` returns `"object"`), even when empty.
