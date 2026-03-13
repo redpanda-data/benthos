@@ -122,9 +122,9 @@ output.user = if input.user_type == "premium" {
   {"id": input.user_id, "tier": "basic", "discount_rate": 0}
 }
 
-output.timestamp = match input.date_format as f {
-  f == "iso8601" => input.date.ts_parse("%Y-%m-%dT%H:%M:%S%z").ts_unix(),
-  f == "unix" => input.date.int64(),
+output.timestamp = match input.date_format {
+  "iso8601" => input.date.ts_parse("%Y-%m-%dT%H:%M:%S%z").ts_unix(),
+  "unix" => input.date.int64(),
   _ => input.date.ts_parse("%Y-%m-%d").ts_unix(),
 }
 ```

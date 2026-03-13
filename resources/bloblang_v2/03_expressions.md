@@ -40,8 +40,8 @@ input.data[-1]      # Bytes: last byte as int64
 **Negative indexing:** For arrays, strings, and bytes, negative indices count from the end: `-1` is last, `-2` is second-to-last, etc. Out-of-bounds negative indices throw errors.
 
 **Semantics:**
-- **Objects:** Indexed by string, returns field value (dynamic field access)
-- **Arrays:** Indexed by number, returns element at position
+- **Objects:** Indexed by string, returns field value (dynamic field access). Non-string indices are an error (no implicit conversion).
+- **Arrays:** Indexed by number, returns element at position. Non-numeric indices are an error.
 - **Strings:** Indexed by number (codepoint position), returns int64 (Unicode codepoint value). Negative indices count from the end. Use `char()` to convert back to a string.
 - **Bytes:** Indexed by number (byte position), returns int64 (byte value 0-255). Negative indices count from the end.
 

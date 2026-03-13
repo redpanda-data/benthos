@@ -36,7 +36,7 @@ input.items.map(x -> x.value / x.count).catch(err -> [])
 
 All runtime errors are catchable with `.catch()` — the sole exception is exceeding the recursion limit (Section 5.2), which halts execution immediately.
 
-**Void passes through `.catch()` unchanged.** Void is not an error — it is the absence of a value. `.catch()` only activates on errors, so void flows through transparently. If void then encounters a method that requires a value, *that* produces an error which can be caught by a subsequent `.catch()`:
+**Void and `deleted()` pass through `.catch()` unchanged.** Neither is an error — void is the absence of a value, and `deleted()` is a deletion marker. `.catch()` only activates on errors, so both flow through transparently. If either then encounters a method that requires a value, *that* produces an error which can be caught by a subsequent `.catch()`:
 ```bloblang
 (if false { 1 }).catch(err -> 0)                    # void (catch not triggered, no error occurred)
 (if false { 1 }).string().catch(err -> "boo!")       # "boo!" (.string() errors on void, catch triggers)

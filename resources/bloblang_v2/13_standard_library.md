@@ -497,12 +497,18 @@ Return all non-overlapping matches of a regular expression.
 
 ### `.re_replace_all(pattern, replacement)`
 
-Replace all matches of a regular expression with a replacement string.
+Replace all matches of a regular expression with a replacement string. The replacement string supports RE2 expansion syntax: `$0` for the full match, `$1`/`$2` for numbered capture groups, and `${name}` for named capture groups. Use `$$` for a literal `$`.
 
 - **Receiver:** string
-- **Parameters:** `pattern` (string — RE2 regular expression), `replacement` (string)
+- **Parameters:** `pattern` (string — RE2 regular expression), `replacement` (string — with RE2 expansion)
 - **Returns:** string
-- **Example:** `"foo 123 bar 456".re_replace_all("[0-9]+", "N")` → `"foo N bar N"`
+- **Examples:**
+  ```bloblang
+  "foo 123 bar 456".re_replace_all("[0-9]+", "N")           # "foo N bar N"
+  "John Smith".re_replace_all("(\\w+) (\\w+)", "$2, $1")    # "Smith, John"
+  "2024-03-01".re_replace_all("(?P<y>\\d{4})-(?P<m>\\d{2})-(?P<d>\\d{2})", "${d}/${m}/${y}")
+  # "01/03/2024"
+  ```
 
 ---
 
