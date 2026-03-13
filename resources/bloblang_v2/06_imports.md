@@ -47,7 +47,7 @@ import "/etc/benthos/common.blobl" as common
 
 **All top-level maps are exported automatically.** Maps are accessible through the namespace.
 
-**Imported files may only contain map declarations and import statements.** Top-level statements (assignments, variable declarations, if/match statements) are a compile-time error in imported files. Since maps are fully isolated and cannot access top-level variables, `input`, or `output` (Section 5.3), there is no useful purpose for top-level statements in library files.
+**Imported files may only contain map declarations and import statements.** Top-level statements (assignments, variable declarations, if/match statements) are a compile-time error in imported files. Since map bodies cannot access top-level variables, `input`, or `output` (Section 5.3), there is no useful purpose for top-level statements in library files.
 
 ```bloblang
 # utils.blobl — valid imported file

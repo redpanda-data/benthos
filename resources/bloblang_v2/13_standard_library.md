@@ -901,13 +901,14 @@ Transform the values of an object, keeping keys unchanged. Returns a new object.
 
 ### `.map_keys(fn)`
 
-Transform the keys of an object, keeping values unchanged. Returns a new object. The lambda must return a string — non-string return values are an error. If multiple keys map to the same new key, last value wins.
+Transform the keys of an object, keeping values unchanged. Returns a new object. If multiple keys map to the same new key, last value wins.
 
 - The lambda must return a value for every entry — void is an error
-- If the lambda returns `deleted()`, the entry is omitted from the result
+- If the lambda returns `deleted()`, the entry is omitted from the result (the `deleted()` check runs before the type check, so this does not trigger a type error)
+- Otherwise, the lambda must return a string — non-string return values are an error
 
 - **Receiver:** object
-- **Parameters:** `fn` — lambda (one parameter: key (string) → string)
+- **Parameters:** `fn` — lambda (one parameter: key (string) → string | deleted)
 - **Returns:** object
 - **Examples:**
   ```bloblang
@@ -1013,7 +1014,7 @@ Parse a string into a timestamp using the given format string.
 - **Receiver:** string
 - **Parameters:** `format` (string — strftime format, e.g. `"%Y-%m-%d"`)
 - **Returns:** timestamp
-- **Errors:** if the string does not match the format
+- **Errors:** if the string does not match the format, or if the format string contains unrecognized directives
 - **Example:** `"2024-03-01".ts_parse("%Y-%m-%d")`
 
 **Required strftime directives:** All implementations must support the following subset. Additional directives are implementation-defined.
@@ -1038,7 +1039,7 @@ Parse a string into a timestamp using the given format string.
 | `%j` | Day of year (001–366) | `061` |
 | `%%` | Literal `%` | `%` |
 
-**Note:** `%f` is not part of POSIX strftime but is widely supported for sub-second precision. When parsing, `%f` consumes 1–9 digits and pads to nanoseconds (e.g., `123` → 123000000 ns). When formatting, `%f` emits exactly 9 digits (zero-padded).
+**Note:** `%f` is not part of POSIX strftime but is widely supported for sub-second precision. When parsing, `%f` consumes 1–9 digits and pads to nanoseconds (e.g., `123` → 123000000 ns). When formatting, `%f` emits exactly 9 digits (zero-padded). This differs from Python's `%f`, which uses 6 digits (microsecond precision).
 
 ### `.ts_format(format)`
 
@@ -1178,7 +1179,7 @@ Provide a default value for null, void, or `deleted()`. Takes exactly one argume
   (match input.x { "a" => 1 }).or(0)       # 0 if no case matched (void rescued)
   some_map(input.value).or("fallback")      # "fallback" if map returned deleted()
   ```
-- **See:** Section 8.3
+- **See:** Section 8.3; Section 8.6 for how `.or()` and `.catch()` compose when chained together
 
 ---
 
