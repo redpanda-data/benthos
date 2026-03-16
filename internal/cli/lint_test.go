@@ -135,6 +135,22 @@ output:
 			},
 		},
 		{
+			name: "parallel field in test file not flagged",
+			args: []string{"benthos", "lint", tFile("foo.yaml")},
+			files: map[string]string{
+				"foo.yaml": `
+parallel: false
+tests:
+  - name: example test
+    target_processors: '/pipeline/processors'
+    input_batch:
+      - content: 'hello world'
+    output_batches:
+      - - content_equals: 'hello world'
+`,
+			},
+		},
+		{
 			name: "env var missing",
 			args: []string{"benthos", "lint", tFile("foo.yaml")},
 			files: map[string]string{

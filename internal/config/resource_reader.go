@@ -217,9 +217,8 @@ func (r *Reader) readResource(path string) (conf manager.ResourceConfig, lints [
 		return
 	}
 
-	spec := append(docs.FieldSpecs{
-		test.ConfigSpec(),
-	}, r.specResources...)
+	spec := append(docs.FieldSpecs{}, test.ConfigSpecs()...)
+	spec = append(spec, r.specResources...)
 	if !bytes.HasPrefix(confBytes, []byte("# BENTHOS LINT DISABLE")) {
 		for _, lint := range spec.LintYAML(r.lintCtx(), rawNode) {
 			lints = append(lints, fmt.Sprintf("%v%v", path, lint.Error()))

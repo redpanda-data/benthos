@@ -10,11 +10,23 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 )
 
-const fieldTests = "tests"
+const (
+	fieldTests    = "tests"
+	fieldParallel = "parallel"
+)
 
 // ConfigSpec returns a configuration spec for a template.
 func ConfigSpec() docs.FieldSpec {
 	return docs.FieldObject(fieldTests, "A list of one or more unit tests to execute.").Array().WithChildren(caseFields()...).Optional()
+}
+
+// ConfigSpecs returns all top-level field specs for test definition files,
+// including the tests field and the legacy parallel field.
+func ConfigSpecs() docs.FieldSpecs {
+	return docs.FieldSpecs{
+		ConfigSpec(),
+		docs.FieldBool(fieldParallel, "Whether test cases should be executed in parallel.").HasDefault(true).Deprecated().Optional(),
+	}
 }
 
 // FromAny returns a Case slice from a yaml node or parsed config.
