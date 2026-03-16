@@ -44,6 +44,7 @@ input.data[-1]      # Bytes: last byte as int64
 - **Arrays:** Indexed by number, returns element at position. Non-numeric indices are an error.
 - **Strings:** Indexed by number (codepoint position), returns int64 (Unicode codepoint value). Negative indices count from the end. Use `char()` to convert back to a string.
 - **Bytes:** Indexed by number (byte position), returns int64 (byte value 0-255). Negative indices count from the end.
+- **All other types** (bool, numeric, null, timestamp, lambda): indexing is a runtime error.
 
 **String indexing is codepoint-based, not grapheme-based:**
 ```bloblang
@@ -95,7 +96,12 @@ input.value?.uppercase()        # null if value is null (method not called)
 input.user?.name?.trim()        # chains null-safe field access and null-safe method call
 ```
 
-**Note:** `?.`, `?[]`, and `?.method()` only short-circuit on `null` values. Type errors (e.g., accessing a field on a string, or calling a string method on a number) still throw errors.
+**Note:** `?.`, `?[]`, and `?.method()` only short-circuit on `null` values. Type errors (e.g., accessing a field on a string, or calling a string method on a number) still throw errors:
+```bloblang
+null?.uppercase()           # null (short-circuited: value is null)
+5?.uppercase()              # ERROR: uppercase requires string (value is not null, wrong type)
+"hello"?.nonfield?.trim()   # ERROR: cannot access field on string (not null, wrong type)
+```
 
 ## 3.2 Operators
 
@@ -177,7 +183,14 @@ output.result = input.text
   .replace_all(" ", "-")
 ```
 
-**Type requirements:** Methods work on specific types. Calling a method on an incompatible type (including null) results in an error. Use null-safe operators to skip methods when values might be null:
+**Method resolution:** Method names are resolved at compile time against the set of known methods (standard library + implementation extensions). Calling an unknown method is a **compile-time error**. Type compatibility between the receiver and the method is checked at **runtime** (since types are dynamic).
+
+```bloblang
+input.value.nonexistent()   # Compile-time error: unknown method
+input.value.uppercase()     # OK at compile time; runtime error if value is not a string
+```
+
+**Type requirements:** Methods work on specific types. Calling a method on an incompatible type (including null) results in a runtime error. Use null-safe operators to skip methods when values might be null:
 ```bloblang
 input.value?.uppercase()    # Skip method if value is null
 input.value.uppercase()     # ERROR if value is null (uppercase requires string)
@@ -247,7 +260,7 @@ output.sum = $add(a: 5, b: 10)
 output.sum = $add(b: 10, a: 5)  # Order doesn't matter with named args
 ```
 
-**Closure capture:** Lambdas capture variables from their enclosing scope **by reference**. If a closed-over variable is reassigned after the lambda is created, the lambda sees the new value when invoked.
+**Closure capture:** Lambdas observe variables from their enclosing scope — if a closed-over variable is reassigned after the lambda is created, the lambda sees the new value when invoked. However, lambdas cannot modify captured variables: assignments to a captured variable name create a new shadow binding in the lambda scope, leaving the outer variable unchanged (see below).
 ```bloblang
 $x = 1
 $fn = y -> y + $x
@@ -280,6 +293,9 @@ If and match can be used as expressions (returning a value) or as statements (co
 ```bloblang
 # If expression
 output.category = if input.score >= 80 { "high" } else { "low" }
+
+# If expression with else-if
+output.tier = if input.score >= 90 { "gold" } else if input.score >= 50 { "silver" } else { "bronze" }
 
 # Match: equality, boolean with 'as', boolean without expression
 output.sound = match input.animal { "cat" => "meow", _ => "unknown" }
