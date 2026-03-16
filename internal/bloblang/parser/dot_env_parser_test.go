@@ -69,7 +69,7 @@ THIRD =b"az
 
 FOURTH   =    buz
 
-FIFTH =  
+FIFTH =
 
 `,
 			result: map[string]string{
@@ -79,6 +79,30 @@ FIFTH =
 				"FOURTH": "buz",
 				"FIFTH":  "",
 			},
+		},
+		"windows line endings": {
+			input:  "FOO=abc\r\nBAR=def\r\n",
+			result: map[string]string{"FOO": "abc", "BAR": "def"},
+		},
+		"windows line endings without trailing newline": {
+			input:  "FOO=abc\r\nBAR=def",
+			result: map[string]string{"FOO": "abc", "BAR": "def"},
+		},
+		"mixed line endings": {
+			input:  "FOO=abc\r\nBAR=def\nBAZ=ghi\r\n",
+			result: map[string]string{"FOO": "abc", "BAR": "def", "BAZ": "ghi"},
+		},
+		"windows line endings with quoted values": {
+			input:  "FOO=\"bar baz\"\r\nBAZ=\"buz bev\"\r\n",
+			result: map[string]string{"FOO": "bar baz", "BAZ": "buz bev"},
+		},
+		"windows line endings with comments": {
+			input:  "# a comment\r\nFOO=bar\r\n# another\r\nBAZ=buz\r\n",
+			result: map[string]string{"FOO": "bar", "BAZ": "buz"},
+		},
+		"windows empty lines": {
+			input:  "\r\n  \r\nFOO=bar\r\n\r\n",
+			result: map[string]string{"FOO": "bar"},
 		},
 	}
 
