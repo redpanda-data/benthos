@@ -161,7 +161,7 @@ func New(
 			prev := runtime.SetMutexProfileFraction(rate)
 			defer runtime.SetMutexProfileFraction(prev)
 		}
-		pprof.Index(w, r)
+		pprof.Handler("mutex").ServeHTTP(w, r)
 	}
 
 	if t.conf.DebugEndpoints {
@@ -183,15 +183,15 @@ func New(
 		)
 		t.RegisterEndpoint(
 			"/debug/pprof/heap", "DEBUG: Responds with a pprof-formatted heap profile.",
-			pprof.Index,
+			pprof.Handler("heap").ServeHTTP,
 		)
 		t.RegisterEndpoint(
 			"/debug/pprof/goroutine", "DEBUG: Responds with a pprof-formatted goroutine profile.",
-			pprof.Index,
+			pprof.Handler("goroutine").ServeHTTP,
 		)
 		t.RegisterEndpoint(
 			"/debug/pprof/block", "DEBUG: Responds with a pprof-formatted block profile.",
-			pprof.Index,
+			pprof.Handler("block").ServeHTTP,
 		)
 		t.RegisterEndpoint(
 			"/debug/pprof/mutex", "DEBUG: Responds with a pprof-formatted mutex profile.",
@@ -199,7 +199,7 @@ func New(
 		)
 		t.RegisterEndpoint(
 			"/debug/pprof/allocs", "DEBUG: Responds with a pprof-formatted allocs profile.",
-			pprof.Index,
+			pprof.Handler("allocs").ServeHTTP,
 		)
 		t.RegisterEndpoint(
 			"/debug/pprof/symbol", "DEBUG: looks up the program counters listed"+
