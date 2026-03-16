@@ -100,6 +100,15 @@ output = walk(input)
 # match equality form cannot match boolean values — use if/else instead
 output.label = if input.flag { "yes" } else { "no" }
 
+# Else-if chains for multi-way branching
+output.tier = if input.score >= 90 {
+  "gold"
+} else if input.score >= 50 {
+  "silver"
+} else {
+  "bronze"
+}
+
 # For multi-way boolean dispatch, use match-without-expression or match-with-as
 output.status = match {
   input.enabled && input.verified => "active",

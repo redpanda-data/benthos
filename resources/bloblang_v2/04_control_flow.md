@@ -8,12 +8,37 @@ output.result = if condition { value } else { other_value }
 
 # Without else: assignment doesn't execute if condition false
 output.category = if input.score > 80 { "high" }
+
+# Else-if chains
+output.tier = if input.score >= 90 {
+  "gold"
+} else if input.score >= 50 {
+  "silver"
+} else {
+  "bronze"
+}
+
+# Else-if without final else: void if no branch matches
+output.tier = if input.score >= 90 { "gold" } else if input.score >= 50 { "silver" }
+# void if score < 50 — assignment skipped
 ```
 
 **If Statement** (standalone, contains output assignments):
 ```bloblang
 if input.type == "user" {
   output.role = "member"
+  output.permissions = ["read"]
+}
+
+# Else-if statement chains
+if input.type == "admin" {
+  output.role = "admin"
+  output.permissions = ["read", "write", "delete"]
+} else if input.type == "mod" {
+  output.role = "moderator"
+  output.permissions = ["read", "write"]
+} else {
+  output.role = "user"
   output.permissions = ["read"]
 }
 ```
@@ -158,7 +183,7 @@ output.result = match input.x {
 }
 ```
 
-**Sources of void:** Void is produced by an if-expression without `else` when the condition is false, and by a match expression without `_` when no case matches (Section 4.2). In both cases, void follows the same rules:
+**Sources of void:** Void is produced by an if-expression without a final `else` when no condition is true (including `else if` chains without a final `else`), and by a match expression without `_` when no case matches (Section 4.2). In both cases, void follows the same rules:
 
 **Summary of void behavior by context:**
 
