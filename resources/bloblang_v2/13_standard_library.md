@@ -4,7 +4,7 @@ All implementations must provide these functions and methods. This is the comple
 
 **First-class values:** Standard library functions share the same namespace as user-defined maps. A function name used without parentheses evaluates to a lambda value (Section 5.5). User-defined maps shadow standard library functions of the same name. Resolution priority: parameters > maps > standard library functions.
 
-**Named arguments:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps: positional and named arguments cannot be mixed in the same call, and duplicate named arguments are a compile-time error (Section 3.3).
+**Named arguments and arity:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps (Section 5.3): positional and named arguments cannot be mixed in the same call, duplicate named arguments are a compile-time error, and extra, missing, or mismatched arguments are errors.
 
 **Regular expressions:** All regex parameters use [RE2 syntax](https://github.com/google/re2/wiki/Syntax). RE2 guarantees linear-time matching (no catastrophic backtracking). Notable exclusions from RE2: backreferences and lookahead/lookbehind assertions are not supported.
 
@@ -136,12 +136,12 @@ Convert a value to its string representation.
 - **Returns:** string
 - **Conversion rules:**
   - Integer types: decimal representation (`42` → `"42"`, `-10` → `"-10"`)
-  - Float types: shortest decimal representation that round-trips exactly back to the same float value, always including either a decimal point or exponent to distinguish the result from an integer string. When a non-exponent form and an exponent form have the same length, prefer the non-exponent form. `0.0` → `"0.0"`, `3.14` → `"3.14"`, `1000000.0` → `"1e+06"` (exponent form is shorter). Negative zero normalizes to `"0.0"` (not `"-0.0"`). NaN produces `"NaN"`, Infinity produces `"Infinity"`, negative Infinity produces `"-Infinity"`.
+  - Float types: any shortest decimal representation that round-trips exactly back to the same float value, always including either a decimal point or exponent to distinguish the result from an integer string. When a non-exponent form and an exponent form have the same length, prefer the non-exponent form. `0.0` → `"0.0"`, `3.14` → `"3.14"`, `1000000.0` → `"1e+06"` (exponent form is shorter). Negative zero normalizes to `"0.0"` (not `"-0.0"`). NaN produces `"NaN"`, Infinity produces `"Infinity"`, negative Infinity produces `"-Infinity"`. **Cross-implementation note:** Different shortest-representation algorithms (Ryu, Grisu3, etc.) may produce different valid outputs for the same float value. Conformance tests should compare parsed numeric values rather than exact string representations.
   - Bool: `"true"` or `"false"`
   - Null: `"null"`
   - Timestamp: RFC 3339 format (e.g., `"2024-03-01T12:00:00Z"`)
   - Bytes: UTF-8 decode (error if bytes are not valid UTF-8)
-  - Array, object: compact JSON (equivalent to `.format_json()` — object keys sorted lexicographically)
+  - Array, object: compact JSON (equivalent to `.format_json()` — object keys sorted lexicographically by Unicode codepoint value)
   - Lambda: error
   - **Containers with bytes:** If an array or object contains a bytes value (at any nesting depth), `.string()` errors — bytes have no implicit serialization format. Convert bytes explicitly before including them in structures that will be stringified.
 - **Examples:**
@@ -219,6 +219,7 @@ Convert a value to boolean.
 - **Receiver:** bool (identity — returned as-is), string (`"true"`, `"false"`), numeric (0 = false, non-zero = true)
 - **Returns:** bool
 - **Special float values:** Infinity and negative Infinity are `true` (non-zero). NaN is an error (neither zero nor non-zero).
+- **Design note:** Numeric-to-boolean conversion is an explicit opt-in via `.bool()` — it does not happen implicitly. Logical operators (`&&`, `||`, `!`) still require boolean operands; `5 && true` is an error. This differs from V1, where numbers were silently accepted as booleans in logical expressions.
 - **Examples:**
   ```bloblang
   true.bool()      # true (identity)
@@ -380,7 +381,7 @@ Convert a string to lowercase.
 
 ### `.trim()`
 
-Remove leading and trailing whitespace.
+Remove leading and trailing Unicode whitespace — characters with the Unicode `White_Space` property (space, `\t`, `\n`, `\r`, `\f`, `\v`, non-breaking space U+00A0, and other Unicode space characters).
 
 - **Receiver:** string
 - **Returns:** string
@@ -1086,7 +1087,7 @@ Convert a timestamp to a Unix timestamp in nanoseconds.
 
 Convert a Unix timestamp (seconds since epoch) to a timestamp. Integer receivers produce second-precision timestamps. Float receivers provide sub-second precision — the fractional part is interpreted as fractions of a second. **Precision note:** float64 has ~15-17 significant decimal digits. For current Unix timestamps (~10 integer digits), this leaves ~6-7 fractional digits of precision — sufficient for microseconds but not nanoseconds. For full nanosecond precision, use `.ts_from_unix_nano()` with an int64 value instead.
 
-- **Receiver:** any numeric type (integers are widened to int64; float32 is widened to float64)
+- **Receiver:** any numeric type (integers are widened to int64; float32 is widened to float64). uint64 values exceeding int64 range are a runtime error, consistent with signed+unsigned promotion rules (Section 2.3)
 - **Returns:** timestamp
 - **Examples:**
   ```bloblang
@@ -1134,7 +1135,7 @@ Convert a Unix timestamp in nanoseconds to a timestamp. Provides exact nanosecon
 
 ### `.ts_add(nanos)`
 
-Add a duration in nanoseconds to a timestamp. Negative values subtract. Use `second()` to avoid raw nanosecond constants.
+Add a duration in nanoseconds to a timestamp. Negative values subtract. Use `second()` to avoid raw nanosecond constants. If the resulting timestamp would be outside the representable range, a runtime error is thrown (consistent with integer overflow rules in Section 2.3).
 
 - **Receiver:** timestamp
 - **Parameters:** `nanos` (int64 — duration in nanoseconds)
@@ -1205,14 +1206,14 @@ Parse a JSON string into a value. Errors if the string is not valid JSON.
 
 ### `.format_json()`
 
-Serialize a value to a JSON string. Object keys are sorted lexicographically. Timestamp values are formatted as RFC 3339 strings (Section 2.3). **Note:** Since object key ordering is not preserved (Section 2.3) and keys are sorted on output, `.parse_json().format_json()` may produce different key ordering than the original JSON string.
+Serialize a value to a JSON string. Object keys are sorted lexicographically by Unicode codepoint value (consistent with string comparison semantics in Section 2.3). Timestamp values are formatted as RFC 3339 strings (Section 2.3). **Note:** Since object key ordering is not preserved (Section 2.3) and keys are sorted on output, `.parse_json().format_json()` may produce different key ordering than the original JSON string.
 
 - **Receiver:** any type (except lambda and bytes)
 - **Returns:** string
 - **Errors:** if the value is or contains a lambda or bytes value (at any nesting depth). Bytes have no implicit JSON serialization — use `.encode("base64")` or `.encode("hex")` before serializing. NaN and Infinity float values also error (not representable in JSON).
 - **Numeric serialization:**
   - Integer types (int32, int64, uint32, uint64): serialized as JSON integers (no decimal point, no quotes). Large uint64 values (> 2^53) are serialized as-is — the JSON spec imposes no range limit, though consumers using float64 may lose precision.
-  - Float types (float32, float64): serialized as the shortest decimal representation that round-trips exactly, always including either a decimal point or exponent to distinguish from integer serialization. This matches `.string()` behavior and ensures that `.format_json()` → `.parse_json()` preserves the float type. Exponent notation is permitted (e.g., `1e+06`).
+  - Float types (float32, float64): serialized as any shortest decimal representation that round-trips exactly, always including either a decimal point or exponent to distinguish from integer serialization. This matches `.string()` behavior (including the cross-implementation note) and ensures that `.format_json()` → `.parse_json()` preserves the float type. Exponent notation is permitted (e.g., `1e+06`).
 - **Examples:**
   ```bloblang
   {"name": "Alice"}.format_json()       # `{"name":"Alice"}`
