@@ -470,7 +470,7 @@ func QuotedString(input []rune) Result[string] {
 // EmptyLine ensures that a line is empty, but doesn't advance the parser beyond
 // the newline char.
 func EmptyLine(r []rune) Result[any] {
-	if len(r) > 0 && r[0] == '\n' {
+	if len(r) > 0 && (r[0] == '\n' || (r[0] == '\r' && len(r) > 1 && r[1] == '\n')) {
 		return Success[any](nil, r)
 	}
 	return Fail[any](NewError(r, "Empty line"), r)

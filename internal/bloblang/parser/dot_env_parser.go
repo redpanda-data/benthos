@@ -8,11 +8,11 @@ import (
 
 var dotEnvParser = func() Func[map[string]string] {
 	assignmentParser := Sequence(
-		NotInSet('=', ' ', '\n', '#'),
+		NotInSet('=', ' ', '\n', '\r', '#'),
 		Optional(SpacesAndTabs),
 		charEquals,
 		Optional(SpacesAndTabs),
-		Optional(OneOf(TripleQuoteString, QuotedString, NotInSet('#', ' ', '\n'))),
+		Optional(OneOf(TripleQuoteString, QuotedString, NotInSet('#', ' ', '\n', '\r'))),
 		Optional(SpacesAndTabs),
 	)
 
