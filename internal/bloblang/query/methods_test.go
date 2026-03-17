@@ -142,6 +142,99 @@ func TestMethods(t *testing.T) {
     foo: bar
 `),
 		},
+		"check parse_logfmt basic": {
+			input: methods(
+				literalFn(`level=info msg="hello world" dur=1.5s`),
+				method("parse_logfmt"),
+			),
+			output: map[string]any{
+				"level": "info",
+				"msg":   "hello world",
+				"dur":   "1.5s",
+			},
+		},
+		"check parse_logfmt empty input": {
+			input: methods(
+				literalFn(""),
+				method("parse_logfmt"),
+			),
+			output: map[string]any{},
+		},
+		"check parse_logfmt key without value": {
+			input: methods(
+				literalFn("debug key=val"),
+				method("parse_logfmt"),
+			),
+			output: map[string]any{
+				"debug": true,
+				"key":   "val",
+			},
+		},
+		"check parse_logfmt key with empty value": {
+			input: methods(
+				literalFn("key="),
+				method("parse_logfmt"),
+			),
+			output: map[string]any{
+				"key": "",
+			},
+		},
+		"check parse_logfmt escaped quotes in value": {
+			input: methods(
+				literalFn(`msg="say \"hello\"" level=info`),
+				method("parse_logfmt"),
+			),
+			output: map[string]any{
+				"msg":   `say "hello"`,
+				"level": "info",
+			},
+		},
+		"check parse_logfmt escape sequences": {
+			input: methods(
+				literalFn(`msg="line1\nline2\ttab"`),
+				method("parse_logfmt"),
+			),
+			output: map[string]any{
+				"msg": "line1\nline2\ttab",
+			},
+		},
+		"check parse_logfmt multiple spaces": {
+			input: methods(
+				literalFn("  a=1   b=2  "),
+				method("parse_logfmt"),
+			),
+			output: map[string]any{
+				"a": "1",
+				"b": "2",
+			},
+		},
+		"check parse_logfmt tab delimiters": {
+			input: methods(
+				literalFn("a=1\tb=2"),
+				method("parse_logfmt"),
+			),
+			output: map[string]any{
+				"a": "1",
+				"b": "2",
+			},
+		},
+		"check parse_logfmt bare equals skipped": {
+			input: methods(
+				literalFn("=bad foo=bar"),
+				method("parse_logfmt"),
+			),
+			output: map[string]any{
+				"bad": true,
+				"foo": "bar",
+			},
+		},
+		"check parse_logfmt unterminated quote": {
+			input: methods(
+				literalFn(`msg="unterminated`),
+				method("parse_logfmt"),
+			),
+			err: `string literal: logfmt: unterminated quoted value for key "msg"`,
+		},
 		"check parse csv 1": {
 			input: methods(
 				literalFn("foo,bar,baz\n1,2,3\n4,5,6"),
