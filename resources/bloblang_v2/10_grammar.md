@@ -2,6 +2,15 @@
 
 **Statement separation:** Statements are separated by newlines. Multiple statements on a single line are not allowed — each statement must begin on its own line. Newlines inside parentheses `()` and brackets `[]` are treated as whitespace and do not produce separator tokens, allowing argument lists, array literals, and grouped expressions to span multiple lines freely. Newlines inside braces `{}` are still significant — they separate statements within block bodies (if/match/map/lambda). In object literals (also delimited by `{}`), entries are comma-separated, so newlines between entries are ignored.
 
+**Postfix continuation:** Newlines are also suppressed when the next line begins with a postfix operator token — `.`, `?.`, `[`, or `?[`. This allows method chains and indexing to span multiple lines without parentheses:
+```bloblang
+output.result = input.text
+  .trim()
+  .lowercase()
+  .replace_all(" ", "-")
+```
+This is safe because none of these tokens can begin a valid statement (`statement := assignment | if_stmt | match_stmt`), so there is no ambiguity between continuation and a new statement.
+
 ```
 # --- Lexical: newline handling ---
 # NL represents one or more newline characters that act as statement separators.
@@ -12,6 +21,9 @@
 # statements in block bodies). Object literals use comma separation, so NL
 # tokens between entries are simply consumed as optional whitespace by the
 # comma-separated list productions.
+# Postfix continuation — NL tokens are suppressed when the next non-whitespace
+# token is a postfix operator: '.', '?.', '[', or '?['. This enables multi-line
+# method chains and indexing without requiring parentheses.
 # Blank lines (consecutive newlines) and trailing newlines are allowed and
 # collapsed — NL means "one or more newline boundaries."
 # A program may optionally begin or end with NL (leading/trailing blank lines).
@@ -116,9 +128,10 @@ key_value       := expression ':' expression
 arg_list        := positional_args | named_args
 positional_args := expression (',' expression)* ','?
 named_args      := identifier ':' expression (',' identifier ':' expression)* ','?
-word            := [a-zA-Z_][a-zA-Z0-9_]*          # Raw lexical pattern (includes keywords)
-identifier      := word - keyword                    # Excludes keywords; used for variable/map/param names
+word            := [a-zA-Z_][a-zA-Z0-9_]*          # Raw lexical pattern (includes keywords and reserved names)
+identifier      := word - keyword - reserved_name    # Excludes keywords and reserved names; used for variable/map/param names
 keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' | 'import' | 'true' | 'false' | 'null' | '_'
+reserved_name   := 'deleted' | 'throw'              # Reserved function names (Section 1.3); cannot be used as identifiers
 ```
 
 ## Key Points

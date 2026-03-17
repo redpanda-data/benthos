@@ -119,6 +119,8 @@ null?.uppercase()           # null (short-circuited: value is null)
 - **Left-associative:** Arithmetic (`+`, `-`, `*`, `/`, `%`), Logical (`&&`, `||`)
 - **Non-associative:** Comparison (`>`, `>=`, `<`, `<=`), Equality (`==`, `!=`)
 
+**Lambda arrow (`->`):** The `->` token is not a binary operator and does not participate in the precedence hierarchy. A lambda is recognized by its distinct prefix — `identifier ->` or `(params) ->` — which the parser can identify before any precedence comparison. The arrow then consumes the entire right-hand side as the lambda body. For example, `x -> x + 1` parses as `x -> (x + 1)`, and `5 + x -> x * 2` parses as `5 + (x -> x * 2)` (a type error at runtime, since you cannot add a number and a lambda).
+
 ```bloblang
 # Precedence examples
 output.calc = input.a + input.b * 2          # * before +

@@ -46,7 +46,7 @@ output.user = normalize_user(input.user_data)
 
 **Keywords:** `input`, `output`, `if`, `else`, `match`, `as`, `map`, `import`, `true`, `false`, `null`, `_`
 
-**Reserved function names:** `deleted`, `throw` — these parse as regular function calls but have special semantics (see Sections 8.4, 9.2, and 12.3). User-defined maps cannot shadow these names.
+**Reserved function names:** `deleted`, `throw` — these parse as regular function calls but have special semantics (see Sections 8.4, 9.2, and 12.3). Like keywords, reserved function names cannot be used as identifiers — they cannot be variable names, map names, or parameter names. They remain valid as field names (e.g., `input.deleted`, `output.throw`) since field access uses the broader `word` pattern.
 
 `_` has context-dependent roles: it serves as the wildcard in match cases (Section 4.2) and as a **discard parameter** in map and lambda parameter lists (Sections 3.4, 5.1).
 
@@ -68,7 +68,7 @@ output.user = normalize_user(input.user_data)
 
 **Comments:** `#` to end-of-line
 
-**Identifiers:** `[a-zA-Z_][a-zA-Z0-9_]*` excluding keywords (notably `_` alone is not a valid identifier). Used for variable names, map names, and parameter names — these cannot be keywords. The exception is `_`, which is permitted as a discard parameter in map and lambda parameter lists (Sections 3.4, 5.1).
+**Identifiers:** `[a-zA-Z_][a-zA-Z0-9_]*` excluding keywords and reserved function names (notably `_` alone is not a valid identifier). Used for variable names, map names, and parameter names — these cannot be keywords or reserved function names (`deleted`, `throw`). The exception is `_`, which is permitted as a discard parameter in map and lambda parameter lists (Sections 3.4, 5.1).
 
 **Field names:** Field names after `.` and `?.` accept any word (`[a-zA-Z_][a-zA-Z0-9_]*` including keywords) — `input.map`, `output.if`, `data.match` are all valid. Use `."quoted"` for names with special characters or spaces:
 ```bloblang
