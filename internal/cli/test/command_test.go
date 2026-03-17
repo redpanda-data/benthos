@@ -247,15 +247,15 @@ tests:
 	}
 	defer os.RemoveAll(testDir)
 
-	if !test.RunAll(common.NewCLIOpts("", ""), []string{filepath.Join(testDir, "foo.yaml")}, "_benthos_test", false, log.Noop(), nil) {
+	if !test.RunAll(common.NewCLIOpts("", ""), []string{filepath.Join(testDir, "foo.yaml")}, "_benthos_test", false, false, log.Noop(), nil) {
 		t.Error("Unexpected result")
 	}
 
-	if test.RunAll(common.NewCLIOpts("", ""), []string{filepath.Join(testDir, "foo.yaml")}, "_benthos_test", true, log.Noop(), nil) {
+	if test.RunAll(common.NewCLIOpts("", ""), []string{filepath.Join(testDir, "foo.yaml")}, "_benthos_test", true, false, log.Noop(), nil) {
 		t.Error("Unexpected result")
 	}
 
-	if test.RunAll(common.NewCLIOpts("", ""), []string{testDir}, "_benthos_test", true, log.Noop(), nil) {
+	if test.RunAll(common.NewCLIOpts("", ""), []string{testDir}, "_benthos_test", true, false, log.Noop(), nil) {
 		t.Error("Unexpected result")
 	}
 }
