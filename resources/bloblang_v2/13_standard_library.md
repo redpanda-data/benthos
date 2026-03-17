@@ -6,6 +6,8 @@ All implementations must provide these functions and methods. This is the comple
 
 **Named arguments and arity:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps (Section 5.3): positional and named arguments cannot be mixed in the same call, duplicate named arguments are a compile-time error, and extra, missing, or mismatched arguments are errors.
 
+**Lambda return values — void and `deleted()`:** Unless a method's documentation explicitly states otherwise, void and `deleted()` as lambda return values are runtime errors. Methods that support `deleted()` as a lambda return (causing the element or entry to be omitted from the result) document this explicitly — see `.map()`, `.map_values()`, `.map_keys()`, and `.map_entries()`.
+
 **Regular expressions:** All regex parameters use [RE2 syntax](https://github.com/google/re2/wiki/Syntax). RE2 guarantees linear-time matching (no catastrophic backtracking). Notable exclusions from RE2: backreferences and lookahead/lookbehind assertions are not supported.
 
 ---
@@ -109,7 +111,7 @@ Return the number of nanoseconds in one second (`1000000000`). This is a conveni
 
 Throw a custom error. The error propagates and can be caught with `.catch()`. If uncaught, it halts the mapping.
 
-- **Parameters:** `message` (string, required). Non-string arguments are a compile-time error.
+- **Parameters:** `message` (string, required). Non-string literal arguments are a compile-time error; dynamic arguments that evaluate to a non-string type at runtime are a runtime error.
 - **Returns:** never (always produces an error)
 - **Example:** `throw("value is required")`
 - **See:** Section 8.4
@@ -218,7 +220,7 @@ Convert a value to boolean.
 
 - **Receiver:** bool (identity — returned as-is), string (`"true"`, `"false"`), numeric (0 = false, non-zero = true)
 - **Returns:** bool
-- **Special float values:** Infinity and negative Infinity are `true` (non-zero). NaN is an error (neither zero nor non-zero).
+- **Special float values:** Negative zero (`(-0.0).bool()`) is `false` (it is equal to zero per IEEE 754). Infinity and negative Infinity are `true` (non-zero). NaN is an error (neither zero nor non-zero).
 - **Design note:** Numeric-to-boolean conversion is an explicit opt-in via `.bool()` — it does not happen implicitly. Logical operators (`&&`, `||`, `!`) still require boolean operands; `5 && true` is an error. This differs from V1, where numbers were silently accepted as booleans in logical expressions.
 - **Examples:**
   ```bloblang
