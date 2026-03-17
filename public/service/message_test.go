@@ -1083,3 +1083,25 @@ func TestSyncResponseBatched(t *testing.T) {
 		assert.Equal(t, c, string(data))
 	}
 }
+
+func TestMessageWithCollapsedCount(t *testing.T) {
+	m1 := NewMessage([]byte("foo"))
+
+	// Default collapsed count is 1
+	b1 := MessageBatch{m1}
+	assert.Equal(t, 1, b1.CollapsedCount())
+
+	// Setting collapsed count to 3
+	m2 := m1.WithCollapsedCount(3)
+	b2 := MessageBatch{m2}
+	assert.Equal(t, 3, b2.CollapsedCount())
+
+	// Chaining collapsed counts accumulates
+	m3 := m2.WithCollapsedCount(2)
+	b3 := MessageBatch{m3}
+	assert.Equal(t, 4, b3.CollapsedCount())
+
+	// Multiple messages in a batch sum their collapsed counts
+	bAll := MessageBatch{m1, m2, m3}
+	assert.Equal(t, 8, bAll.CollapsedCount())
+}
