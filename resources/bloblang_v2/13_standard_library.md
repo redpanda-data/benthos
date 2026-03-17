@@ -6,7 +6,7 @@ All implementations must provide these functions and methods. This is the comple
 
 **Named arguments and arity:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps (Section 5.3): positional and named arguments cannot be mixed in the same call, duplicate named arguments are a compile-time error, and extra, missing, or mismatched arguments are errors.
 
-**Lambda return values — void and `deleted()`:** Unless a method's documentation explicitly states otherwise, void and `deleted()` as lambda return values are runtime errors. Methods that support `deleted()` as a lambda return (causing the element or entry to be omitted from the result) document this explicitly — see `.map()`, `.map_values()`, `.map_keys()`, and `.map_entries()`.
+**Lambda return values — void and `deleted()`:** Unless a method's documentation explicitly states otherwise, void and `deleted()` as lambda return values are runtime errors. Methods that support `deleted()` as a lambda return document this explicitly — see `.map()`, `.map_values()`, `.map_keys()`, `.map_entries()` (element/entry omitted from result), and `.catch()` (result flows to calling context with normal semantics).
 
 **Regular expressions:** All regex parameters use [RE2 syntax](https://github.com/google/re2/wiki/Syntax). RE2 guarantees linear-time matching (no catastrophic backtracking). Notable exclusions from RE2: backreferences and lookahead/lookbehind assertions are not supported.
 
@@ -1160,10 +1160,17 @@ Handle errors. Called only when the expression to its left produces an error. If
 - **Receiver:** any expression (catches errors from the left-hand side)
 - **Parameters:** `fn` — lambda (one parameter: error object → any)
 - **Returns:** any (either the original value or the lambda's result)
+- **`deleted()` and void from handler:** The handler lambda may return `deleted()` or void — these flow to the calling context with normal semantics. For example, in a field assignment, `deleted()` removes the field and void skips the assignment. This mirrors `.or()`, which also supports `deleted()` (Section 8.3).
 - **Examples:**
   ```bloblang
   input.date.ts_parse("%Y-%m-%d").catch(err -> null)
   input.date.ts_parse("%Y-%m-%d").catch(err -> throw("parse failed: " + err.what))
+
+  # deleted() from handler — removes field on error
+  output.date = input.raw_date.ts_parse("%Y-%m-%d").catch(err -> deleted())
+
+  # void from handler — skips assignment on error
+  output.date = input.raw_date.ts_parse("%Y-%m-%d").catch(err -> if input.strict { throw(err.what) })
   ```
 - **See:** Section 8.2
 
