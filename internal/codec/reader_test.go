@@ -527,6 +527,16 @@ func TestCSVSkipBOMReader(t *testing.T) {
 	testReaderSuite(t, "csv", "", data)
 }
 
+func TestGzipDefaultsToAllBytes(t *testing.T) {
+	var gzipBuf bytes.Buffer
+	zw := gzip.NewWriter(&gzipBuf)
+	_, _ = zw.Write([]byte("hello world"))
+	zw.Close()
+
+	// "gzip" alone should behave like "gzip/all-bytes"
+	testReaderSuite(t, "gzip", "", gzipBuf.Bytes(), "hello world")
+}
+
 func TestAllBytesReader(t *testing.T) {
 	data := []byte("foo\nbar\nbaz")
 	testReaderSuite(t, "all-bytes", "", data, "foo\nbar\nbaz")
