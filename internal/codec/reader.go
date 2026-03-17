@@ -187,7 +187,14 @@ func chainedReader(codec string, conf ReaderConfig) (ReaderConstructor, error) {
 		partCtor = chainPartIntoReaderCtor(partCtor, tmpReaderCtor)
 	}
 	if partCtor == nil {
-		return nil, fmt.Errorf("codec was not recognised: %v", codecs)
+		if ioCtor != nil {
+			// Default to all-bytes when only a decompression codec is specified,
+			// e.g. "gzip" is treated as "gzip/all-bytes".
+			allBytesCtor, _, _ := partReader("all-bytes", conf)
+			partCtor = chainIOIntoPartCtor(ioCtor, allBytesCtor)
+		} else {
+			return nil, fmt.Errorf("codec was not recognised: %v", codecs)
+		}
 	}
 	return partCtor, nil
 }
