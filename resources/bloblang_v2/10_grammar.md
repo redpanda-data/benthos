@@ -66,7 +66,7 @@ metadata_accessor := '@'
 field_name      := word | string_literal
 var_ref         := '$' identifier
 
-call_expr       := (identifier | var_ref | qualified_name) '(' [arg_list] ')'
+call_expr       := (identifier | var_ref | qualified_name | reserved_name) '(' [arg_list] ')'
 qualified_name  := identifier '::' identifier
 
 if_expr         := 'if' expression '{' NL? expr_body NL? '}'
@@ -137,7 +137,7 @@ reserved_name   := 'deleted' | 'throw'              # Reserved function names (S
 ## Key Points
 
 - **Disambiguation of `match` with `{`:** After `match`, if the next token is `{`, it is always the match body (boolean match without expression), never an object literal as the matched expression. This eliminates the ambiguity between `match { cases... }` and `match <object_literal> { cases... }`. In practice, matching on a literal is dead code — the matched expression should always be dynamic. If parenthesization is ever needed for clarity, `match (expr) { ... }` works for any expression.
-- **Disambiguation of `call_expr` vs `context_root`:** Both productions can start with `identifier` (or `qualified_name`). The parser must use one token of lookahead after the identifier (or after the second identifier in `qualified_name`) to check for `(`: if present, it is a `call_expr`; otherwise, it is a `context_root`. This is standard LL(1) lookahead — the grammar is unambiguous but implementers should be aware of the need for it.
+- **Disambiguation of `call_expr` vs `context_root`:** Both productions can start with `identifier` (or `qualified_name`). The parser must use one token of lookahead after the identifier (or after the second identifier in `qualified_name`) to check for `(`: if present, it is a `call_expr`; otherwise, it is a `context_root`. Reserved names (`deleted`, `throw`) always require `(` — they appear in `call_expr` but not `context_root`, so they can only be called, not used as bare values. This is standard LL(1) lookahead — the grammar is unambiguous but implementers should be aware of the need for it.
 - **Unified postfix chains:** The `postfix_expr` production unifies field access, indexing, and method calls into a single chain. Any expression result can be followed by any combination of `.field`, `[index]`, and `.method()` operations. This means `func().field`, `expr.method()[0]`, and `literal["key"]` are all valid.
 - **Top-level only:** Map declarations (`map_decl`) and imports (`import_stmt`) can only appear at the top level of a program, not inside statement bodies. Control flow statements (`if_stmt`, `match_stmt`) can be nested.
 - **Variables:** `$var` for declaration and reference. The grammar has two assignment productions that reflect context restrictions: `assignment` (used in statement contexts: top-level, if/match statement bodies) can target `output`, `output@`, or `$variables`; `var_assignment` (used in expression contexts: map bodies, lambda blocks, if/match expressions) can only target `$variables`. Both support path assignment (`$var.field = expr`, `$var[0] = expr`) with the same field access, indexing, and auto-creation semantics as `output`.
