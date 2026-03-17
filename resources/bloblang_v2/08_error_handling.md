@@ -20,8 +20,8 @@ Handle errors with `.catch()`. The method takes a lambda with a single parameter
 **Scope:** `.catch()` catches any error produced by its receiver expression — the entire expression that the grammar parses as the left-hand side of the `.catch()` method call. Errors propagate through postfix chains: if any postfix operation (method call, field access, or index access) errors, all subsequent postfix operations are skipped and the error flows to the next `.catch()`.
 
 ```bloblang
-# Catches errors from ts_parse or uppercase (either one)
-input.date.ts_parse("%Y-%m-%d").uppercase().catch(err -> null)
+# Catches errors from trim_suffix or ts_parse (either one)
+input.date.trim_suffix("TS:").ts_parse("%Y-%m-%d").catch(err -> null)
 
 # Field access and indexing are also skipped on error
 # If ts_parse errors, .year (field access) is skipped and the error reaches .catch()

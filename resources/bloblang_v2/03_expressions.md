@@ -41,9 +41,9 @@ input.data[-1]      # Bytes: last byte as int64
 
 **Semantics:**
 - **Objects:** Indexed by string, returns field value (dynamic field access). Non-string indices are an error (no implicit conversion).
-- **Arrays:** Indexed by number, returns element at position. Non-numeric indices are an error.
-- **Strings:** Indexed by number (codepoint position), returns int64 (Unicode codepoint value). Negative indices count from the end. Use `char()` to convert back to a string.
-- **Bytes:** Indexed by number (byte position), returns int64 (byte value 0-255). Negative indices count from the end.
+- **Arrays:** Indexed by number, returns element at position. The index value must be a whole number — float values like `2.0` are accepted but `1.5` is a runtime error. Non-numeric indices are an error.
+- **Strings:** Indexed by number (codepoint position), returns int64 (Unicode codepoint value). The same whole-number requirement applies. Negative indices count from the end. Use `char()` to convert back to a string.
+- **Bytes:** Indexed by number (byte position), returns int64 (byte value 0-255). The same whole-number requirement applies. Negative indices count from the end.
 - **All other types** (bool, numeric, null, timestamp, lambda): indexing is a runtime error.
 
 **String indexing is codepoint-based, not grapheme-based:**
