@@ -217,12 +217,17 @@ func (m *Message) WithContext(ctx context.Context) *Message {
 }
 
 // WithCollapsedCount returns a new message indicating that it is the result of
-// collapsing a number of messages. This allows downstream components to know
-// how many total messages were combined, which is important for accurate output
-// metrics (e.g. output_sent). This is useful when implementing processors that
-// combine multiple messages into one (such as archive).
+// collapsing count messages into one. The count is accumulated: if a message
+// already has a collapsed count of 3 and WithCollapsedCount(2) is called, the
+// result has a collapsed count of 4 (the existing count plus count-1 to avoid
+// double-counting the message itself). The count parameter must be >= 1.
+//
+// This allows downstream components to know how many total messages were
+// combined, which is important for accurate output metrics (e.g. output_sent).
+// This is useful when implementing processors that combine multiple messages
+// into one (such as archive).
 func (m *Message) WithCollapsedCount(count int) *Message {
-	ctx := batch.CtxWithCollapsedCount(message.GetContext(m.part), count)
+	ctx := batch.CtxWithCollapsedCount(m.Context(), count)
 	return m.WithContext(ctx)
 }
 
@@ -232,7 +237,7 @@ func (m *Message) WithCollapsedCount(count int) *Message {
 func (b MessageBatch) CollapsedCount() int {
 	total := 0
 	for _, m := range b {
-		total += batch.CtxCollapsedCount(message.GetContext(m.part))
+		total += batch.CtxCollapsedCount(m.Context())
 	}
 	return total
 }
