@@ -116,6 +116,76 @@ switch:
 	}
 }
 
+func TestSwitchContinue(t *testing.T) {
+	conf, err := testutil.ProcessorFromYAML(`
+switch:
+  - check: 'content().contains("A")'
+    processors:
+      - bloblang: 'root = "case0:" + content().string()'
+    continue: true
+  - check: 'content().contains("B")'
+    processors:
+      - bloblang: 'root = "case1:" + content().string()'
+  - check: 'content().contains("C")'
+    processors:
+      - bloblang: 'root = "case2:" + content().string()'
+`)
+	require.NoError(t, err)
+
+	c, err := mock.NewManager().NewProcessor(conf)
+	require.NoError(t, err)
+
+	defer func() {
+		ctx, done := context.WithTimeout(t.Context(), time.Second*30)
+		defer done()
+		assert.NoError(t, c.Close(ctx))
+	}()
+
+	// "AB" matches case 0 (contains A), gets processed, then continue puts it
+	// back for checking. Case 1 checks contains("B") on "case0:AB" which is
+	// true, so it gets processed again.
+	msg := message.QuickBatch([][]byte{[]byte("AB")})
+	msgs, res := c.ProcessBatch(t.Context(), msg)
+	require.NoError(t, res)
+	require.Len(t, msgs, 1)
+
+	resStrs := []string{}
+	for _, b := range message.GetAllBytes(msgs[0]) {
+		resStrs = append(resStrs, string(b))
+	}
+	assert.Equal(t, []string{"case1:case0:AB"}, resStrs)
+
+	// "A" matches case 0, continue puts it back, but "case0:A" doesn't match
+	// case 1 (no B) or case 2 (no C), so it falls through unmatched.
+	msg = message.QuickBatch([][]byte{[]byte("A")})
+	msgs, res = c.ProcessBatch(t.Context(), msg)
+	require.NoError(t, res)
+
+	resStrs = nil
+	for _, b := range message.GetAllBytes(msgs[0]) {
+		resStrs = append(resStrs, string(b))
+	}
+	assert.Equal(t, []string{"case0:A"}, resStrs)
+}
+
+func TestSwitchContinueAndFallthroughMutuallyExclusive(t *testing.T) {
+	conf, err := testutil.ProcessorFromYAML(`
+switch:
+  - check: 'true'
+    processors:
+      - bloblang: 'root = content()'
+    continue: true
+    fallthrough: true
+`)
+	if err != nil {
+		assert.Contains(t, err.Error(), "fallthrough")
+		return
+	}
+	_, err = mock.NewManager().NewProcessor(conf)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "fallthrough")
+}
+
 func TestSwitchError(t *testing.T) {
 	conf, err := testutil.ProcessorFromYAML(`
 switch:

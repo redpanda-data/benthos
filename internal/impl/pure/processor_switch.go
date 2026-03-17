@@ -21,6 +21,7 @@ const (
 	spFieldCheck       = "check"
 	spFieldProcessors  = "processors"
 	spFieldFallthrough = "fallthrough"
+	spFieldContinue    = "continue"
 )
 
 func switchProcSpec() *service.ConfigSpec {
@@ -69,7 +70,11 @@ pipeline:
 				Description("A list of xref:components:processors/about.adoc[processors] to execute on a message.").
 				Default([]any{}),
 			service.NewBoolField(spFieldFallthrough).
-				Description("Indicates whether, if this case passes for a message, the next case should also be executed.").
+				Description("Indicates whether, if this case passes for a message, the next case should also be executed without checking its condition.").
+				Advanced().
+				Default(false),
+			service.NewBoolField(spFieldContinue).
+				Description("Indicates whether, if this case passes for a message, the next case should also be tested. Unlike `fallthrough`, which skips the next case's check, `continue` will evaluate the next case's condition before executing.").
 				Advanced().
 				Default(false),
 		))
@@ -103,6 +108,7 @@ type switchCase struct {
 	check       *mapping.Executor
 	processors  []processor.V1
 	fallThrough bool
+	continueOn  bool
 }
 
 func switchCaseFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) (c switchCase, err error) {
@@ -113,6 +119,11 @@ func switchCaseFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) 
 	}
 
 	c.fallThrough, _ = conf.FieldBool(spFieldFallthrough)
+	c.continueOn, _ = conf.FieldBool(spFieldContinue)
+	if c.fallThrough && c.continueOn {
+		err = errors.New("a case cannot have both 'fallthrough' and 'continue' set to true")
+		return
+	}
 
 	var iProcs []*service.OwnedProcessor
 	if iProcs, err = conf.FieldProcessorList(spFieldProcessors); err != nil {
@@ -210,6 +221,8 @@ func (s *switchProc) ProcessBatch(ctx *processor.BatchProcContext, msg message.B
 				_ = m.Iter(func(_ int, p *message.Part) error {
 					if switchCase.fallThrough {
 						carryOver = append(carryOver, p)
+					} else if switchCase.continueOn {
+						remaining = append(remaining, p)
 					} else {
 						result = append(result, p)
 					}
