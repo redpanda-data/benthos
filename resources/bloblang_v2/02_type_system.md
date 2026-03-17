@@ -99,6 +99,8 @@ When arithmetic, comparison, or equality operators are applied to operands of di
 | float32 / float32 | float32 |
 | All other combinations | float64 |
 
+There is no integer division operator. To get an integer result, convert explicitly: `(7 / 2).int64()` truncates toward zero (result: `3`), `(7 / 2).floor().int64()` floors (result: `3`). These differ for negative operands: `(-7 / 2).int64()` is `-3` (truncation), `(-7 / 2).floor().int64()` is `-4` (floor).
+
 **Modulo follows standard promotion rules** (not the division rule). The result type is determined by the promoted operand type. For float operands, modulo uses **truncated division remainder** semantics (equivalent to C `fmod`), where the result has the same sign as the dividend:
 
 | Operand types | Result type | Example |
@@ -158,6 +160,8 @@ output.ok = 9223372036854775807.uint64() + 1.uint64()  # 9223372036854775808 (ui
 - Arithmetic with NaN produces NaN
 - Infinity compares normally (`Infinity > 1.0` is `true`, `Infinity == Infinity` is `true`)
 - Negative zero: `-0.0 == 0.0` is `true`, `-0.0 < 0.0` is `false` (they are equal per IEEE 754). `.string()` normalizes to `"0.0"` (not `"-0.0"`).
+
+**NaN in other contexts:** `.sort()` uses total ordering for NaN — NaN sorts after all other numeric values, not IEEE 754 comparison (Section 13.6). `.unique()` treats all NaN values as equal, consistent with sort's total ordering (Section 13.6). `.bool()` on NaN is an error — NaN is neither zero nor non-zero (Section 13.2).
 
 **Equality Semantics:**
 

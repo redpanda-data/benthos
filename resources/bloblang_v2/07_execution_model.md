@@ -325,3 +325,11 @@ output.total = output.price + output.tax
 output.a = output.b  # null — output.b not yet assigned
 output.b = 42
 ```
+
+**Caution:** This ordering dependency also applies to top-level lambdas that read `output` (Section 7.5). A lambda reading `output` sees its value at the time the statement executes, not at the time the lambda is defined. Ensure the referenced output fields are assigned before the statement that uses them:
+```bloblang
+output.multiplier = input.rate
+output.items = input.data.map(x -> x * output.multiplier)  # OK: multiplier already assigned
+
+# Swapping these two lines would make output.multiplier null inside the lambda
+```

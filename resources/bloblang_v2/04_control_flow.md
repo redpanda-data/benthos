@@ -254,6 +254,8 @@ match input.type() {
 
 **Parsing disambiguation:** Like `if`, the syntactic context determines statement vs expression form. Match statements are only valid at top-level or inside other statement bodies.
 
+**Case body syntax:** Expression match cases allow either a bare expression or a braced body (`"cat" => "meow"` or `"cat" => { $x = "me"; $x + "ow" }`). Statement match cases always require braces (`"cat" => { output.sound = "meow" }`) because braces are needed to delimit the statement body.
+
 ### Three Match Forms
 
 **1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected. Case expressions are ordinary expressions with the same scope access as the surrounding context (variables, `input`, `output`, etc. as appropriate). If a case expression evaluates to a **boolean**, an error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly. Boolean literals (`true`, `false`) as case expressions **must** be rejected at compile time. Cases involving dynamic values that happen to be boolean at runtime are runtime errors.
