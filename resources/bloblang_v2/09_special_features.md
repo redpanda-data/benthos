@@ -199,7 +199,7 @@ These operations result in **runtime errors**. The sole exception is `.or()`, wh
 - Variable field assignment: `$var.field = deleted()` — removes the field from the variable's value
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
-- Lambda return value in methods that support it (e.g., `.map()`, `.map_values()`, `.map_keys()`, `.map_entries()`): element/entry is omitted from the result. See Section 13 for per-method details
+- Lambda return value in the methods that explicitly support it — `.map()`, `.map_values()`, `.map_keys()`, and `.map_entries()` — element/entry is omitted from the result. All other methods treat `deleted()` lambda returns as runtime errors (see Section 13 preamble)
 
 **Causes runtime error:**
 - Variable assignment: `$var = deleted()` (cannot assign deleted to a variable — variables must always hold a value; see Section 4.1)

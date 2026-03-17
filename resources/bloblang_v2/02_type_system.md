@@ -161,7 +161,7 @@ output.ok = 9223372036854775807.uint64() + 1.uint64()  # 9223372036854775808 (ui
 
 **Equality Semantics:**
 
-For non-numeric types, both type and value must match for equality to return `true`. Different non-numeric types always return `false` (not an error). **Exception:** lambdas cannot be compared for equality — any `==` or `!=` with a lambda operand is a runtime error.
+For non-numeric types, both type and value must match for equality to return `true`. Strings compare codepoint-by-codepoint, bytes compare byte-by-byte, arrays compare element-by-element, and objects compare by key-value pairs regardless of key order. Different non-numeric types always return `false` (not an error). **Exception:** lambdas cannot be compared for equality — any `==` or `!=` with a lambda operand is a runtime error.
 
 For numeric types, the same promotion rules used for arithmetic apply before comparison. Both operands are promoted to a common numeric type, then compared by value. This means `5 == 5.0` is `true` (int64 promoted to float64, values match).
 

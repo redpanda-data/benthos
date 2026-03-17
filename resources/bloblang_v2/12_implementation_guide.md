@@ -127,3 +127,4 @@ Include:
 - Variable materialization must be transparent
 - Iterator consumption must not leak to user code
 - All examples in spec must execute correctly
+- Float-to-string conversions (`.string()`, `.format_json()`) may vary across implementations due to different shortest-representation algorithms (Section 13.2). Conformance tests involving float string output should compare parsed numeric values rather than exact string representations

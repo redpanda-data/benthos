@@ -103,11 +103,12 @@ output.value = if input.value != null {
 }
 ```
 
-Non-string arguments are a compile-time error:
+Non-string literal arguments are a compile-time error; dynamic arguments that evaluate to a non-string type at runtime are a runtime error:
 ```bloblang
-throw(42)     # ERROR: throw() requires a string argument
-throw(null)   # ERROR: throw() requires a string argument
-throw()       # ERROR: throw() requires exactly one string argument
+throw(42)     # COMPILE ERROR: throw() requires a string argument
+throw(null)   # COMPILE ERROR: throw() requires a string argument
+throw()       # COMPILE ERROR: throw() requires exactly one string argument
+throw($var)   # Runtime error if $var is not a string
 ```
 
 **Error propagation:** `throw()` produces an error that propagates like any other error. It can be caught with `.catch()`:
