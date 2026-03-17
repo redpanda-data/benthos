@@ -145,7 +145,7 @@ Convert a value to its string representation.
   - Bytes: UTF-8 decode (error if bytes are not valid UTF-8)
   - Array, object: compact JSON (equivalent to `.format_json()` — object keys sorted lexicographically by Unicode codepoint value)
   - Lambda: error
-  - **Containers with bytes:** If an array or object contains a bytes value (at any nesting depth), `.string()` errors — bytes have no implicit serialization format. Convert bytes explicitly before including them in structures that will be stringified.
+  - **Containers with bytes:** If an array or object contains a bytes value (at any nesting depth), `.string()` errors — bytes have no implicit serialization format. Convert bytes explicitly before including them in structures that will be stringified (e.g., use `.encode("base64")` or `.string()` on individual bytes values before embedding them in arrays or objects).
 - **Examples:**
   ```bloblang
   42.string()          # "42" (int64 → string)
@@ -645,6 +645,7 @@ Return a new array with the element at the given index removed. Remaining elemen
   [10, 20, 30].without_index(-1)    # [10, 20]
   [10, 20, 30].without_index(5)     # ERROR: index out of bounds
   ```
+- **Design note:** Unlike `.without()` on objects (which accepts an array of keys), `.without_index()` takes a single index. Chaining multiple `.without_index()` calls is error-prone because indices shift after each removal. To remove multiple elements, use `.filter()` or `.enumerate().filter(...).map(e -> e.value)` instead.
 
 ### `.enumerate()`
 
