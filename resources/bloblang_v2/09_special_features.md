@@ -110,11 +110,17 @@ output.user = {
 # If email not verified, field "email" is removed from object
 ```
 
-**`deleted()` vs void:** These are different concepts. `deleted()` is an active deletion marker that removes elements and fields from collections. Void (from an if-without-else when false, or a match-without-`_` when no case matches) means "no value was produced" and is an **error** in collection literals — use `deleted()`, an `else` branch, or a `_` case instead. Void is only meaningful in assignments, where it causes the assignment to be skipped. See Section 4.1 for full void semantics.
+**`deleted()` vs void:** These are different concepts. `deleted()` is an active deletion marker — it expresses intentional removal. Void means "no value was produced" — it typically indicates a missing code path. This distinction is enforced: `deleted()` is accepted in contexts where removal makes sense (collection literals, `.map()` lambdas), while void is an error in those same contexts, catching the likely bug of a missing `else` branch or `_` case.
 ```bloblang
-output.items = [1, deleted(), 3]          # [1, 3] — deleted: element actively removed
-output.items = [1, if false { 2 }, 3]     # ERROR: void in collection literal
+# In collection literals
+output.items = [1, deleted(), 3]          # [1, 3] — deleted: intentional removal
+output.items = [1, if false { 2 }, 3]     # ERROR: void — missing else branch
+
+# In .map() lambdas
+input.items.map(x -> if x > 0 { x } else { deleted() })  # Negatives removed (intentional)
+input.items.map(x -> if x > 0 { x })                      # ERROR: void when x <= 0 (missing else)
 ```
+See Section 4.1 for full void semantics.
 
 **Nested structures (recursive deletion):**
 ```bloblang

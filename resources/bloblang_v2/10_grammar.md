@@ -2,14 +2,34 @@
 
 **Statement separation:** Statements are separated by newlines. Multiple statements on a single line are not allowed — each statement must begin on its own line. Newlines inside parentheses `()` and brackets `[]` are treated as whitespace and do not produce separator tokens, allowing argument lists, array literals, and grouped expressions to span multiple lines freely. Newlines inside braces `{}` are still significant — they separate statements within block bodies (if/match/map/lambda). In object literals (also delimited by `{}`), entries are comma-separated, so newlines between entries are ignored.
 
-**Postfix continuation:** Newlines are also suppressed when the next line begins with a postfix operator token — `.`, `?.`, `[`, or `?[`. This allows method chains and indexing to span multiple lines without parentheses:
+**Postfix continuation:** Newlines are also suppressed when the next line begins with a postfix operator token — `.`, `?.`, `[`, `?[`, or `else`. This allows method chains, indexing, and if/else chains to span multiple lines without requiring same-line braces:
 ```bloblang
 output.result = input.text
   .trim()
   .lowercase()
   .replace_all(" ", "-")
+
+output.tier = if input.score >= 90 { "gold" }
+else if input.score >= 50 { "silver" }
+else { "bronze" }
 ```
 This is safe because none of these tokens can begin a valid statement (`statement := assignment | if_stmt | match_stmt`), so there is no ambiguity between continuation and a new statement.
+
+**Operator continuation:** Newlines are also suppressed when the preceding non-whitespace token cannot end a complete expression — specifically: binary operators (`+`, `-`, `*`, `/`, `%`, `==`, `!=`, `>`, `>=`, `<`, `<=`, `&&`, `||`), unary operators (`!`, `-`), assignment (`=`), arrows (`=>`, `->`), and colons (`:`). This allows multi-line expressions without requiring parentheses:
+```bloblang
+output.total = input.price +
+  input.tax +
+  input.shipping
+
+output.valid = input.count > 0 &&
+  input.count < 100
+
+output.result =
+  input.items
+    .filter(x -> x > 0)
+    .map(x -> x * 2)
+```
+This is safe because none of these tokens can be the final token of a valid expression — they always require a right-hand operand. A dangling operator caused by a typo (e.g., accidental `+` at end of line) will produce a clear parse error when the next line cannot be parsed as a continuation.
 
 ```
 # --- Lexical: newline handling ---
@@ -22,8 +42,14 @@ This is safe because none of these tokens can begin a valid statement (`statemen
 # tokens between entries are simply consumed as optional whitespace by the
 # comma-separated list productions.
 # Postfix continuation — NL tokens are suppressed when the next non-whitespace
-# token is a postfix operator: '.', '?.', '[', or '?['. This enables multi-line
-# method chains and indexing without requiring parentheses.
+# token is a postfix operator or continuation keyword: '.', '?.', '[', '?[',
+# or 'else'. This enables multi-line method chains, indexing, and if/else
+# chains without requiring same-line braces.
+# Operator continuation — NL tokens are suppressed when the preceding
+# non-whitespace token cannot end a complete expression: binary operators
+# (+, -, *, /, %, ==, !=, >, >=, <, <=, &&, ||), unary operators (!, -),
+# assignment (=), arrows (=>, ->), and colons (:). This enables multi-line
+# binary expressions and assignments without requiring parentheses.
 # Blank lines (consecutive newlines) and trailing newlines are allowed and
 # collapsed — NL means "one or more newline boundaries."
 # A program may optionally begin or end with NL (leading/trailing blank lines).

@@ -62,6 +62,10 @@ input.data[-1]      # Bytes: last byte as int64
 # Family emoji with ZWJ (zero-width joiners)
 "👨‍👩‍👧‍👦"[0]    # 128104 (int64: man 👨)
 "👨‍👩‍👧‍👦"[1]    # 8205 (int64: zero-width joiner)
+
+# Round-trip: index to codepoint, char() back to string
+char("hello"[0])  # "h"
+char("café"[3])   # "é"
 ```
 
 **All string operations are codepoint-based:**
@@ -184,6 +188,8 @@ output.result = input.text
   .lowercase()
   .replace_all(" ", "-")
 ```
+
+**Variable calls:** Variables can be called like functions (`$fn(args)`). The variable must hold a lambda value at runtime — calling a variable that holds any other type is a runtime error.
 
 **Method resolution:** Method names are resolved at compile time against the set of known methods (standard library + implementation extensions). Calling an unknown method is a **compile-time error**. Type compatibility between the receiver and the method is checked at **runtime** (since types are dynamic).
 

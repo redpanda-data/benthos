@@ -131,6 +131,15 @@ output.result = throw("fatal error")  # No .catch(), stops execution
 
 When a `throw()` error is **not caught** by `.catch()`, it halts the entire mapping and no subsequent statements execute.
 
+**Conditional throw in statement context:** To validate input and halt the mapping when a condition fails, use `throw()` on the right-hand side of an assignment inside an if statement. The error propagates past the assignment and halts the mapping — the assignment itself never completes:
+```bloblang
+if input.amount < 0 {
+  output = throw("amount must be non-negative")
+}
+# Execution continues here only if amount >= 0
+output.amount = input.amount
+```
+
 ## 8.5 Null-Safe vs Error-Safe
 
 **Null-safe operators** (`?.`, `?[]`, `?.method()`): Handle `null`, not errors
