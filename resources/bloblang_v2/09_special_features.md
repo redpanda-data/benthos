@@ -177,16 +177,17 @@ map filter_negative(val) {
 output.result = filter_negative(input.value)  # Field deleted if value < 0
 ```
 
-**Operations on `deleted()` are errors (except `.or()`):**
+**Operations on `deleted()` are errors (except `.or()` and `.catch()`):**
 ```bloblang
 deleted() + 5                   # ERROR: cannot perform arithmetic on deleted
 deleted() == deleted()          # ERROR: cannot compare deleted values
 deleted().type()                # ERROR: cannot call methods on deleted value
 deleted()?.field                # ERROR: ?. only short-circuits on null, not deleted
 deleted().or("fallback")        # OK: returns "fallback" (.or() rescues deleted)
+deleted().catch(err -> "x")     # OK: deleted passes through (.catch() not triggered)
 ```
 
-These operations result in **runtime errors**. The sole exception is `.or()`, which rescues `deleted()` the same way it rescues null and void (Section 8.3). **Method chain propagation:** When `deleted()` hits an unsupported method, the method produces an error. That error then propagates through subsequent methods (skipping them) until caught by `.catch()`, following normal error propagation rules (Section 8.2). For example, `deleted().uppercase().catch(err -> "recovered")` errors at `.uppercase()`, then `.catch()` catches the error and returns `"recovered"`.
+These operations result in **runtime errors**. The exceptions are `.or()`, which rescues `deleted()` the same way it rescues null and void (Section 8.3), and `.catch()`, which passes `deleted()` through unchanged (Section 8.2). **Method chain propagation:** When `deleted()` hits an unsupported method, the method produces an error. That error then propagates through subsequent methods (skipping them) until caught by `.catch()`, following normal error propagation rules (Section 8.2). For example, `deleted().uppercase().catch(err -> "recovered")` errors at `.uppercase()`, then `.catch()` catches the error and returns `"recovered"`.
 
 **When deleted() Causes Errors vs Deletion:**
 
