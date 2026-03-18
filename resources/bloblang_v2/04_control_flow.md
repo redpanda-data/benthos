@@ -183,7 +183,7 @@ output.result = match input.x {
 }
 ```
 
-**Sources of void:** Void is produced by an if-expression without a final `else` when no condition is true (including `else if` chains without a final `else`), and by a match expression without `_` when no case matches (Section 4.2). In both cases, void follows the same rules:
+**Sources of void:** Void is produced by an if-expression without a final `else` when no condition is true (including `else if` chains without a final `else`), by a match expression without `_` when no case matches (Section 4.2), and by certain standard library methods when no result exists (e.g., `.find()` when no element matches — see Section 13.6). In all cases, void follows the same rules:
 
 **Summary of void behavior by context:**
 
