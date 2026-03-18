@@ -42,7 +42,7 @@ input.data[-1]      # Bytes: last byte as int64
 **Semantics:**
 - **Objects:** Indexed by string, returns field value (dynamic field access). Non-string indices are an error (no implicit conversion).
 - **Arrays:** Indexed by number, returns element at position. The index value must be a whole number — float values like `2.0` are accepted but `1.5` is a runtime error. Non-numeric indices are an error.
-- **Strings:** Indexed by number (codepoint position), returns int64 (Unicode codepoint value). The same whole-number requirement applies. Negative indices count from the end. Use `char()` to convert back to a string.
+- **Strings:** Indexed by number (codepoint position), returns int64 (Unicode codepoint value). The same whole-number requirement applies. Negative indices count from the end. Use `.char()` to convert back to a string.
 - **Bytes:** Indexed by number (byte position), returns int64 (byte value 0-255). The same whole-number requirement applies. Negative indices count from the end.
 - **All other types** (bool, numeric, null, timestamp, lambda): indexing is a runtime error.
 
@@ -63,9 +63,9 @@ input.data[-1]      # Bytes: last byte as int64
 "👨‍👩‍👧‍👦"[0]    # 128104 (int64: man 👨)
 "👨‍👩‍👧‍👦"[1]    # 8205 (int64: zero-width joiner)
 
-# Round-trip: index to codepoint, char() back to string
-char("hello"[0])  # "h"
-char("café"[3])   # "é"
+# Round-trip: index to codepoint, .char() back to string
+"hello"[0].char()  # "h"
+"café"[3].char()   # "é"
 ```
 
 **All string operations are codepoint-based:**
