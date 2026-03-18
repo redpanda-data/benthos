@@ -726,18 +726,21 @@ Test if all elements satisfy the predicate. Returns `true` for empty arrays. **M
 
 ### `.find(fn)`
 
-Return the first element that satisfies the predicate. **Must** short-circuit — subsequent elements are not evaluated after the first match (this is a required semantic, not an optimization). Error if no element matches — use `.catch()` to handle.
+Return the first element that satisfies the predicate. **Must** short-circuit — subsequent elements are not evaluated after the first match (this is a required semantic, not an optimization). If no element matches, produces **void** — use `.or()` to provide a fallback.
 
-**Design note:** `.find()` errors on no match (rather than returning a sentinel) because there is no natural sentinel value for an arbitrary element — any value (including `null`) could be a legitimate array element. In contrast, `.index_of()` returns `-1` because indices are non-negative integers, making `-1` an unambiguous "not found" sentinel. Use `.catch()` to provide a fallback when no element matches.
+**Design note:** `.find()` produces void on no match (rather than returning `null` or erroring) because `null` could be a legitimate array element, and "no match" is genuinely the absence of a value — exactly what void represents. This is consistent with if-without-else and match-without-`_`, which also produce void when no branch yields a value. In contrast, `.index_of()` returns `-1` because indices are non-negative integers, making `-1` an unambiguous "not found" sentinel.
 
 - **Receiver:** array
 - **Parameters:** `fn` — lambda (one parameter: element → bool)
-- **Returns:** any (the element)
+- **Returns:** any (the element), or void if no element matches
 - **Examples:**
   ```bloblang
-  [1, 2, 3].find(x -> x > 1)                  # 2
-  [1, 2, 3].find(x -> x > 5)                  # ERROR: no match
-  [1, 2, 3].find(x -> x > 5).catch(err -> 0)  # 0
+  [1, 2, 3].find(x -> x > 1)                # 2
+  [1, 2, 3].find(x -> x > 5)                # void (no match)
+  [1, 2, 3].find(x -> x > 5).or(0)          # 0 (void rescued)
+  output.val = [1, 2].find(x -> x > 5)      # assignment skipped (void)
+  $x = [1, 2].find(x -> x > 5)              # ERROR: void in variable declaration
+  $x = [1, 2].find(x -> x > 5).or(0)        # 0
   ```
 
 ### `.join(delimiter)`
@@ -1228,6 +1231,24 @@ Provide a default value for null, void, or `deleted()`. Takes exactly one argume
   some_map(input.value).or("fallback")      # "fallback" if map returned deleted()
   ```
 - **See:** Section 8.3; Section 8.6 for how `.or()` and `.catch()` compose when chained together
+
+### `.not_null(message = "unexpected null value")`
+
+Assert that a value is not null. Returns the value unchanged if it is not null; throws an error with the given message if it is null. This is a concise alternative to `.or(throw("message"))` for null validation.
+
+- **Receiver:** any type (including null)
+- **Parameters:** `message` (string, default `"unexpected null value"`)
+- **Returns:** the receiver value, unchanged (if not null)
+- **Errors:** if the receiver is null, throws an error with the given message
+- **Examples:**
+  ```bloblang
+  "hello".not_null()                          # "hello" (not null, returned as-is)
+  42.not_null()                               # 42
+  null.not_null()                             # ERROR: unexpected null value
+  null.not_null("name is required")           # ERROR: name is required
+  input.name.not_null("name is required")     # value if present, error if null
+  ```
+- **Note:** `.not_null()` is a regular method — it cannot be called on void or `deleted()` (those error before reaching the method). To validate against null, void, and `deleted()` simultaneously, use `.or(throw("message"))` instead (Section 8.3).
 
 ---
 

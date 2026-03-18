@@ -40,6 +40,7 @@ All runtime errors are catchable with `.catch()` — the sole exception is excee
 ```bloblang
 (if false { 1 }).catch(err -> 0)                    # void (catch not triggered, no error occurred)
 (if false { 1 }).string().catch(err -> "boo!")       # "boo!" (.string() errors on void, catch triggers)
+(if false { 1 }).or(0)                               # 0 (to rescue void, use .or() — not .catch())
 ```
 
 **The error object** is a plain object (`{"what": "..."}`) with a single field:
@@ -247,4 +248,7 @@ output.valid = if [ "int32", "int64" ].contains(input.value.type()) {
 } else {
   throw("Value must be a signed integer")
 }
+
+# not_null() - assert non-null
+output.name = input.name.not_null("name is required")
 ```

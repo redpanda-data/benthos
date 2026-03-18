@@ -255,6 +255,8 @@ input.items.map(double -> double * 2)     # double is the parameter, not the map
 
 **Purity:** Lambdas cannot assign to `output` or `output@` (no side effects). Because lambda bodies are expression contexts (Section 3.8), any assignment to a variable name from an outer scope creates a new shadow binding in the lambda scope, leaving the outer variable unchanged.
 
+**Context inheritance:** Lambdas inherit the read permissions of their enclosing context. A top-level lambda can read `input` and `output`; a lambda inside a map body cannot (maps are isolated — Section 5.3). See Section 7.5 for the full scoping rules.
+
 ## 3.5 Conditional Expressions
 
 If and match can be used as expressions (returning a value) or as statements (containing assignments). See Section 4 for full semantics including void behavior, match forms, and the expression/statement distinction.
