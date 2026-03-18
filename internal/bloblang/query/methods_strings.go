@@ -34,6 +34,7 @@ import (
 	"github.com/OneOfOne/xxhash"
 	"github.com/gofrs/uuid/v5"
 	"github.com/tilinna/z85"
+	"golang.org/x/crypto/sha3"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
@@ -796,7 +797,7 @@ var _ = registerSimpleMethod(
 		`
 Hashes a string or byte array according to a chosen algorithm and returns the result as a byte array. When mapping the result to a JSON field the value should be cast to a string using the method `+"xref:guides:bloblang/methods.adoc#string[`string`], or encoded using the method xref:guides:bloblang/methods.adoc#encode[`encode`]"+`, otherwise it will be base64 encoded by default.
 
-Available algorithms are: `+"`hmac_sha1`, `hmac_sha256`, `hmac_sha512`, `md5`, `sha1`, `sha256`, `sha512`, `xxhash64`, `crc32`, `fnv32`"+`.
+Available algorithms are: `+"`hmac_sha1`, `hmac_sha256`, `hmac_sha512`, `md5`, `sha1`, `sha256`, `sha512`, `sha3_256`, `sha3_512`, `xxhash64`, `crc32`, `fnv32`"+`.
 
 The following algorithms require a key, which is specified as a second argument: `+"`hmac_sha1`, `hmac_sha256`, `hmac_sha512`"+`.`,
 		NewExampleSpec("",
@@ -882,6 +883,18 @@ root.h2 = this.value.hash(algorithm: "crc32", polynomial: "Koopman").encode("hex
 		case "sha512":
 			hashFn = func(b []byte) ([]byte, error) {
 				hasher := sha512.New()
+				_, _ = hasher.Write(b)
+				return hasher.Sum(nil), nil
+			}
+		case "sha3_256":
+			hashFn = func(b []byte) ([]byte, error) {
+				hasher := sha3.New256()
+				_, _ = hasher.Write(b)
+				return hasher.Sum(nil), nil
+			}
+		case "sha3_512":
+			hashFn = func(b []byte) ([]byte, error) {
+				hasher := sha3.New512()
 				_, _ = hasher.Write(b)
 				return hasher.Sum(nil), nil
 			}
