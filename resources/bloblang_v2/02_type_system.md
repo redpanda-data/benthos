@@ -254,6 +254,7 @@ input.value.or("default")  # "default" if value is null, void, or deleted()
 - `.float64()` - Convert to float64
 - `.bool()` - Convert to boolean
 - `.bytes()` - Convert to byte array
+- `.char()` - Convert integer codepoint to single-character string
 - `.type()` - Get type name
 
 ```bloblang
@@ -266,6 +267,7 @@ output.f32 = "3.14".float32()           # 3.14 (float32)
 output.f64 = "3.14".float64()           # 3.14 (float64)
 output.bool = "true".bool()             # true
 output.bytes = "hello".bytes()          # byte array
+output.ch = "hello"[0].char()           # "h"
 ```
 
 **Type promotion in arithmetic:** Mixed numeric types are automatically promoted (see Section 2.3). Non-numeric types always require explicit conversion:

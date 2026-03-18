@@ -204,20 +204,21 @@ These operations result in **runtime errors**. The exceptions are `.or()`, which
 - Root output assignment: `output = deleted()` — drops the message and exits the mapping
 - Metadata key assignment: `output@.key = deleted()` — removes the key
 - Variable field assignment: `$var.field = deleted()` — removes the field from the variable's value
+- Array index assignment: `$arr[0] = deleted()`, `output.items[0] = deleted()` — removes the element at the given index and shifts remaining elements down (consistent with `.map()` + `deleted()` and `.without_index()`)
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
 - Lambda return value in the methods that explicitly support it — `.map()`, `.map_values()`, `.map_keys()`, `.map_entries()` (element/entry omitted from result), and `.catch()` (result flows to calling context with normal semantics). All other methods treat `deleted()` lambda returns as runtime errors (see Section 13 preamble)
 
 **Causes runtime error:**
 - Variable assignment: `$var = deleted()` (cannot assign deleted to a variable — variables must always hold a value; see Section 4.1)
-- Array index assignment: `$arr[0] = deleted()`, `output.items[0] = deleted()` (cannot delete array elements by index — the semantics are ambiguous: should remaining elements shift down, or should a gap be left? Use `.without_index(i)` to remove a specific element by index, or `.filter()` to remove elements by condition). However, deleting a **field through** an array index is valid: `output.items[0].name = deleted()` removes the `name` field from the object at index 0 — this is a field deletion, not an array element deletion.
+- Array index assignment with further path: `output.items[0].name = deleted()` removes the `name` field from the object at index 0 — this is a field deletion, not an array element deletion. However, `output.items[0] = deleted()` removes the element itself and shifts remaining elements down (see "Triggers deletion" above).
 - Metadata root assignment: `output@ = deleted()` (cannot delete metadata object)
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls (except `.or()`): `deleted().type()`, `deleted().uppercase()`
 - Used as function arguments: `some_function(deleted())`. This includes `deleted()` that flows indirectly through expressions — e.g., `some_map(match input.x { "remove" => deleted(), _ => input.x })` is a runtime error if the match arm produces `deleted()`
 - Lambda return values in methods that do not support deletion (e.g., `filter`, `sort`). See individual method documentation in Section 13 for which methods support `deleted()` as a lambda return value.
 
-The distinction: `deleted()` is a special marker that triggers deletion when flowing into a field/metadata assignment or collection, but cannot be used as a normal value in computations. Assigning `deleted()` to a variable (`$var = deleted()`) is an error; however, assigning `deleted()` to a field *within* a variable (`$var.field = deleted()`) removes that field from the variable's value. Assigning `deleted()` to an array index (`$arr[0] = deleted()`, `output.items[0] = deleted()`) is an error — use `.without_index(i)` to remove by index or `.filter()` to remove by condition. The sole exception to method restrictions is `.or()`, which rescues `deleted()` and returns its argument (Section 8.3). When `deleted()` flows to the root output assignment, it drops the entire message and immediately exits the mapping.
+The distinction: `deleted()` is a special marker that triggers deletion when flowing into a field/metadata/index assignment or collection, but cannot be used as a normal value in computations. Assigning `deleted()` to a variable (`$var = deleted()`) is an error; however, assigning `deleted()` to a field *within* a variable (`$var.field = deleted()`) removes that field, and assigning `deleted()` to an array index (`$arr[0] = deleted()`) removes the element and shifts remaining elements down. The sole exception to method restrictions is `.or()`, which rescues `deleted()` and returns its argument (Section 8.3). When `deleted()` flows to the root output assignment, it drops the entire message and immediately exits the mapping.
 
 **Routing messages instead of dropping them:**
 
