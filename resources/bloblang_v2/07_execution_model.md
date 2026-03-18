@@ -126,13 +126,12 @@ output@ = 42                   # ERROR: metadata must be an object
 ```
 
 **Types:**
-Metadata values can be any serializable type (string, number, bool, null, bytes, array, object, timestamp). Lambdas cannot be stored in metadata — assigning a lambda to a metadata key is a runtime error (see Section 2.1 for lambda assignment restrictions).
+Metadata values can be any serializable type (string, number, bool, null, bytes, array, object, timestamp).
 ```bloblang
 output@.retry_count = 5
 output@.tags = ["urgent", "customer-service"]
 output@.routing = {"region": "us-west", "priority": 10}
 output@.created_at = now()
-output@.callback = x -> x * 2    # ERROR: lambdas cannot be stored in metadata
 ```
 
 **Nested metadata paths:** Metadata paths support the same auto-creation semantics as output paths (Section 3.7). Assigning to a nested metadata path auto-creates intermediate objects:
@@ -169,19 +168,19 @@ Undefined metadata keys return `null`.
 |---------|--------------|---------------|--------------------------|-------------------|
 | Top-level mapping | ✅ | ✅ | ✅ | ✅ |
 | Map body | ❌ | ❌ | ❌ | ✅ (locally declared only) |
-| Lambda/expression (top-level) | ✅ | ✅ | ❌ | ✅ |
-| Lambda/expression (inside map) | ❌ | ❌ | ❌ | ✅ (map's local variables only) |
+| Expression context (top-level) | ✅ | ✅ | ❌ | ✅ |
+| Expression context (inside map) | ❌ | ❌ | ❌ | ✅ (map's local variables only) |
 | Match `as` binding (top-level) | ✅ | ✅ | ❌ | ✅ |
 | Match `as` binding (inside map) | ❌ | ❌ | ❌ | ✅ (map's local variables only) |
 
-**Key principle:** Map bodies cannot access `input`, `output`, or top-level `$variables` — the only data available inside a map is its parameters and variables declared within the map body. However, closures passed as arguments can carry external references into a map (see Section 5.4). Lambdas and expressions at the top-level can read (but not write) `input` and `output`.
+**Key principle:** Map bodies cannot access `input`, `output`, or top-level `$variables` — the only data available inside a map is its parameters and variables declared within the map body. Inline lambdas and expressions at the top-level can read (but not write) `input` and `output`.
 
 **Examples:**
 ```bloblang
 # Top-level: full access
 output.x = input.y                        # ✅ Read input, write output
 
-# Top-level lambda: can read input/output
+# Top-level inline lambda: can read input/output
 output.items = input.data.map(x -> {
   $multiplier = input.config.multiplier   # ✅ Can read input
   $base = output.base_value               # ✅ Can read output
@@ -326,10 +325,8 @@ output.a = output.b  # null — output.b not yet assigned
 output.b = 42
 ```
 
-**Caution:** This ordering dependency also applies to top-level lambdas that read `output` (Section 7.5). A lambda reading `output` sees its value at the time the statement executes, not at the time the lambda is defined. Ensure the referenced output fields are assigned before the statement that uses them:
+This includes inline lambdas in method arguments — a lambda reading `output` sees its value at the time the enclosing statement executes:
 ```bloblang
 output.multiplier = input.rate
 output.items = input.data.map(x -> x * output.multiplier)  # OK: multiplier already assigned
-
-# Swapping these two lines would make output.multiplier null inside the lambda
 ```

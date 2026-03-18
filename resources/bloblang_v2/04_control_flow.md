@@ -104,7 +104,7 @@ output.field2 = if false { "value" }    # Void: field doesn't exist (no prior as
 # JSON output: {"field1": null} (field2 omitted)
 ```
 
-**Void and lambdas in collection literals (array and object):** Void is an **error** in collection literals. Use `deleted()` to conditionally omit elements/fields, or add an `else` branch to provide a value in all cases. Lambdas are also an **error** in collection literals — they cannot appear as elements or values (see Section 2.1).
+**Void in collection literals (array and object):** Void is an **error** in collection literals. Use `deleted()` to conditionally omit elements/fields, or add an `else` branch to provide a value in all cases.
 ```bloblang
 # Arrays
 output.items = [1, if false { 2 }, 3]                        # ERROR: void in array literal

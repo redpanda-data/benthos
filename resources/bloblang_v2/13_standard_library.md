@@ -2,7 +2,7 @@
 
 All implementations must provide these functions and methods. This is the complete required standard library — implementations may offer additional functions and methods beyond this list.
 
-**First-class values:** Standard library functions share the same namespace as user-defined maps. A function name used without parentheses evaluates to a lambda value (Section 5.5). User-defined maps shadow standard library functions of the same name. Resolution priority: parameters > maps > standard library functions.
+**Namespace sharing:** Standard library functions share the same namespace as user-defined maps. User-defined maps shadow standard library functions of the same name. Resolution priority: parameters > maps > standard library functions. Like map names, standard library function names without parentheses can be passed as arguments to higher-order methods (e.g., `.sort_by(abs)`) but cannot be used as general-purpose expressions or stored in variables (Section 5.5).
 
 **Named arguments and arity:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps (Section 5.3): positional and named arguments cannot be mixed in the same call, duplicate named arguments are a compile-time error, and extra, missing, or mismatched arguments are errors.
 
@@ -156,7 +156,7 @@ These are the only way to create non-default numeric types, since literals are a
 
 Convert a value to its string representation.
 
-- **Receiver:** any type (except lambda — error)
+- **Receiver:** any type
 - **Returns:** string
 - **Conversion rules:**
   - Integer types: decimal representation (`42` → `"42"`, `-10` → `"-10"`)
@@ -272,7 +272,7 @@ Convert an integer (Unicode codepoint) to a single-character string. This is the
 
 Convert a value to a byte array. For strings, returns the UTF-8 encoding. For all other supported types, equivalent to `.string().bytes()` (UTF-8 encoding of the string representation).
 
-- **Receiver:** any type (except lambda — error)
+- **Receiver:** any type
 - **Returns:** bytes
 - **Conversion rules:**
   - String: UTF-8 encoding
@@ -296,7 +296,7 @@ Convert a value to a byte array. For strings, returns the UTF-8 encoding. For al
 Return the type name of a value as a string. Works on any type including null.
 
 - **Receiver:** any type (including null)
-- **Returns:** string — one of `"string"`, `"int32"`, `"int64"`, `"uint32"`, `"uint64"`, `"float32"`, `"float64"`, `"bool"`, `"null"`, `"bytes"`, `"timestamp"`, `"array"`, `"object"`, `"lambda"`
+- **Returns:** string — one of `"string"`, `"int32"`, `"int64"`, `"uint32"`, `"uint64"`, `"float32"`, `"float64"`, `"bool"`, `"null"`, `"bytes"`, `"timestamp"`, `"array"`, `"object"`
 - **Examples:**
   ```bloblang
   "hello".type()       # "string"
@@ -594,7 +594,7 @@ Sort an array in ascending order. Sort is **stable** (equal elements preserve re
 - **String**: compared lexicographically by Unicode codepoint
 - **Timestamp**: compared chronologically
 
-Bool, null, bytes, array, object, and lambda are not sortable — an array containing these types will error. Cross-family mixing (e.g., numbers with strings) is also an error.
+Bool, null, bytes, array, and object are not sortable — an array containing these types will error. Cross-family mixing (e.g., numbers with strings) is also an error.
 
 **NaN ordering:** NaN values sort after all other numeric values (including Infinity). This follows the total ordering convention used by Go and Java rather than IEEE 754 comparison semantics. Multiple NaN values maintain their relative order (stable sort).
 
@@ -1255,13 +1255,13 @@ Parse a JSON string into a value. Errors if the string is not valid JSON.
 
 Serialize a value to a JSON string. Object keys are sorted lexicographically by Unicode codepoint value (consistent with string comparison semantics in Section 2.3). Timestamp values are formatted as RFC 3339 strings (Section 2.3). **Note:** Since object key ordering is not preserved (Section 2.3) and keys are sorted on output, `.parse_json().format_json()` may produce different key ordering than the original JSON string.
 
-- **Receiver:** any type (except lambda and bytes)
+- **Receiver:** any type (except bytes)
 - **Parameters:**
   - `indent` (string, default `""`) — Indentation string. When non-empty, each element in a JSON object or array begins on a new line, indented with one or more copies of this string according to nesting depth.
   - `no_indent` (bool, default `false`) — Disable indentation entirely, overriding `indent`. Produces compact output with no extra whitespace.
   - `escape_html` (bool, default `true`) — Escape HTML-sensitive characters (`<`, `>`, `&`) as Unicode escape sequences in strings.
 - **Returns:** string
-- **Errors:** if the value is or contains a lambda or bytes value (at any nesting depth). Bytes have no implicit JSON serialization — use `.encode("base64")` or `.encode("hex")` before serializing. NaN and Infinity float values also error (not representable in JSON).
+- **Errors:** if the value is or contains a bytes value (at any nesting depth). Bytes have no implicit JSON serialization — use `.encode("base64")` or `.encode("hex")` before serializing. NaN and Infinity float values also error (not representable in JSON).
 - **Numeric serialization:**
   - Integer types (int32, int64, uint32, uint64): serialized as JSON integers (no decimal point, no quotes). Large uint64 values (> 2^53) are serialized as-is — the JSON spec imposes no range limit, though consumers using float64 may lose precision.
   - Float types (float32, float64): serialized as any shortest decimal representation that round-trips exactly, always including either a decimal point or exponent to distinguish from integer serialization. This matches `.string()` behavior (including the cross-implementation note) and ensures that `.format_json()` → `.parse_json()` preserves the float type. Exponent notation is permitted (e.g., `1e+06`).

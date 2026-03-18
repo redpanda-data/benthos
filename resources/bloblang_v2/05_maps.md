@@ -116,11 +116,10 @@ output = walk_tree(input)
 
 ## 5.3 Parameter Semantics
 
-- **Maps have restricted scope** — they can only access their parameters and variables declared within the map body. They cannot access `input`, `output`, or top-level `$variables`. Note that closures passed as arguments can still carry external references (see Section 5.4).
-- Parameters are **read-only** - they cannot be reassigned or used as assignment targets
+- **Maps are isolated** — they can only access their parameters and variables declared within the map body. They cannot access `input`, `output`, or top-level `$variables`. The result is determined entirely by the parameter values.
+- Parameters are **read-only** — they cannot be reassigned or used as assignment targets
 - Parameters are available as bare identifiers within the map body (e.g., `data.field`)
 - Variables declared within maps (using `$`) can be reassigned
-- Maps are isolated: the map body has no access to external state (`input`, `output`, top-level variables). The result is determined by the parameter values, but note that closures passed as arguments may carry captured mutable state (Section 3.4), so the same lambda value can produce different results across calls
 - **Discard parameters (`_`):** `_` can be used as a parameter name to accept and ignore an argument. It is not bound — referencing `_` in the body is a compile error. Multiple `_` parameters are allowed in the same parameter list. Discard parameters cannot have defaults.
 - Call with positional arguments (match order) or named arguments (match names)
 - **Cannot mix** positional and named arguments in the same call
@@ -152,13 +151,9 @@ map transform(math) {
 
 ## 5.4 Scope Restrictions
 
-Map bodies cannot access `input`, `output`, or top-level `$variables`. The only data available inside a map is its parameters and variables declared within the map body. To use external context, pass it as a parameter:
+To use external context inside a map, pass it as a parameter:
 
 ```bloblang
-map transform(data) {
-  data.value * 2           # ✅ Valid
-}
-
 # ❌ Cannot access input inside a map
 map invalid(items) {
   items.map(x -> x * input.multiplier)   # ERROR: cannot access input
@@ -171,21 +166,9 @@ map scale(items, multiplier) {
 output.result = scale(input.items, input.multiplier)
 ```
 
-**Note on closures:** These restrictions apply to the map body's own code — but closures passed as arguments can carry captured mutable references into a map. The map body has no direct access to the captured variables, but the closure can read and mutate them. This means a closure passed to a map can produce different results if its captured state changes between calls.
-```bloblang
-$multiplier = 2
-$fn = x -> x * $multiplier
+## 5.5 Maps as Method Arguments
 
-map apply(data, callback) { callback(data) }
-
-output.a = apply(5, $fn)  # 10
-$multiplier = 3
-output.b = apply(5, $fn)  # 15 — $fn's captured $multiplier changed
-```
-
-## 5.5 Maps as Values
-
-Maps and standard library functions are **first-class values** — a map name or standard library function name used without parentheses evaluates to a lambda value. This allows them to be passed as arguments, stored in variables, and used anywhere a lambda is expected.
+Map names, namespace-qualified references, and standard library function names can be passed directly to higher-order methods like `.map()`, `.filter()`, and `.sort_by()`. The compiler resolves the name to the definition at compile time — this is syntactic sugar for an inline lambda that calls the map/function, not a runtime value.
 
 ```bloblang
 map double(x) { x * 2 }
@@ -193,42 +176,16 @@ map double(x) { x * 2 }
 # Pass map directly to higher-order methods
 output.doubled = input.items.map(double)          # Same as: map(x -> double(x))
 
-# Store map in a variable
-$fn = double
-output.result = $fn(21)                                 # 42
-
-# Standard library functions are also first-class values
-output.ids = input.items.map(x -> uuid_v4())      # Call in lambda
-$generator = uuid_v4                               # Store stdlib function as value
-output.id = $generator()                           # Call via variable
-
-# Namespace-qualified references also work as values
+# Namespace-qualified references also work
 import "./math.blobl" as math
 output.results = input.items.map(math::double)    # Same as: map(x -> math::double(x))
-$fn = math::double
-output.result = $fn(21)                                 # 42
 ```
 
-**Type:** Map and standard library function references evaluate to `lambda`. Their `.type()` returns `"lambda"`.
-
-**Note:** Name references are resolved at compile time and produce lambda values directly — they are not "returned from" a call. This does not violate the lambda return restriction (Section 2.1), which applies to the *result of calling* a map, function, or lambda at runtime.
-
-**Cannot return lambdas:** Maps (and lambdas) cannot return lambda values — if a map body produces a lambda as its result, this is a runtime error. Lambdas are for parameterizing operations, not for building higher-order call chains. See Section 2.1 for full lambda restrictions.
+These names are **compile-time references**, not runtime values. They cannot be stored in variables or used as general-purpose expressions:
+```bloblang
+$fn = double              # ERROR: cannot store a map reference in a variable
+$fn = math::double        # ERROR: cannot store a namespace reference in a variable
+output.x = double         # ERROR: bare map name is not a valid expression here
+```
 
 **Void from map bodies:** If a map body's final expression is an if-without-else or match-without-`_`, the map can produce void when the condition is false or no case matches. Void from a map call follows the same propagation rules as void from any other expression (Section 4.1) — it will be a runtime error in most calling contexts (variable declarations, collection literals, function arguments, etc.). To avoid this, always include an `else` branch or `_` case in a map body's final expression.
-
-**Parameter info preserved:** Named arguments, defaults, and arity are preserved when a map is used as a value:
-```bloblang
-map greet(name, greeting = "Hello") { greeting + ", " + name }
-
-$fn = greet
-output.a = $fn("Alice")                   # "Hello, Alice"
-output.b = $fn(name: "Alice")             # "Hello, Alice"
-output.c = $fn("Alice", "Hi")             # "Hi, Alice"
-```
-
-**Shadowing:** Parameter names shadow map and standard library function names within map and lambda bodies (Section 5.3). A bare identifier always resolves to the innermost binding — parameter first, then map name, then standard library function:
-```bloblang
-map double(x) { x * 2 }
-input.items.map(double -> double + 1)   # 'double' is the parameter, not the map
-```

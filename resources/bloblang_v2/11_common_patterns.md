@@ -138,22 +138,3 @@ output.timestamp = match input.date_format {
 }
 ```
 
-## Pitfall: Lambda Capture in Loops
-
-Lambdas capture variables by reference (late binding) — they see the variable's value at invocation time, not at creation time. This can surprise you when building lambdas in a loop-like pattern:
-
-```bloblang
-# BUG: all three lambdas see the final value of $multiplier (3)
-$multiplier = 1
-$fn1 = x -> x * $multiplier
-$multiplier = 2
-$fn2 = x -> x * $multiplier
-$multiplier = 3
-$fn3 = x -> x * $multiplier
-
-output.a = $fn1(10)  # 30 (not 10!) — $multiplier is 3 when $fn1 runs
-output.b = $fn2(10)  # 30 (not 20!)
-output.c = $fn3(10)  # 30
-```
-
-Also remember that assignments inside a lambda shadow the outer variable rather than modifying it (Section 3.4). This means reads and writes are asymmetric: reads see the outer scope's current value, but writes create a local copy.

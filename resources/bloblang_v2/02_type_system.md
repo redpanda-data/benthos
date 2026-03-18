@@ -19,28 +19,12 @@ Bloblang V2 is **dynamically typed** - types determined at runtime.
 | `array` | Ordered collection | `[1, "two", true]` |
 | `object` | Key-value map | `{"key": "value"}` |
 | `timestamp` | Point in time with nanosecond precision | `now()`, `"2024-03-01".ts_parse("%Y-%m-%d")` |
-| `lambda` | Function value (see assignment restrictions below) | `x -> x * 2` |
 
 **Large uint64 values:** Integer literals are always int64, so values exceeding int64 range (> 9223372036854775807) cannot be written as bare literals. To create large uint64 values, parse from a string: `"18446744073709551615".uint64()`. Writing the value as a bare literal (e.g., `18446744073709551615.uint64()`) is a compile error because the literal exceeds int64 range before the conversion method is applied.
 
 **Important:** String operations (indexing, `.length()`, etc.) work on **Unicode codepoints**, not grapheme clusters. This means complex emoji and combining characters may span multiple codepoints. Byte operations work on individual bytes in the UTF-8 encoding.
 
 **No Unicode normalization:** Strings are compared codepoint-by-codepoint without normalization. Different Unicode representations of the same visual character (e.g., precomposed `é` U+00E9 vs decomposed `e` U+0065 + `◌́` U+0301) are **not equal** and may have different `.length()` values. This matches the behavior of Go, Rust, and most systems languages. If input data may contain mixed normalization forms, use an explicit normalization step before comparison.
-
-**Lambda restrictions:** Lambdas are computation values, not data values — they cannot be serialized or returned from calls.
-
-*Assignment:* The only valid assignment target for a lambda is a plain variable (`$fn = x -> x * 2`). Assigning a lambda to any other target is a runtime error:
-- `output.field = lambda` — error
-- `output@.key = lambda` — error
-- `$var.field = lambda` — error (nested field of a variable)
-
-*Collection literals:* Lambdas cannot appear inside array or object literals. This is a runtime error regardless of the assignment target:
-- `[x -> x * 2]` — error
-- `{"fn": x -> x}` — error
-
-*Return values:* Maps, lambdas, functions, and methods cannot return lambda values. If a map body, lambda body, or method produces a lambda as its result, this is a runtime error. Lambdas can be passed as arguments (e.g., `.map(x -> x * 2)`) and stored in plain variables, but they cannot flow out of a call as a return value.
-
-These restrictions ensure that lambdas remain in the computation domain — they are used to parameterize operations, not to build data structures or create higher-order call chains.
 
 **Void:** Void is not a runtime type — it is the absence of a value, produced when an if-expression without `else` has a false condition, or when a match expression without `_` has no matching case (Section 4.1). Void cannot be stored in variables, passed as arguments, used in expressions, or included in collection literals (all are errors). It only exists transiently to signal "no value was produced," and is only meaningful in assignments where it causes the assignment to be skipped (a no-op). The exceptions are `.or()`, which rescues void by returning its argument (Section 8.3), and `.catch()`, which passes void through unchanged (Section 8.2). All other method calls on void are errors — e.g., `.type()` on void is not possible. See Section 4.1 for full void semantics.
 
@@ -165,11 +149,11 @@ output.ok = 9223372036854775807.uint64() + 1.uint64()  # 9223372036854775808 (ui
 
 **Equality Semantics:**
 
-For non-numeric types, both type and value must match for equality to return `true`. Strings compare codepoint-by-codepoint, bytes compare byte-by-byte, arrays compare element-by-element, and objects compare by key-value pairs regardless of key order. Different non-numeric types always return `false` (not an error). **Exception:** lambdas cannot be compared for equality — any `==` or `!=` with a lambda operand is a runtime error.
+For non-numeric types, both type and value must match for equality to return `true`. Strings compare codepoint-by-codepoint, bytes compare byte-by-byte, arrays compare element-by-element, and objects compare by key-value pairs regardless of key order. Different non-numeric types always return `false` (not an error).
 
 For numeric types, the same promotion rules used for arithmetic apply before comparison. Both operands are promoted to a common numeric type, then compared by value. This means `5 == 5.0` is `true` (int64 promoted to float64, values match).
 
-Cross-family comparisons (numeric vs non-numeric) always return `false` (except lambdas, which error).
+Cross-family comparisons (numeric vs non-numeric) always return `false`.
 
 ```bloblang
 # Numeric equality: promotion rules applied
@@ -194,9 +178,6 @@ null == 0            # false (null vs numeric)
 [1, 2] == [2, 1]     # false (different order — arrays are ordered)
 {"a": 1} == {"a": 1} # true (same keys and values)
 {"a": 1, "b": 2} == {"b": 2, "a": 1}  # true (key order irrelevant for objects)
-
-# Lambdas: equality is an error
-(x -> x) == (x -> x) # ERROR: lambdas cannot be compared for equality
 ```
 
 **Object key ordering:** Object key ordering is **not preserved**. Programs must not depend on iteration order in `.iter()`, JSON serialization order, or any other context where keys are enumerated. Object equality compares keys and values regardless of order.

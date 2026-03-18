@@ -122,7 +122,7 @@ I propose introducing **Bloblang V2**: a redesigned version of the language with
 ### Key Language Improvements
 
 - **Explicit contexts**: `input`/`output` replace overloaded `this`/`root`
-- **Expanded type system**: explicit timestamps, lambdas, and multiple integer/float widths (see Section 2.1)
+- **Expanded type system**: explicit timestamps, explicit lambda parameters for methods, and multiple integer/float widths (see Section 2.1)
 - **Null-safe navigation**: `?.` and `?[]` operators
 - **Isolated maps with parameters**: maps become proper functions — no implicit access to input/output context
 - **Namespace imports**: `import "./utils.blobl" as utils` with `utils::function()` syntax

@@ -13,7 +13,9 @@ Access nested data: `input.user.email`, `output.result.id`
 
 **Important:** Bare identifiers (parameters and match bindings) are read-only and can only be used in expressions on the right-hand side. They cannot be assigned to.
 
-**Name resolution:** Every bare identifier in an expression must resolve to a bound name — a map parameter, lambda parameter, match `as` binding, map name, or standard library function name. Namespace-qualified references (`namespace::name`) also resolve to map values. An unresolved bare identifier is a **compile-time error**. This catches typos like `inpt.field` (instead of `input.field`) at compile time rather than allowing them to parse and fail later. Resolution priority (innermost wins): parameters > maps > standard library functions. User-defined maps shadow standard library functions of the same name. See Section 5.5 for using maps and standard library functions as values.
+**Name resolution:** Every bare identifier in an expression must resolve to a bound name — a map parameter, lambda parameter, match `as` binding, map name, or standard library function name. Namespace-qualified references (`namespace::name`) also resolve to maps from imported modules. An unresolved bare identifier is a **compile-time error**. This catches typos like `inpt.field` (instead of `input.field`) at compile time rather than allowing them to parse and fail later. Resolution priority (innermost wins): parameters > maps > standard library functions. User-defined maps shadow standard library functions of the same name.
+
+**Map and function name references:** When a bare identifier or qualified name resolves to a map or standard library function, it is only valid in two contexts: (1) as a call with parentheses — `double(x)`, `math::double(x)` — or (2) as an argument to a higher-order method — `.map(double)`, `.filter(math::is_positive)`. Using a map or function name as a general-purpose expression (e.g., `output.x = double`, `$fn = uuid_v4`) is a **compile-time error**. See Section 5.5 for details.
 
 **Field names:** Keywords are valid as field names without quoting — `input.map`, `output.if`, `data.match` all work. Use `."quoted"` for fields with special characters, spaces, or names starting with digits:
 ```bloblang
@@ -44,7 +46,7 @@ input.data[-1]      # Bytes: last byte as int64
 - **Arrays:** Indexed by number, returns element at position. The index value must be a whole number — float values like `2.0` are accepted but `1.5` is a runtime error. Non-numeric indices are an error.
 - **Strings:** Indexed by number (codepoint position), returns int64 (Unicode codepoint value). The same whole-number requirement applies. Negative indices count from the end. Use `.char()` to convert back to a string.
 - **Bytes:** Indexed by number (byte position), returns int64 (byte value 0-255). The same whole-number requirement applies. Negative indices count from the end.
-- **All other types** (bool, numeric, null, timestamp, lambda): indexing is a runtime error.
+- **All other types** (bool, numeric, null, timestamp): indexing is a runtime error.
 
 **String indexing is codepoint-based, not grapheme-based:**
 ```bloblang
@@ -123,7 +125,7 @@ null?.uppercase()           # null (short-circuited: value is null)
 - **Left-associative:** Arithmetic (`+`, `-`, `*`, `/`, `%`), Logical (`&&`, `||`)
 - **Non-associative:** Comparison (`>`, `>=`, `<`, `<=`), Equality (`==`, `!=`)
 
-**Lambda arrow (`->`):** The `->` token is not a binary operator and does not participate in the precedence hierarchy. A lambda is recognized by its distinct prefix — `identifier ->` or `(params) ->` — which the parser can identify before any precedence comparison. The arrow then consumes the entire right-hand side as the lambda body. For example, `x -> x + 1` parses as `x -> (x + 1)`, and `5 + x -> x * 2` parses as `5 + (x -> x * 2)` (a type error at runtime, since you cannot add a number and a lambda).
+**Lambda arrow (`->`):** The `->` token is not a binary operator and does not participate in the precedence hierarchy. A lambda is recognized by its distinct prefix — `identifier ->` or `(params) ->` — which the parser can identify before any precedence comparison. The arrow then consumes the entire right-hand side as the lambda body. For example, `x -> x + 1` parses as `x -> (x + 1)`, and `5 + x -> x * 2` parses as `5 + (x -> x * 2)` (an error, since a lambda is only valid as a method argument).
 
 ```bloblang
 # Precedence examples
@@ -157,7 +159,7 @@ output.time = now()
 output.roll = random_int(1, 6)
 ```
 
-**Named arguments:** Functions, user maps, and lambdas support named arguments:
+**Named arguments:** Functions and user maps support named arguments:
 ```bloblang
 # Positional (order matters)
 output.result = some_function(arg1, arg2, arg3)
@@ -189,8 +191,6 @@ output.result = input.text
   .replace_all(" ", "-")
 ```
 
-**Variable calls:** Variables can be called like functions (`$fn(args)`). The variable must hold a lambda value at runtime — calling a variable that holds any other type is a runtime error.
-
 **Method resolution:** Method names are resolved at compile time against the set of known methods (standard library + implementation extensions). Calling an unknown method is a **compile-time error**. Type compatibility between the receiver and the method is checked at **runtime** (since types are dynamic).
 
 ```bloblang
@@ -206,6 +206,8 @@ input.value.type()          # Works on any type including null
 ```
 
 ## 3.4 Lambda Expressions
+
+Lambdas are inline syntax for method arguments — they are not values that can be stored in variables. `$fn = x -> x * 2` is not valid. For reusable transforms, use named maps (Section 5).
 
 Lambda parameters are **read-only** and available as bare identifiers within the lambda body.
 
@@ -238,43 +240,12 @@ input.data.map_entries((_, v) -> v * 2)            # Discard key, use value
 input.items.fold(0, (_, elem) -> elem.value)       # Discard accumulator
 
 # Multiple discards allowed
-$ignore_both = (_, _) -> "constant"
+input.data.map_entries((_, _) -> "constant")
 ```
 
-`_` as a parameter means "this argument is required by the call signature but unused." It is not bound — referencing `_` in the body is a compile error (it remains a keyword). Multiple `_` parameters are allowed in the same parameter list. Functions with `_` parameters can only be called positionally — named calls are a compile error since `_` has no name to target.
+`_` as a parameter means "this argument is required by the call signature but unused." It is not bound — referencing `_` in the body is a compile error (it remains a keyword). Multiple `_` parameters are allowed in the same parameter list.
 
-**Default parameters:**
-```bloblang
-$greet = (name, greeting = "Hello") -> greeting + ", " + name
-output.a = $greet("Alice")                  # "Hello, Alice"
-output.b = $greet("Alice", "Hi")            # "Hi, Alice"
-output.c = $greet(name: "Alice")            # "Hello, Alice"
-output.d = $greet(name: "Alice", greeting: "Hey")  # "Hey, Alice"
-```
-
-Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`). Discard parameters (`_`) cannot have defaults.
-
-**First-class (stored in variables):**
-```bloblang
-$add = (a, b) -> a + b
-$double = x -> x * 2
-
-# Positional arguments
-output.sum = $add(5, 10)
-output.doubled = input.items.map($double)
-
-# Named arguments
-output.sum = $add(a: 5, b: 10)
-output.sum = $add(b: 10, a: 5)  # Order doesn't matter with named args
-```
-
-**Closure capture:** Lambdas observe variables from their enclosing scope — if a closed-over variable is reassigned after the lambda is created, the lambda sees the new value when invoked. However, lambdas cannot modify captured variables: assignments to a captured variable name create a new shadow binding in the lambda scope, leaving the outer variable unchanged (see below).
-```bloblang
-$x = 1
-$fn = y -> y + $x
-$x = 2
-output.result = $fn(10)    # 12: $fn sees the current value of $x (2), not the value at creation (1)
-```
+**Default parameters:** Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`). Discard parameters (`_`) cannot have defaults. Default parameters follow the same rules as in maps (Section 5.1).
 
 **Parameter shadowing:** Lambda parameter names shadow any map names with the same name within the lambda body. The parameter always wins. Imported namespaces are not affected since they use `::` syntax.
 ```bloblang
@@ -282,17 +253,7 @@ map double(x) { x * 2 }
 input.items.map(double -> double * 2)     # double is the parameter, not the map
 ```
 
-**Purity:** Lambdas cannot assign to `output` or `output@` (no side effects). Additionally, lambdas cannot mutate captured variables — because lambda bodies are expression contexts (Section 3.8), any assignment to a captured variable name creates a new shadow binding in the lambda scope, leaving the outer variable unchanged. This is a key semantic guarantee: lambda invocation has no effect on the caller's variables.
-
-```bloblang
-$x = 1
-$fn = y -> {
-  $x = 100    # Shadows outer $x — creates a NEW $x in the lambda scope
-  y + $x      # Uses local $x (100)
-}
-output.result = $fn(10)  # 110
-output.x = $x            # 1 (outer $x unchanged)
-```
+**Purity:** Lambdas cannot assign to `output` or `output@` (no side effects). Because lambda bodies are expression contexts (Section 3.8), any assignment to a variable name from an outer scope creates a new shadow binding in the lambda scope, leaving the outer variable unchanged.
 
 ## 3.5 Conditional Expressions
 
@@ -434,7 +395,7 @@ $snap = output.user
 output.user.name = "changed"          # $snap unaffected
 ```
 
-Variable path assignment (`$var.field = expr`) is available in all contexts — both statement contexts (top-level, if/match statement bodies) and expression contexts (if/match expressions, lambdas, map bodies). In expression contexts, only variable assignments are allowed (no `output` assignments).
+Variable path assignment (`$var.field = expr`) is available in all contexts — both statement contexts (top-level, if/match statement bodies) and expression contexts (if/match expressions, lambda bodies, map bodies). In expression contexts, only variable assignments are allowed (no `output` assignments).
 
 Variables are **block-scoped** with shadowing support (inner blocks can declare new variables with the same name).
 
@@ -454,7 +415,7 @@ output = deleted()               # Drop message, exit mapping
 
 Variables are block-scoped with different rules for **statement** and **expression** contexts:
 
-**In expression contexts** (if/match expressions, lambdas, map bodies): assigning to a variable name that exists in an outer scope **shadows** it — a new variable is created in the inner scope, and the outer variable is unchanged. This preserves the functional, side-effect-free nature of expressions.
+**In expression contexts** (if/match expressions, lambda bodies, map bodies): assigning to a variable name that exists in an outer scope **shadows** it — a new variable is created in the inner scope, and the outer variable is unchanged. This preserves the functional, side-effect-free nature of expressions.
 
 ```bloblang
 $x = 1
