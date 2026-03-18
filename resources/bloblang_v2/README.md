@@ -79,7 +79,7 @@ output.result = utils::transform(input.data)
 - **Explicit type coercion:** No implicit conversion
 - **Function-style maps:** Called as `name(arg)` or `namespace::name(arg)`
 - **Namespace imports:** `import "..." as name`
-- **First-class lambdas:** Multi-param, multi-statement
+- **Lambda syntax:** Multi-param, multi-statement, for method arguments and map bodies
 
 ## For Implementers
 
@@ -90,15 +90,4 @@ See **Section 12: Implementation Guide** for:
 
 See **Section 13: Standard Library** for:
 - Complete reference of all required functions and methods
-
----
-
-## Review Process (for AI agents)
-
-This spec is maintained through iterative review with an AI agent. To run a review cycle:
-
-1. **Audit** — Read the full spec and review it for inconsistencies, ambiguities, and ergonomic issues. Write findings into a `REVIEW.md` file, ordered by severity, so they can be addressed one at a time.
-2. **Resolve** — With the spec in context, walk through each review item. For each item, present an explanation of the issue along with proposed solutions to choose from. After each item is addressed, re-review the changes against the spec to ensure no new issues were introduced, then mark the item as resolved in `REVIEW.md`.
-3. **Final pass** — Once all items are resolved, perform a full review of the spec with respect to the changes made. Address any remaining concerns. Repeat this step until no issues are found.
-4. **Clean up** — Delete `REVIEW.md`, confirm the changes are acceptable, and commit.
 
