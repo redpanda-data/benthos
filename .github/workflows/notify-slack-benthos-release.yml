@@ -1,0 +1,59 @@
+# .github/workflows/notify-slack-release.yml
+#
+# Posts the changelog from a GitHub Release to a Slack channel
+# using the official Slack GitHub Action with an incoming webhook.
+#
+# Prerequisites:
+#   1. Create a Slack app with Incoming Webhooks enabled
+#   2. Store the webhook URL as a repo secret: SLACK_WEBHOOK_URL
+
+name: Post Release Changelog to Slack
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    # skip pre-releases
+    if: "!github.event.release.prerelease"
+    steps:
+      - name: Post changelog to Slack
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "New Benthos release: ${{ github.event.release.tag_name }}"
+            blocks:
+              - type: "header"
+                text:
+                  type: "plain_text"
+                  text: ":green_alert: Benthos ${{ github.event.release.tag_name }}"
+                  emoji: true
+              - type: "section"
+                fields:
+                  - type: "mrkdwn"
+                    text: "*Release:*\n<${{ github.event.release.html_url }}|${{ github.event.release.tag_name }}>"
+                  - type: "mrkdwn"
+                    text: "*Author:*\n${{ github.event.release.author.login }}"
+              - type: "divider"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "${{ github.event.release.body }}"
+              - type: "actions"
+                elements:
+                  - type: "button"
+                    text:
+                      type: "plain_text"
+                      text: ":github: View Release"
+                      emoji: true
+                    url: "${{ github.event.release.html_url }}"
+                  - type: "button"
+                    text:
+                      type: "plain_text"
+                      text: ":page_facing_up: Full Changelog"
+                      emoji: true
+                    url: "${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.release.tag_name }}"
