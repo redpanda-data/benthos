@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.69.0 - 2026-03-19
+
+### Added
+
+- Bloblang: The `hash` method now supports `sha3_256` and `sha3_512` algorithms. (@prakhargarg105)
+
 ## 4.68.0 - 2026-03-13
 
 ### Added

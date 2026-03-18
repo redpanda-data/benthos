@@ -819,6 +819,22 @@ func TestMethods(t *testing.T) {
 			),
 			output: `fd5d5ed60b96e820ebaace4fed962a401adefd3e89c51a374f0bb7f49ed02892af8bc8591628dcbc8b5f065df6bb06588cba95d488c1c8b88faa7cbe08e4558d`,
 		},
+		"check sha3_256 hash": {
+			input: methods(
+				literalFn("hello world"),
+				method("hash", "sha3_256"),
+				method("encode", "hex"),
+			),
+			output: `644bcc7e564373040999aac89e7622f3ca71fba1d972fd94a31c3bfbf24e3938`,
+		},
+		"check sha3_512 hash": {
+			input: methods(
+				literalFn("hello world"),
+				method("hash", "sha3_512"),
+				method("encode", "hex"),
+			),
+			output: `840006653e9ac9e95117a15c915caab81662918e925de9e004f774ff82d7079a40d4d27b1b372657c61d46d470304c88c788b3a4527ad074d1dccbee5dbaa99a`,
+		},
 		"check xxhash64 hash": {
 			input: methods(
 				literalFn("hello world"),
