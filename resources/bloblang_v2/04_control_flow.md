@@ -45,7 +45,7 @@ if input.type == "admin" {
 
 **Distinction:**
 - **Expression:** Used in assignment context, contains pure expressions (no `output`/`output@` assignments)
-- **Statement:** Standalone, contains `output`/`output@` assignments, **cannot end with expression** (parse error)
+- **Statement:** Standalone, contains `output`/`output@` assignments, **cannot end with expression** (parse error). Empty statement bodies (e.g., `if condition { }`) are valid and are no-ops.
 
 **Parsing disambiguation:** The syntactic context determines which form:
 - **If statement:** Top-level in mapping, or inside another statement body (where `output` assignments are allowed)
@@ -254,7 +254,7 @@ match input.type() {
 
 **Parsing disambiguation:** Like `if`, the syntactic context determines statement vs expression form. Match statements are only valid at top-level or inside other statement bodies.
 
-**Case body syntax:** Expression match cases allow either a bare expression or a braced body (`"cat" => "meow"` or `"cat" => { $x = "me"; $x + "ow" }`). Statement match cases always require braces (`"cat" => { output.sound = "meow" }`) because braces are needed to delimit the statement body.
+**Case body syntax:** Expression match cases allow either a bare expression or a braced body (`"cat" => "meow"` or `"cat" => { $x = "me"; $x + "ow" }`). Statement match cases always require braces (`"cat" => { output.sound = "meow" }`) because braces are needed to delimit the statement body. Empty statement case bodies (e.g., `"ignore" => { }`) are valid and are no-ops.
 
 ### Three Match Forms
 
@@ -296,6 +296,8 @@ output.label = if input.flag { "yes" } else { "no" }
 
 **Rationale for the boolean restriction:** In equality match, a case like `input.score >= 100` is almost always a mistake — the user meant to use `as` for boolean conditions, not compare the matched value against `true`/`false`. Rejecting boolean cases catches this common error. The trade-off is that you cannot equality-match on boolean values (`match input.flag { true => ..., false => ... }`). This is intentional: `if`/`else` handles the boolean case more clearly, and multi-way dispatch on a value that could be `true`, `false`, or a non-boolean is better expressed with `match ... as` or `if`/`else if`/`else` chains.
 
+**Compile-time vs runtime detection:** Boolean literals (`true`, `false`) as case expressions are caught at compile time as a convenience — their type is statically known. Dynamic expressions whose type is not known until runtime (e.g., `match x { $var => ... }` where `$var` happens to be boolean) produce the same error at runtime. In both cases, the fix is the same: use `match ... as` for boolean conditions, or `if`/`else` for boolean dispatch. The split in error timing reflects what the compiler can prove statically, not a semantic difference.
+
 **2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. The `as` binding is available in case conditions, result expressions, and statement bodies (for match statements). It is block-scoped to the match — it cannot be referenced after the match closes. Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown. The wildcard `_` is exempt from this requirement — it always matches unconditionally.
 
 ```bloblang
@@ -322,6 +324,8 @@ output.category = match {
 **Key distinction:** Without `as`, case values are compared by equality against the matched expression (and boolean case values are an error). With `as`, case expressions must be booleans.
 
 **Wildcard `_`:** In all three match forms, `_` is an unconditional catch-all — it always matches regardless of context. In equality match it matches any value; in boolean match forms it is not evaluated as a boolean expression but simply matches unconditionally. `_` is a syntactic form, not an expression — it can only appear as a match case pattern, not in arbitrary expression positions.
+
+**Non-exhaustive match:** If no case matches and there is no `_` catch-all, match *expressions* produce void (see Section 9.1) and match *statements* are no-ops (no assignments are executed). The `_` wildcard is the only catch-all mechanism — there is no `else` keyword for match.
 
 ## 4.3 Block-Scoped Variables
 

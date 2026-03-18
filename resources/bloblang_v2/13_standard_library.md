@@ -40,34 +40,21 @@ Return a random int64 in the inclusive range [min, max]. Error if min > max.
 - **Returns:** int64
 - **Example:** `random_int(1, 100)` → `42`
 
-### `range(start, stop, step)`
+### `range(start, stop, step = 1)`
 
-Generate an array of integers from `start` (inclusive) to `stop` (exclusive) with the given step. Error if step is zero. If step is positive and start >= stop, or step is negative and start <= stop, returns an empty array.
+Generate an array of integers from `start` (inclusive) to `stop` (exclusive) with the given step. Step defaults to `1`. Error if step is zero. Error if start > stop and step is positive (including the default) — use an explicit negative step for descending ranges. If start == stop, returns an empty array. If step is negative and start <= stop, returns an empty array.
 
-- **Parameters:** `start` (int64), `stop` (int64), `step` (int64)
+- **Parameters:** `start` (int64), `stop` (int64), `step` (int64, default `1`)
 - **Returns:** array of int64
 - **Examples:**
   ```bloblang
+  range(0, 5)         # [0, 1, 2, 3, 4] (step defaults to 1)
   range(0, 5, 1)      # [0, 1, 2, 3, 4]
   range(0, 10, 3)     # [0, 3, 6, 9]
   range(5, 0, -1)     # [5, 4, 3, 2, 1]
-  range(0, 0, 1)      # []
+  range(0, 0)         # []
+  range(5, 0)         # ERROR: start > stop with positive step (use explicit -1)
   range(0, 5, 0)      # ERROR: step cannot be zero
-  ```
-
-### `char(codepoint)`
-
-Convert a Unicode codepoint to a single-character string. This is the inverse of string indexing (`"hello"[0]` → `104`).
-
-- **Parameters:** `codepoint` (any integer type — must be a valid Unicode codepoint)
-- **Returns:** string
-- **Errors:** if the value is not a valid Unicode codepoint
-- **Examples:**
-  ```bloblang
-  char(104)        # "h"
-  char(233)        # "é"
-  char(128512)     # "😀"
-  char("hello"[0]) # "h" (round-trip from string indexing)
   ```
 
 ### `timestamp(year, month, day, hour = 0, minute = 0, second = 0, nano = 0, timezone = "UTC")`
@@ -103,10 +90,43 @@ Return the number of nanoseconds in one second (`1000000000`). This is a conveni
 - **Examples:**
   ```bloblang
   now().ts_add(second())              # 1 second later
-  now().ts_add(second() * 60)         # 1 minute later
-  now().ts_add(second() * 3600)       # 1 hour later
-  now().ts_add(second() * 86400)      # 1 day later
   now().ts_add(second() * -30)        # 30 seconds ago
+  ```
+
+### `minute()`
+
+Return the number of nanoseconds in one minute (`60000000000`). Convenience constant equivalent to `second() * 60`.
+
+- **Parameters:** none
+- **Returns:** int64 (`60000000000`)
+- **Examples:**
+  ```bloblang
+  now().ts_add(minute())              # 1 minute later
+  now().ts_add(minute() * 5)          # 5 minutes later
+  ```
+
+### `hour()`
+
+Return the number of nanoseconds in one hour (`3600000000000`). Convenience constant equivalent to `second() * 3600`.
+
+- **Parameters:** none
+- **Returns:** int64 (`3600000000000`)
+- **Examples:**
+  ```bloblang
+  now().ts_add(hour())                # 1 hour later
+  now().ts_add(hour() * -2)           # 2 hours ago
+  ```
+
+### `day()`
+
+Return the number of nanoseconds in one day (`86400000000000`). Convenience constant equivalent to `second() * 86400`. Note: this is exactly 24 hours — it does not account for daylight saving time transitions or leap seconds.
+
+- **Parameters:** none
+- **Returns:** int64 (`86400000000000`)
+- **Examples:**
+  ```bloblang
+  now().ts_add(day())                 # 1 day later
+  now().ts_add(day() * 7)             # 1 week later
   ```
 
 ### `throw(message)`
@@ -145,7 +165,7 @@ Convert a value to its string representation.
   - Null: `"null"`
   - Timestamp: RFC 3339 format (e.g., `"2024-03-01T12:00:00Z"`)
   - Bytes: UTF-8 decode (error if bytes are not valid UTF-8)
-  - Array, object: compact JSON (equivalent to `.format_json()` — object keys sorted lexicographically by Unicode codepoint value)
+  - Array, object: compact JSON (equivalent to `.format_json()` with default parameters — object keys sorted lexicographically by Unicode codepoint value)
   - Lambda: error
   - **Containers with bytes:** If an array or object contains a bytes value (at any nesting depth), `.string()` errors — bytes have no implicit serialization format. Convert bytes explicitly before including them in structures that will be stringified (e.g., use `.encode("base64")` or `.string()` on individual bytes values before embedding them in arrays or objects).
 - **Examples:**
@@ -233,6 +253,21 @@ Convert a value to boolean.
   0.bool()         # false
   ```
 
+### `.char()`
+
+Convert an integer (Unicode codepoint) to a single-character string. This is the inverse of string indexing (`"hello"[0]` → `104`).
+
+- **Receiver:** any integer type (int64, int32, uint32, uint64)
+- **Returns:** string (single codepoint)
+- **Errors:** if the value is not a valid Unicode codepoint
+- **Examples:**
+  ```bloblang
+  104.char()        # "h"
+  233.char()        # "é"
+  128512.char()     # "😀"
+  "hello"[0].char() # "h" (round-trip from string indexing)
+  ```
+
 ### `.bytes()`
 
 Convert a value to a byte array. For strings, returns the UTF-8 encoding. For all other supported types, equivalent to `.string().bytes()` (UTF-8 encoding of the string representation).
@@ -242,7 +277,7 @@ Convert a value to a byte array. For strings, returns the UTF-8 encoding. For al
 - **Conversion rules:**
   - String: UTF-8 encoding
   - Bytes: returned as-is
-  - All other types (numeric, bool, null, timestamp, array, object): UTF-8 encoding of `.string()` result
+  - All other types (numeric, bool, null, timestamp, array, object): UTF-8 encoding of `.string()` result. Since this goes through `.string()`, containers (arrays/objects) with nested bytes values will error — convert bytes values explicitly (e.g., `.encode("base64")`) before calling `.bytes()` on a container.
   - Lambda: error
 - **Examples:**
   ```bloblang
@@ -791,7 +826,7 @@ Convert an array of `{"key": k, "value": v}` objects back into an object. Last v
   [{"key": "a", "value": 1, "extra": true}].collect()                 # {"a": 1} (extra fields ignored)
   [{"key": "a", "value": 1}, {"bad": true}].collect()                 # ERROR: element missing "key"/"value" fields
   ```
-- **Note:** `.collect()` returns an object, and object key ordering is not preserved (Section 2.3). Sorting entries before `.collect()` (e.g., `.iter().sort_by(e -> e.key).collect()`) does not produce an object with ordered iteration — the sort order is lost. JSON serialization is deterministic (keys sorted lexicographically by `.format_json()`), but iteration order via `.iter()`, `.keys()`, and `.values()` is not guaranteed.
+- **Note:** `.collect()` returns an object, and object key ordering is not preserved (Section 2.3). Sorting entries before `.collect()` (e.g., `.iter().sort_by(e -> e.key).collect()`) does not produce an object with ordered iteration — the sort order is lost. JSON serialization is deterministic (keys sorted lexicographically by `.format_json()` and `.string()`), but iteration order via `.iter()`, `.keys()`, and `.values()` is not guaranteed.
 
 ---
 
@@ -1216,11 +1251,15 @@ Parse a JSON string into a value. Errors if the string is not valid JSON.
   `1e3`.parse_json()                # 1000.0 (float64: has exponent)
   ```
 
-### `.format_json()`
+### `.format_json(indent = "", no_indent = false, escape_html = true)`
 
 Serialize a value to a JSON string. Object keys are sorted lexicographically by Unicode codepoint value (consistent with string comparison semantics in Section 2.3). Timestamp values are formatted as RFC 3339 strings (Section 2.3). **Note:** Since object key ordering is not preserved (Section 2.3) and keys are sorted on output, `.parse_json().format_json()` may produce different key ordering than the original JSON string.
 
 - **Receiver:** any type (except lambda and bytes)
+- **Parameters:**
+  - `indent` (string, default `""`) — Indentation string. When non-empty, each element in a JSON object or array begins on a new line, indented with one or more copies of this string according to nesting depth.
+  - `no_indent` (bool, default `false`) — Disable indentation entirely, overriding `indent`. Produces compact output with no extra whitespace.
+  - `escape_html` (bool, default `true`) — Escape HTML-sensitive characters (`<`, `>`, `&`) as Unicode escape sequences in strings.
 - **Returns:** string
 - **Errors:** if the value is or contains a lambda or bytes value (at any nesting depth). Bytes have no implicit JSON serialization — use `.encode("base64")` or `.encode("hex")` before serializing. NaN and Infinity float values also error (not representable in JSON).
 - **Numeric serialization:**
@@ -1228,9 +1267,13 @@ Serialize a value to a JSON string. Object keys are sorted lexicographically by 
   - Float types (float32, float64): serialized as any shortest decimal representation that round-trips exactly, always including either a decimal point or exponent to distinguish from integer serialization. This matches `.string()` behavior (including the cross-implementation note) and ensures that `.format_json()` → `.parse_json()` preserves the float type. Exponent notation is permitted (e.g., `1e+06`).
 - **Examples:**
   ```bloblang
-  {"name": "Alice"}.format_json()       # `{"name":"Alice"}`
-  [1, 2, 3].format_json()              # `[1,2,3]`
-  {"time": now()}.format_json()         # `{"time":"2024-03-01T12:00:00Z"}`
+  {"name": "Alice"}.format_json()                          # `{"name":"Alice"}`
+  [1, 2, 3].format_json()                                 # `[1,2,3]`
+  {"time": now()}.format_json()                            # `{"time":"2024-03-01T12:00:00Z"}`
+  {"name": "Alice", "age": 30}.format_json(indent: "  ")   # pretty-printed with 2-space indent
+  {"name": "Alice"}.format_json(indent: "\t")              # pretty-printed with tab indent
+  {"html": "<b>hi</b>"}.format_json()                      # `{"html":"\u003cb\u003ehi\u003c/b\u003e"}`
+  {"html": "<b>hi</b>"}.format_json(escape_html: false)    # `{"html":"<b>hi</b>"}`
   ```
 
 ### `.encode(scheme)`
