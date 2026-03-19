@@ -4,7 +4,7 @@ All implementations must provide these functions and methods. This is the comple
 
 **Namespace sharing:** Standard library functions share the same namespace as user-defined maps. User-defined maps shadow standard library functions of the same name. Resolution priority: parameters > maps > standard library functions. Like map names, standard library function names without parentheses can be passed as arguments to higher-order methods (e.g., `.sort_by(abs)`) but cannot be used as general-purpose expressions or stored in variables (Section 5.5).
 
-**Named arguments and arity:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps (Section 5.3): positional and named arguments cannot be mixed in the same call, duplicate named arguments are a compile-time error, and extra, missing, or mismatched arguments are errors.
+**Named arguments and arity:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps (Section 5.3): positional and named arguments cannot be mixed in the same call, duplicate named arguments are a compile-time error, and extra or mismatched arguments are errors. Parameters with default values may be omitted (Section 5.1). Parameters marked with `?` in their signatures are truly optional — they may be omitted entirely, and the method's documented behavior applies when they are absent.
 
 **Parameter type promotion:** When a method or function signature documents a specific numeric type (e.g., `int64`), any numeric type is accepted. Integer parameters accept any numeric value that is a whole number — float values like `2.0` are accepted but `1.5` is an error (consistent with indexing rules in Section 3.1). Float parameters accept any numeric type (integers are promoted to float using the standard promotion rules in Section 2.3). In all cases, checked promotion applies — values that cannot be represented exactly in the target type are a runtime error.
 
@@ -40,20 +40,22 @@ Return a random int64 in the inclusive range [min, max]. Error if min > max.
 - **Returns:** int64
 - **Example:** `random_int(1, 100)` → `42`
 
-### `range(start, stop, step = 1)`
+### `range(start, stop, step?)`
 
-Generate an array of integers from `start` (inclusive) to `stop` (exclusive) with the given step. Step defaults to `1`. Error if step is zero. Error if start > stop and step is positive (including the default) — use an explicit negative step for descending ranges. If start == stop, returns an empty array. If step is negative and start <= stop, returns an empty array.
+Generate an array of integers from `start` (inclusive) to `stop` (exclusive) with the given step. When `step` is omitted, the direction is inferred: `1` if `start <= stop`, `-1` if `start > stop`. Error if step is zero. Error if an explicit step contradicts the direction (positive step with start > stop, or negative step with start < stop). If start == stop, returns an empty array regardless of step.
 
-- **Parameters:** `start` (int64), `stop` (int64), `step` (int64, default `1`)
+- **Parameters:** `start` (int64), `stop` (int64), `step` (int64, optional — inferred from direction when omitted)
 - **Returns:** array of int64
 - **Examples:**
   ```bloblang
-  range(0, 5)         # [0, 1, 2, 3, 4] (step defaults to 1)
-  range(0, 5, 1)      # [0, 1, 2, 3, 4]
+  range(0, 5)         # [0, 1, 2, 3, 4] (step inferred as 1)
+  range(5, 0)         # [5, 4, 3, 2, 1] (step inferred as -1)
+  range(0, 5, 1)      # [0, 1, 2, 3, 4] (explicit step)
   range(0, 10, 3)     # [0, 3, 6, 9]
-  range(5, 0, -1)     # [5, 4, 3, 2, 1]
+  range(5, 0, -2)     # [5, 3, 1]
   range(0, 0)         # []
-  range(5, 0)         # ERROR: start > stop with positive step (use explicit -1)
+  range(0, 5, -1)     # ERROR: step direction contradicts start/stop
+  range(5, 0, 1)      # ERROR: step direction contradicts start/stop
   range(0, 5, 0)      # ERROR: step cannot be zero
   ```
 
@@ -163,7 +165,7 @@ Convert a value to its string representation.
   - Float types: any shortest decimal representation that round-trips exactly back to the same float value, always including either a decimal point or exponent to distinguish the result from an integer string. When a non-exponent form and an exponent form have the same length, prefer the non-exponent form. `0.0` → `"0.0"`, `3.14` → `"3.14"`, `1000000.0` → `"1e+06"` (exponent form is shorter). Negative zero normalizes to `"0.0"` (not `"-0.0"`). NaN produces `"NaN"`, Infinity produces `"Infinity"`, negative Infinity produces `"-Infinity"`. **Cross-implementation note:** Different shortest-representation algorithms (Ryu, Grisu3, etc.) may produce different valid outputs for the same float value. Conformance tests should compare parsed numeric values rather than exact string representations.
   - Bool: `"true"` or `"false"`
   - Null: `"null"`
-  - Timestamp: RFC 3339 format (e.g., `"2024-03-01T12:00:00Z"`)
+  - Timestamp: RFC 3339 format with shortest-precision fractional seconds — trailing zeros are removed and the fractional part (including `.`) is omitted entirely when zero. Examples: `"2024-03-01T12:00:00Z"`, `"2024-03-01T12:00:00.123Z"`. UTC is represented as `Z`. This matches `.ts_format()` with default arguments.
   - Bytes: UTF-8 decode (error if bytes are not valid UTF-8)
   - Array, object: compact JSON (equivalent to `.format_json()` with default parameters — object keys sorted lexicographically by Unicode codepoint value)
   - Lambda: error
@@ -366,19 +368,21 @@ Return the index of the first occurrence of the target, or -1 if not found.
   "hello".bytes().index_of("ll".bytes())  # 2
   ```
 
-### `.slice(low, high)`
+### `.slice(low, high?)`
 
-Extract a subsequence. `low` is inclusive, `high` is exclusive. Negative indices count from the end. Indices are clamped to the length — out-of-bounds indices do not error. If `low >= high` after clamping, returns an empty value of the same type.
+Extract a subsequence. `low` is inclusive, `high` is exclusive. When `high` is omitted, the slice extends to the end of the sequence. Negative indices count from the end. Indices are clamped to the length — out-of-bounds indices do not error. If `low >= high` after clamping, returns an empty value of the same type.
 
 - **Receiver:** string, array, bytes
-- **Parameters:** `low` (int64), `high` (int64)
+- **Parameters:** `low` (int64), `high` (int64, optional — defaults to sequence length when omitted)
 - **Returns:** same type as receiver
 - **Semantics:** strings slice by codepoint, arrays by element, bytes by byte
 - **Examples:**
   ```bloblang
   "hello world".slice(0, 5)          # "hello"
+  "hello world".slice(6)             # "world" (high omitted — to end)
   "hello world".slice(-5, -1)        # "worl"
   [1, 2, 3, 4, 5].slice(1, 3)       # [2, 3]
+  [1, 2, 3, 4, 5].slice(2)          # [3, 4, 5] (high omitted — to end)
   "hello".bytes().slice(0, 3)        # bytes("hel")
   "hello".slice(0, 100)              # "hello" (high clamped to length)
   [1, 2, 3].slice(3, 1)             # [] (low >= high)
@@ -656,16 +660,19 @@ Flatten nested arrays by one level. Non-array elements are kept as-is.
   [1, [], 2].flatten()                 # [1, 2] (empty array spliced as zero elements)
   ```
 
-### `.unique()`
+### `.unique(fn?)`
 
-Remove duplicate elements, preserving the first occurrence of each value. Comparison uses equality semantics (Section 2.3), except that all NaN values are considered equal (consistent with `.sort()`'s total ordering). At most one NaN is retained.
+Remove duplicate elements, preserving the first occurrence of each value. When `fn` is provided, the lambda extracts a comparison key from each element — elements are considered duplicates if their keys are equal. When `fn` is omitted, elements are compared directly by equality. Comparison uses equality semantics (Section 2.3), except that all NaN values are considered equal (consistent with `.sort()`'s total ordering). At most one NaN is retained.
 
 - **Receiver:** array
+- **Parameters:** `fn` — lambda (one parameter: element → any), optional. When provided, extracts a comparison key from each element.
 - **Returns:** array
 - **Examples:**
   ```bloblang
-  [1, 2, 2, 3, 1].unique()        # [1, 2, 3]
-  ["a", "b", "a"].unique()        # ["a", "b"]
+  [1, 2, 2, 3, 1].unique()                    # [1, 2, 3]
+  ["a", "b", "a"].unique()                    # ["a", "b"]
+  [{"id": 1, "v": "a"}, {"id": 1, "v": "b"}].unique(x -> x.id)  # [{"id": 1, "v": "a"}]
+  ["hello", "HELLO", "world"].unique(x -> x.lowercase())          # ["hello", "world"]
   ```
 
 ### `.without_index(index)`
@@ -1031,15 +1038,17 @@ Return the smallest integer value greater than or equal to the number.
   (-3.7).ceil()   # -3.0 (float64)
   ```
 
-### `.round(n)`
+### `.round(n = 0)`
 
-Round a float to `n` decimal places using **half-even rounding** (banker's rounding, IEEE 754 default). Negative `n` rounds to powers of 10: `-1` rounds to nearest 10, `-2` to nearest 100, etc.
+Round a float to `n` decimal places using **half-even rounding** (banker's rounding, IEEE 754 default). Defaults to `0` (round to nearest integer). Negative `n` rounds to powers of 10: `-1` rounds to nearest 10, `-2` to nearest 100, etc.
 
 - **Receiver:** float32, float64
-- **Parameters:** `n` (int64 — number of decimal places; negative values round to powers of 10)
+- **Parameters:** `n` (int64, default `0` — number of decimal places; negative values round to powers of 10)
 - **Returns:** same float type as receiver
 - **Examples:**
   ```bloblang
+  3.7.round()        # 4.0 (default: round to nearest integer)
+  2.5.round()        # 2.0 (half-even: rounds to nearest even)
   3.456.round(2)     # 3.46
   2.5.round(0)       # 2.0 (half-even: rounds to nearest even)
   3.5.round(0)       # 4.0 (half-even: rounds to nearest even)
@@ -1051,15 +1060,21 @@ Round a float to `n` decimal places using **half-even rounding** (banker's round
 
 ## 13.9 Time Methods
 
-### `.ts_parse(format)`
+### `.ts_parse(format = "%Y-%m-%dT%H:%M:%S%f%z")`
 
-Parse a string into a timestamp using the given format string.
+Parse a string into a timestamp using the given format string. Defaults to RFC 3339 format when no format is specified.
 
 - **Receiver:** string
-- **Parameters:** `format` (string — strftime format, e.g. `"%Y-%m-%d"`)
+- **Parameters:** `format` (string, default `"%Y-%m-%dT%H:%M:%S%f%z"` — strftime format)
 - **Returns:** timestamp
 - **Errors:** if the string does not match the format, or if the format string contains unrecognized directives
-- **Example:** `"2024-03-01".ts_parse("%Y-%m-%d")`
+- **Examples:**
+  ```bloblang
+  "2024-03-01T12:00:00Z".ts_parse()                    # RFC 3339 (default format)
+  "2024-03-01T12:00:00.123Z".ts_parse()                # RFC 3339 with fractional seconds
+  "2024-03-01T12:00:00+05:30".ts_parse()               # RFC 3339 with offset
+  "2024-03-01".ts_parse("%Y-%m-%d")                    # explicit format
+  ```
 
 **Required strftime directives:** All implementations must support the following subset. Additional directives are implementation-defined.
 
@@ -1071,8 +1086,8 @@ Parse a string into a timestamp using the given format string.
 | `%H` | Hour, 24-hour (00–23) | `14` |
 | `%M` | Minute (00–59) | `30` |
 | `%S` | Second (00–59) | `05` |
-| `%f` | Fractional seconds (nanosecond precision, 1–9 digits) | `123456789` |
-| `%z` | UTC offset (`+0000`, `+0530`, `-0800`) | `+0000` |
+| `%f` | Fractional seconds (nanosecond precision, optional — see note) | `.123456789` |
+| `%z` | UTC offset or `Z` (see note) | `Z`, `+05:30` |
 | `%Z` | Timezone name (IANA or abbreviation) | `UTC`, `America/New_York` |
 | `%a` | Abbreviated weekday name | `Mon` |
 | `%A` | Full weekday name | `Monday` |
@@ -1083,16 +1098,23 @@ Parse a string into a timestamp using the given format string.
 | `%j` | Day of year (001–366) | `061` |
 | `%%` | Literal `%` | `%` |
 
-**Note:** `%f` is not part of POSIX strftime but is widely supported for sub-second precision. When parsing, `%f` consumes 1–9 digits and pads to nanoseconds (e.g., `123` → 123000000 ns). When formatting, `%f` emits exactly 9 digits (zero-padded). This differs from Python's `%f`, which uses 6 digits (microsecond precision).
+**`%f` semantics:** `%f` is not part of POSIX strftime but is widely supported for sub-second precision. **Parsing:** `%f` is optional — it consumes the leading `.` and 1–9 fractional digits if present, padding to nanoseconds (e.g., `.123` → 123000000 ns). If no `.` follows the seconds, `%f` matches zero characters and contributes zero fractional seconds. This allows a single format string like `"%Y-%m-%dT%H:%M:%S%f%z"` to parse both `"2024-03-01T12:00:00Z"` and `"2024-03-01T12:00:00.123Z"`. **Formatting:** `%f` emits the shortest representation that retains precision — trailing zeros are removed, and the directive is omitted entirely (including the `.`) when fractional seconds are zero. Examples: 123456789 ns → `.123456789`, 123000000 ns → `.123`, 0 ns → (empty). This differs from Python's `%f`, which always emits exactly 6 digits.
 
-### `.ts_format(format)`
+**`%z` semantics:** **Parsing:** `%z` accepts both `Z` (UTC) and UTC offsets in the forms `+HH:MM`, `-HH:MM`, `+HHMM`, or `-HHMM`. **Formatting:** `%z` emits `Z` for UTC (the shortest RFC 3339 representation) and `±HH:MM` for all other offsets.
 
-Format a timestamp as a string using the given format string. Supports the same required directives as `.ts_parse()`.
+### `.ts_format(format = "%Y-%m-%dT%H:%M:%S%f%z")`
+
+Format a timestamp as a string using the given format string. Defaults to RFC 3339 format when no format is specified. Supports the same required directives as `.ts_parse()`.
 
 - **Receiver:** timestamp
-- **Parameters:** `format` (string — strftime format)
+- **Parameters:** `format` (string, default `"%Y-%m-%dT%H:%M:%S%f%z"` — strftime format)
 - **Returns:** string
-- **Example:** `now().ts_format("%Y-%m-%d")` → `"2024-03-01"`
+- **Examples:**
+  ```bloblang
+  now().ts_format()              # "2024-03-01T12:00:00Z" (RFC 3339, default format)
+  now().ts_format("%Y-%m-%d")    # "2024-03-01"
+  ```
+- **Note:** `.ts_format()` with default arguments produces the same output as `.string()` on a timestamp. Both use RFC 3339 with shortest-precision fractional seconds.
 
 ### `.ts_unix()`
 
