@@ -879,3 +879,341 @@ func TestManagerConnectionTestWithError(t *testing.T) {
 	_, err = mgr.ConnectionTest(ctx)
 	require.Error(t, err)
 }
+
+func TestCustomResourceRegistrationAndAccess(t *testing.T) {
+	env := bundle.GlobalEnvironment.Clone()
+	require.NoError(t, env.RegisterCustomResource(bundle.CustomResourceType{
+		Name: "widget",
+		Fields: docs.FieldSpecs{
+			docs.FieldString("color", "The widget color."),
+		},
+		Constructor: func(pConf *docs.ParsedConfig, nm bundle.NewManagement) (any, error) {
+			color, err := pConf.FieldString("color")
+			if err != nil {
+				return nil, err
+			}
+			return "widget:" + color, nil
+		},
+	}))
+
+	conf := manager.NewResourceConfig()
+	conf.CustomResources = []manager.CustomResourceEntry{
+		{TypeName: "widget", Label: "red_one", Config: mustParsedConfig(t, docs.FieldSpecs{
+			docs.FieldString("label", ""),
+			docs.FieldString("color", ""),
+		}, map[string]any{"label": "red_one", "color": "red"})},
+		{TypeName: "widget", Label: "blue_one", Config: mustParsedConfig(t, docs.FieldSpecs{
+			docs.FieldString("label", ""),
+			docs.FieldString("color", ""),
+		}, map[string]any{"label": "blue_one", "color": "blue"})},
+	}
+
+	mgr, err := manager.New(conf, manager.OptSetEnvironment(env))
+	require.NoError(t, err)
+
+	// ProbeCustomResource
+	assert.True(t, mgr.ProbeCustomResource("widget", "red_one"))
+	assert.True(t, mgr.ProbeCustomResource("widget", "blue_one"))
+	assert.False(t, mgr.ProbeCustomResource("widget", "green_one"))
+	assert.False(t, mgr.ProbeCustomResource("gadget", "red_one"))
+
+	// GetCustomResource
+	v, ok := mgr.GetCustomResource("widget", "red_one")
+	assert.True(t, ok)
+	assert.Equal(t, "widget:red", v)
+
+	v, ok = mgr.GetCustomResource("widget", "blue_one")
+	assert.True(t, ok)
+	assert.Equal(t, "widget:blue", v)
+
+	_, ok = mgr.GetCustomResource("widget", "missing")
+	assert.False(t, ok)
+
+	_, ok = mgr.GetCustomResource("missing_type", "red_one")
+	assert.False(t, ok)
+}
+
+type testCloser struct {
+	closed bool
+}
+
+func (c *testCloser) Close() error {
+	c.closed = true
+	return nil
+}
+
+func TestCustomResourceShutdownClosesResources(t *testing.T) {
+	closer := &testCloser{}
+
+	env := bundle.GlobalEnvironment.Clone()
+	require.NoError(t, env.RegisterCustomResource(bundle.CustomResourceType{
+		Name: "closeable",
+		Fields: docs.FieldSpecs{
+			docs.FieldString("value", ""),
+		},
+		Constructor: func(pConf *docs.ParsedConfig, nm bundle.NewManagement) (any, error) {
+			return closer, nil
+		},
+	}))
+
+	conf := manager.NewResourceConfig()
+	conf.CustomResources = []manager.CustomResourceEntry{
+		{TypeName: "closeable", Label: "c1", Config: mustParsedConfig(t, docs.FieldSpecs{
+			docs.FieldString("label", ""),
+			docs.FieldString("value", ""),
+		}, map[string]any{"label": "c1", "value": "x"})},
+	}
+
+	mgr, err := manager.New(conf, manager.OptSetEnvironment(env))
+	require.NoError(t, err)
+
+	assert.False(t, closer.closed)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, mgr.WaitForClose(ctx))
+	assert.True(t, closer.closed)
+}
+
+func TestCustomResourceDuplicateLabel(t *testing.T) {
+	env := bundle.GlobalEnvironment.Clone()
+	require.NoError(t, env.RegisterCustomResource(bundle.CustomResourceType{
+		Name:   "thing",
+		Fields: docs.FieldSpecs{},
+		Constructor: func(pConf *docs.ParsedConfig, nm bundle.NewManagement) (any, error) {
+			return "val", nil
+		},
+	}))
+
+	conf := manager.NewResourceConfig()
+	conf.CustomResources = []manager.CustomResourceEntry{
+		{TypeName: "thing", Label: "dup", Config: mustParsedConfig(t, docs.FieldSpecs{
+			docs.FieldString("label", ""),
+		}, map[string]any{"label": "dup"})},
+		{TypeName: "thing", Label: "dup", Config: mustParsedConfig(t, docs.FieldSpecs{
+			docs.FieldString("label", ""),
+		}, map[string]any{"label": "dup"})},
+	}
+
+	_, err := manager.New(conf, manager.OptSetEnvironment(env))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dup")
+}
+
+func TestCustomResourceEmptyLabel(t *testing.T) {
+	env := bundle.GlobalEnvironment.Clone()
+	require.NoError(t, env.RegisterCustomResource(bundle.CustomResourceType{
+		Name:   "thing",
+		Fields: docs.FieldSpecs{},
+		Constructor: func(pConf *docs.ParsedConfig, nm bundle.NewManagement) (any, error) {
+			return "val", nil
+		},
+	}))
+
+	conf := manager.NewResourceConfig()
+	conf.CustomResources = []manager.CustomResourceEntry{
+		{TypeName: "thing", Label: "", Config: mustParsedConfig(t, docs.FieldSpecs{
+			docs.FieldString("label", ""),
+		}, map[string]any{"label": ""})},
+	}
+
+	_, err := manager.New(conf, manager.OptSetEnvironment(env))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty label")
+}
+
+func TestCustomResourceFromYAML(t *testing.T) {
+	// Register a custom resource type "db_pools" with a "dsn" field.
+	env := bundle.GlobalEnvironment.Clone()
+	require.NoError(t, env.RegisterCustomResource(bundle.CustomResourceType{
+		Name: "db_pools",
+		Fields: docs.FieldSpecs{
+			docs.FieldString("dsn", "Database connection string."),
+		},
+		Constructor: func(pConf *docs.ParsedConfig, nm bundle.NewManagement) (any, error) {
+			dsn, err := pConf.FieldString("dsn")
+			if err != nil {
+				return nil, err
+			}
+			return "pool:" + dsn, nil
+		},
+	}))
+
+	// Build a combined spec (built-in + custom) and parse YAML-like config.
+	spec := manager.Spec()
+	spec = append(spec, manager.CustomResourceSpecs(env)...)
+
+	yamlConfig := map[string]any{
+		"db_pools": []any{
+			map[string]any{
+				"label": "primary",
+				"dsn":   "postgres://localhost/main",
+			},
+			map[string]any{
+				"label": "analytics",
+				"dsn":   "postgres://localhost/analytics",
+			},
+		},
+	}
+
+	pConf, err := spec.ParsedConfigFromAny(yamlConfig)
+	require.NoError(t, err)
+
+	conf, err := manager.FromParsed(env, pConf)
+	require.NoError(t, err)
+
+	require.Len(t, conf.CustomResources, 2)
+	assert.Equal(t, "db_pools", conf.CustomResources[0].TypeName)
+	assert.Equal(t, "primary", conf.CustomResources[0].Label)
+	assert.Equal(t, "db_pools", conf.CustomResources[1].TypeName)
+	assert.Equal(t, "analytics", conf.CustomResources[1].Label)
+
+	// Construct a manager and verify resources are accessible.
+	mgr, err := manager.New(conf, manager.OptSetEnvironment(env))
+	require.NoError(t, err)
+
+	v, ok := mgr.GetCustomResource("db_pools", "primary")
+	require.True(t, ok)
+	assert.Equal(t, "pool:postgres://localhost/main", v)
+
+	v, ok = mgr.GetCustomResource("db_pools", "analytics")
+	require.True(t, ok)
+	assert.Equal(t, "pool:postgres://localhost/analytics", v)
+
+	assert.False(t, mgr.ProbeCustomResource("db_pools", "missing"))
+}
+
+func TestCustomResourceNameConflict(t *testing.T) {
+	env := bundle.GlobalEnvironment.Clone()
+
+	// Built-in field name should be rejected.
+	err := env.RegisterCustomResource(bundle.CustomResourceType{
+		Name:        "input_resources",
+		Fields:      docs.FieldSpecs{},
+		Constructor: func(*docs.ParsedConfig, bundle.NewManagement) (any, error) { return nil, nil },
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicts with a built-in config field")
+
+	// Other built-in names too.
+	err = env.RegisterCustomResource(bundle.CustomResourceType{
+		Name:        "output",
+		Fields:      docs.FieldSpecs{},
+		Constructor: func(*docs.ParsedConfig, bundle.NewManagement) (any, error) { return nil, nil },
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "conflicts with a built-in config field")
+
+	// Register a valid name.
+	require.NoError(t, env.RegisterCustomResource(bundle.CustomResourceType{
+		Name:        "my_things",
+		Fields:      docs.FieldSpecs{},
+		Constructor: func(*docs.ParsedConfig, bundle.NewManagement) (any, error) { return nil, nil },
+	}))
+
+	// Duplicate custom resource name should be rejected.
+	err = env.RegisterCustomResource(bundle.CustomResourceType{
+		Name:        "my_things",
+		Fields:      docs.FieldSpecs{},
+		Constructor: func(*docs.ParsedConfig, bundle.NewManagement) (any, error) { return nil, nil },
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "already registered")
+}
+
+type testCtxCloser struct {
+	closedWith context.Context
+}
+
+func (c *testCtxCloser) Close(ctx context.Context) error {
+	c.closedWith = ctx
+	return nil
+}
+
+func TestCustomResourceShutdownUsesContextCloser(t *testing.T) {
+	ctxCloser := &testCtxCloser{}
+
+	env := bundle.GlobalEnvironment.Clone()
+	require.NoError(t, env.RegisterCustomResource(bundle.CustomResourceType{
+		Name: "ctx_closeable",
+		Fields: docs.FieldSpecs{
+			docs.FieldString("value", ""),
+		},
+		Constructor: func(pConf *docs.ParsedConfig, nm bundle.NewManagement) (any, error) {
+			return ctxCloser, nil
+		},
+	}))
+
+	conf := manager.NewResourceConfig()
+	conf.CustomResources = []manager.CustomResourceEntry{
+		{TypeName: "ctx_closeable", Label: "c1", Config: mustParsedConfig(t, docs.FieldSpecs{
+			docs.FieldString("label", ""),
+			docs.FieldString("value", ""),
+		}, map[string]any{"label": "c1", "value": "x"})},
+	}
+
+	mgr, err := manager.New(conf, manager.OptSetEnvironment(env))
+	require.NoError(t, err)
+
+	assert.Nil(t, ctxCloser.closedWith)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	require.NoError(t, mgr.WaitForClose(ctx))
+	assert.NotNil(t, ctxCloser.closedWith)
+}
+
+type slowCloser struct {
+	ch chan struct{}
+}
+
+func (c *slowCloser) Close(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-c.ch:
+		return nil
+	}
+}
+
+func TestCustomResourceShutdownRespectsContextCancellation(t *testing.T) {
+	sc := &slowCloser{ch: make(chan struct{})}
+
+	env := bundle.GlobalEnvironment.Clone()
+	require.NoError(t, env.RegisterCustomResource(bundle.CustomResourceType{
+		Name: "slow",
+		Fields: docs.FieldSpecs{
+			docs.FieldString("value", ""),
+		},
+		Constructor: func(pConf *docs.ParsedConfig, nm bundle.NewManagement) (any, error) {
+			return sc, nil
+		},
+	}))
+
+	conf := manager.NewResourceConfig()
+	conf.CustomResources = []manager.CustomResourceEntry{
+		{TypeName: "slow", Label: "s1", Config: mustParsedConfig(t, docs.FieldSpecs{
+			docs.FieldString("label", ""),
+			docs.FieldString("value", ""),
+		}, map[string]any{"label": "s1", "value": "x"})},
+	}
+
+	mgr, err := manager.New(conf, manager.OptSetEnvironment(env))
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	err = mgr.WaitForClose(ctx)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "context deadline exceeded")
+}
+
+func mustParsedConfig(t *testing.T, fields docs.FieldSpecs, values map[string]any) *docs.ParsedConfig {
+	t.Helper()
+	pConf, err := fields.ParsedConfigFromAny(values)
+	require.NoError(t, err)
+	return pConf
+}
