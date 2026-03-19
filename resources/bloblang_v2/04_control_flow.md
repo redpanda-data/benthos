@@ -258,7 +258,7 @@ match input.type() {
 
 ### Three Match Forms
 
-**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). The first case that matches is selected. Case expressions are ordinary expressions with the same scope access as the surrounding context (variables, `input`, `output`, etc. as appropriate). If a case expression evaluates to a **boolean**, an error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly. Boolean literals (`true`, `false`) as case expressions **must** be rejected at compile time. Cases involving dynamic values that happen to be boolean at runtime are runtime errors.
+**1. Equality match (`match expr { value => ... }`):** The matched expression is evaluated **once**, then each case value is compared against it using equality (`==`). Cases are evaluated in order; the first case that matches is selected and subsequent case expressions are not evaluated. Case expressions are ordinary expressions with the same scope access as the surrounding context (variables, `input`, `output`, etc. as appropriate). If a case expression evaluates to a **boolean**, an error is thrown — this catches the common mistake of writing conditions in equality match instead of using `as`. Use `if`/`else` to match against boolean values directly. Boolean literals (`true`, `false`) as case expressions **must** be rejected at compile time. Cases involving dynamic values that happen to be boolean at runtime are runtime errors.
 
 ```bloblang
 output.sound = match input.animal {
@@ -325,7 +325,7 @@ output.category = match {
 
 **Wildcard `_`:** In all three match forms, `_` is an unconditional catch-all — it always matches regardless of context. In equality match it matches any value; in boolean match forms it is not evaluated as a boolean expression but simply matches unconditionally. `_` is a syntactic form, not an expression — it can only appear as a match case pattern, not in arbitrary expression positions.
 
-**Non-exhaustive match:** If no case matches and there is no `_` catch-all, match *expressions* produce void (see Section 9.1) and match *statements* are no-ops (no assignments are executed). The `_` wildcard is the only catch-all mechanism — there is no `else` keyword for match.
+**Non-exhaustive match:** If no case matches and there is no `_` catch-all, match *expressions* produce void (see Section 4.1) and match *statements* are no-ops (no assignments are executed). The `_` wildcard is the only catch-all mechanism — there is no `else` keyword for match.
 
 ## 4.3 Block-Scoped Variables
 
