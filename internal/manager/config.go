@@ -3,6 +3,9 @@
 package manager
 
 import (
+	"fmt"
+
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component/cache"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/component/output"
@@ -19,6 +22,13 @@ const (
 	fieldResourceRateLimits = "rate_limit_resources"
 )
 
+// CustomResourceEntry holds the parsed config for a single custom resource instance.
+type CustomResourceEntry struct {
+	TypeName string
+	Label    string
+	Config   *docs.ParsedConfig
+}
+
 // ResourceConfig contains fields for specifying resource components at the root
 // of a Benthos config.
 type ResourceConfig struct {
@@ -27,6 +37,9 @@ type ResourceConfig struct {
 	ResourceOutputs    []output.Config    `yaml:"output_resources,omitempty"`
 	ResourceCaches     []cache.Config     `yaml:"cache_resources,omitempty"`
 	ResourceRateLimits []ratelimit.Config `yaml:"rate_limit_resources,omitempty"`
+
+	// CustomResources holds parsed configs for registered custom resource types.
+	CustomResources []CustomResourceEntry `yaml:"-"`
 }
 
 // NewResourceConfig creates a ResourceConfig with default values.
@@ -137,5 +150,35 @@ func FromParsed(prov docs.Provider, pConf *docs.ParsedConfig) (conf ResourceConf
 		}
 		conf.ResourceRateLimits = append(conf.ResourceRateLimits, c)
 	}
+
+	// Parse custom resource types registered by the environment.
+	var crt []bundle.CustomResourceType
+	if env, ok := prov.(*bundle.Environment); ok {
+		crt = env.CustomResourceTypes()
+	}
+	for _, r := range crt {
+		fieldName := r.Name
+		if !pConf.Contains(fieldName) {
+			continue
+		}
+		var entries []*docs.ParsedConfig
+		if entries, err = pConf.FieldObjectList(fieldName); err != nil {
+			err = fmt.Errorf("%s: %w", fieldName, err)
+			return
+		}
+		for _, entry := range entries {
+			var label string
+			if label, err = entry.FieldString("label"); err != nil {
+				err = fmt.Errorf("%s: %w", fieldName, err)
+				return
+			}
+			conf.CustomResources = append(conf.CustomResources, CustomResourceEntry{
+				TypeName: r.Name,
+				Label:    label,
+				Config:   entry,
+			})
+		}
+	}
+
 	return
 }

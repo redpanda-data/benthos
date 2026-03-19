@@ -5,6 +5,7 @@ package manager
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"path"
 	"sync"
@@ -110,6 +111,10 @@ type Type struct {
 
 	// Generic key/value store for plugin implementations.
 	genericValues *sync.Map
+
+	// Custom resource types registered via the environment.
+	// Map of typeName -> label -> value.
+	customResources map[string]map[string]any
 }
 
 // OptFunc is an opt setting for a manager type.
@@ -225,7 +230,8 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 		pipes:    map[string]<-chan message.Transaction{},
 		pipeLock: &sync.RWMutex{},
 
-		genericValues: &sync.Map{},
+		genericValues:   &sync.Map{},
+		customResources: map[string]map[string]any{},
 	}
 
 	for _, opt := range opts {
@@ -319,6 +325,31 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 			}
 			return &newRL, nil
 		})
+	}
+
+	crTypes := t.env.CustomResourceTypes()
+	for _, r := range conf.CustomResources {
+		if err := checkLabel(r.TypeName, r.Label); err != nil {
+			return nil, err
+		}
+		var ctor bundle.CustomResourceConstructor
+		for _, grt := range crTypes {
+			if grt.Name == r.TypeName {
+				ctor = grt.Constructor
+				break
+			}
+		}
+		if ctor == nil {
+			return nil, fmt.Errorf("unknown custom resource type %q", r.TypeName)
+		}
+		value, err := ctor(r.Config, t.intoPath(r.TypeName))
+		if err != nil {
+			return nil, fmt.Errorf("%s resource %q: %w", r.TypeName, r.Label, err)
+		}
+		if t.customResources[r.TypeName] == nil {
+			t.customResources[r.TypeName] = map[string]any{}
+		}
+		t.customResources[r.TypeName][r.Label] = value
 	}
 
 	return t, nil
@@ -465,6 +496,27 @@ func (t *Type) GetOrSetGeneric(key, value any) (actual any, loaded bool) {
 // SetGeneric attempts to set a generic resource to a given value by key.
 func (t *Type) SetGeneric(key, value any) {
 	t.genericValues.Store(key, value)
+}
+
+// ProbeCustomResource returns true if a custom resource exists under the
+// provided type name and label.
+func (t *Type) ProbeCustomResource(typeName, label string) bool {
+	labels, ok := t.customResources[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = labels[label]
+	return ok
+}
+
+// GetCustomResource returns a custom resource by type name and label.
+func (t *Type) GetCustomResource(typeName, label string) (any, bool) {
+	labels, ok := t.customResources[typeName]
+	if !ok {
+		return nil, false
+	}
+	v, ok := labels[label]
+	return v, ok
 }
 
 //------------------------------------------------------------------------------
@@ -1081,5 +1133,24 @@ func (t *Type) WaitForClose(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
+
+	for typeName, labels := range t.customResources {
+		for label, v := range labels {
+			type ctxCloser interface {
+				Close(ctx context.Context) error
+			}
+			switch c := v.(type) {
+			case ctxCloser:
+				if err := c.Close(ctx); err != nil {
+					return fmt.Errorf("custom resource %s/%s failed to cleanly shutdown: %v", typeName, label, err)
+				}
+			case io.Closer:
+				if err := c.Close(); err != nil {
+					return fmt.Errorf("custom resource %s/%s failed to cleanly shutdown: %v", typeName, label, err)
+				}
+			}
+		}
+	}
+
 	return nil
 }

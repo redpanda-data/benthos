@@ -102,6 +102,9 @@ type NewManagement interface {
 	GetOrSetGeneric(key, value any) (actual any, loaded bool)
 	SetGeneric(key, value any)
 
+	ProbeCustomResource(typeName, label string) bool
+	GetCustomResource(typeName, label string) (any, bool)
+
 	ConnectionTest(ctx context.Context) (component.ConnectionTestResults, error)
 }
 
