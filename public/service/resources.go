@@ -296,16 +296,23 @@ func (r *Resources) HasProcessor(name string) bool {
 	return r.mgr.ProbeProcessor(name)
 }
 
-// AccessResource returns a custom resource by type name and label. The value
-// is the one returned by the ResourceConstructor during registration. Returns
-// nil and false if the resource does not exist.
-func (r *Resources) AccessResource(typeName, label string) (any, bool) {
-	return r.mgr.GetCustomResource(typeName, label)
+// AccessCustomResource calls fn with the custom resource registered under the
+// given type name and label. The value passed to fn is the one returned by the
+// CustomResourceConstructor during registration. Returns an error if no such resource
+// exists.
+func (r *Resources) AccessCustomResource(ctx context.Context, typeName, label string, fn func(any)) error {
+	v, ok := r.mgr.GetCustomResource(typeName, label)
+	if !ok {
+		return manager.ErrResourceNotFound(label)
+	}
+	fn(v)
+	return nil
 }
 
-// HasResource returns true if a custom resource with the given type name and
-// label has been registered.
-func (r *Resources) HasResource(typeName, label string) bool {
+// HasCustomResource returns true if a custom resource with the given type name
+// and label has been registered. Custom resources are distinct from built-in
+// resource types such as caches, inputs, and rate limits.
+func (r *Resources) HasCustomResource(typeName, label string) bool {
 	return r.mgr.ProbeCustomResource(typeName, label)
 }
 
