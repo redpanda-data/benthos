@@ -23,6 +23,12 @@ func CliCommand(cliOpts *common.CLIOpts) *cli.Command {
 			Usage: "allow components to write logs at a provided level to stdout.",
 		},
 
+		&cli.BoolFlag{
+			Name:    "verbose",
+			Aliases: []string{"v"},
+			Usage:   "print all test case names before they are executed.",
+		},
+
 		&cli.StringSliceFlag{
 			Name:    common.RootFlagResources,
 			Aliases: []string{"r"},
@@ -61,6 +67,7 @@ For more information check out the docs at:
 			if resourcesPaths, err = filepath.Globs(ifs.OS(), resourcesPaths); err != nil {
 				return fmt.Errorf("failed to resolve resource glob pattern: %w", err)
 			}
+			verbose := c.Bool("verbose")
 			if logLevel := c.String("log"); logLevel != "" {
 				logConf := log.NewConfig()
 				logConf.LogLevel = logLevel
@@ -68,10 +75,10 @@ For more information check out the docs at:
 				if err != nil {
 					return fmt.Errorf("failed to init logger: %w", err)
 				}
-				if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, logger, resourcesPaths) {
+				if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, verbose, logger, resourcesPaths) {
 					return nil
 				}
-			} else if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, log.Noop(), resourcesPaths) {
+			} else if RunAll(cliOpts, c.Args().Slice(), "_benthos_test", true, verbose, log.Noop(), resourcesPaths) {
 				return nil
 			}
 			return &common.ErrExitCode{Err: errors.New("lint errors"), Code: 1}

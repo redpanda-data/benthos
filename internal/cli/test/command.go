@@ -125,7 +125,7 @@ func lintTarget(opts *common.CLIOpts, spec docs.FieldSpecs, path, testSuffix str
 // RunAll executes the test command for a slice of paths. The path can either be
 // a config file, a config files test definition file, a directory, or the
 // wildcard pattern './...'.
-func RunAll(opts *common.CLIOpts, paths []string, testSuffix string, lint bool, logger log.Modular, resourcesPaths []string) bool {
+func RunAll(opts *common.CLIOpts, paths []string, testSuffix string, lint, verbose bool, logger log.Modular, resourcesPaths []string) bool {
 	targets, err := GetTestTargets(paths, testSuffix)
 	if err != nil {
 		fmt.Fprintf(opts.Stderr, "Failed to obtain test targets: %v\n", err)
@@ -156,6 +156,15 @@ func RunAll(opts *common.CLIOpts, paths []string, testSuffix string, lint bool, 
 			if lints, err = lintTarget(opts, opts.MainConfigSpecCtor(), target, testSuffix); err != nil {
 				fmt.Fprintf(opts.Stderr, "Failed to execute test target '%v': %v\n", target, err)
 				return false
+			}
+		}
+		if verbose {
+			for _, c := range targets[target] {
+				name := c.Name
+				if name == "" {
+					name = "(unnamed)"
+				}
+				fmt.Fprintf(opts.Stdout, "  - %v\n", name)
 			}
 		}
 		if failCases, err = Execute(opts.Environment, opts.MainConfigSpecCtor(), targets[target], target, resourcesPaths, logger); err != nil {
