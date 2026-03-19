@@ -4,9 +4,11 @@ package manager
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/Jeffail/gabs/v2"
 
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 )
 
@@ -47,4 +49,22 @@ func Spec() docs.FieldSpecs {
 			"rate_limit_resources", "A list of rate limit resources, each must have a unique label.",
 		).Array().LinterFunc(lintResource).HasDefault([]any{}).Advanced(),
 	}
+}
+
+// CustomResourceSpecs returns field specs for all registered custom resource
+// types in the given environment. These should be appended to the schema.
+func CustomResourceSpecs(env *bundle.Environment) docs.FieldSpecs {
+	var specs docs.FieldSpecs
+	for _, crt := range env.CustomResourceTypes() {
+		children := docs.FieldSpecs{
+			docs.FieldString("label", "A unique label for this resource."),
+		}
+		children = append(children, crt.Fields...)
+
+		specs = append(specs, docs.FieldObject(
+			crt.Name,
+			fmt.Sprintf("A list of %s resources, each must have a unique label.", crt.Name),
+		).WithChildren(children...).Array().LinterFunc(lintResource).HasDefault([]any{}).Advanced())
+	}
+	return specs
 }
