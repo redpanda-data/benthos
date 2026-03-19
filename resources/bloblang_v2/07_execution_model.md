@@ -46,10 +46,16 @@ output.not_created = if false { "x" }   # Field absent: {}
 # Both return null when read, but differ structurally
 ```
 
-**Scalar output:** `output` can be assigned any type (string, number, etc.):
+**Root output assignment:** Assigning to bare `output` (without a path) replaces the entire output document with the assigned value, regardless of its type and regardless of any prior assignments. The new value completely replaces the old one — previous field assignments are discarded. `output` can hold any type (object, array, string, number, etc.):
 ```bloblang
-output = "foo"         # Replace object with string
+output.x = 1
+output.y = 2
+output = "foo"         # Replaces {"x": 1, "y": 2} with "foo"
 output.field           # ERROR: cannot access field of string
+
+output = "foo"
+output = {"a": 1}      # Replaces "foo" with {"a": 1}
+output.b = 2           # {"a": 1, "b": 2}
 ```
 
 ## 7.2 Copy-and-Modify Pattern

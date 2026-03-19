@@ -205,13 +205,13 @@ These operations result in **runtime errors**. The exceptions are `.or()`, which
 - Metadata key assignment: `output@.key = deleted()` — removes the key
 - Variable field assignment: `$var.field = deleted()` — removes the field from the variable's value
 - Array index assignment: `$arr[0] = deleted()`, `output.items[0] = deleted()` — removes the element at the given index and shifts remaining elements down (consistent with `.map()` + `deleted()` and `.without_index()`)
+- Array index assignment with further path: `output.items[0].name = deleted()` removes the `name` field from the object at index 0 — this is a field deletion, not an array element deletion. The `deleted()` applies to the final path component (the field), not the array element.
 - Collection literals: `[1, deleted(), 3]` → `[1, 3]`, `{"a": deleted()}` → `{}`
 - Return values from expressions used in assignments: `output.x = if spam { deleted() } else { value }`
 - Lambda return value in the methods that explicitly support it — `.map()`, `.map_values()`, `.map_keys()`, `.map_entries()` (element/entry omitted from result), and `.catch()` (result flows to calling context with normal semantics). All other methods treat `deleted()` lambda returns as runtime errors (see Section 13 preamble)
 
 **Causes runtime error:**
 - Variable assignment: `$var = deleted()` (cannot assign deleted to a variable — variables must always hold a value; see Section 4.1)
-- Array index assignment with further path: `output.items[0].name = deleted()` removes the `name` field from the object at index 0 — this is a field deletion, not an array element deletion. However, `output.items[0] = deleted()` removes the element itself and shifts remaining elements down (see "Triggers deletion" above).
 - Metadata root assignment: `output@ = deleted()` (cannot delete metadata object)
 - Binary operators: `deleted() + 5`, `deleted() == deleted()`, `deleted() && true`
 - Method calls (except `.or()`): `deleted().type()`, `deleted().uppercase()`
@@ -219,6 +219,14 @@ These operations result in **runtime errors**. The exceptions are `.or()`, which
 - Lambda return values in methods that do not support deletion (e.g., `filter`, `sort`). See individual method documentation in Section 13 for which methods support `deleted()` as a lambda return value.
 
 The distinction: `deleted()` is a special marker that triggers deletion when flowing into a field/metadata/index assignment or collection, but cannot be used as a normal value in computations. Assigning `deleted()` to a variable (`$var = deleted()`) is an error; however, assigning `deleted()` to a field *within* a variable (`$var.field = deleted()`) removes that field, and assigning `deleted()` to an array index (`$arr[0] = deleted()`) removes the element and shifts remaining elements down. The sole exception to method restrictions is `.or()`, which rescues `deleted()` and returns its argument (Section 8.3). When `deleted()` flows to the root output assignment, it drops the entire message and immediately exits the mapping.
+
+**Array index deletion edge cases:** Assigning `deleted()` to an array index follows the same index semantics as `.without_index()` (Section 13.6). Negative indices count from the end (`$arr[-1] = deleted()` removes the last element). Out-of-bounds indices — both positive and negative — are a runtime error. The target must be an array; assigning `deleted()` to an index on a non-array value (e.g., a string or object) is a runtime error. These rules apply uniformly to both `output` paths and variable paths:
+```bloblang
+$arr = [10, 20, 30]
+$arr[-1] = deleted()       # [10, 20] (last element removed)
+$arr[99] = deleted()       # ERROR: index out of bounds
+output.items[0] = deleted() # Removes first element, shifts remaining down
+```
 
 **Routing messages instead of dropping them:**
 
