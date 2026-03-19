@@ -47,11 +47,10 @@ func TestCustomResourceEndToEnd(t *testing.T) {
 	env := service.NewEnvironment()
 
 	// 1. Register a custom resource type "db_pools" with a "dsn" field.
-	require.NoError(t, env.RegisterResource(
+	require.NoError(t, env.RegisterCustomResource(
 		"db_pools",
-		[]*service.ConfigField{
-			service.NewStringField("dsn").Description("Database connection string."),
-		},
+		service.NewConfigSpec().
+			Field(service.NewStringField("dsn").Description("Database connection string.")),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (any, error) {
 			dsn, err := conf.FieldString("dsn")
 			if err != nil {
@@ -76,11 +75,12 @@ func TestCustomResourceEndToEnd(t *testing.T) {
 			if err != nil {
 				return nil, err
 			}
-			raw, ok := mgr.AccessResource("db_pools", label)
-			if !ok {
-				return nil, fmt.Errorf("db_pools resource %q not found", label)
+			var pool *dbPool
+			if err := mgr.AccessCustomResource(context.Background(), "db_pools", label, func(v any) {
+				pool = v.(*dbPool)
+			}); err != nil {
+				return nil, fmt.Errorf("db_pools resource %q not found: %w", label, err)
 			}
-			pool := raw.(*dbPool)
 			return &dsnStamper{pool: pool}, nil
 		},
 	))

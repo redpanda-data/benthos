@@ -134,10 +134,10 @@ func (e *Environment) getBloblangParserEnv() *ibloblang.Environment {
 
 //------------------------------------------------------------------------------
 
-// RegisterResource registers a named custom resource type. The provided fields
-// define the YAML configuration for the resource (a "label" field is added
-// automatically). The name is used as-is for the top-level YAML config field
-// and can be accessed by components via Resources.AccessResource.
+// RegisterCustomResource registers a named custom resource type. The provided
+// spec defines the YAML configuration for the resource (a "label" field is
+// added automatically). The name is used as-is for the top-level YAML config
+// field and can be accessed by components via Resources.AccessCustomResource.
 //
 // Returns an error if the name conflicts with a built-in config field or a
 // previously registered custom resource type.
@@ -146,14 +146,10 @@ func (e *Environment) getBloblangParserEnv() *ibloblang.Environment {
 // Close(context.Context) error method) it will be closed with the shutdown
 // context when the stream shuts down. As a fallback, io.Closer is also
 // supported but does not receive the shutdown context.
-func (e *Environment) RegisterResource(name string, fields []*ConfigField, ctor ResourceConstructor) error {
-	var internalFields docs.FieldSpecs
-	for _, f := range fields {
-		internalFields = append(internalFields, f.field)
-	}
+func (e *Environment) RegisterCustomResource(name string, spec *ConfigSpec, ctor CustomResourceConstructor) error {
 	return e.internal.RegisterCustomResource(bundle.CustomResourceType{
 		Name:   name,
-		Fields: internalFields,
+		Fields: spec.component.Config.Children,
 		Constructor: func(pConf *docs.ParsedConfig, nm bundle.NewManagement) (any, error) {
 			return ctor(&ParsedConfig{i: pConf, mgr: nm}, newResourcesFromManager(nm))
 		},
