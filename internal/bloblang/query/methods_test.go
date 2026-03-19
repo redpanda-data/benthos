@@ -794,6 +794,40 @@ func TestMethods(t *testing.T) {
 			},
 			output: "foo & bar",
 		},
+		"check url escape path": {
+			input: methods(
+				literalFn("foo & bar"),
+				method("escape_url_path"),
+			),
+			output: "foo%20&%20bar",
+		},
+		"check url escape path bytes": {
+			input: methods(
+				function("content"),
+				method("escape_url_path"),
+			),
+			messages: []easyMsg{
+				{content: `foo & bar`},
+			},
+			output: "foo%20&%20bar",
+		},
+		"check url unescape path": {
+			input: methods(
+				literalFn("foo%20&%20bar"),
+				method("unescape_url_path"),
+			),
+			output: "foo & bar",
+		},
+		"check url unescape path bytes": {
+			input: methods(
+				function("content"),
+				method("unescape_url_path"),
+			),
+			messages: []easyMsg{
+				{content: `foo%20&%20bar`},
+			},
+			output: "foo & bar",
+		},
 		"check flatten": {
 			input: methods(
 				function("json"),

@@ -644,6 +644,58 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
+		"escape_url_path", "",
+	).InCategory(
+		MethodCategoryStrings,
+		"Encodes a string for safe use in URL path segments using percent-encoding. Unlike `escape_url_query`, spaces are encoded as `%20` instead of `+`. Use when building URL paths with dynamic segments.",
+		NewExampleSpec("",
+			`root.escaped = this.value.escape_url_path()`,
+			`{"value":"foo & bar"}`,
+			`{"escaped":"foo%20&%20bar"}`,
+		),
+		NewExampleSpec("",
+			`root.url = "https://example.com/docs/" + this.path.escape_url_path()`,
+			`{"path":"my document.pdf"}`,
+			`{"url":"https://example.com/docs/my%20document.pdf"}`,
+		),
+	),
+	func(*ParsedParams) (simpleMethod, error) {
+		return stringMethod(func(s string) (any, error) {
+			return url.PathEscape(s), nil
+		}), nil
+	},
+)
+
+//------------------------------------------------------------------------------
+
+var _ = registerSimpleMethod(
+	NewMethodSpec(
+		"unescape_url_path", "",
+	).InCategory(
+		MethodCategoryStrings,
+		"Decodes URL path percent-encoding, converting `%20` to spaces and other percent-encoded characters to their original values. Use for parsing URL path segments.",
+		NewExampleSpec("",
+			`root.unescaped = this.value.unescape_url_path()`,
+			`{"value":"foo%20&%20bar"}`,
+			`{"unescaped":"foo & bar"}`,
+		),
+		NewExampleSpec("",
+			`root.filename = this.path.unescape_url_path()`,
+			`{"path":"my%20document.pdf"}`,
+			`{"filename":"my document.pdf"}`,
+		),
+	),
+	func(*ParsedParams) (simpleMethod, error) {
+		return stringMethod(func(s string) (any, error) {
+			return url.PathUnescape(s)
+		}), nil
+	},
+)
+
+//------------------------------------------------------------------------------
+
+var _ = registerSimpleMethod(
+	NewMethodSpec(
 		"filepath_join", "",
 	).InCategory(
 		MethodCategoryStrings,
