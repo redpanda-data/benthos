@@ -8,6 +8,21 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Bloblang: The `hash` method now supports `sha3_256` and `sha3_512` algorithms. (@prakhargarg105)
+- Bloblang: Added `parse_logfmt` method. (@twmb)
+- Bloblang: Added `escape_url_path` and `unescape_url_path` methods. (@twmb) 
+- Processor/switch: Added `continue` option for conditional case chaining. (@twmb)
+- API: Added custom resource type registration. (@mmatczuk)
+- CLI: Added `--verbose` flag to list test case names. (@twmb)
+
+### Changed
+
+- Codec: default to all-bytes reader for decompression codecs. (@twmb)
+
+### Fixed
+
+- Stdin: fix watcher mode swallowing first message after reload. (@twmb)
+- Env: handle Windows line terminators in dotenv parser. (@twmb)
+- Pipeline: defer processor close in pool until all workers exit. (@twmb) 
 
 ## 4.68.0 - 2026-03-13
 
