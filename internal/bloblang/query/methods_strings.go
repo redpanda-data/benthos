@@ -1231,6 +1231,104 @@ func parseCSVMethod(args *ParsedParams) (simpleMethod, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
+		"parse_logfmt", "",
+	).InCategory(
+		MethodCategoryParsing,
+		"Attempts to parse a logfmt encoded string into an object. A logfmt string contains key=value pairs separated by spaces, where values can optionally be quoted.",
+		NewExampleSpec("",
+			`root = this.msg.parse_logfmt()`,
+			`{"msg":"level=info msg=\"hello world\" dur=1.5s"}`,
+			`{"dur":"1.5s","level":"info","msg":"hello world"}`,
+		),
+	),
+	func(*ParsedParams) (simpleMethod, error) {
+		return stringMethod(func(s string) (any, error) {
+			return parseLogfmt(s)
+		}), nil
+	},
+)
+
+func parseLogfmt(s string) (any, error) {
+	result := map[string]any{}
+	i := 0
+	for i < len(s) {
+		// Skip whitespace
+		for i < len(s) && (s[i] == ' ' || s[i] == '\t') {
+			i++
+		}
+		if i >= len(s) {
+			break
+		}
+
+		// Parse key
+		keyStart := i
+		for i < len(s) && s[i] != '=' && s[i] != ' ' && s[i] != '\t' {
+			i++
+		}
+		key := s[keyStart:i]
+		if key == "" {
+			i++
+			continue
+		}
+
+		if i >= len(s) || s[i] != '=' {
+			// Key without value (boolean true)
+			result[key] = true
+			continue
+		}
+		i++ // skip '='
+
+		// Parse value
+		if i < len(s) && s[i] == '"' {
+			// Quoted value
+			i++ // skip opening quote
+			var val strings.Builder
+			for i < len(s) && s[i] != '"' {
+				if s[i] == '\\' && i+1 < len(s) {
+					i++
+					switch s[i] {
+					case '"', '\\', '/':
+						val.WriteByte(s[i])
+					case 'n':
+						val.WriteByte('\n')
+					case 'r':
+						val.WriteByte('\r')
+					case 't':
+						val.WriteByte('\t')
+					case 'b':
+						val.WriteByte('\b')
+					case 'f':
+						val.WriteByte('\f')
+					default:
+						val.WriteByte('\\')
+						val.WriteByte(s[i])
+					}
+				} else {
+					val.WriteByte(s[i])
+				}
+				i++
+			}
+			if i >= len(s) {
+				return nil, fmt.Errorf("logfmt: unterminated quoted value for key %q", key)
+			}
+			i++ // skip closing quote
+			result[key] = val.String()
+		} else {
+			// Unquoted value
+			valStart := i
+			for i < len(s) && s[i] != ' ' && s[i] != '\t' {
+				i++
+			}
+			result[key] = s[valStart:i]
+		}
+	}
+	return result, nil
+}
+
+//------------------------------------------------------------------------------
+
+var _ = registerSimpleMethod(
+	NewMethodSpec(
 		"parse_json", "",
 	).Param(
 		ParamBool("use_number", "An optional flag that when set makes parsing numbers as json.Number instead of the default float64.").Optional(),
