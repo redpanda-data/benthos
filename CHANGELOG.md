@@ -16,13 +16,13 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Codec: default to all-bytes reader for decompression codecs. (@twmb)
+- Codec: Default to all-bytes reader for decompression codecs. (@twmb)
 
 ### Fixed
 
-- Stdin: fix watcher mode swallowing first message after reload. (@twmb)
-- Env: handle Windows line terminators in dotenv parser. (@twmb)
-- Pipeline: defer processor close in pool until all workers exit. (@twmb) 
+- Stdin: Fix watcher mode swallowing first message after reload. (@twmb)
+- Env: Handle Windows line terminators in dotenv parser. (@twmb)
+- Pipeline: Defer processor close in pool until all workers exit. (@twmb)
 
 ## 4.68.0 - 2026-03-13
 
