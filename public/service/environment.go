@@ -134,6 +134,28 @@ func (e *Environment) getBloblangParserEnv() *ibloblang.Environment {
 
 //------------------------------------------------------------------------------
 
+// RegisterCustomResource registers a named custom resource type. The provided
+// spec defines the YAML configuration for the resource (a "label" field is
+// added automatically). The name is used as-is for the top-level YAML config
+// field and can be accessed by components via Resources.AccessCustomResource.
+//
+// Returns an error if the name conflicts with a built-in config field or a
+// previously registered custom resource type.
+//
+// If the value returned by the constructor implements Closer (with a
+// Close(context.Context) error method) it will be closed with the shutdown
+// context when the stream shuts down. As a fallback, io.Closer is also
+// supported but does not receive the shutdown context.
+func (e *Environment) RegisterCustomResource(name string, spec *ConfigSpec, ctor CustomResourceConstructor) error {
+	return e.internal.RegisterCustomResource(bundle.CustomResourceType{
+		Name:   name,
+		Fields: spec.component.Config.Children,
+		Constructor: func(pConf *docs.ParsedConfig, nm bundle.NewManagement) (any, error) {
+			return ctor(&ParsedConfig{i: pConf, mgr: nm}, newResourcesFromManager(nm))
+		},
+	})
+}
+
 // RegisterBatchBuffer attempts to register a new buffer plugin by providing a
 // description of the configuration for the buffer and a constructor for the
 // buffer processor. The constructor will be called for each instantiation of

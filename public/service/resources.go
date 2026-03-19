@@ -296,6 +296,26 @@ func (r *Resources) HasProcessor(name string) bool {
 	return r.mgr.ProbeProcessor(name)
 }
 
+// AccessCustomResource calls fn with the custom resource registered under the
+// given type name and label. The value passed to fn is the one returned by the
+// CustomResourceConstructor during registration. Returns an error if no such resource
+// exists.
+func (r *Resources) AccessCustomResource(ctx context.Context, typeName, label string, fn func(any)) error {
+	v, ok := r.mgr.GetCustomResource(typeName, label)
+	if !ok {
+		return manager.ErrResourceNotFound(label)
+	}
+	fn(v)
+	return nil
+}
+
+// HasCustomResource returns true if a custom resource with the given type name
+// and label has been registered. Custom resources are distinct from built-in
+// resource types such as caches, inputs, and rate limits.
+func (r *Resources) HasCustomResource(typeName, label string) bool {
+	return r.mgr.ProbeCustomResource(typeName, label)
+}
+
 // GetGeneric queries the resources for a generic key value, potentially set by
 // another plugin or instantiation of this plugin.
 func (r *Resources) GetGeneric(key any) (any, bool) {
