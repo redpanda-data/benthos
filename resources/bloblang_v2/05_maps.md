@@ -58,6 +58,21 @@ Maps are **isolated functions**: they take zero or more parameters, optionally d
 
 **Default parameters:** Parameters may have default values (`param = literal`). Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`) — expressions, function calls, and references to other parameters are not allowed in defaults. **Note:** Since there is no timestamp literal syntax, timestamp defaults are not possible. Use `null` with `.or()` as a workaround: `map query(start = null) { $s = start.or(now()); ... }`.
 
+**Dynamic defaults pattern:** When a parameter's default depends on other parameters or on computed values, use `null` as a sentinel default and compute the actual value in the map body. This is the standard pattern for truly optional parameters in user-defined maps:
+
+```bloblang
+map connect(host, port = null) {
+  $p = port.or(if host.has_prefix("https") { 443 } else { 80 })
+  host + ":" + $p.string()
+}
+
+connect("https://example.com")       # "https://example.com:443"
+connect("http://example.com")        # "http://example.com:80"
+connect("http://example.com", 8080)  # "http://example.com:8080"
+```
+
+This pattern cannot distinguish "caller passed null explicitly" from "caller omitted the argument." If null is a meaningful value for a parameter, use a different sentinel or restructure the map.
+
 ## 5.2 Examples
 
 **Single parameter:**
