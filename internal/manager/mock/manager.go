@@ -31,13 +31,14 @@ import (
 type Manager struct {
 	Version string
 
-	Inputs     map[string]*Input
-	Caches     map[string]map[string]CacheItem
-	RateLimits map[string]RateLimit
-	Outputs    map[string]OutputWriter
-	Processors map[string]Processor
-	Pipes      map[string]<-chan message.Transaction
-	lock       sync.Mutex
+	Inputs          map[string]*Input
+	Caches          map[string]map[string]CacheItem
+	RateLimits      map[string]RateLimit
+	Outputs         map[string]OutputWriter
+	Processors      map[string]Processor
+	CustomResources map[string]map[string]any
+	Pipes           map[string]<-chan message.Transaction
+	lock            sync.Mutex
 
 	genericValues *sync.Map
 
@@ -54,18 +55,19 @@ type Manager struct {
 // NewManager provides a new mock manager.
 func NewManager() *Manager {
 	return &Manager{
-		Version:       "mock",
-		Inputs:        map[string]*Input{},
-		Caches:        map[string]map[string]CacheItem{},
-		RateLimits:    map[string]RateLimit{},
-		Outputs:       map[string]OutputWriter{},
-		Processors:    map[string]Processor{},
-		Pipes:         map[string]<-chan message.Transaction{},
-		CustomFS:      ifs.OS(),
-		M:             metrics.Noop(),
-		L:             log.Noop(),
-		T:             noop.NewTracerProvider(),
-		genericValues: &sync.Map{},
+		Version:         "mock",
+		Inputs:          map[string]*Input{},
+		Caches:          map[string]map[string]CacheItem{},
+		RateLimits:      map[string]RateLimit{},
+		Outputs:         map[string]OutputWriter{},
+		Processors:      map[string]Processor{},
+		CustomResources: map[string]map[string]any{},
+		Pipes:           map[string]<-chan message.Transaction{},
+		CustomFS:        ifs.OS(),
+		M:               metrics.Noop(),
+		L:               log.Noop(),
+		T:               noop.NewTracerProvider(),
+		genericValues:   &sync.Map{},
 	}
 }
 
@@ -395,6 +397,33 @@ func (m *Manager) GetOrSetGeneric(key, value any) (actual any, loaded bool) {
 // SetGeneric attempts to set a generic resource to a given value by key.
 func (m *Manager) SetGeneric(key, value any) {
 	m.genericValues.Store(key, value)
+}
+
+// ProbeCustomResource returns true if a custom resource exists under the
+// provided type name and label.
+func (m *Manager) ProbeCustomResource(typeName, label string) bool {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	labels, ok := m.CustomResources[typeName]
+	if !ok {
+		return false
+	}
+	_, ok = labels[label]
+	return ok
+}
+
+// GetCustomResource returns a custom resource by type name and label.
+func (m *Manager) GetCustomResource(typeName, label string) (any, bool) {
+	m.lock.Lock()
+	defer m.lock.Unlock()
+
+	labels, ok := m.CustomResources[typeName]
+	if !ok {
+		return nil, false
+	}
+	v, ok := labels[label]
+	return v, ok
 }
 
 // ConnectionTest returns an empty list of connection test results.

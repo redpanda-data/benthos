@@ -198,6 +198,14 @@ func MustRegisterBatchProcessor(name string, spec *ConfigSpec, ctor BatchProcess
 	}
 }
 
+// CustomResourceConstructor is a func that's provided a configuration type and
+// access to a service manager and must return a resource value, or an error.
+// The returned value is stored and can be accessed by components via
+// Resources.AccessCustomResource. If the returned value implements Closer (with
+// a Close(context.Context) error method) it will be closed with the shutdown
+// context. As a fallback, io.Closer is also supported.
+type CustomResourceConstructor func(conf *ParsedConfig, mgr *Resources) (any, error)
+
 // RateLimitConstructor is a func that's provided a configuration type and
 // access to a service manager and must return an instantiation of a rate limit
 // based on the config, or an error.
