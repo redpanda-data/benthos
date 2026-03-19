@@ -3,8 +3,41 @@
 package bundle
 
 import (
+	"fmt"
+
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 )
+
+// reservedFieldNames are top-level config field names that cannot be used as
+// custom resource type names.
+var reservedFieldNames = map[string]struct{}{
+	"input":                {},
+	"buffer":               {},
+	"pipeline":             {},
+	"output":               {},
+	"input_resources":      {},
+	"processor_resources":  {},
+	"output_resources":     {},
+	"cache_resources":      {},
+	"rate_limit_resources": {},
+	"http":                 {},
+	"logger":               {},
+	"metrics":              {},
+	"tracer":               {},
+	"shutdown_delay":       {},
+	"shutdown_timeout":     {},
+	"tests":                {},
+}
+
+// CustomResourceConstructor is a constructor for a custom resource type.
+type CustomResourceConstructor func(pConf *docs.ParsedConfig, nm NewManagement) (any, error)
+
+// CustomResourceType describes a registered custom resource type.
+type CustomResourceType struct {
+	Name        string
+	Fields      docs.FieldSpecs
+	Constructor CustomResourceConstructor
+}
 
 // Environment is a collection of Benthos component plugins that can be used in
 // order to build and run streaming pipelines with access to different sets of
@@ -20,6 +53,8 @@ type Environment struct {
 	tracers    *TracerSet
 
 	scanners *ScannerSet
+
+	customResourceTypes []CustomResourceType
 }
 
 // NewEnvironment creates an empty environment.
@@ -35,6 +70,28 @@ func NewEnvironment() *Environment {
 		tracers:    &TracerSet{},
 		scanners:   &ScannerSet{},
 	}
+}
+
+// RegisterCustomResource registers a custom resource type with the environment.
+// The Name is used as-is for the top-level YAML field and as the type key for
+// ProbeCustomResource/GetCustomResource. Returns an error if the name conflicts
+// with a built-in field or an already-registered custom resource type.
+func (e *Environment) RegisterCustomResource(crt CustomResourceType) error {
+	if _, ok := reservedFieldNames[crt.Name]; ok {
+		return fmt.Errorf("custom resource name %q conflicts with a built-in config field", crt.Name)
+	}
+	for _, existing := range e.customResourceTypes {
+		if existing.Name == crt.Name {
+			return fmt.Errorf("custom resource type %q is already registered", crt.Name)
+		}
+	}
+	e.customResourceTypes = append(e.customResourceTypes, crt)
+	return nil
+}
+
+// CustomResourceTypes returns the registered custom resource types.
+func (e *Environment) CustomResourceTypes() []CustomResourceType {
+	return e.customResourceTypes
 }
 
 // Clone an existing environment to a new one that can be modified
@@ -68,6 +125,7 @@ func (e *Environment) Clone() *Environment {
 	for _, v := range e.scanners.specs {
 		_ = newEnv.scanners.Add(v.constructor, v.spec)
 	}
+	newEnv.customResourceTypes = append(newEnv.customResourceTypes, e.customResourceTypes...)
 	return newEnv
 }
 
@@ -134,6 +192,7 @@ func (e *Environment) Without(names ...string) *Environment {
 		}
 		_ = newEnv.scanners.Add(v.constructor, v.spec)
 	}
+	newEnv.customResourceTypes = append(newEnv.customResourceTypes, e.customResourceTypes...)
 	return newEnv
 }
 
@@ -191,6 +250,7 @@ func (e *Environment) With(names ...string) *Environment {
 			_ = newEnv.scanners.Add(v.constructor, v.spec)
 		}
 	}
+	newEnv.customResourceTypes = append(newEnv.customResourceTypes, e.customResourceTypes...)
 	return newEnv
 }
 
