@@ -30,7 +30,7 @@ tests:
   - name: "recursive sum of array"
     mapping: |
       map sum_list(items, idx) {
-        if idx >= items.length() { 0 } else { items.index(idx) + sum_list(items, idx + 1) }
+        if idx >= items.length() { 0 } else { items[idx] + sum_list(items, idx + 1) }
       }
       output.v = sum_list([10, 20, 30], 0)
     output: {"v": 60}

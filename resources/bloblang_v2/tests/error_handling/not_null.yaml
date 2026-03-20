@@ -120,12 +120,21 @@ tests:
 
   # --- Used in conditional patterns ---
 
-  - name: "not_null in match arm validates value"
+  - name: "not_null in match arm validates non-null value"
+    input: {"val": "hello"}
+    mapping: |
+      output.result = match input.val as v {
+        v == null => throw("got null"),
+        _ => v.not_null(),
+      }
+    output: {"result": "hello"}
+
+  - name: "not_null in match arm catches null value"
     input: {"val": null}
     mapping: |
-      output.result = match input.val {
-        null => throw("got null"),
-        _ as v => v.not_null(),
+      output.result = match input.val as v {
+        v == null => throw("got null"),
+        _ => v.not_null(),
       }
     error: "got null"
 

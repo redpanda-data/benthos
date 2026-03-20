@@ -8,9 +8,14 @@ tests:
       output = 9223372036854775807 + 1
     error: "overflow"
 
-  - name: "int64 min - 1 overflows"
+  - name: "int64 min literal is compile error"
     mapping: |
       output = -9223372036854775808 - 1
+    compile_error: "exceeds"
+
+  - name: "int64 min - 1 overflows"
+    mapping: |
+      output = (-9223372036854775807 - 1) - 1
     error: "overflow"
 
   - name: "int64 max * 2 overflows"
@@ -28,9 +33,9 @@ tests:
       output = 9223372036854775807
     output: 9223372036854775807
 
-  - name: "int64 min value is representable"
+  - name: "int64 min value via arithmetic is representable"
     mapping: |
-      output = -9223372036854775808
+      output = -9223372036854775807 - 1
     output: -9223372036854775808
 
   # --- int32 overflow via conversion ---
