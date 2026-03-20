@@ -92,10 +92,10 @@ tests:
       output.result = throw($msg)
     error: "dynamic error"
 
-  - name: "throw with string interpolation"
+  - name: "throw with dynamic string concatenation"
     mapping: |
       $code = 404
-      output.result = throw("error code: %{$code.string()}")
+      output.result = throw("error code: " + $code.string())
     error: "error code: 404"
 
   # --- Conditional throw ---

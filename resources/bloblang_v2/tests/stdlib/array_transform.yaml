@@ -143,9 +143,9 @@ tests:
     error: "sort"
 
   - name: "sort NaN sorts after all values"
+    input: {"nan": {_type: "float64", value: "NaN"}}
     mapping: |
-      $nan = 0.0 / 0.0
-      output.result = [$nan, 1.0, 3.0, 2.0].sort()
+      output.result = [input.nan, 1.0, 3.0, 2.0].sort()
     output: {"result": [1.0, 2.0, 3.0, {_type: "float64", value: "NaN"}]}
 
   # --- sort_by ---
@@ -239,10 +239,9 @@ tests:
     output: {"result": [{"id": 1, "v": "a"}, {"id": 2, "v": "b"}]}
 
   - name: "unique NaN values considered equal"
+    input: {"nan1": {_type: "float64", value: "NaN"}, "nan2": {_type: "float64", value: "NaN"}}
     mapping: |
-      $nan1 = 0.0 / 0.0
-      $nan2 = 0.0 / 0.0
-      output.result = [$nan1, 1.0, $nan2, 2.0].unique()
+      output.result = [input.nan1, 1.0, input.nan2, 2.0].unique()
     output: {"result": [{_type: "float64", value: "NaN"}, 1.0, 2.0]}
 
   - name: "unique mixed types preserved"

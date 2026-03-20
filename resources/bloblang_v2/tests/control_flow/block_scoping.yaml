@@ -140,7 +140,7 @@ tests:
       output.outer = $x
     output: {"result": 110, "outer": 1}
 
-  - name: "nested if statement in if expression — statement mutates expression scope"
+  - name: "if statement inside expression body is compile error"
     mapping: |
       $x = 1
       output.result = if true {
@@ -150,8 +150,7 @@ tests:
         }
         $x
       }
-      output.outer = $x
-    output: {"result": 20, "outer": 1}
+    compile_error: "expression"
 
   # --- Variables declared in block not accessible after ---
 

@@ -47,7 +47,7 @@ tests:
 
   - name: "abs int64 min value overflows"
     mapping: |
-      output = (-9223372036854775808).abs()
+      output = (-9223372036854775807 - 1).abs()
     error: "overflow"
 
   # --- abs: int32 ---
