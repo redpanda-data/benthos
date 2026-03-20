@@ -113,7 +113,7 @@ tests:
       map infinite(n) {
         1 + infinite(n)
       }
-      output.v = infinite(0).catch("recovered")
+      output.v = infinite(0).catch(err -> "recovered")
     error: "recursion"
 
   - name: "recursion limit in nested call cannot be caught"
@@ -122,7 +122,7 @@ tests:
         infinite(n)
       }
       map wrapper(x) {
-        infinite(x).catch("safe")
+        infinite(x).catch(err -> "safe")
       }
       output.v = wrapper(0)
     error: "recursion"

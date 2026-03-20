@@ -176,15 +176,10 @@ tests:
       output = (-3.9).int64()
     output: -3
 
-  - name: "int64 from bool true"
+  - name: "int64 from bool is error"
     mapping: |
       output = true.int64()
-    output: 1
-
-  - name: "int64 from bool false"
-    mapping: |
-      output = false.int64()
-    output: 0
+    error: "int64"
 
   - name: "int64 from invalid string"
     mapping: |

@@ -112,7 +112,7 @@ tests:
         items.map(x -> x * input.value)
       }
       output.result = transform([1, 2])
-    error: "input"
+    compile_error: "input"
 
   - name: "lambda inside map cannot read output"
     mapping: |
@@ -121,7 +121,7 @@ tests:
         items.map(x -> x + output.base)
       }
       output.result = transform([1, 2])
-    error: "output"
+    compile_error: "output"
 
   - name: "lambda inside map can read map parameter"
     mapping: |

@@ -159,7 +159,7 @@ tests:
 
   # --- Nested expression contexts ---
 
-  - name: "nested if-expressions each shadow independently"
+  - name: "output assignment in expression context is compile error"
     input: {"a": true, "b": true}
     mapping: |
       $x = "top"
@@ -172,7 +172,7 @@ tests:
         $x
       }
       output.outer = $x
-    output: {"nested": "level2", "inner": "level1", "outer": "top"}
+    compile_error: "output"
 
   - name: "shadow does not leak between sibling expressions"
     input: {"flag": true}

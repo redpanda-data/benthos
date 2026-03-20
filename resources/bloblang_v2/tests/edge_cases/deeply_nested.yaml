@@ -49,7 +49,7 @@ tests:
 
   - name: "long method chain on string"
     mapping: |
-      output = "  Hello World  ".trim().lowercase().replace("hello", "hi").uppercase()
+      output = "  Hello World  ".trim().lowercase().replace_all("hello", "hi").uppercase()
     output: "HI WORLD"
 
   - name: "long method chain on array"

@@ -217,10 +217,10 @@ tests:
       output = "3.14".float64()
     output: 3.14
 
-  - name: "float64 from bool true"
+  - name: "float64 from bool is error"
     mapping: |
       output = true.float64()
-    output: 1.0
+    error: "float64"
 
   - name: "float64 from invalid string"
     mapping: |

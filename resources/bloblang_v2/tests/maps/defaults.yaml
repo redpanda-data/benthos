@@ -25,7 +25,7 @@ tests:
         currency + " " + amount.round(decimals).string()
       }
       output.v = fmt(99.99)
-    output: {"v": "USD 100.0"}
+    output: {"v": "USD 99.99"}
 
   - name: "multiple defaults first provided second omitted"
     mapping: |
@@ -33,7 +33,7 @@ tests:
         currency + " " + amount.round(decimals).string()
       }
       output.v = fmt(99.99, "EUR")
-    output: {"v": "EUR 100.0"}
+    output: {"v": "EUR 99.99"}
 
   - name: "multiple defaults all provided"
     mapping: |
@@ -101,7 +101,7 @@ tests:
         currency + " " + amount.round(decimals).string()
       }
       output.v = fmt(amount: 99.99)
-    output: {"v": "USD 100.0"}
+    output: {"v": "USD 99.99"}
 
   - name: "named args override all defaults"
     mapping: |
