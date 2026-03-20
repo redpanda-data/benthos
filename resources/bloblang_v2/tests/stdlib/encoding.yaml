@@ -237,7 +237,7 @@ tests:
   - name: "encode base64url"
     mapping: |
       output = "hello?world>".encode("base64url")
-    output: "aGVsbG8/d29ybGQ+"
+    output: "aGVsbG8_d29ybGQ-"
 
   # --- encode: base64rawurl ---
 

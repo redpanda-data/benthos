@@ -183,7 +183,7 @@ tests:
       output.v = deleted().or("fallback")
     output: {"v": "fallback"}
 
-  - name: "catch rescues deleted()"
+  - name: "catch passes through deleted()"
     mapping: |
       output.v = deleted().catch(err -> "caught")
-    output: {"v": "caught"}
+    output: {}
