@@ -72,15 +72,10 @@ tests:
       output = 42.float64()
     output: 42.0
 
-  - name: "float64 from bool true"
+  - name: "float64 from bool is error"
     mapping: |
       output = true.float64()
-    output: 1.0
-
-  - name: "float64 from bool false"
-    mapping: |
-      output = false.float64()
-    output: 0.0
+    error: "float64"
 
   - name: "float64 from invalid string"
     mapping: |

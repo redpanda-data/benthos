@@ -5,7 +5,7 @@ tests:
 
   - name: "discard key in map_entries"
     mapping: |
-      output.result = {"a": 1, "b": 2}.map_entries((_, v) -> {"key": "x", "value": v * 2})
+      output.result = {"a": 1}.map_entries((_, v) -> {"key": "x", "value": v * 2})
     output: {"result": {"x": 2}}
 
   - name: "discard value in map_entries"

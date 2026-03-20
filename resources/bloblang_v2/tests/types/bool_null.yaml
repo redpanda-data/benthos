@@ -136,15 +136,10 @@ tests:
       output = false.string()
     output: "false"
 
-  - name: "bool to int64 true"
+  - name: "bool to int64 is error"
     mapping: |
       output = true.int64()
-    output: 1
-
-  - name: "bool to int64 false"
-    mapping: |
-      output = false.int64()
-    output: 0
+    error: "int64"
 
   # --- Boolean errors with non-boolean operators ---
 

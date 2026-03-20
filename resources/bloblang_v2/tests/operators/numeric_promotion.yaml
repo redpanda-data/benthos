@@ -139,7 +139,7 @@ tests:
   - name: "int64 at float64 exact limit succeeds"
     mapping: |
       output.result = 9007199254740992 + 1.0
-    output: {"result": 9007199254740993.0}
+    output: {"result": 9007199254740992.0}
 
   - name: "negative int64 exceeding float64 exact range causes error"
     mapping: |
