@@ -1,0 +1,138 @@
+description: "Edge cases: whitespace handling, raw string newlines, multi-line mappings"
+
+tests:
+  # --- Whitespace in expressions ---
+
+  - name: "extra spaces around operators"
+    mapping: |
+      output = 1   +   2
+    output: 3
+
+  - name: "no spaces around operators"
+    mapping: |
+      output = 1+2
+    output: 3
+
+  - name: "tabs in expressions"
+    mapping: "output\t=\t1\t+\t2"
+    output: 3
+
+  - name: "spaces in array literal"
+    mapping: |
+      output = [ 1 , 2 , 3 ]
+    output: [1, 2, 3]
+
+  - name: "spaces in object literal"
+    mapping: |
+      output = { "a" : 1 , "b" : 2 }
+    output: {"a": 1, "b": 2}
+
+  # --- Multi-line mappings ---
+
+  - name: "multi-line array literal"
+    mapping: |
+      output = [
+        1,
+        2,
+        3,
+      ]
+    output: [1, 2, 3]
+
+  - name: "multi-line object literal"
+    mapping: |
+      output = {
+        "a": 1,
+        "b": 2,
+        "c": 3,
+      }
+    output: {"a": 1, "b": 2, "c": 3}
+
+  - name: "multi-line method chain"
+    mapping: |
+      output = [3, 1, 2]
+        .sort()
+        .reverse()
+    output: [3, 2, 1]
+
+  - name: "multi-line if expression"
+    mapping: |
+      output = if true {
+        "yes"
+      } else {
+        "no"
+      }
+    output: "yes"
+
+  - name: "multi-line match expression"
+    mapping: |
+      output = match 2 {
+        1 => "one",
+        2 => "two",
+        _ => "other",
+      }
+    output: "two"
+
+  # --- Raw strings preserve newlines ---
+
+  - name: "raw string preserves literal newline"
+    mapping: |
+      output = `line1
+      line2`
+    output: "line1\nline2"
+
+  - name: "raw string preserves multiple newlines"
+    mapping: |
+      output = `a
+
+      b`
+    output: "a\n\nb"
+
+  - name: "raw string preserves tabs"
+    mapping: |
+      output = `col1	col2`
+    output: "col1\tcol2"
+
+  - name: "raw string does not process escape sequences"
+    mapping: |
+      output = `hello\nworld`
+    output: "hello\\nworld"
+
+  # --- Escaped newlines in regular strings ---
+
+  - name: "escaped newline in regular string"
+    mapping: |
+      output = "line1\nline2"
+    output: "line1\nline2"
+
+  - name: "escaped tab in regular string"
+    mapping: |
+      output = "col1\tcol2"
+    output: "col1\tcol2"
+
+  # --- Blank lines between statements ---
+
+  - name: "blank lines between statements are ignored"
+    mapping: |
+      output.a = 1
+
+      output.b = 2
+
+      output.c = 3
+    output: {"a": 1, "b": 2, "c": 3}
+
+  # --- Leading/trailing whitespace in mapping ---
+
+  - name: "mapping with leading blank lines"
+    mapping: |
+
+      output = 42
+    output: 42
+
+  - name: "multiple assignments separated by blank lines"
+    mapping: |
+      $x = 10
+
+      $y = 20
+
+      output = $x + $y
+    output: 30

@@ -1,0 +1,256 @@
+description: "Float types: float32, float64, NaN, Infinity, negative zero"
+
+tests:
+  # --- float64 literals (default) ---
+
+  - name: "float literal is float64"
+    mapping: |
+      output = 3.14.type()
+    output: "float64"
+
+  - name: "float64 zero"
+    mapping: |
+      output = 0.0
+    output: 0.0
+
+  - name: "float64 negative"
+    mapping: |
+      output = -3.14
+    output: -3.14
+
+  - name: "float64 small decimal"
+    mapping: |
+      output = 0.001
+    output: 0.001
+
+  - name: "float64 large value"
+    mapping: |
+      output = 1000000.5
+    output: 1000000.5
+
+  # --- float32 conversions ---
+
+  - name: "float32 from float64"
+    mapping: |
+      output = 3.14.float32()
+    output: {_type: "float32", value: "3.14"}
+
+  - name: "float32 type check"
+    mapping: |
+      output = 3.14.float32().type()
+    output: "float32"
+
+  - name: "float32 from string"
+    mapping: |
+      output = "3.14".float32()
+    output: {_type: "float32", value: "3.14"}
+
+  - name: "float32 from integer"
+    mapping: |
+      output = 42.float32()
+    output: {_type: "float32", value: "42.0"}
+
+  - name: "float32 zero"
+    mapping: |
+      output = 0.0.float32()
+    output: {_type: "float32", value: "0.0"}
+
+  - name: "float32 negative"
+    mapping: |
+      output = (-2.5).float32()
+    output: {_type: "float32", value: "-2.5"}
+
+  # --- float64 conversions ---
+
+  - name: "float64 from string"
+    mapping: |
+      output = "3.14".float64()
+    output: 3.14
+
+  - name: "float64 from integer"
+    mapping: |
+      output = 42.float64()
+    output: 42.0
+
+  - name: "float64 from bool true"
+    mapping: |
+      output = true.float64()
+    output: 1.0
+
+  - name: "float64 from bool false"
+    mapping: |
+      output = false.float64()
+    output: 0.0
+
+  - name: "float64 from invalid string"
+    mapping: |
+      output = "not_a_number".float64()
+    error: "convert"
+
+  # --- float64 arithmetic ---
+
+  - name: "float64 addition"
+    mapping: |
+      output = 1.5 + 2.5
+    output: 4.0
+
+  - name: "float64 subtraction"
+    mapping: |
+      output = 5.0 - 3.5
+    output: 1.5
+
+  - name: "float64 multiplication"
+    mapping: |
+      output = 2.5 * 4.0
+    output: 10.0
+
+  - name: "float64 division"
+    mapping: |
+      output = 10.0 / 3.0
+    output: 3.3333333333333335
+
+  - name: "float64 modulo"
+    mapping: |
+      output = 7.5 % 2.0
+    output: 1.5
+
+  # --- Division by zero ---
+
+  - name: "float division by zero is error"
+    mapping: |
+      output = 7.0 / 0.0
+    error: "division by zero"
+
+  - name: "integer division by zero is error"
+    mapping: |
+      output = 7 / 0
+    error: "division by zero"
+
+  # --- NaN behavior ---
+
+  - name: "nan not equal to itself"
+    mapping: |
+      $nan = input.nan
+      output = $nan == $nan
+    input: {nan: {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "nan not equal to nan explicit"
+    mapping: |
+      $nan = input.nan
+      output = $nan != $nan
+    input: {nan: {_type: "float64", value: "NaN"}}
+    output: true
+
+  - name: "nan less than any is false"
+    mapping: |
+      output = input.nan < 1.0
+    input: {nan: {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "nan greater than any is false"
+    mapping: |
+      output = input.nan > 1.0
+    input: {nan: {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "nan arithmetic produces nan"
+    mapping: |
+      output = input.nan + 1.0
+    input: {nan: {_type: "float64", value: "NaN"}}
+    output: {_type: "float64", value: "NaN"}
+
+  - name: "nan type is float64"
+    mapping: |
+      output = input.nan.type()
+    input: {nan: {_type: "float64", value: "NaN"}}
+    output: "float64"
+
+  - name: "nan bool conversion is error"
+    mapping: |
+      output = input.nan.bool()
+    input: {nan: {_type: "float64", value: "NaN"}}
+    error: "NaN"
+
+  # --- Infinity behavior ---
+
+  - name: "infinity greater than any number"
+    mapping: |
+      output = input.inf > 999999999.0
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    output: true
+
+  - name: "infinity equals infinity"
+    mapping: |
+      output = input.inf == input.inf
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    output: true
+
+  - name: "negative infinity less than any number"
+    mapping: |
+      output = input.ninf < -999999999.0
+    input: {ninf: {_type: "float64", value: "-Infinity"}}
+    output: true
+
+  - name: "infinity type is float64"
+    mapping: |
+      output = input.inf.type()
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    output: "float64"
+
+  - name: "infinity minus infinity is nan"
+    mapping: |
+      output = input.inf - input.inf
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "NaN"}
+
+  # --- Negative zero ---
+
+  - name: "negative zero equals positive zero"
+    mapping: |
+      output = input.nz == 0.0
+    input: {nz: {_type: "float64", value: "-0.0"}}
+    output: true
+
+  - name: "negative zero not less than positive zero"
+    mapping: |
+      output = input.nz < 0.0
+    input: {nz: {_type: "float64", value: "-0.0"}}
+    output: false
+
+  - name: "negative zero string normalizes to zero"
+    mapping: |
+      output = input.nz.string()
+    input: {nz: {_type: "float64", value: "-0.0"}}
+    output: "0.0"
+
+  # --- Float-integer promotion ---
+
+  - name: "int plus float promotes to float64"
+    mapping: |
+      output = 5 + 3.0
+    output: 8.0
+
+  - name: "int plus float result type"
+    mapping: |
+      output = (5 + 3.0).type()
+    output: "float64"
+
+  - name: "large int to float precision error"
+    mapping: |
+      output = 9007199254740993 + 1.0
+    error: "exact"
+
+  # --- float32 arithmetic promotion ---
+
+  - name: "float32 plus float64 promotes to float64"
+    mapping: |
+      output = (1.5.float32() + 2.5).type()
+    output: "float64"
+
+  - name: "float32 division result"
+    mapping: |
+      $a = 10.0.float32()
+      $b = 3.0.float32()
+      output = ($a / $b).type()
+    output: "float32"

@@ -1,0 +1,183 @@
+description: "Variable path assignment: field mutation, index mutation, auto-creation, gap filling, deleted removal, wrong intermediate type errors"
+
+tests:
+  # --- Field assignment ---
+
+  - name: "assign field on object variable"
+    mapping: |
+      $obj = {"name": "Alice"}
+      $obj.name = "Bob"
+      output.v = $obj
+    output: {"v": {"name": "Bob"}}
+
+  - name: "add new field to object variable"
+    mapping: |
+      $obj = {"a": 1}
+      $obj.b = 2
+      output.v = $obj
+    output: {"v": {"a": 1, "b": 2}}
+
+  - name: "assign nested field on object variable"
+    mapping: |
+      $obj = {"user": {"name": "Alice"}}
+      $obj.user.name = "Bob"
+      output.v = $obj
+    output: {"v": {"user": {"name": "Bob"}}}
+
+  - name: "auto-create intermediate object for field assignment"
+    mapping: |
+      $obj = {}
+      $obj.user.name = "Alice"
+      output.v = $obj
+    output: {"v": {"user": {"name": "Alice"}}}
+
+  - name: "deeply nested auto-creation"
+    mapping: |
+      $obj = {}
+      $obj.a.b.c.d = 42
+      output.v = $obj
+    output: {"v": {"a": {"b": {"c": {"d": 42}}}}}
+
+  # --- Index assignment ---
+
+  - name: "assign index on array variable"
+    mapping: |
+      $arr = [10, 20, 30]
+      $arr[1] = 99
+      output.v = $arr
+    output: {"v": [10, 99, 30]}
+
+  - name: "assign to end of array"
+    mapping: |
+      $arr = [1, 2, 3]
+      $arr[3] = 4
+      output.v = $arr
+    output: {"v": [1, 2, 3, 4]}
+
+  - name: "gaps filled with null"
+    mapping: |
+      $arr = [1]
+      $arr[3] = 99
+      output.v = $arr
+    output: {"v": [1, null, null, 99]}
+
+  - name: "assign to index zero of empty array"
+    mapping: |
+      $arr = []
+      $arr[0] = "first"
+      output.v = $arr
+    output: {"v": ["first"]}
+
+  - name: "negative index assignment"
+    mapping: |
+      $arr = [10, 20, 30]
+      $arr[-1] = 99
+      output.v = $arr
+    output: {"v": [10, 20, 99]}
+
+  # --- Auto-creation based on index type ---
+
+  - name: "auto-create array for numeric index on empty object field"
+    mapping: |
+      $obj = {}
+      $obj.items[0] = "first"
+      output.v = $obj
+    output: {"v": {"items": ["first"]}}
+
+  - name: "auto-create object for string field on empty object field"
+    mapping: |
+      $obj = {}
+      $obj.nested.key = "value"
+      output.v = $obj
+    output: {"v": {"nested": {"key": "value"}}}
+
+  # --- Deleted removes field ---
+
+  - name: "deleted removes field from variable object"
+    mapping: |
+      $obj = {"a": 1, "b": 2, "c": 3}
+      $obj.b = deleted()
+      output.v = $obj
+    output: {"v": {"a": 1, "c": 3}}
+
+  - name: "deleted removes nested field from variable object"
+    mapping: |
+      $obj = {"user": {"name": "Alice", "age": 30}}
+      $obj.user.age = deleted()
+      output.v = $obj
+    output: {"v": {"user": {"name": "Alice"}}}
+
+  # --- Deleted removes array element (shifts remaining) ---
+
+  - name: "deleted removes array element and shifts"
+    mapping: |
+      $arr = [10, 20, 30, 40]
+      $arr[1] = deleted()
+      output.v = $arr
+    output: {"v": [10, 30, 40]}
+
+  - name: "deleted removes first array element"
+    mapping: |
+      $arr = [10, 20, 30]
+      $arr[0] = deleted()
+      output.v = $arr
+    output: {"v": [20, 30]}
+
+  - name: "deleted removes last array element"
+    mapping: |
+      $arr = [10, 20, 30]
+      $arr[-1] = deleted()
+      output.v = $arr
+    output: {"v": [10, 20]}
+
+  # --- Wrong intermediate type errors ---
+
+  - name: "field assignment on string variable is error"
+    mapping: |
+      $val = "hello"
+      $val.field = "x"
+    error: "field"
+
+  - name: "field assignment on integer variable is error"
+    mapping: |
+      $val = 42
+      $val.field = "x"
+    error: "field"
+
+  - name: "field assignment on boolean variable is error"
+    mapping: |
+      $val = true
+      $val.field = "x"
+    error: "field"
+
+  - name: "index assignment on string variable is error"
+    mapping: |
+      $val = "hello"
+      $val[0] = "H"
+    error: "index"
+
+  - name: "nested path wrong intermediate type is error"
+    mapping: |
+      $obj = {"name": "Alice"}
+      $obj.name.first = "A"
+    error: "field"
+
+  # --- Multiple path assignments ---
+
+  - name: "multiple field assignments build up object"
+    mapping: |
+      $record = {}
+      $record.name = "Alice"
+      $record.age = 30
+      $record.active = true
+      output.v = $record
+    output: {"v": {"name": "Alice", "age": 30, "active": true}}
+
+  - name: "mixed field and index assignments"
+    mapping: |
+      $data = {"scores": []}
+      $data.scores[0] = 90
+      $data.scores[1] = 85
+      $data.name = "Alice"
+      output.v = $data
+    output: {"v": {"scores": [90, 85], "name": "Alice"}}

@@ -1,0 +1,229 @@
+description: "Variable reassignment: same-scope mutation, statement context outer modification, block-scoped new vars, pre-declare pattern"
+
+tests:
+  # --- Same-scope reassignment (mutation) ---
+
+  - name: "reassign variable in same scope"
+    mapping: |
+      $x = 1
+      $x = 2
+      output.v = $x
+    output: {"v": 2}
+
+  - name: "reassign variable multiple times"
+    mapping: |
+      $x = 1
+      $x = 2
+      $x = 3
+      $x = 4
+      output.v = $x
+    output: {"v": 4}
+
+  - name: "reassign variable to different type"
+    mapping: |
+      $x = 42
+      $x = "hello"
+      output.v = $x
+    output: {"v": "hello"}
+
+  - name: "reassign variable using its own value"
+    mapping: |
+      $x = 10
+      $x = $x + 5
+      output.v = $x
+    output: {"v": 15}
+
+  - name: "reassign variable accumulation"
+    mapping: |
+      $sum = 0
+      $sum = $sum + 1
+      $sum = $sum + 2
+      $sum = $sum + 3
+      output.v = $sum
+    output: {"v": 6}
+
+  - name: "void skips variable reassignment"
+    mapping: |
+      $x = 10
+      $x = if false { 42 }
+      output.v = $x
+    output: {"v": 10}
+
+  - name: "void from match skips variable reassignment"
+    mapping: |
+      $x = "original"
+      $x = match "nope" {
+        "a" => "found",
+      }
+      output.v = $x
+    output: {"v": "original"}
+
+  # --- Statement context: if-statement modifies outer variable ---
+
+  - name: "if-statement modifies outer variable when condition true"
+    input: {"flag": true}
+    mapping: |
+      $value = 10
+      if input.flag {
+        $value = 20
+      }
+      output.v = $value
+    output: {"v": 20}
+
+  - name: "if-statement does not modify outer variable when condition false"
+    input: {"flag": false}
+    mapping: |
+      $value = 10
+      if input.flag {
+        $value = 20
+      }
+      output.v = $value
+    output: {"v": 10}
+
+  - name: "if-else statement modifies outer variable in else branch"
+    input: {"flag": false}
+    mapping: |
+      $value = "initial"
+      if input.flag {
+        $value = "from-if"
+      } else {
+        $value = "from-else"
+      }
+      output.v = $value
+    output: {"v": "from-else"}
+
+  - name: "match statement modifies outer variable"
+    input: {"kind": "b"}
+    mapping: |
+      $result = "none"
+      match input.kind {
+        "a" => {
+          $result = "found-a"
+        },
+        "b" => {
+          $result = "found-b"
+        },
+      }
+      output.v = $result
+    output: {"v": "found-b"}
+
+  - name: "match statement no match leaves outer variable unchanged"
+    input: {"kind": "c"}
+    mapping: |
+      $result = "none"
+      match input.kind {
+        "a" => {
+          $result = "found-a"
+        },
+        "b" => {
+          $result = "found-b"
+        },
+      }
+      output.v = $result
+    output: {"v": "none"}
+
+  # --- New variables in statement blocks are block-scoped ---
+
+  - name: "new variable in if-statement block not visible outside"
+    input: {"flag": true}
+    mapping: |
+      if input.flag {
+        $local = "hello"
+        output.inner = $local
+      }
+      output.outer = $local
+    compile_error: "undeclared"
+
+  - name: "new variable in match statement block not visible outside"
+    mapping: |
+      match "a" {
+        "a" => {
+          $local = "found"
+          output.inner = $local
+        },
+      }
+      output.outer = $local
+    compile_error: "undeclared"
+
+  - name: "new variable in else block not visible outside"
+    input: {"flag": false}
+    mapping: |
+      if input.flag {
+        output.x = 1
+      } else {
+        $temp = "hello"
+        output.y = $temp
+      }
+      output.z = $temp
+    compile_error: "undeclared"
+
+  # --- Pre-declare pattern ---
+
+  - name: "pre-declare pattern with if-statement true branch"
+    input: {"flag": true}
+    mapping: |
+      $temp = null
+      if input.flag {
+        $temp = "found"
+      }
+      output.v = $temp
+    output: {"v": "found"}
+
+  - name: "pre-declare pattern with if-statement false branch"
+    input: {"flag": false}
+    mapping: |
+      $temp = null
+      if input.flag {
+        $temp = "found"
+      }
+      output.v = $temp
+    output: {"v": null}
+
+  - name: "pre-declare pattern with match statement"
+    input: {"kind": "gold"}
+    mapping: |
+      $discount = 0
+      match input.kind {
+        "gold" => {
+          $discount = 20
+        },
+        "silver" => {
+          $discount = 10
+        },
+      }
+      output.v = $discount
+    output: {"v": 20}
+
+  - name: "pre-declare pattern with nested if-statements"
+    input: {"a": true, "b": true}
+    mapping: |
+      $msg = "none"
+      if input.a {
+        $msg = "a"
+        if input.b {
+          $msg = "a+b"
+        }
+      }
+      output.v = $msg
+    output: {"v": "a+b"}
+
+  - name: "pre-declare pattern modification and further use"
+    input: {"items": ["x", "y", "z"]}
+    mapping: |
+      $count = 0
+      $count = input.items.length()
+      output.v = $count
+    output: {"v": 3}
+
+  # --- Statement context reassignment uses new value after block ---
+
+  - name: "outer variable modified in statement reflects after block"
+    input: {"score": 95}
+    mapping: |
+      $tier = "bronze"
+      if input.score >= 90 {
+        $tier = "gold"
+      }
+      output.tier = $tier
+      output.check = $tier == "gold"
+    output: {"tier": "gold", "check": true}

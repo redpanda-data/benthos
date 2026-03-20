@@ -1,0 +1,249 @@
+description: "Boolean and null literals, equality, type checking"
+
+tests:
+  # --- Boolean literals ---
+
+  - name: "true literal"
+    mapping: |
+      output = true
+    output: true
+
+  - name: "false literal"
+    mapping: |
+      output = false
+    output: false
+
+  - name: "true type"
+    mapping: |
+      output = true.type()
+    output: "bool"
+
+  - name: "false type"
+    mapping: |
+      output = false.type()
+    output: "bool"
+
+  # --- Boolean equality ---
+
+  - name: "true equals true"
+    mapping: |
+      output = true == true
+    output: true
+
+  - name: "false equals false"
+    mapping: |
+      output = false == false
+    output: true
+
+  - name: "true not equals false"
+    mapping: |
+      output = true != false
+    output: true
+
+  - name: "true equals false is false"
+    mapping: |
+      output = true == false
+    output: false
+
+  # --- Boolean logical operators ---
+
+  - name: "logical and true true"
+    mapping: |
+      output = true && true
+    output: true
+
+  - name: "logical and true false"
+    mapping: |
+      output = true && false
+    output: false
+
+  - name: "logical or false true"
+    mapping: |
+      output = false || true
+    output: true
+
+  - name: "logical or false false"
+    mapping: |
+      output = false || false
+    output: false
+
+  - name: "logical not true"
+    mapping: |
+      output = !true
+    output: false
+
+  - name: "logical not false"
+    mapping: |
+      output = !false
+    output: true
+
+  # --- Boolean cross-type equality ---
+
+  - name: "bool equals int is false"
+    mapping: |
+      output = true == 1
+    output: false
+
+  - name: "bool equals string is false"
+    mapping: |
+      output = true == "true"
+    output: false
+
+  - name: "bool equals null is false"
+    mapping: |
+      output = false == null
+    output: false
+
+  # --- Boolean conversions ---
+
+  - name: "bool from string true"
+    mapping: |
+      output = "true".bool()
+    output: true
+
+  - name: "bool from string false"
+    mapping: |
+      output = "false".bool()
+    output: false
+
+  - name: "bool from int64 nonzero"
+    mapping: |
+      output = 1.bool()
+    output: true
+
+  - name: "bool from int64 zero"
+    mapping: |
+      output = 0.bool()
+    output: false
+
+  - name: "bool from float64 nonzero"
+    mapping: |
+      output = 3.14.bool()
+    output: true
+
+  - name: "bool from float64 zero"
+    mapping: |
+      output = 0.0.bool()
+    output: false
+
+  - name: "bool to string true"
+    mapping: |
+      output = true.string()
+    output: "true"
+
+  - name: "bool to string false"
+    mapping: |
+      output = false.string()
+    output: "false"
+
+  - name: "bool to int64 true"
+    mapping: |
+      output = true.int64()
+    output: 1
+
+  - name: "bool to int64 false"
+    mapping: |
+      output = false.int64()
+    output: 0
+
+  # --- Boolean errors with non-boolean operators ---
+
+  - name: "bool arithmetic is error"
+    mapping: |
+      output = true + false
+    error: "cannot add"
+
+  - name: "bool comparison is error"
+    mapping: |
+      output = true > false
+    error: "comparable"
+
+  - name: "logical and with non-bool is error"
+    mapping: |
+      output = true && 1
+    error: "bool"
+
+  - name: "logical or with non-bool is error"
+    mapping: |
+      output = false || "yes"
+    error: "bool"
+
+  - name: "logical not with non-bool is error"
+    mapping: |
+      output = !42
+    error: "bool"
+
+  # --- Null literal ---
+
+  - name: "null literal"
+    mapping: |
+      output = null
+    output: null
+
+  - name: "null type"
+    mapping: |
+      output = null.type()
+    output: "null"
+
+  # --- Null equality ---
+
+  - name: "null equals null"
+    mapping: |
+      output = null == null
+    output: true
+
+  - name: "null not equals null"
+    mapping: |
+      output = null != null
+    output: false
+
+  - name: "null equals zero is false"
+    mapping: |
+      output = null == 0
+    output: false
+
+  - name: "null equals empty string is false"
+    mapping: |
+      output = null == ""
+    output: false
+
+  - name: "null equals false is false"
+    mapping: |
+      output = null == false
+    output: false
+
+  # --- Null errors in operations ---
+
+  - name: "null arithmetic is error"
+    mapping: |
+      output = null + 5
+    error: "add"
+
+  - name: "null comparison is error"
+    mapping: |
+      output = null > 5
+    error: "comparable"
+
+  - name: "null method call is error"
+    mapping: |
+      output = null.uppercase()
+    error: "null"
+
+  # --- Null string conversion ---
+
+  - name: "null to string"
+    mapping: |
+      output = null.string()
+    output: "null"
+
+  # --- Null with .or() ---
+
+  - name: "null or default"
+    mapping: |
+      output = null.or("default")
+    output: "default"
+
+  - name: "non-null or default returns value"
+    mapping: |
+      output = "hello".or("default")
+    output: "hello"

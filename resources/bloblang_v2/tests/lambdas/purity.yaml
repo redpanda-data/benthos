@@ -1,0 +1,141 @@
+description: "Lambda purity — no output assignment, variable shadowing, context inheritance"
+
+tests:
+  # --- Cannot assign to output from lambda ---
+
+  - name: "lambda cannot assign to output field"
+    mapping: |
+      output.result = [1, 2, 3].map(x -> {
+        output.side = x
+        x * 2
+      })
+    compile_error: "output"
+
+  - name: "lambda cannot assign to output root"
+    mapping: |
+      output.result = [1].map(x -> {
+        output = x
+        x
+      })
+    compile_error: "output"
+
+  - name: "lambda cannot assign to output metadata"
+    mapping: |
+      output.result = [1].map(x -> {
+        output@.key = x.string()
+        x
+      })
+    compile_error: "output"
+
+  - name: "nested lambda cannot assign to output"
+    mapping: |
+      output.result = [[1, 2]].map(row -> row.map(x -> {
+        output.inner = x
+        x
+      }))
+    compile_error: "output"
+
+  # --- Variable shadowing (not mutation) in expression context ---
+
+  - name: "lambda shadows outer variable"
+    mapping: |
+      $x = 100
+      output.inner = [1].map(item -> {
+        $x = 999
+        $x
+      })
+      output.outer = $x
+    output: {"inner": [999], "outer": 100}
+
+  - name: "lambda shadows — outer unchanged after map"
+    mapping: |
+      $count = 0
+      output.mapped = [1, 2, 3].map(x -> {
+        $count = $count + x
+        $count
+      })
+      output.count = $count
+    output: {"mapped": [1, 2, 3], "count": 0}
+
+  - name: "fold lambda shadows outer variable"
+    mapping: |
+      $total = "untouched"
+      output.sum = [1, 2, 3].fold(0, (acc, x) -> {
+        $total = "modified"
+        acc + x
+      })
+      output.total = $total
+    output: {"sum": 6, "total": "untouched"}
+
+  - name: "block body variable does not leak"
+    mapping: |
+      output.result = [1].map(x -> {
+        $temp = x * 10
+        $temp
+      })
+      output.leaked = $temp
+    compile_error: "temp"
+
+  # --- Context inheritance: top-level lambda reads input and output ---
+
+  - name: "top-level lambda reads input"
+    input: {"multiplier": 10}
+    mapping: |
+      output.result = [1, 2, 3].map(x -> x * input.multiplier)
+    output: {"result": [10, 20, 30]}
+
+  - name: "top-level lambda reads output"
+    mapping: |
+      output.base = 100
+      output.result = [1, 2, 3].map(x -> x + output.base)
+    output: {"base": 100, "result": [101, 102, 103]}
+
+  - name: "top-level lambda reads input metadata"
+    input: null
+    input_metadata: {"scale": "5"}
+    mapping: |
+      output.result = [1, 2].map(x -> x.string() + input@.scale)
+    output: {"result": ["15", "25"]}
+
+  - name: "top-level lambda reads outer variable"
+    mapping: |
+      $factor = 3
+      output.result = [10, 20].map(x -> x * $factor)
+    output: {"result": [30, 60]}
+
+  # --- Lambda inside map cannot access input ---
+
+  - name: "lambda inside map cannot read input"
+    input: {"value": 42}
+    mapping: |
+      map transform(items) {
+        items.map(x -> x * input.value)
+      }
+      output.result = transform([1, 2])
+    error: "input"
+
+  - name: "lambda inside map cannot read output"
+    mapping: |
+      output.base = 10
+      map transform(items) {
+        items.map(x -> x + output.base)
+      }
+      output.result = transform([1, 2])
+    error: "output"
+
+  - name: "lambda inside map can read map parameter"
+    mapping: |
+      map scale(items, factor) {
+        items.map(x -> x * factor)
+      }
+      output.result = scale([1, 2, 3], 5)
+    output: {"result": [5, 10, 15]}
+
+  - name: "lambda inside map can read map local variable"
+    mapping: |
+      map transform(items) {
+        $offset = 100
+        items.map(x -> x + $offset)
+      }
+      output.result = transform([1, 2, 3])
+    output: {"result": [101, 102, 103]}

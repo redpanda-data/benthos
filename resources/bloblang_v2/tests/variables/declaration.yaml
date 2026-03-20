@@ -1,0 +1,155 @@
+description: "Variable declaration: basic usage, types, use-before-declare errors, void and deleted errors"
+
+tests:
+  # --- Basic declaration and use ---
+
+  - name: "declare and use integer variable"
+    mapping: |
+      $x = 42
+      output.v = $x
+    output: {"v": 42}
+
+  - name: "declare and use string variable"
+    mapping: |
+      $name = "hello"
+      output.v = $name
+    output: {"v": "hello"}
+
+  - name: "declare and use boolean variable"
+    mapping: |
+      $flag = true
+      output.v = $flag
+    output: {"v": true}
+
+  - name: "declare and use null variable"
+    mapping: |
+      $val = null
+      output.v = $val
+    output: {"v": null}
+
+  - name: "declare and use float variable"
+    mapping: |
+      $pi = 3.14
+      output.v = $pi
+    output: {"v": 3.14}
+
+  - name: "declare and use array variable"
+    mapping: |
+      $arr = [1, 2, 3]
+      output.v = $arr
+    output: {"v": [1, 2, 3]}
+
+  - name: "declare and use object variable"
+    mapping: |
+      $obj = {"a": 1, "b": 2}
+      output.v = $obj
+    output: {"v": {"a": 1, "b": 2}}
+
+  - name: "declare variable from expression"
+    mapping: |
+      $x = 10 + 5
+      output.v = $x
+    output: {"v": 15}
+
+  - name: "declare variable from input field"
+    input: {"name": "Alice"}
+    mapping: |
+      $n = input.name
+      output.v = $n
+    output: {"v": "Alice"}
+
+  - name: "declare variable from other variable"
+    mapping: |
+      $a = 100
+      $b = $a
+      output.v = $b
+    output: {"v": 100}
+
+  - name: "multiple independent variables"
+    mapping: |
+      $x = 1
+      $y = 2
+      $z = 3
+      output.sum = $x + $y + $z
+    output: {"sum": 6}
+
+  - name: "variable used in expression"
+    mapping: |
+      $base = 10
+      output.v = $base * 2 + 1
+    output: {"v": 21}
+
+  # --- Use before declare is compile error ---
+
+  - name: "use undeclared variable is compile error"
+    mapping: |
+      output.v = $x
+    compile_error: "undeclared"
+
+  - name: "use variable before its declaration is compile error"
+    mapping: |
+      output.v = $x
+      $x = 42
+    compile_error: "undeclared"
+
+  - name: "reference undeclared variable in expression is compile error"
+    mapping: |
+      $y = $x + 1
+    compile_error: "undeclared"
+
+  # --- Void in declaration is runtime error ---
+
+  - name: "void from if-without-else in declaration is runtime error"
+    mapping: |
+      $x = if false { 42 }
+    error: "void"
+
+  - name: "void from non-exhaustive match in declaration is runtime error"
+    mapping: |
+      $x = match "nope" {
+        "a" => 1,
+      }
+    error: "void"
+
+  - name: "void from else-if chain without final else in declaration is runtime error"
+    input: {"score": 10}
+    mapping: |
+      $tier = if false { "gold" } else if false { "silver" }
+    error: "void"
+
+  # --- Deleted in declaration is runtime error ---
+
+  - name: "deleted in variable declaration is runtime error"
+    mapping: |
+      $x = deleted()
+    error: "deleted"
+
+  # --- Void rescued with or is ok ---
+
+  - name: "or rescues void for variable declaration"
+    mapping: |
+      $x = (if false { 42 }).or(0)
+      output.v = $x
+    output: {"v": 0}
+
+  - name: "if-else provides value for variable declaration"
+    mapping: |
+      $x = if false { 42 } else { 0 }
+      output.v = $x
+    output: {"v": 0}
+
+  # --- Variable holds bytes ---
+
+  - name: "declare variable with bytes value"
+    mapping: |
+      $b = "hello".bytes()
+      output.v = $b
+    output: {"v": {_type: "bytes", value: "aGVsbG8="}}
+
+  # --- Variable holds timestamp ---
+
+  - name: "declare variable with timestamp value"
+    mapping: |
+      $t = "2024-01-15T10:30:00Z".parse_time("2006-01-02T15:04:05Z07:00")
+      output.v = $t
+    output: {"v": {_type: "timestamp", value: "2024-01-15T10:30:00Z"}}

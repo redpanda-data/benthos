@@ -1,0 +1,152 @@
+description: "Output root assignment: output = expr replaces entire output, any type, COW from input, continued building after root assignment"
+
+tests:
+  # --- Root assignment replaces entire output ---
+
+  - name: "root assignment replaces empty output with string"
+    mapping: |
+      output = "hello"
+    output: "hello"
+
+  - name: "root assignment replaces empty output with integer"
+    mapping: |
+      output = 42
+    output: 42
+
+  - name: "root assignment replaces empty output with float"
+    mapping: |
+      output = 3.14
+    output: 3.14
+
+  - name: "root assignment replaces empty output with boolean"
+    mapping: |
+      output = true
+    output: true
+
+  - name: "root assignment replaces empty output with null"
+    mapping: |
+      output = null
+    output: null
+
+  - name: "root assignment replaces empty output with array"
+    mapping: |
+      output = [1, 2, 3]
+    output: [1, 2, 3]
+
+  - name: "root assignment replaces empty output with object"
+    mapping: |
+      output = {"name": "Alice", "age": 30}
+    output: {"name": "Alice", "age": 30}
+
+  # --- Previous assignments discarded ---
+
+  - name: "root assignment discards previous field assignments"
+    mapping: |
+      output.name = "Alice"
+      output.age = 30
+      output = "replaced"
+    output: "replaced"
+
+  - name: "root assignment discards complex previous structure"
+    mapping: |
+      output.user.name = "Alice"
+      output.user.address.city = "London"
+      output.items[0] = "a"
+      output = 99
+    output: 99
+
+  - name: "multiple root assignments keep last one"
+    mapping: |
+      output = "first"
+      output = "second"
+      output = "third"
+    output: "third"
+
+  # --- COW from input ---
+
+  - name: "output = input copies entire input object"
+    input: {"name": "Alice", "age": 30}
+    mapping: |
+      output = input
+    output: {"name": "Alice", "age": 30}
+
+  - name: "output = input copies input array"
+    input: [1, 2, 3]
+    mapping: |
+      output = input
+    output: [1, 2, 3]
+
+  - name: "output = input copies input string"
+    input: "hello"
+    mapping: |
+      output = input
+    output: "hello"
+
+  - name: "output = input copies null input"
+    input: null
+    mapping: |
+      output = input
+    output: null
+
+  - name: "output = input is logical copy with COW"
+    input: {"name": "Alice", "score": 100}
+    mapping: |
+      output = input
+      output.name = "Bob"
+      output.original = input.name
+    output: {"name": "Bob", "score": 100, "original": "Alice"}
+
+  # --- Continued building after root assignment ---
+
+  - name: "continue building after root assignment to object"
+    mapping: |
+      output = {"name": "Alice"}
+      output.age = 30
+    output: {"name": "Alice", "age": 30}
+
+  - name: "continue building nested after root assignment"
+    mapping: |
+      output = {}
+      output.user.name = "Alice"
+      output.user.age = 30
+    output: {"user": {"name": "Alice", "age": 30}}
+
+  - name: "root assign from input then extend"
+    input: {"name": "Alice"}
+    mapping: |
+      output = input
+      output.greeting = "Hello, " + input.name
+    output: {"name": "Alice", "greeting": "Hello, Alice"}
+
+  - name: "root assign object then overwrite field"
+    mapping: |
+      output = {"status": "pending", "count": 0}
+      output.status = "done"
+      output.count = 1
+    output: {"status": "done", "count": 1}
+
+  # --- Root assignment to non-object then field access is error ---
+
+  - name: "field assignment after root assign to string is error"
+    mapping: |
+      output = "hello"
+      output.field = "x"
+    error: "field"
+
+  - name: "field assignment after root assign to integer is error"
+    mapping: |
+      output = 42
+      output.field = "x"
+    error: "field"
+
+  - name: "field assignment after root assign to array is error"
+    mapping: |
+      output = [1, 2, 3]
+      output.field = "x"
+    error: "field"
+
+  - name: "index assignment after root assign to array works"
+    mapping: |
+      output = [10, 20, 30]
+      output[1] = 99
+    output: [10, 99, 30]

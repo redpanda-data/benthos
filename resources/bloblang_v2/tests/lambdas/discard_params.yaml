@@ -1,0 +1,82 @@
+description: "Discard parameters (_) in lambda expressions"
+
+tests:
+  # --- Basic discard ---
+
+  - name: "discard key in map_entries"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.map_entries((_, v) -> {"key": "x", "value": v * 2})
+    output: {"result": {"x": 2}}
+
+  - name: "discard value in map_entries"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.map_entries((k, _) -> {"key": k.uppercase(), "value": 0})
+    output: {"result": {"A": 0, "B": 0}}
+
+  - name: "discard accumulator in fold"
+    mapping: |
+      output.result = [10, 20, 30].fold(0, (_, x) -> x)
+    output: {"result": 30}
+
+  - name: "discard element in fold"
+    mapping: |
+      output.result = [10, 20, 30].fold(0, (acc, _) -> acc + 1)
+    output: {"result": 3}
+
+  - name: "discard in filter_entries — use value only"
+    mapping: |
+      output.result = {"a": 1, "b": 5, "c": 3}.filter_entries((_, v) -> v > 2)
+    output: {"result": {"b": 5, "c": 3}}
+
+  - name: "discard in filter_entries — use key only"
+    mapping: |
+      output.result = {"aa": 1, "b": 5, "cc": 3}.filter_entries((k, _) -> k.length() > 1)
+    output: {"result": {"aa": 1, "cc": 3}}
+
+  # --- Multiple discards ---
+
+  - name: "both params discarded returns constant"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.map_entries((_, _) -> {"key": "z", "value": 99})
+    output: {"result": {"z": 99}}
+
+  - name: "both params discarded in fold"
+    mapping: |
+      output.result = [1, 2, 3].fold(0, (_, _) -> 42)
+    output: {"result": 42}
+
+  # --- Referencing _ in body is compile error ---
+
+  - name: "referencing discarded param is compile error"
+    mapping: |
+      output.result = {"a": 1}.map_entries((_, v) -> {"key": _, "value": v})
+    compile_error: "_"
+
+  - name: "referencing _ when both discarded is compile error"
+    mapping: |
+      output.result = [1, 2].fold(0, (_, _) -> _)
+    compile_error: "_"
+
+  - name: "referencing _ in single param discard"
+    mapping: |
+      output.result = [1, 2].map(_ -> _ * 2)
+    compile_error: "_"
+
+  # --- Discard with non-discard params ---
+
+  - name: "discard first keep second in two-param lambda"
+    mapping: |
+      output.result = [10, 20, 30].fold("start", (_, elem) -> elem.string())
+    output: {"result": "30"}
+
+  - name: "keep first discard second in two-param lambda"
+    mapping: |
+      output.result = [10, 20, 30].fold(0, (acc, _) -> acc + 100)
+    output: {"result": 300}
+
+  # --- Discard in map (single param) ---
+
+  - name: "discard single param in map returns constant array"
+    mapping: |
+      output.result = [1, 2, 3].map(_ -> "x")
+    output: {"result": ["x", "x", "x"]}

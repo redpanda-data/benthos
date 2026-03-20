@@ -1,0 +1,162 @@
+description: "If as expression — returns value, with/without else, else-if chains, void behavior"
+
+tests:
+  # --- Basic if-else expression ---
+
+  - name: "if true with else returns then branch"
+    mapping: |
+      output.result = if true { "yes" } else { "no" }
+    output: {"result": "yes"}
+
+  - name: "if false with else returns else branch"
+    mapping: |
+      output.result = if true == false { "yes" } else { "no" }
+    output: {"result": "no"}
+
+  - name: "if expression returns computed value"
+    input: {"score": 95}
+    mapping: |
+      output.grade = if input.score >= 90 { "A" } else { "B" }
+    output: {"grade": "A"}
+
+  # --- Without else: void behavior ---
+
+  - name: "if without else produces void when false — assignment skipped, field absent"
+    mapping: |
+      output.x = if false { "hello" }
+    output: {}
+
+  - name: "if without else produces value when true"
+    mapping: |
+      output.x = if true { "hello" }
+    output: {"x": "hello"}
+
+  - name: "void preserves prior output value"
+    mapping: |
+      output.status = "pending"
+      output.status = if false { "override" }
+    output: {"status": "pending"}
+
+  # --- Else-if chains ---
+
+  - name: "else-if selects first matching branch"
+    input: {"score": 75}
+    mapping: |
+      output.tier = if input.score >= 90 {
+        "gold"
+      } else if input.score >= 70 {
+        "silver"
+      } else {
+        "bronze"
+      }
+    output: {"tier": "silver"}
+
+  - name: "else-if falls through to else"
+    input: {"score": 30}
+    mapping: |
+      output.tier = if input.score >= 90 {
+        "gold"
+      } else if input.score >= 70 {
+        "silver"
+      } else {
+        "bronze"
+      }
+    output: {"tier": "bronze"}
+
+  - name: "else-if selects first branch"
+    input: {"score": 95}
+    mapping: |
+      output.tier = if input.score >= 90 {
+        "gold"
+      } else if input.score >= 70 {
+        "silver"
+      } else {
+        "bronze"
+      }
+    output: {"tier": "gold"}
+
+  - name: "else-if without final else produces void when no branch matches"
+    input: {"score": 30}
+    mapping: |
+      output.tier = "default"
+      output.tier = if input.score >= 90 { "gold" } else if input.score >= 70 { "silver" }
+    output: {"tier": "default"}
+
+  - name: "else-if without final else — first branch matches"
+    input: {"score": 95}
+    mapping: |
+      output.tier = if input.score >= 90 { "gold" } else if input.score >= 70 { "silver" }
+    output: {"tier": "gold"}
+
+  - name: "else-if without final else — second branch matches"
+    input: {"score": 75}
+    mapping: |
+      output.tier = if input.score >= 90 { "gold" } else if input.score >= 70 { "silver" }
+    output: {"tier": "silver"}
+
+  # --- Variable declaration with if expression ---
+
+  - name: "if expression assigned to variable"
+    mapping: |
+      $x = if true { 42 } else { 0 }
+      output.result = $x
+    output: {"result": 42}
+
+  - name: "void in variable declaration is runtime error"
+    mapping: |
+      $x = if false { 42 }
+    error: "void"
+
+  - name: "void in variable reassignment is skipped"
+    mapping: |
+      $x = 10
+      $x = if false { 42 }
+      output.result = $x
+    output: {"result": 10}
+
+  # --- Variables inside if expression body ---
+
+  - name: "variables declared inside if expression body"
+    mapping: |
+      output.result = if true {
+        $a = 10
+        $b = 20
+        $a + $b
+      } else {
+        0
+      }
+    output: {"result": 30}
+
+  # --- Cannot contain output assignments (expression context) ---
+
+  - name: "output assignment inside if expression is compile error"
+    mapping: |
+      output.x = if true {
+        output.y = 10
+        42
+      }
+    compile_error: "output"
+
+  # --- Nested if expressions ---
+
+  - name: "nested if expression"
+    input: {"a": true, "b": false}
+    mapping: |
+      output.result = if input.a {
+        if input.b { "both" } else { "only a" }
+      } else {
+        "neither"
+      }
+    output: {"result": "only a"}
+
+  # --- If expression with non-boolean condition ---
+
+  - name: "non-boolean condition is error"
+    mapping: |
+      output.x = if "hello" { 1 } else { 2 }
+    error: "bool"
+
+  - name: "null condition is error"
+    mapping: |
+      output.x = if null { 1 } else { 2 }
+    error: "bool"

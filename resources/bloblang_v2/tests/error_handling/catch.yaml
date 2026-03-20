@@ -1,0 +1,142 @@
+description: ".catch() — intercepts errors, error object access, passthrough for non-errors, chaining, scope"
+
+tests:
+  # --- Basic catch usage ---
+
+  - name: "catch intercepts division by zero"
+    mapping: |
+      output.result = (5 / 0).catch(err -> -1)
+    output: {"result": -1}
+
+  - name: "catch intercepts throw"
+    mapping: |
+      output.result = throw("boom").catch(err -> "caught")
+    output: {"result": "caught"}
+
+  - name: "catch intercepts out of bounds"
+    mapping: |
+      $arr = [1, 2, 3]
+      output.result = $arr[10].catch(err -> 0)
+    output: {"result": 0}
+
+  - name: "catch intercepts type mismatch"
+    mapping: |
+      output.result = (5 + "nope").catch(err -> 0)
+    output: {"result": 0}
+
+  # --- Error object access ---
+
+  - name: "error object has what field with message"
+    mapping: |
+      output.result = throw("something broke").catch(err -> err.what)
+    output: {"result": "something broke"}
+
+  - name: "error what field from division by zero"
+    mapping: |
+      output.result = (5 / 0).catch(err -> err.what)
+    output: {"result": "division by zero"}
+
+  - name: "error what field used in string interpolation"
+    mapping: |
+      output.result = throw("oops").catch(err -> "error: %{err.what}")
+    output: {"result": "error: oops"}
+
+  # --- No-error passthrough ---
+
+  - name: "catch returns value unchanged when no error"
+    mapping: |
+      output.result = "hello".catch(err -> "fallback")
+    output: {"result": "hello"}
+
+  - name: "catch returns int unchanged when no error"
+    mapping: |
+      output.result = 42.catch(err -> 0)
+    output: {"result": 42}
+
+  - name: "catch returns null unchanged when no error"
+    mapping: |
+      output.result = null.catch(err -> "fallback")
+    output: {"result": null}
+
+  - name: "catch lambda not invoked when no error"
+    mapping: |
+      output.result = "ok".catch(err -> throw("should not run"))
+    output: {"result": "ok"}
+
+  # --- Void passes through catch unchanged ---
+
+  - name: "void passes through catch — assignment skipped"
+    mapping: |
+      output.x = "prior"
+      output.x = (if false { 1 }).catch(err -> 99)
+    output: {"x": "prior"}
+
+  - name: "void passes through catch then subsequent method errors"
+    mapping: |
+      output.result = (if false { 1 }).catch(err -> 0).string().catch(err -> "caught void method")
+    output: {"result": "caught void method"}
+
+  # --- Deleted passes through catch unchanged ---
+
+  - name: "deleted passes through catch — field removed"
+    mapping: |
+      output.x = "prior"
+      output.x = deleted().catch(err -> "rescued")
+    output: {}
+
+  # --- Parentheses define catch scope ---
+
+  - name: "catch scoped to parenthesized expression"
+    mapping: |
+      output.result = (5 / 0).string().catch(err -> "0")
+    output: {"result": "0"}
+
+  - name: "catch scoped to inner parens catches inner error only"
+    mapping: |
+      output.result = ((5 / 0).catch(err -> 42)).string()
+    output: {"result": "42"}
+
+  - name: "catch on method chain catches entire chain"
+    mapping: |
+      output.result = "hello".parse_int().abs().catch(err -> -1)
+    output: {"result": -1}
+
+  # --- Chained catches ---
+
+  - name: "first catch handles error, second catch not invoked"
+    mapping: |
+      output.result = throw("x").catch(err -> "first").catch(err -> "second")
+    output: {"result": "first"}
+
+  - name: "first catch re-throws, second catch handles"
+    mapping: |
+      output.result = throw("x").catch(err -> throw("re-thrown")).catch(err -> "final")
+    output: {"result": "final"}
+
+  - name: "chained catch with error in first handler"
+    mapping: |
+      output.result = throw("x").catch(err -> 5 / 0).catch(err -> "safe")
+    output: {"result": "safe"}
+
+  # --- Handler returning deleted ---
+
+  - name: "catch handler returns deleted — field removed"
+    mapping: |
+      output.x = "prior"
+      output.x = throw("err").catch(err -> deleted())
+    output: {}
+
+  # --- Handler returning void ---
+
+  - name: "catch handler returns void — assignment skipped"
+    mapping: |
+      output.x = "prior"
+      output.x = throw("err").catch(err -> if false { "nope" })
+    output: {"x": "prior"}
+
+  # --- Catch after method that errors ---
+
+  - name: "catch after string method on non-stringable"
+    mapping: |
+      output.result = (5 / 0).string().catch(err -> "zero div")
+    output: {"result": "zero div"}

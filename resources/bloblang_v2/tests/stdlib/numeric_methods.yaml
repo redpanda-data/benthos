@@ -1,0 +1,325 @@
+description: "Numeric methods: abs, floor, ceil, round (half-even)"
+
+tests:
+  # --- abs: float64 ---
+
+  - name: "abs positive float64 is identity"
+    mapping: |
+      output = 3.14.abs()
+    output: 3.14
+
+  - name: "abs negative float64"
+    mapping: |
+      output = (-3.14).abs()
+    output: 3.14
+
+  - name: "abs zero float64"
+    mapping: |
+      output = 0.0.abs()
+    output: 0.0
+
+  - name: "abs float64 returns float64"
+    mapping: |
+      output = (-2.5).abs().type()
+    output: "float64"
+
+  # --- abs: int64 ---
+
+  - name: "abs positive int64 is identity"
+    mapping: |
+      output = 42.abs()
+    output: 42
+
+  - name: "abs negative int64"
+    mapping: |
+      output = (-42).abs()
+    output: 42
+
+  - name: "abs zero int64"
+    mapping: |
+      output = 0.abs()
+    output: 0
+
+  - name: "abs int64 returns int64"
+    mapping: |
+      output = (-5).abs().type()
+    output: "int64"
+
+  - name: "abs int64 min value overflows"
+    mapping: |
+      output = (-9223372036854775808).abs()
+    error: "overflow"
+
+  # --- abs: int32 ---
+
+  - name: "abs negative int32"
+    mapping: |
+      output = (-100).int32().abs()
+    output: {_type: "int32", value: "100"}
+
+  - name: "abs int32 min value overflows"
+    mapping: |
+      output = (-2147483648).int32().abs()
+    error: "overflow"
+
+  - name: "abs int32 returns int32"
+    mapping: |
+      output = (-7).int32().abs().type()
+    output: "int32"
+
+  # --- abs: uint64 identity ---
+
+  - name: "abs uint64 is identity"
+    mapping: |
+      output = 99.uint64().abs()
+    output: {_type: "uint64", value: "99"}
+
+  # --- abs: uint32 identity ---
+
+  - name: "abs uint32 is identity"
+    mapping: |
+      output = 99.uint32().abs()
+    output: {_type: "uint32", value: "99"}
+
+  # --- abs: float32 ---
+
+  - name: "abs negative float32"
+    mapping: |
+      output = (-1.5).float32().abs()
+    output: {_type: "float32", value: "1.5"}
+
+  - name: "abs float32 returns float32"
+    mapping: |
+      output = (-1.5).float32().abs().type()
+    output: "float32"
+
+  # --- floor ---
+
+  - name: "floor positive float64"
+    mapping: |
+      output = 3.7.floor()
+    output: 3.0
+
+  - name: "floor negative float64"
+    mapping: |
+      output = (-3.2).floor()
+    output: -4.0
+
+  - name: "floor already integer float64"
+    mapping: |
+      output = 5.0.floor()
+    output: 5.0
+
+  - name: "floor zero"
+    mapping: |
+      output = 0.0.floor()
+    output: 0.0
+
+  - name: "floor negative already integer"
+    mapping: |
+      output = (-4.0).floor()
+    output: -4.0
+
+  - name: "floor small positive"
+    mapping: |
+      output = 0.1.floor()
+    output: 0.0
+
+  - name: "floor small negative"
+    mapping: |
+      output = (-0.1).floor()
+    output: -1.0
+
+  - name: "floor returns float64"
+    mapping: |
+      output = 3.7.floor().type()
+    output: "float64"
+
+  - name: "floor float32 returns float32"
+    mapping: |
+      output = 3.7.float32().floor().type()
+    output: "float32"
+
+  - name: "floor float32 value"
+    mapping: |
+      output = 3.7.float32().floor()
+    output: {_type: "float32", value: "3.0"}
+
+  # --- ceil ---
+
+  - name: "ceil positive float64"
+    mapping: |
+      output = 3.2.ceil()
+    output: 4.0
+
+  - name: "ceil negative float64"
+    mapping: |
+      output = (-3.7).ceil()
+    output: -3.0
+
+  - name: "ceil already integer float64"
+    mapping: |
+      output = 5.0.ceil()
+    output: 5.0
+
+  - name: "ceil zero"
+    mapping: |
+      output = 0.0.ceil()
+    output: 0.0
+
+  - name: "ceil small positive"
+    mapping: |
+      output = 0.1.ceil()
+    output: 1.0
+
+  - name: "ceil small negative"
+    mapping: |
+      output = (-0.1).ceil()
+    output: 0.0
+
+  - name: "ceil returns float64"
+    mapping: |
+      output = 3.2.ceil().type()
+    output: "float64"
+
+  - name: "ceil float32 returns float32"
+    mapping: |
+      output = 3.2.float32().ceil().type()
+    output: "float32"
+
+  - name: "ceil float32 value"
+    mapping: |
+      output = 3.2.float32().ceil()
+    output: {_type: "float32", value: "4.0"}
+
+  # --- round: default n=0 (half-even) ---
+
+  - name: "round up from 3.7"
+    mapping: |
+      output = 3.7.round()
+    output: 4.0
+
+  - name: "round down from 3.2"
+    mapping: |
+      output = 3.2.round()
+    output: 3.0
+
+  - name: "round half-even 2.5 rounds to 2"
+    mapping: |
+      output = 2.5.round()
+    output: 2.0
+
+  - name: "round half-even 3.5 rounds to 4"
+    mapping: |
+      output = 3.5.round()
+    output: 4.0
+
+  - name: "round half-even 0.5 rounds to 0"
+    mapping: |
+      output = 0.5.round()
+    output: 0.0
+
+  - name: "round half-even 1.5 rounds to 2"
+    mapping: |
+      output = 1.5.round()
+    output: 2.0
+
+  - name: "round half-even 4.5 rounds to 4"
+    mapping: |
+      output = 4.5.round()
+    output: 4.0
+
+  - name: "round half-even negative -2.5 rounds to -2"
+    mapping: |
+      output = (-2.5).round()
+    output: -2.0
+
+  - name: "round half-even negative -3.5 rounds to -4"
+    mapping: |
+      output = (-3.5).round()
+    output: -4.0
+
+  - name: "round returns float64"
+    mapping: |
+      output = 3.7.round().type()
+    output: "float64"
+
+  # --- round: positive n (decimal places) ---
+
+  - name: "round to 2 decimal places"
+    mapping: |
+      output = 3.456.round(2)
+    output: 3.46
+
+  - name: "round to 1 decimal place"
+    mapping: |
+      output = 3.456.round(1)
+    output: 3.5
+
+  - name: "round half-even at 2 decimal places"
+    mapping: |
+      output = 2.345.round(2)
+    output: 2.34
+
+  - name: "round half-even at 2 decimal places odd"
+    mapping: |
+      output = 2.355.round(2)
+    output: 2.36
+
+  # --- round: negative n (powers of 10) ---
+
+  - name: "round to nearest 10"
+    mapping: |
+      output = 1234.0.round(-1)
+    output: 1230.0
+
+  - name: "round to nearest 100"
+    mapping: |
+      output = 1234.0.round(-2)
+    output: 1200.0
+
+  - name: "round half-even to nearest 100"
+    mapping: |
+      output = 1250.0.round(-2)
+    output: 1200.0
+
+  - name: "round half-even to nearest 100 odd"
+    mapping: |
+      output = 1350.0.round(-2)
+    output: 1400.0
+
+  - name: "round to nearest 1000"
+    mapping: |
+      output = 1500.0.round(-3)
+    output: 2000.0
+
+  - name: "round half-even to nearest 1000"
+    mapping: |
+      output = 2500.0.round(-3)
+    output: 2000.0
+
+  # --- round: float32 ---
+
+  - name: "round float32 returns float32"
+    mapping: |
+      output = 3.7.float32().round().type()
+    output: "float32"
+
+  - name: "round float32 value"
+    mapping: |
+      output = 3.7.float32().round()
+    output: {_type: "float32", value: "4.0"}
+
+  # --- round: explicit n=0 ---
+
+  - name: "round with explicit n=0 same as default"
+    mapping: |
+      output = 2.5.round(0)
+    output: 2.0
+
+  # --- round: named arg ---
+
+  - name: "round with named arg n"
+    mapping: |
+      output = 3.456.round(n: 2)
+    output: 3.46
