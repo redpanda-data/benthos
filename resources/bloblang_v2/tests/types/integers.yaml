@@ -28,9 +28,14 @@ tests:
       output = 9223372036854775807
     output: 9223372036854775807
 
-  - name: "int64 min value"
+  - name: "int64 min literal exceeds int64 range"
     mapping: |
       output = -9223372036854775808
+    compile_error: "exceeds"
+
+  - name: "int64 min value via arithmetic"
+    mapping: |
+      output = -9223372036854775807 - 1
     output: -9223372036854775808
 
   # --- int32 conversions ---
@@ -245,9 +250,14 @@ tests:
       output = 9223372036854775807 + 1
     error: "overflow"
 
-  - name: "int64 overflow subtraction"
+  - name: "int64 min literal is compile error in subtraction"
     mapping: |
       output = -9223372036854775808 - 1
+    compile_error: "exceeds"
+
+  - name: "int64 overflow subtraction"
+    mapping: |
+      output = (-9223372036854775807 - 1) - 1
     error: "overflow"
 
   # --- Conversion from float to integer types ---

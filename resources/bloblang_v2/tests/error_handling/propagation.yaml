@@ -59,8 +59,8 @@ tests:
 
   - name: "error from method skips subsequent methods"
     mapping: |
-      output.result = "hello".parse_int().abs()
-    error: "parse"
+      output.result = "hello".int64().abs()
+    error: "int64"
 
   - name: "error in field access skips subsequent field"
     input: {}
@@ -76,9 +76,9 @@ tests:
 
   # --- Error propagation through string interpolation ---
 
-  - name: "error in string interpolation propagates"
+  - name: "error in string concatenation propagates"
     mapping: |
-      output.result = "value is: %{(5 / 0).string()}"
+      output.result = "value is: " + (5 / 0).string()
     error: "division by zero"
 
   # --- Error propagates into variable assignment ---

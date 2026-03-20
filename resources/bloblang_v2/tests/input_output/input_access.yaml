@@ -105,17 +105,17 @@ tests:
       output.v = input.user.name
     output: {"v": null}
 
-  - name: "non-existent deep path returns null"
+  - name: "deep path through null intermediate is error"
     input: {"a": 1}
     mapping: |
       output.v = input.x.y.z
-    output: {"v": null}
+    error: "null"
 
-  - name: "out of bounds array index returns null"
+  - name: "out of bounds array index is error"
     input: [1, 2, 3]
     mapping: |
       output.v = input[10]
-    output: {"v": null}
+    error: "out of bounds"
 
   # --- Input metadata access ---
 

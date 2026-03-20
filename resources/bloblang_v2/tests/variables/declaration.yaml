@@ -150,6 +150,6 @@ tests:
 
   - name: "declare variable with timestamp value"
     mapping: |
-      $t = "2024-01-15T10:30:00Z".parse_time("2006-01-02T15:04:05Z07:00")
+      $t = "2024-01-15T10:30:00Z".ts_parse()
       output.v = $t
     output: {"v": {_type: "timestamp", value: "2024-01-15T10:30:00Z"}}

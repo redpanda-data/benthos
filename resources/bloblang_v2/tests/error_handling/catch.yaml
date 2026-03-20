@@ -36,9 +36,9 @@ tests:
       output.result = (5 / 0).catch(err -> err.what)
     output: {"result": "division by zero"}
 
-  - name: "error what field used in string interpolation"
+  - name: "error what field used in concatenation"
     mapping: |
-      output.result = throw("oops").catch(err -> "error: %{err.what}")
+      output.result = throw("oops").catch(err -> "error: " + err.what)
     output: {"result": "error: oops"}
 
   # --- No-error passthrough ---
@@ -98,7 +98,7 @@ tests:
 
   - name: "catch on method chain catches entire chain"
     mapping: |
-      output.result = "hello".parse_int().abs().catch(err -> -1)
+      output.result = "hello".int64().abs().catch(err -> -1)
     output: {"result": -1}
 
   # --- Chained catches ---
