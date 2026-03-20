@@ -1,0 +1,176 @@
+description: "Default parameter values: literal defaults, positional/named omission, non-literal default errors, dynamic defaults pattern"
+
+tests:
+  # --- Basic default values ---
+
+  - name: "single default parameter omitted uses default"
+    mapping: |
+      map greet(name, greeting = "Hello") {
+        greeting + ", " + name
+      }
+      output.v = greet("Alice")
+    output: {"v": "Hello, Alice"}
+
+  - name: "single default parameter provided overrides default"
+    mapping: |
+      map greet(name, greeting = "Hello") {
+        greeting + ", " + name
+      }
+      output.v = greet("Alice", "Hi")
+    output: {"v": "Hi, Alice"}
+
+  - name: "multiple default parameters all omitted"
+    mapping: |
+      map fmt(amount, currency = "USD", decimals = 2) {
+        currency + " " + amount.round(decimals).string()
+      }
+      output.v = fmt(99.99)
+    output: {"v": "USD 100.0"}
+
+  - name: "multiple defaults first provided second omitted"
+    mapping: |
+      map fmt(amount, currency = "USD", decimals = 2) {
+        currency + " " + amount.round(decimals).string()
+      }
+      output.v = fmt(99.99, "EUR")
+    output: {"v": "EUR 100.0"}
+
+  - name: "multiple defaults all provided"
+    mapping: |
+      map fmt(amount, currency = "USD", decimals = 2) {
+        currency + " " + amount.round(decimals).string()
+      }
+      output.v = fmt(99.999, "EUR", 0)
+    output: {"v": "EUR 100.0"}
+
+  # --- Default value types ---
+
+  - name: "default integer literal"
+    mapping: |
+      map inc(x, step = 1) {
+        x + step
+      }
+      output.v = inc(10)
+    output: {"v": 11}
+
+  - name: "default string literal"
+    mapping: |
+      map tag(value, prefix = "tag") {
+        prefix + ":" + value
+      }
+      output.v = tag("foo")
+    output: {"v": "tag:foo"}
+
+  - name: "default true literal"
+    mapping: |
+      map check(x, strict = true) {
+        if strict { x > 0 } else { x >= 0 }
+      }
+      output.v = check(0)
+    output: {"v": false}
+
+  - name: "default false literal"
+    mapping: |
+      map check(x, lenient = false) {
+        if lenient { true } else { x > 0 }
+      }
+      output.v = check(-1)
+    output: {"v": false}
+
+  - name: "default null literal"
+    mapping: |
+      map maybe(x, fallback = null) {
+        x.or(fallback)
+      }
+      output.v = maybe(null, "backup")
+    output: {"v": "backup"}
+
+  # --- Named arguments with defaults ---
+
+  - name: "named args skip middle optional parameter"
+    mapping: |
+      map fmt(amount, currency = "USD", decimals = 2) {
+        currency + " " + amount.round(decimals).string()
+      }
+      output.v = fmt(amount: 99.99, decimals: 0)
+    output: {"v": "USD 100.0"}
+
+  - name: "named args provide only required"
+    mapping: |
+      map fmt(amount, currency = "USD", decimals = 2) {
+        currency + " " + amount.round(decimals).string()
+      }
+      output.v = fmt(amount: 99.99)
+    output: {"v": "USD 100.0"}
+
+  - name: "named args override all defaults"
+    mapping: |
+      map fmt(amount, currency = "USD", decimals = 2) {
+        currency + " " + amount.round(decimals).string()
+      }
+      output.v = fmt(amount: 99.999, currency: "GBP", decimals: 1)
+    output: {"v": "GBP 100.0"}
+
+  # --- Non-literal defaults are compile errors ---
+
+  - name: "expression as default value is compile error"
+    mapping: |
+      map bad(x, y = 1 + 2) { x + y }
+      output.v = bad(1)
+    compile_error: "literal"
+
+  - name: "function call as default value is compile error"
+    mapping: |
+      map bad(x, y = now()) { x }
+      output.v = bad(1)
+    compile_error: "literal"
+
+  - name: "variable reference as default value is compile error"
+    mapping: |
+      $z = 10
+      map bad(x, y = $z) { x + y }
+      output.v = bad(1)
+    compile_error: "literal"
+
+  - name: "parameter reference as default value is compile error"
+    mapping: |
+      map bad(x, y = x) { x + y }
+      output.v = bad(1)
+    compile_error: "literal"
+
+  # --- Default before required is compile error ---
+
+  - name: "default parameter before required parameter is compile error"
+    mapping: |
+      map bad(x = 1, y) { x + y }
+      output.v = bad(1, 2)
+    compile_error: "default"
+
+  # --- Dynamic defaults pattern ---
+
+  - name: "dynamic default with null and or"
+    mapping: |
+      map connect(host, port = null) {
+        $p = port.or(if host.has_prefix("https") { 443 } else { 80 })
+        host + ":" + $p.string()
+      }
+      output.v = connect("https://example.com")
+    output: {"v": "https://example.com:443"}
+
+  - name: "dynamic default overridden by caller"
+    mapping: |
+      map connect(host, port = null) {
+        $p = port.or(if host.has_prefix("https") { 443 } else { 80 })
+        host + ":" + $p.string()
+      }
+      output.v = connect("http://example.com", 8080)
+    output: {"v": "http://example.com:8080"}
+
+  - name: "dynamic default with http fallback"
+    mapping: |
+      map connect(host, port = null) {
+        $p = port.or(if host.has_prefix("https") { 443 } else { 80 })
+        host + ":" + $p.string()
+      }
+      output.v = connect("http://example.com")
+    output: {"v": "http://example.com:80"}

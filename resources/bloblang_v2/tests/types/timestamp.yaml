@@ -1,0 +1,244 @@
+description: "Timestamp creation, formatting, arithmetic, and comparison"
+
+tests:
+  # --- Creation ---
+
+  - name: "timestamp constructor with required args only"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1)
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T00:00:00Z"}}
+
+  - name: "timestamp constructor with all positional args"
+    mapping: |
+      output.ts = timestamp(2024, 12, 25, 8, 30, 45, 123000000)
+    output: {"ts": {_type: "timestamp", value: "2024-12-25T08:30:45.123Z"}}
+
+  - name: "timestamp constructor with named args"
+    mapping: |
+      output.ts = timestamp(year: 2024, month: 1, day: 15, hour: 10)
+    output: {"ts": {_type: "timestamp", value: "2024-01-15T10:00:00Z"}}
+
+  - name: "timestamp constructor with timezone"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 12, 30, 0, 0, "America/New_York")
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T12:30:00-05:00"}}
+
+  - name: "timestamp constructor invalid month"
+    mapping: |
+      output.ts = timestamp(2024, 13, 1)
+    error: "out of range"
+
+  - name: "timestamp constructor invalid timezone"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0, 0, "Not/A/Zone")
+    error: "timezone"
+
+  - name: "now returns a timestamp"
+    mapping: |
+      output.ts = now()
+    no_output_check: true
+    output_type: "timestamp"
+
+  # --- Parsing ---
+
+  - name: "ts_parse with default format (RFC 3339)"
+    mapping: |
+      output.ts = "2024-03-01T12:00:00Z".ts_parse()
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T12:00:00Z"}}
+
+  - name: "ts_parse with explicit format"
+    mapping: |
+      output.ts = "2024-03-01".ts_parse("%Y-%m-%d")
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T00:00:00Z"}}
+
+  - name: "ts_parse with fractional seconds"
+    mapping: |
+      output.ts = "2024-03-01T12:00:00.123Z".ts_parse()
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T12:00:00.123Z"}}
+
+  - name: "ts_parse with timezone offset"
+    mapping: |
+      output.ts = "2024-03-01T12:00:00+05:30".ts_parse()
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T12:00:00+05:30"}}
+
+  - name: "ts_parse invalid string"
+    mapping: |
+      output.ts = "not-a-date".ts_parse("%Y-%m-%d")
+    error: "parse"
+
+  # --- Formatting ---
+
+  - name: "ts_format default is RFC 3339"
+    mapping: |
+      output.s = timestamp(2024, 3, 1, 12, 0, 0).ts_format()
+    output: {"s": "2024-03-01T12:00:00Z"}
+
+  - name: "ts_format custom format"
+    mapping: |
+      output.s = timestamp(2024, 3, 1).ts_format("%Y-%m-%d")
+    output: {"s": "2024-03-01"}
+
+  - name: "timestamp string serialization trims trailing zeros"
+    mapping: |
+      output.s = timestamp(2024, 3, 1, 12, 0, 0, 500000000).string()
+    output: {"s": "2024-03-01T12:00:00.5Z"}
+
+  - name: "timestamp string serialization whole seconds omit fraction"
+    mapping: |
+      output.s = timestamp(2024, 3, 1, 12, 0, 0).string()
+    output: {"s": "2024-03-01T12:00:00Z"}
+
+  # --- Comparison ---
+
+  - name: "timestamp equality same value"
+    mapping: |
+      $a = timestamp(2024, 3, 1)
+      $b = timestamp(2024, 3, 1)
+      output.eq = $a == $b
+    output: {"eq": true}
+
+  - name: "timestamp equality different values"
+    mapping: |
+      $a = timestamp(2024, 3, 1)
+      $b = timestamp(2024, 3, 2)
+      output.eq = $a == $b
+    output: {"eq": false}
+
+  - name: "timestamp inequality"
+    mapping: |
+      $a = timestamp(2024, 3, 1)
+      $b = timestamp(2024, 3, 2)
+      output.neq = $a != $b
+    output: {"neq": true}
+
+  - name: "timestamp less than"
+    mapping: |
+      $a = timestamp(2024, 3, 1)
+      $b = timestamp(2024, 3, 2)
+      output.lt = $a < $b
+    output: {"lt": true}
+
+  - name: "timestamp greater than"
+    mapping: |
+      $a = timestamp(2024, 3, 2)
+      $b = timestamp(2024, 3, 1)
+      output.gt = $a > $b
+    output: {"gt": true}
+
+  - name: "timestamp less than or equal (equal case)"
+    mapping: |
+      $a = timestamp(2024, 3, 1)
+      $b = timestamp(2024, 3, 1)
+      output.le = $a <= $b
+    output: {"le": true}
+
+  - name: "timestamp greater than or equal (greater case)"
+    mapping: |
+      $a = timestamp(2024, 3, 2)
+      $b = timestamp(2024, 3, 1)
+      output.ge = $a >= $b
+    output: {"ge": true}
+
+  # --- Arithmetic ---
+
+  - name: "timestamp subtraction returns nanoseconds"
+    mapping: |
+      $a = timestamp(2024, 3, 1, 0, 0, 0)
+      $b = timestamp(2024, 3, 1, 0, 0, 1)
+      output.diff = $b - $a
+    output: {"diff": 1000000000}
+
+  - name: "timestamp subtraction negative result"
+    mapping: |
+      $a = timestamp(2024, 3, 1, 0, 0, 1)
+      $b = timestamp(2024, 3, 1, 0, 0, 0)
+      output.diff = $b - $a
+    output: {"diff": -1000000000}
+
+  - name: "timestamp addition is an error"
+    mapping: |
+      $a = timestamp(2024, 3, 1)
+      $b = timestamp(2024, 3, 2)
+      output.bad = $a + $b
+    error: "cannot add"
+
+  - name: "timestamp plus number is an error"
+    mapping: |
+      output.bad = timestamp(2024, 3, 1) + 1
+    error: "cannot add"
+
+  - name: "number minus timestamp is an error"
+    mapping: |
+      output.bad = 1 - timestamp(2024, 3, 1)
+    error: "cannot"
+
+  - name: "timestamp multiply is an error"
+    mapping: |
+      output.bad = timestamp(2024, 3, 1) * 2
+    error: "cannot"
+
+  - name: "timestamp divide is an error"
+    mapping: |
+      output.bad = timestamp(2024, 3, 1) / 2
+    error: "cannot"
+
+  - name: "timestamp modulo is an error"
+    mapping: |
+      output.bad = timestamp(2024, 3, 1) % 2
+    error: "cannot"
+
+  # --- ts_add ---
+
+  - name: "ts_add positive duration"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(second())
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T00:00:01Z"}}
+
+  - name: "ts_add negative duration"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(second() * -1)
+    output: {"ts": {_type: "timestamp", value: "2024-02-29T23:59:59Z"}}
+
+  - name: "ts_add with minute constant"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(minute())
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T00:01:00Z"}}
+
+  - name: "ts_add with hour constant"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(hour())
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T01:00:00Z"}}
+
+  - name: "ts_add with day constant"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(day())
+    output: {"ts": {_type: "timestamp", value: "2024-03-02T00:00:00Z"}}
+
+  # --- Duration constants ---
+
+  - name: "second returns nanoseconds"
+    mapping: |
+      output.v = second()
+    output: {"v": 1000000000}
+
+  - name: "minute returns nanoseconds"
+    mapping: |
+      output.v = minute()
+    output: {"v": 60000000000}
+
+  - name: "hour returns nanoseconds"
+    mapping: |
+      output.v = hour()
+    output: {"v": 3600000000000}
+
+  - name: "day returns nanoseconds"
+    mapping: |
+      output.v = day()
+    output: {"v": 86400000000000}
+
+  # --- Type ---
+
+  - name: "timestamp type"
+    mapping: |
+      output.t = timestamp(2024, 3, 1).type()
+    output: {"t": "timestamp"}

@@ -1,0 +1,192 @@
+description: "Object transform methods — map_values, map_keys, map_entries, filter_entries"
+
+tests:
+  # --- map_values ---
+
+  - name: "map_values transforms all values"
+    mapping: |
+      output.result = {"a": 1, "b": 2, "c": 3}.map_values(v -> v * 10)
+    output: {"result": {"a": 10, "b": 20, "c": 30}}
+
+  - name: "map_values on empty object"
+    mapping: |
+      output.result = {}.map_values(v -> v + 1)
+    output: {"result": {}}
+
+  - name: "map_values can change value types"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.map_values(v -> v.string())
+    output: {"result": {"a": "1", "b": "2"}}
+
+  - name: "map_values void return is error"
+    mapping: |
+      output.result = {"a": 1}.map_values(v -> if false { v })
+    error: "void"
+
+  - name: "map_values deleted omits entry"
+    mapping: |
+      output.result = {"a": 1, "b": 2, "c": 3}.map_values(v -> if v > 1 { v * 10 } else { deleted() })
+    output: {"result": {"b": 20, "c": 30}}
+
+  - name: "map_values does not modify original"
+    mapping: |
+      $obj = {"x": 1, "y": 2}
+      $new = $obj.map_values(v -> v + 100)
+      output.original = $obj
+      output.new = $new
+    output: {"original": {"x": 1, "y": 2}, "new": {"x": 101, "y": 102}}
+
+  - name: "map_values with block body"
+    mapping: |
+      output.result = {"a": 5, "b": 10}.map_values(v -> {
+        $doubled = v * 2
+        $doubled + 1
+      })
+    output: {"result": {"a": 11, "b": 21}}
+
+  # --- map_keys ---
+
+  - name: "map_keys transforms all keys"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.map_keys(k -> k.uppercase())
+    output: {"result": {"A": 1, "B": 2}}
+
+  - name: "map_keys on empty object"
+    mapping: |
+      output.result = {}.map_keys(k -> k + "_suffix")
+    output: {"result": {}}
+
+  - name: "map_keys adds prefix"
+    mapping: |
+      output.result = {"name": "Alice", "age": 30}.map_keys(k -> "user_" + k)
+    output: {"result": {"user_name": "Alice", "user_age": 30}}
+
+  - name: "map_keys must return string"
+    mapping: |
+      output.result = {"a": 1}.map_keys(k -> 42)
+    error: "string"
+
+  - name: "map_keys void return is error"
+    mapping: |
+      output.result = {"a": 1}.map_keys(k -> if false { k })
+    error: "void"
+
+  - name: "map_keys deleted omits entry"
+    mapping: |
+      output.result = {"keep": 1, "drop": 2, "also_keep": 3}.map_keys(k -> if k.has_prefix("drop") { deleted() } else { k })
+    output: {"result": {"keep": 1, "also_keep": 3}}
+
+  - name: "map_keys does not modify original"
+    mapping: |
+      $obj = {"a": 1, "b": 2}
+      $new = $obj.map_keys(k -> k.uppercase())
+      output.original = $obj
+      output.new = $new
+    output: {"original": {"a": 1, "b": 2}, "new": {"A": 1, "B": 2}}
+
+  # --- map_entries ---
+
+  - name: "map_entries transforms keys and values"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.map_entries((k, v) -> {"key": k.uppercase(), "value": v * 10})
+    output: {"result": {"A": 10, "B": 20}}
+
+  - name: "map_entries on empty object"
+    mapping: |
+      output.result = {}.map_entries((k, v) -> {"key": k, "value": v})
+    output: {"result": {}}
+
+  - name: "map_entries swap keys and values"
+    mapping: |
+      output.result = {"x": "alpha", "y": "beta"}.map_entries((k, v) -> {"key": v, "value": k})
+    output: {"result": {"alpha": "x", "beta": "y"}}
+
+  - name: "map_entries deleted omits entry"
+    mapping: |
+      output.result = {"a": 1, "b": 2, "c": 3}.map_entries((k, v) -> if v == 2 { deleted() } else { {"key": k, "value": v} })
+    output: {"result": {"a": 1, "c": 3}}
+
+  - name: "map_entries void return is error"
+    mapping: |
+      output.result = {"a": 1}.map_entries((k, v) -> if false { {"key": k, "value": v} })
+    error: "void"
+
+  - name: "map_entries with computed keys"
+    mapping: |
+      output.result = {"name": "Alice", "city": "London"}.map_entries((k, v) -> {"key": "user_" + k, "value": v})
+    output: {"result": {"user_name": "Alice", "user_city": "London"}}
+
+  - name: "map_entries does not modify original"
+    mapping: |
+      $obj = {"a": 1, "b": 2}
+      $new = $obj.map_entries((k, v) -> {"key": k, "value": v + 100})
+      output.original = $obj
+      output.new = $new
+    output: {"original": {"a": 1, "b": 2}, "new": {"a": 101, "b": 102}}
+
+  - name: "map_entries with block body"
+    mapping: |
+      output.result = {"x": 5}.map_entries((k, v) -> {
+        $new_key = k + "_modified"
+        $new_val = v * 2
+        {"key": $new_key, "value": $new_val}
+      })
+    output: {"result": {"x_modified": 10}}
+
+  # --- filter_entries ---
+
+  - name: "filter_entries keeps matching entries"
+    mapping: |
+      output.result = {"a": 1, "b": 5, "c": 3}.filter_entries((k, v) -> v > 2)
+    output: {"result": {"b": 5, "c": 3}}
+
+  - name: "filter_entries on empty object"
+    mapping: |
+      output.result = {}.filter_entries((k, v) -> true)
+    output: {"result": {}}
+
+  - name: "filter_entries no matches"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.filter_entries((k, v) -> v > 100)
+    output: {"result": {}}
+
+  - name: "filter_entries all match"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.filter_entries((k, v) -> v > 0)
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "filter_entries by key"
+    mapping: |
+      output.result = {"name": "Alice", "age": 30, "note": "test"}.filter_entries((k, v) -> k.has_prefix("n"))
+    output: {"result": {"name": "Alice", "note": "test"}}
+
+  - name: "filter_entries non-bool return is error"
+    mapping: |
+      output.result = {"a": 1}.filter_entries((k, v) -> v * 2)
+    error: "bool"
+
+  - name: "filter_entries void return is error"
+    mapping: |
+      output.result = {"a": 1}.filter_entries((k, v) -> if false { true })
+    error: "bool"
+
+  - name: "filter_entries does not modify original"
+    mapping: |
+      $obj = {"a": 1, "b": 2, "c": 3}
+      $new = $obj.filter_entries((k, v) -> v > 1)
+      output.original = $obj
+      output.new = $new
+    output: {"original": {"a": 1, "b": 2, "c": 3}, "new": {"b": 2, "c": 3}}
+
+  - name: "filter_entries combined key and value condition"
+    mapping: |
+      output.result = {"x": 10, "y": 20, "z": 5}.filter_entries((k, v) -> k != "y" && v > 3)
+    output: {"result": {"x": 10, "z": 5}}
+
+  - name: "filter_entries with block body"
+    mapping: |
+      output.result = {"a": 1, "b": 10, "c": 5}.filter_entries((k, v) -> {
+        $threshold = 3
+        v > $threshold
+      })
+    output: {"result": {"b": 10, "c": 5}}

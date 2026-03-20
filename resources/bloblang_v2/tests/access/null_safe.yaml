@@ -1,0 +1,156 @@
+description: "Null-safe navigation with ?. and ?[: short-circuits on null, type errors on non-null wrong type"
+
+tests:
+  # --- Basic ?. on null ---
+
+  - name: "null-safe field access on null returns null"
+    mapping: |
+      $v = null
+      output.v = $v?.name
+    output: {"v": null}
+
+  - name: "null-safe field access on non-null object works"
+    mapping: |
+      $v = {"name": "Alice"}
+      output.v = $v?.name
+    output: {"v": "Alice"}
+
+  - name: "null-safe on null input field"
+    input: {"user": null}
+    mapping: |
+      output.v = input.user?.name
+    output: {"v": null}
+
+  - name: "null-safe on missing input field returns null"
+    input: {}
+    mapping: |
+      output.v = input.missing?.name
+    output: {"v": null}
+
+  # --- Chained ?. ---
+
+  - name: "chained null-safe all present"
+    input: {"user": {"address": {"city": "London"}}}
+    mapping: |
+      output.v = input.user?.address?.city
+    output: {"v": "London"}
+
+  - name: "chained null-safe middle is null"
+    input: {"user": {"address": null}}
+    mapping: |
+      output.v = input.user?.address?.city
+    output: {"v": null}
+
+  - name: "chained null-safe first is null"
+    input: {"user": null}
+    mapping: |
+      output.v = input.user?.address?.city
+    output: {"v": null}
+
+  - name: "chained null-safe first missing"
+    input: {}
+    mapping: |
+      output.v = input.user?.address?.city
+    output: {"v": null}
+
+  # --- ?[ on null ---
+
+  - name: "null-safe bracket on null returns null"
+    mapping: |
+      $v = null
+      output.v = $v?["key"]
+    output: {"v": null}
+
+  - name: "null-safe bracket on object works"
+    mapping: |
+      $v = {"key": "value"}
+      output.v = $v?["key"]
+    output: {"v": "value"}
+
+  - name: "null-safe bracket on null array returns null"
+    mapping: |
+      $v = null
+      output.v = $v?[0]
+    output: {"v": null}
+
+  - name: "null-safe bracket on array works"
+    mapping: |
+      $v = [10, 20, 30]
+      output.v = $v?[1]
+    output: {"v": 20}
+
+  # --- Null-safe method call ---
+
+  - name: "null-safe method on null returns null"
+    mapping: |
+      $v = null
+      output.v = $v?.length()
+    output: {"v": null}
+
+  - name: "null-safe method on non-null works"
+    mapping: |
+      $v = "hello"
+      output.v = $v?.length()
+    output: {"v": 5}
+
+  - name: "null-safe chained method on null"
+    mapping: |
+      $v = null
+      output.v = $v?.trim()
+    output: {"v": null}
+
+  # --- Type errors still throw on non-null wrong type ---
+
+  - name: "null-safe field on integer is error"
+    mapping: |
+      output.v = 5?.name
+    error: "field"
+
+  - name: "null-safe field on string is error"
+    mapping: |
+      output.v = "hello"?.name
+    error: "field"
+
+  - name: "null-safe field on boolean is error"
+    mapping: |
+      output.v = true?.name
+    error: "field"
+
+  - name: "null-safe field on array is error"
+    mapping: |
+      output.v = [1, 2]?.name
+    error: "field"
+
+  - name: "non-null wrong type in chain is error"
+    input: {"value": "hello"}
+    mapping: |
+      output.v = input.value?.nonfield?.trim()
+    error: "field"
+
+  # --- Mixed null-safe and regular access ---
+
+  - name: "regular then null-safe access"
+    input: {"user": {"profile": null}}
+    mapping: |
+      output.v = input.user.profile?.bio
+    output: {"v": null}
+
+  - name: "null-safe then regular access on present value"
+    input: {"user": {"profile": {"bio": "hello"}}}
+    mapping: |
+      output.v = input.user?.profile.bio
+    output: {"v": "hello"}
+
+  # --- Null-safe with dynamic access chains ---
+
+  - name: "null-safe bracket then dot"
+    mapping: |
+      $data = null
+      output.v = $data?["key"]?.name
+    output: {"v": null}
+
+  - name: "null-safe bracket on nested null"
+    input: {"items": null}
+    mapping: |
+      output.v = input.items?[0]
+    output: {"v": null}

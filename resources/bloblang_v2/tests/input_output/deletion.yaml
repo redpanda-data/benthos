@@ -1,0 +1,189 @@
+description: "Deletion: output = deleted() drops message, field deletion, array element deletion, deleted in literals, nested deletion, operations on deleted error"
+
+tests:
+  # --- output = deleted() drops entire message ---
+
+  - name: "output = deleted() drops message"
+    mapping: |
+      output = deleted()
+    deleted: true
+
+  - name: "output = deleted() discards prior assignments"
+    mapping: |
+      output.name = "Alice"
+      output.age = 30
+      output = deleted()
+    deleted: true
+
+  - name: "output = deleted() stops execution immediately"
+    mapping: |
+      output = deleted()
+      output.should_not_exist = "never reached"
+    deleted: true
+
+  - name: "output = deleted() after root assignment still drops"
+    mapping: |
+      output = {"complex": "structure"}
+      output = deleted()
+    deleted: true
+
+  # --- Field deletion ---
+
+  - name: "delete output field"
+    mapping: |
+      output.a = 1
+      output.b = 2
+      output.c = 3
+      output.b = deleted()
+    output: {"a": 1, "c": 3}
+
+  - name: "delete nested output field"
+    mapping: |
+      output.user.name = "Alice"
+      output.user.age = 30
+      output.user.age = deleted()
+    output: {"user": {"name": "Alice"}}
+
+  - name: "delete non-existent output field is no-op"
+    mapping: |
+      output.a = 1
+      output.missing = deleted()
+    output: {"a": 1}
+
+  - name: "delete deeply nested field"
+    mapping: |
+      output.a.b.c = "deep"
+      output.a.b.d = "also deep"
+      output.a.b.c = deleted()
+    output: {"a": {"b": {"d": "also deep"}}}
+
+  # --- Array element deletion ---
+
+  - name: "delete array element shifts remaining"
+    mapping: |
+      output.items = [10, 20, 30, 40]
+      output.items[1] = deleted()
+    output: {"items": [10, 30, 40]}
+
+  - name: "delete first array element"
+    mapping: |
+      output.items = [10, 20, 30]
+      output.items[0] = deleted()
+    output: {"items": [20, 30]}
+
+  - name: "delete last array element"
+    mapping: |
+      output.items = [10, 20, 30]
+      output.items[2] = deleted()
+    output: {"items": [10, 20]}
+
+  # --- Variable deletion errors and behavior ---
+
+  - name: "assign deleted() to variable is runtime error"
+    mapping: |
+      $var = deleted()
+    error: "deleted"
+
+  - name: "delete field from variable object"
+    mapping: |
+      $obj = {"a": 1, "b": 2, "c": 3}
+      $obj.b = deleted()
+      output.v = $obj
+    output: {"v": {"a": 1, "c": 3}}
+
+  - name: "delete element from variable array shifts remaining"
+    mapping: |
+      $arr = [10, 20, 30, 40]
+      $arr[0] = deleted()
+      output.v = $arr
+    output: {"v": [20, 30, 40]}
+
+  # --- Deleted in array literals ---
+
+  - name: "deleted() in array literal omits element"
+    mapping: |
+      output.v = [1, deleted(), 3]
+    output: {"v": [1, 3]}
+
+  - name: "multiple deleted() in array literal"
+    mapping: |
+      output.v = [deleted(), 1, deleted(), 2, deleted()]
+    output: {"v": [1, 2]}
+
+  - name: "all deleted() in array literal produces empty array"
+    mapping: |
+      output.v = [deleted(), deleted(), deleted()]
+    output: {"v": []}
+
+  - name: "deleted() at beginning of array literal"
+    mapping: |
+      output.v = [deleted(), "a", "b"]
+    output: {"v": ["a", "b"]}
+
+  - name: "deleted() at end of array literal"
+    mapping: |
+      output.v = ["a", "b", deleted()]
+    output: {"v": ["a", "b"]}
+
+  # --- Deleted in object literals ---
+
+  - name: "deleted() value in object literal omits field"
+    mapping: |
+      output.v = {"a": 1, "b": deleted(), "c": 3}
+    output: {"v": {"a": 1, "c": 3}}
+
+  - name: "all deleted() values in object literal produces empty object"
+    mapping: |
+      output.v = {"a": deleted(), "b": deleted()}
+    output: {"v": {}}
+
+  - name: "deleted() in nested object literal"
+    mapping: |
+      output.v = {"outer": {"keep": 1, "drop": deleted()}}
+    output: {"v": {"outer": {"keep": 1}}}
+
+  # --- Deletion propagates at each level independently ---
+
+  - name: "deleted in nested array within object"
+    mapping: |
+      output.v = {"items": [1, deleted(), 3]}
+    output: {"v": {"items": [1, 3]}}
+
+  - name: "deleted in object within array"
+    mapping: |
+      output.v = [{"a": 1, "b": deleted()}, {"c": 3}]
+    output: {"v": [{"a": 1}, {"c": 3}]}
+
+  # --- Operations on deleted() are errors ---
+
+  - name: "arithmetic on deleted() is error"
+    mapping: |
+      output.v = deleted() + 1
+    error: "deleted"
+
+  - name: "comparison on deleted() is error"
+    mapping: |
+      output.v = deleted() == null
+    error: "deleted"
+
+  - name: "method call on deleted() is error"
+    mapping: |
+      output.v = deleted().string()
+    error: "deleted"
+
+  - name: "field access on deleted() is error"
+    mapping: |
+      output.v = deleted().field
+    error: "deleted"
+
+  # --- .or() and .catch() rescue deleted ---
+
+  - name: "or rescues deleted()"
+    mapping: |
+      output.v = deleted().or("fallback")
+    output: {"v": "fallback"}
+
+  - name: "catch rescues deleted()"
+    mapping: |
+      output.v = deleted().catch(err -> "caught")
+    output: {"v": "caught"}

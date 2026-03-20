@@ -1,0 +1,162 @@
+description: "Static field access: dot notation, keywords as fields, quoted fields, nested access, null for missing, errors on non-objects"
+
+tests:
+  # --- Basic dot notation ---
+
+  - name: "access input field"
+    input: {"name": "Alice"}
+    mapping: |
+      output.v = input.name
+    output: {"v": "Alice"}
+
+  - name: "access nested input field"
+    input: {"user": {"name": "Alice"}}
+    mapping: |
+      output.v = input.user.name
+    output: {"v": "Alice"}
+
+  - name: "access deeply nested input field"
+    input: {"a": {"b": {"c": {"d": 42}}}}
+    mapping: |
+      output.v = input.a.b.c.d
+    output: {"v": 42}
+
+  - name: "access output field after assignment"
+    mapping: |
+      output.x = 10
+      output.y = output.x + 5
+    output: {"x": 10, "y": 15}
+
+  - name: "access variable field"
+    mapping: |
+      $obj = {"name": "Bob", "age": 25}
+      output.name = $obj.name
+      output.age = $obj.age
+    output: {"name": "Bob", "age": 25}
+
+  # --- Non-existent fields return null ---
+
+  - name: "non-existent field on input returns null"
+    input: {"name": "Alice"}
+    mapping: |
+      output.v = input.missing
+    output: {"v": null}
+
+  - name: "non-existent nested field returns null"
+    input: {"user": {"name": "Alice"}}
+    mapping: |
+      output.v = input.user.email
+    output: {"v": null}
+
+  - name: "non-existent deep path returns null"
+    input: {"a": {}}
+    mapping: |
+      output.v = input.a.b.c.d
+    output: {"v": null}
+
+  - name: "non-existent field on variable returns null"
+    mapping: |
+      $obj = {"x": 1}
+      output.v = $obj.y
+    output: {"v": null}
+
+  - name: "non-existent field on empty object returns null"
+    input: {}
+    mapping: |
+      output.v = input.anything
+    output: {"v": null}
+
+  # --- Keywords as valid field names ---
+
+  - name: "keyword map as field name"
+    input: {"map": "value"}
+    mapping: |
+      output.v = input.map
+    output: {"v": "value"}
+
+  - name: "keyword if as field name"
+    mapping: |
+      output.if = "conditional"
+      output.v = output.if
+    output: {"if": "conditional", "v": "conditional"}
+
+  - name: "keyword match as field name"
+    input: {"match": 42}
+    mapping: |
+      output.v = input.match
+    output: {"v": 42}
+
+  - name: "keyword true as field name"
+    input: {"true": "yes"}
+    mapping: |
+      output.v = input.true
+    output: {"v": "yes"}
+
+  - name: "keyword null as field name"
+    input: {"null": "not actually null"}
+    mapping: |
+      output.v = input.null
+    output: {"v": "not actually null"}
+
+  # --- Quoted field names ---
+
+  - name: "quoted field with spaces"
+    input: {"field with spaces": "hello"}
+    mapping: |
+      output.v = input."field with spaces"
+    output: {"v": "hello"}
+
+  - name: "quoted field with special characters"
+    input: {"special-chars!@#": "value"}
+    mapping: |
+      output.v = input."special-chars!@#"
+    output: {"v": "value"}
+
+  - name: "quoted field starting with digit"
+    input: {"123": "numeric"}
+    mapping: |
+      output.v = input."123"
+    output: {"v": "numeric"}
+
+  - name: "quoted field with dots"
+    input: {"a.b.c": "dotted"}
+    mapping: |
+      output.v = input."a.b.c"
+    output: {"v": "dotted"}
+
+  - name: "quoted field on output"
+    mapping: |
+      output."my-field" = "works"
+    output: {"my-field": "works"}
+
+  - name: "quoted field nested access"
+    input: {"top level": {"inner-key": "found"}}
+    mapping: |
+      output.v = input."top level"."inner-key"
+    output: {"v": "found"}
+
+  # --- Field access on non-object types is error ---
+
+  - name: "field access on string is error"
+    mapping: |
+      $s = "hello"
+      output.v = $s.field
+    error: "field"
+
+  - name: "field access on integer is error"
+    mapping: |
+      $n = 42
+      output.v = $n.field
+    error: "field"
+
+  - name: "field access on boolean is error"
+    mapping: |
+      $b = true
+      output.v = $b.field
+    error: "field"
+
+  - name: "field access on array is error"
+    mapping: |
+      $arr = [1, 2, 3]
+      output.v = $arr.field
+    error: "field"

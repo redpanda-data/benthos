@@ -1,0 +1,298 @@
+description: "String literals, escape sequences, raw strings, and codepoint semantics"
+
+tests:
+  # --- Basic string literals ---
+
+  - name: "empty string literal"
+    mapping: |
+      output = ""
+    output: ""
+
+  - name: "simple string literal"
+    mapping: |
+      output = "hello world"
+    output: "hello world"
+
+  - name: "string type introspection"
+    mapping: |
+      output = "hello".type()
+    output: "string"
+
+  # --- Escape sequences ---
+
+  - name: "escape newline"
+    mapping: |
+      output = "line1\nline2"
+    output: "line1\nline2"
+
+  - name: "escape tab"
+    mapping: |
+      output = "col1\tcol2"
+    output: "col1\tcol2"
+
+  - name: "escape carriage return"
+    mapping: |
+      output = "hello\rworld"
+    output: "hello\rworld"
+
+  - name: "escape double quote"
+    mapping: |
+      output = "say \"hello\""
+    output: "say \"hello\""
+
+  - name: "escape backslash"
+    mapping: |
+      output = "back\\slash"
+    output: "back\\slash"
+
+  - name: "unicode escape 4 digit BMP"
+    mapping: |
+      output = "\u0041"
+    output: "A"
+
+  - name: "unicode escape 4 digit non-ascii"
+    mapping: |
+      output = "\u00E9"
+    output: "\u00E9"
+
+  - name: "unicode escape braced single digit"
+    mapping: |
+      output = "\u{41}"
+    output: "A"
+
+  - name: "unicode escape braced emoji"
+    mapping: |
+      output = "\u{1F600}"
+    output: "\U0001F600"
+
+  - name: "multiple escapes in one string"
+    mapping: |
+      output = "a\tb\nc\\d\"e"
+    output: "a\tb\nc\\d\"e"
+
+  # --- Raw strings ---
+
+  - name: "raw string basic"
+    mapping: |
+      output = `hello world`
+    output: "hello world"
+
+  - name: "raw string no escape processing"
+    mapping: |
+      output = `no\nescape\there`
+    output: "no\\nescape\\there"
+
+  - name: "raw string preserves quotes"
+    mapping: |
+      output = `she said "hello"`
+    output: "she said \"hello\""
+
+  - name: "raw string preserves backslashes"
+    mapping: |
+      output = `C:\path\to\file`
+    output: "C:\\path\\to\\file"
+
+  - name: "raw string with newlines preserved"
+    mapping: "output = `line1\nline2`"
+    output: "line1\\nline2"
+
+  # --- String length (codepoint-based) ---
+
+  - name: "length of ascii string"
+    mapping: |
+      output = "hello".length()
+    output: 5
+
+  - name: "length of empty string"
+    mapping: |
+      output = "".length()
+    output: 0
+
+  - name: "length of string with non-ascii"
+    mapping: |
+      output = "caf\u00E9".length()
+    output: 4
+
+  - name: "length of single codepoint emoji"
+    mapping: |
+      output = "\u{1F600}".length()
+    output: 1
+
+  - name: "length of multi-codepoint emoji"
+    mapping: |
+      output = "\u{1F44B}\u{1F3FD}".length()
+    output: 2
+
+  # --- String indexing (codepoint-based, returns int64) ---
+
+  - name: "index first codepoint"
+    mapping: |
+      output = "hello"[0]
+    output: 104
+
+  - name: "index last codepoint positive"
+    mapping: |
+      output = "hello"[4]
+    output: 111
+
+  - name: "index negative last codepoint"
+    mapping: |
+      output = "hello"[-1]
+    output: 111
+
+  - name: "index negative second to last"
+    mapping: |
+      output = "hello"[-2]
+    output: 108
+
+  - name: "index non-ascii codepoint"
+    mapping: |
+      output = "caf\u00E9"[3]
+    output: 233
+
+  - name: "index emoji codepoint"
+    mapping: |
+      output = "\u{1F600}"[0]
+    output: 128512
+
+  - name: "index out of bounds positive"
+    mapping: |
+      output = "hello"[5]
+    error: "out of bounds"
+
+  - name: "index out of bounds negative"
+    mapping: |
+      output = "hello"[-6]
+    error: "out of bounds"
+
+  # --- Codepoint round-trip with .char() ---
+
+  - name: "char round trip ascii"
+    mapping: |
+      output = "hello"[0].char()
+    output: "h"
+
+  - name: "char round trip non-ascii"
+    mapping: |
+      output = "caf\u00E9"[3].char()
+    output: "\u00E9"
+
+  # --- String concatenation ---
+
+  - name: "string concatenation"
+    mapping: |
+      output = "hello" + " " + "world"
+    output: "hello world"
+
+  - name: "string concat with empty"
+    mapping: |
+      output = "" + "hello" + ""
+    output: "hello"
+
+  - name: "string plus number is error"
+    mapping: |
+      output = "hello" + 5
+    error: "cannot add"
+
+  # --- String comparison ---
+
+  - name: "string equality same"
+    mapping: |
+      output = "abc" == "abc"
+    output: true
+
+  - name: "string equality different"
+    mapping: |
+      output = "abc" == "abd"
+    output: false
+
+  - name: "string less than lexicographic"
+    mapping: |
+      output = "abc" < "abd"
+    output: true
+
+  - name: "string greater than lexicographic"
+    mapping: |
+      output = "b" > "a"
+    output: true
+
+  - name: "string equality cross type is false"
+    mapping: |
+      output = "5" == 5
+    output: false
+
+  # --- No Unicode normalization ---
+
+  - name: "no normalization precomposed vs decomposed not equal"
+    mapping: |
+      output = "\u00E9" == "e\u0301"
+    output: false
+
+  - name: "no normalization different lengths"
+    mapping: |
+      output.precomposed = "\u00E9".length()
+      output.decomposed = "e\u0301".length()
+    output:
+      precomposed: 1
+      decomposed: 2
+
+  # --- String slicing ---
+
+  - name: "string slice basic"
+    mapping: |
+      output = "hello world".slice(0, 5)
+    output: "hello"
+
+  - name: "string slice to end"
+    mapping: |
+      output = "hello world".slice(6)
+    output: "world"
+
+  - name: "string slice negative indices"
+    mapping: |
+      output = "hello world".slice(-5, -1)
+    output: "worl"
+
+  - name: "string slice clamped"
+    mapping: |
+      output = "hello".slice(0, 100)
+    output: "hello"
+
+  - name: "string slice empty result"
+    mapping: |
+      output = "hello".slice(3, 1)
+    output: ""
+
+  # --- String reverse ---
+
+  - name: "string reverse ascii"
+    mapping: |
+      output = "hello".reverse()
+    output: "olleh"
+
+  - name: "string reverse empty"
+    mapping: |
+      output = "".reverse()
+    output: ""
+
+  # --- String contains and index_of ---
+
+  - name: "string contains true"
+    mapping: |
+      output = "hello world".contains("world")
+    output: true
+
+  - name: "string contains false"
+    mapping: |
+      output = "hello world".contains("xyz")
+    output: false
+
+  - name: "string index_of found"
+    mapping: |
+      output = "hello world".index_of("world")
+    output: 6
+
+  - name: "string index_of not found"
+    mapping: |
+      output = "hello world".index_of("xyz")
+    output: -1

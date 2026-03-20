@@ -1,0 +1,192 @@
+description: "Out of bounds index errors for arrays, strings, and bytes; empty collections; boundary indices"
+
+tests:
+  # --- Array out of bounds ---
+
+  - name: "array index beyond length"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[3]
+    error: "out of bounds"
+
+  - name: "array index far beyond length"
+    mapping: |
+      $arr = [1, 2]
+      output.v = $arr[100]
+    error: "out of bounds"
+
+  - name: "empty array index 0 is error"
+    mapping: |
+      $arr = []
+      output.v = $arr[0]
+    error: "out of bounds"
+
+  - name: "empty array negative index is error"
+    mapping: |
+      $arr = []
+      output.v = $arr[-1]
+    error: "out of bounds"
+
+  - name: "array last valid positive index"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[2]
+    output: {"v": 30}
+
+  - name: "array first invalid positive index"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[3]
+    error: "out of bounds"
+
+  - name: "array last valid negative index"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-3]
+    output: {"v": 10}
+
+  - name: "array first invalid negative index"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-4]
+    error: "out of bounds"
+
+  - name: "single element array valid indices"
+    mapping: |
+      $arr = [42]
+      output.a = $arr[0]
+      output.b = $arr[-1]
+    output: {"a": 42, "b": 42}
+
+  - name: "single element array invalid positive"
+    mapping: |
+      $arr = [42]
+      output.v = $arr[1]
+    error: "out of bounds"
+
+  # --- String out of bounds ---
+
+  - name: "string index beyond length"
+    mapping: |
+      output.v = "hello"[5]
+    error: "out of bounds"
+
+  - name: "string index far beyond length"
+    mapping: |
+      output.v = "hi"[100]
+    error: "out of bounds"
+
+  - name: "empty string index 0 is error"
+    mapping: |
+      output.v = ""[0]
+    error: "out of bounds"
+
+  - name: "empty string negative index is error"
+    mapping: |
+      output.v = ""[-1]
+    error: "out of bounds"
+
+  - name: "string last valid positive index"
+    mapping: |
+      output.v = "abc"[2]
+    output: {"v": 99}
+
+  - name: "string first invalid positive index"
+    mapping: |
+      output.v = "abc"[3]
+    error: "out of bounds"
+
+  - name: "string last valid negative index"
+    mapping: |
+      output.v = "abc"[-3]
+    output: {"v": 97}
+
+  - name: "string first invalid negative index"
+    mapping: |
+      output.v = "abc"[-4]
+    error: "out of bounds"
+
+  - name: "single char string boundary"
+    mapping: |
+      output.a = "X"[0]
+      output.b = "X"[-1]
+    output: {"a": 88, "b": 88}
+
+  - name: "single char string invalid positive"
+    mapping: |
+      output.v = "X"[1]
+    error: "out of bounds"
+
+  # --- Bytes out of bounds ---
+
+  - name: "bytes index beyond length"
+    mapping: |
+      output.v = "hello".bytes()[5]
+    error: "out of bounds"
+
+  - name: "bytes index far beyond length"
+    mapping: |
+      output.v = "hi".bytes()[100]
+    error: "out of bounds"
+
+  - name: "empty bytes index 0 is error"
+    mapping: |
+      output.v = "".bytes()[0]
+    error: "out of bounds"
+
+  - name: "empty bytes negative index is error"
+    mapping: |
+      output.v = "".bytes()[-1]
+    error: "out of bounds"
+
+  - name: "bytes last valid positive index"
+    mapping: |
+      output.v = "abc".bytes()[2]
+    output: {"v": 99}
+
+  - name: "bytes first invalid positive index"
+    mapping: |
+      output.v = "abc".bytes()[3]
+    error: "out of bounds"
+
+  - name: "bytes last valid negative index"
+    mapping: |
+      output.v = "abc".bytes()[-3]
+    output: {"v": 97}
+
+  - name: "bytes first invalid negative index"
+    mapping: |
+      output.v = "abc".bytes()[-4]
+    error: "out of bounds"
+
+  - name: "single byte boundary"
+    mapping: |
+      output.a = "X".bytes()[0]
+      output.b = "X".bytes()[-1]
+    output: {"a": 88, "b": 88}
+
+  - name: "single byte invalid positive"
+    mapping: |
+      output.v = "X".bytes()[1]
+    error: "out of bounds"
+
+  # --- Multibyte boundary ---
+
+  - name: "multibyte string codepoint boundary"
+    mapping: |
+      $s = "caf\u00E9"
+      output.last = $s[3]
+      output.len = $s.length()
+    output: {"last": 233, "len": 4}
+
+  - name: "multibyte string codepoint out of bounds"
+    mapping: |
+      output.v = "caf\u00E9"[4]
+    error: "out of bounds"
+
+  - name: "multibyte bytes boundary differs from string"
+    mapping: |
+      $s = "caf\u00E9"
+      output.string_len = $s.length()
+      output.bytes_len = $s.bytes().length()
+    output: {"string_len": 4, "bytes_len": 5}

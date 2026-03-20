@@ -1,0 +1,186 @@
+description: "Numeric promotion rules: same type, width promotion, signed/unsigned, int/float, checked errors"
+
+tests:
+  # --- Same type: no promotion ---
+
+  - name: "int64 + int64 stays int64"
+    mapping: |
+      output.result = 10 + 20
+    output: {"result": 30}
+
+  - name: "float64 + float64 stays float64"
+    mapping: |
+      output.result = 1.5 + 2.5
+    output: {"result": 4.0}
+
+  - name: "int32 + int32 stays int32"
+    mapping: |
+      output.result = 10.int32() + 20.int32()
+    output: {"result": {_type: "int32", value: "30"}}
+
+  - name: "uint32 + uint32 stays uint32"
+    mapping: |
+      output.result = 10.uint32() + 20.uint32()
+    output: {"result": {_type: "uint32", value: "30"}}
+
+  - name: "uint64 + uint64 stays uint64"
+    mapping: |
+      output.result = 10.uint64() + 20.uint64()
+    output: {"result": {_type: "uint64", value: "30"}}
+
+  - name: "float32 + float32 stays float32"
+    mapping: |
+      output.result = 1.5.float32() + 2.5.float32()
+    output: {"result": {_type: "float32", value: "4.0"}}
+
+  # --- Same signedness, different width: promote to wider ---
+
+  - name: "int32 + int64 promotes to int64"
+    mapping: |
+      output.result = 5.int32() + 10
+    output: {"result": 15}
+
+  - name: "int64 + int32 promotes to int64"
+    mapping: |
+      output.result = 10 + 5.int32()
+    output: {"result": 15}
+
+  - name: "uint32 + uint64 promotes to uint64"
+    mapping: |
+      output.result = 5.uint32() + 10.uint64()
+    output: {"result": {_type: "uint64", value: "15"}}
+
+  - name: "float32 + float64 promotes to float64"
+    mapping: |
+      output.result = 1.5.float32() + 2.5
+    output: {"result": 4.0}
+
+  - name: "float64 + float32 promotes to float64"
+    mapping: |
+      output.result = 2.5 + 1.5.float32()
+    output: {"result": 4.0}
+
+  # --- Signed + unsigned integer: promote to int64 ---
+
+  - name: "int32 + uint32 promotes to int64"
+    mapping: |
+      output.result = 5.int32() + 10.uint32()
+    output: {"result": 15}
+
+  - name: "int64 + uint32 promotes to int64"
+    mapping: |
+      output.result = 100 + 50.uint32()
+    output: {"result": 150}
+
+  - name: "int32 + uint64 promotes to int64 when value fits"
+    mapping: |
+      output.result = 5.int32() + 10.uint64()
+    output: {"result": 15}
+
+  - name: "int64 + uint64 promotes to int64 when value fits"
+    mapping: |
+      output.result = 5 + 10.uint64()
+    output: {"result": 15}
+
+  - name: "uint64 exceeding int64 max causes error"
+    mapping: |
+      output.result = 5 + "9999999999999999999".uint64()
+    error: "uint64 value"
+
+  - name: "uint64 at int64 max boundary succeeds"
+    mapping: |
+      output.result = 0 + 9223372036854775807.uint64()
+    output: {"result": 9223372036854775807}
+
+  - name: "uint64 just above int64 max causes error"
+    mapping: |
+      output.result = 0 + "9223372036854775808".uint64()
+    error: "uint64 value"
+
+  # --- Any integer + any float: promote to float64 ---
+
+  - name: "int64 + float64 promotes to float64"
+    mapping: |
+      output.result = 5 + 3.0
+    output: {"result": 8.0}
+
+  - name: "float64 + int64 promotes to float64"
+    mapping: |
+      output.result = 3.0 + 5
+    output: {"result": 8.0}
+
+  - name: "int32 + float64 promotes to float64"
+    mapping: |
+      output.result = 5.int32() + 3.0
+    output: {"result": 8.0}
+
+  - name: "uint64 + float64 promotes to float64 when safe"
+    mapping: |
+      output.result = 100.uint64() + 1.5
+    output: {"result": 101.5}
+
+  - name: "int32 + float32 promotes to float64"
+    mapping: |
+      output.result = 5.int32() + 3.0.float32()
+    output: {"result": 8.0}
+
+  - name: "uint32 + float32 promotes to float64"
+    mapping: |
+      output.result = 10.uint32() + 2.5.float32()
+    output: {"result": 12.5}
+
+  # --- Checked promotion: integer magnitude > 2^53 to float ---
+
+  - name: "int64 exceeding float64 exact range causes error"
+    mapping: |
+      output.result = 9007199254740993 + 1.0
+    error: "float64 exact range"
+
+  - name: "int64 at float64 exact limit succeeds"
+    mapping: |
+      output.result = 9007199254740992 + 1.0
+    output: {"result": 9007199254740993.0}
+
+  - name: "negative int64 exceeding float64 exact range causes error"
+    mapping: |
+      output.result = -9007199254740993 + 1.0
+    error: "float64 exact range"
+
+  # --- Promotion with comparison operators ---
+
+  - name: "int32 < int64 promotes to int64 for comparison"
+    mapping: |
+      output.result = 5.int32() < 10
+    output: {"result": true}
+
+  - name: "int64 >= float64 promotes to float64 for comparison"
+    mapping: |
+      output.result = 5 >= 5.0
+    output: {"result": true}
+
+  - name: "uint32 > int32 promotes to int64 for comparison"
+    mapping: |
+      output.result = 10.uint32() > 5.int32()
+    output: {"result": true}
+
+  # --- Promotion with equality ---
+
+  - name: "int64 == float64 promotes to float64"
+    mapping: |
+      output.result = 5 == 5.0
+    output: {"result": true}
+
+  - name: "int32 == int64 promotes to int64"
+    mapping: |
+      output.result = 5.int32() == 5
+    output: {"result": true}
+
+  - name: "int32 == float64 promotes to float64"
+    mapping: |
+      output.result = 5.int32() == 5.0
+    output: {"result": true}
+
+  - name: "uint32 == int64 promotes to int64"
+    mapping: |
+      output.result = 42.uint32() == 42
+    output: {"result": true}
