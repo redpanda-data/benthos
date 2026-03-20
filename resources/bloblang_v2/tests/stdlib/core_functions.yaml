@@ -1,0 +1,211 @@
+description: "Core stdlib functions: uuid_v4, now, random_int, range, timestamp constructor, duration constants"
+
+tests:
+  # --- uuid_v4 ---
+
+  - name: "uuid_v4 returns a string"
+    mapping: |
+      output = uuid_v4().type()
+    output: "string"
+
+  - name: "uuid_v4 is non-deterministic"
+    mapping: |
+      output = uuid_v4()
+    no_output_check: true
+    output_type: "string"
+
+  - name: "uuid_v4 returns 36 chars"
+    mapping: |
+      output = uuid_v4().length()
+    output: 36
+
+  - name: "uuid_v4 two calls differ"
+    mapping: |
+      output = uuid_v4() != uuid_v4()
+    output: true
+
+  # --- now ---
+
+  - name: "now returns a timestamp"
+    mapping: |
+      output = now()
+    no_output_check: true
+    output_type: "timestamp"
+
+  - name: "now type check"
+    mapping: |
+      output = now().type()
+    output: "timestamp"
+
+  - name: "now called twice may differ"
+    mapping: |
+      $a = now()
+      $b = now()
+      output = $a <= $b
+    output: true
+
+  # --- random_int ---
+
+  - name: "random_int returns int64"
+    mapping: |
+      output = random_int(0, 10).type()
+    output: "int64"
+
+  - name: "random_int within range"
+    mapping: |
+      $v = random_int(5, 5)
+      output = $v
+    output: 5
+
+  - name: "random_int is non-deterministic"
+    mapping: |
+      output = random_int(0, 1000000)
+    no_output_check: true
+    output_type: "int64"
+
+  - name: "random_int min equals max returns that value"
+    mapping: |
+      output = random_int(42, 42)
+    output: 42
+
+  - name: "random_int min greater than max is error"
+    mapping: |
+      output = random_int(10, 5)
+    error: "min"
+
+  - name: "random_int negative range"
+    mapping: |
+      $v = random_int(-10, -10)
+      output = $v
+    output: -10
+
+  # --- range ---
+
+  - name: "range ascending default step"
+    mapping: |
+      output = range(0, 5)
+    output: [0, 1, 2, 3, 4]
+
+  - name: "range ascending explicit step"
+    mapping: |
+      output = range(0, 10, 2)
+    output: [0, 2, 4, 6, 8]
+
+  - name: "range descending inferred step"
+    mapping: |
+      output = range(5, 0)
+    output: [5, 4, 3, 2, 1]
+
+  - name: "range descending explicit step"
+    mapping: |
+      output = range(10, 0, -3)
+    output: [10, 7, 4, 1]
+
+  - name: "range start equals stop is empty"
+    mapping: |
+      output = range(5, 5)
+    output: []
+
+  - name: "range step zero is error"
+    mapping: |
+      output = range(0, 5, 0)
+    error: "step"
+
+  - name: "range step contradicts direction positive"
+    mapping: |
+      output = range(0, 5, -1)
+    error: "step"
+
+  - name: "range step contradicts direction negative"
+    mapping: |
+      output = range(5, 0, 1)
+    error: "step"
+
+  - name: "range single element"
+    mapping: |
+      output = range(0, 1)
+    output: [0]
+
+  - name: "range negative values"
+    mapping: |
+      output = range(-3, 3)
+    output: [-3, -2, -1, 0, 1, 2]
+
+  - name: "range result element type is int64"
+    mapping: |
+      output = range(0, 3)[0].type()
+    output: "int64"
+
+  # --- timestamp constructor ---
+
+  - name: "timestamp required args only"
+    mapping: |
+      output = timestamp(2024, 6, 15)
+    output: {_type: "timestamp", value: "2024-06-15T00:00:00Z"}
+
+  - name: "timestamp all positional args"
+    mapping: |
+      output = timestamp(2024, 12, 25, 14, 30, 45, 500000000)
+    output: {_type: "timestamp", value: "2024-12-25T14:30:45.5Z"}
+
+  - name: "timestamp with named args"
+    mapping: |
+      output = timestamp(year: 2025, month: 1, day: 1, hour: 12)
+    output: {_type: "timestamp", value: "2025-01-01T12:00:00Z"}
+
+  - name: "timestamp with timezone"
+    mapping: |
+      output = timestamp(2024, 7, 4, 9, 0, 0, 0, "America/Chicago")
+    output: {_type: "timestamp", value: "2024-07-04T09:00:00-05:00"}
+
+  - name: "timestamp invalid month zero"
+    mapping: |
+      output = timestamp(2024, 0, 1)
+    error: "out of range"
+
+  - name: "timestamp invalid month thirteen"
+    mapping: |
+      output = timestamp(2024, 13, 1)
+    error: "out of range"
+
+  - name: "timestamp invalid day zero"
+    mapping: |
+      output = timestamp(2024, 1, 0)
+    error: "out of range"
+
+  - name: "timestamp invalid timezone"
+    mapping: |
+      output = timestamp(2024, 1, 1, 0, 0, 0, 0, "Fake/Zone")
+    error: "timezone"
+
+  # --- duration constants ---
+
+  - name: "second returns 1e9 nanoseconds"
+    mapping: |
+      output = second()
+    output: 1000000000
+
+  - name: "minute returns 60e9 nanoseconds"
+    mapping: |
+      output = minute()
+    output: 60000000000
+
+  - name: "hour returns 3600e9 nanoseconds"
+    mapping: |
+      output = hour()
+    output: 3600000000000
+
+  - name: "day returns 86400e9 nanoseconds"
+    mapping: |
+      output = day()
+    output: 86400000000000
+
+  - name: "duration constants are int64"
+    mapping: |
+      output = second().type()
+    output: "int64"
+
+  - name: "duration arithmetic 2 hours plus 30 minutes"
+    mapping: |
+      output = 2 * hour() + 30 * minute()
+    output: 9000000000000

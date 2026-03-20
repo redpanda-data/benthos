@@ -1,0 +1,234 @@
+description: "Block scoping — statement vs expression contexts, variable visibility, shadowing vs mutation"
+
+tests:
+  # --- Expression context: shadowing (if expression) ---
+
+  - name: "if expression shadows outer variable"
+    mapping: |
+      $value = 10
+      output.inner = if true {
+        $value = 20
+        $value
+      }
+      output.outer = $value
+    output: {"inner": 20, "outer": 10}
+
+  - name: "if expression shadow does not leak to else branch"
+    mapping: |
+      $value = 10
+      output.result = if false {
+        $value = 20
+        $value
+      } else {
+        $value
+      }
+    output: {"result": 10}
+
+  - name: "if expression shadow in else branch"
+    mapping: |
+      $value = 10
+      output.inner = if false {
+        $value
+      } else {
+        $value = 30
+        $value
+      }
+      output.outer = $value
+    output: {"inner": 30, "outer": 10}
+
+  # --- Statement context: mutation (if statement) ---
+
+  - name: "if statement mutates outer variable"
+    mapping: |
+      $value = 10
+      if true {
+        $value = 20
+      }
+      output.result = $value
+    output: {"result": 20}
+
+  - name: "if statement mutation persists after block"
+    mapping: |
+      $x = 1
+      $y = 2
+      if true {
+        $x = 10
+        $y = 20
+      }
+      output.x = $x
+      output.y = $y
+    output: {"x": 10, "y": 20}
+
+  - name: "if statement mutation only happens if condition is true"
+    mapping: |
+      $value = "original"
+      if false {
+        $value = "changed"
+      }
+      output.result = $value
+    output: {"result": "original"}
+
+  # --- New variables in statement context are block-scoped ---
+
+  - name: "new variable in if statement not visible outside"
+    mapping: |
+      if true {
+        $new_var = 42
+      }
+      output.result = $new_var
+    compile_error: "new_var"
+
+  - name: "new variable in else branch not visible outside"
+    mapping: |
+      if false {
+        $a = 1
+      } else {
+        $b = 2
+      }
+      output.result = $b
+    compile_error: "b"
+
+  - name: "variable in one branch not visible in sibling branch"
+    mapping: |
+      if false {
+        $x = 10
+      } else {
+        output.result = $x
+      }
+    compile_error: "x"
+
+  # --- Expression context: match expression shadows ---
+
+  - name: "match expression shadows outer variable"
+    mapping: |
+      $x = "outer"
+      output.inner = match {
+        true => {
+          $x = "inner"
+          $x
+        },
+      }
+      output.outer = $x
+    output: {"inner": "inner", "outer": "outer"}
+
+  # --- Statement context: match statement mutates ---
+
+  - name: "match statement mutates outer variable"
+    mapping: |
+      $x = "before"
+      match {
+        true => {
+          $x = "after"
+        },
+      }
+      output.result = $x
+    output: {"result": "after"}
+
+  # --- Nested scopes ---
+
+  - name: "nested if expressions each shadow independently"
+    mapping: |
+      $x = 1
+      output.result = if true {
+        $x = 10
+        $inner = if true {
+          $x = 100
+          $x
+        }
+        $inner + $x
+      }
+      output.outer = $x
+    output: {"result": 110, "outer": 1}
+
+  - name: "nested if statement in if expression — statement mutates expression scope"
+    mapping: |
+      $x = 1
+      output.result = if true {
+        $x = 10
+        if true {
+          $x = 20
+        }
+        $x
+      }
+      output.outer = $x
+    output: {"result": 20, "outer": 1}
+
+  # --- Variables declared in block not accessible after ---
+
+  - name: "variable from match case not visible after match"
+    mapping: |
+      match {
+        true => {
+          $local = 42
+        },
+      }
+      output.result = $local
+    compile_error: "local"
+
+  # --- Else-if scoping ---
+
+  - name: "else-if branches have independent scopes"
+    mapping: |
+      $result = "none"
+      if false {
+        $result = "first"
+      } else if true {
+        $result = "second"
+        $local = "only here"
+      } else {
+        $result = "third"
+      }
+      output.result = $result
+      output.local = $local
+    compile_error: "local"
+
+  - name: "else-if statement mutates outer variable from middle branch"
+    mapping: |
+      $result = "none"
+      if false {
+        $result = "first"
+      } else if true {
+        $result = "second"
+      } else {
+        $result = "third"
+      }
+      output.result = $result
+    output: {"result": "second"}
+
+  # --- Deep nesting ---
+
+  - name: "three levels of nesting with correct scoping"
+    mapping: |
+      $x = "L0"
+      output.level0 = $x
+      output.inner = if true {
+        $x = "L1"
+        $result = if true {
+          $x = "L2"
+          $x
+        }
+        $result + " from " + $x
+      }
+      output.after = $x
+    output: {"level0": "L0", "inner": "L2 from L1", "after": "L0"}
+
+  # --- Match-as binding scope ---
+
+  - name: "match-as binding not visible after match expression"
+    mapping: |
+      output.result = match 42 as val {
+        val > 0 => val,
+        _ => 0,
+      }
+      output.binding = val
+    compile_error: "val"
+
+  - name: "match-as binding does not conflict with variable of different naming"
+    mapping: |
+      $val = "outer"
+      output.inner = match 42 as val {
+        val > 0 => val,
+        _ => 0,
+      }
+      output.outer = $val
+    output: {"inner": 42, "outer": "outer"}

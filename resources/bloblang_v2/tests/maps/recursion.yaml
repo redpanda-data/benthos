@@ -1,0 +1,142 @@
+description: "Recursion: self-recursion, mutual recursion, depth limits, uncatchable recursion errors"
+
+tests:
+  # --- Self recursion ---
+
+  - name: "simple self recursion with base case"
+    mapping: |
+      map factorial(n) {
+        if n <= 1 { 1 } else { n * factorial(n - 1) }
+      }
+      output.v = factorial(5)
+    output: {"v": 120}
+
+  - name: "self recursion base case returns immediately"
+    mapping: |
+      map factorial(n) {
+        if n <= 1 { 1 } else { n * factorial(n - 1) }
+      }
+      output.v = factorial(0)
+    output: {"v": 1}
+
+  - name: "recursive countdown to build array"
+    mapping: |
+      map countdown(n) {
+        if n <= 0 { [] } else { [n] + countdown(n - 1) }
+      }
+      output.v = countdown(5)
+    output: {"v": [5, 4, 3, 2, 1]}
+
+  - name: "recursive sum of array"
+    mapping: |
+      map sum_list(items, idx) {
+        if idx >= items.length() { 0 } else { items.index(idx) + sum_list(items, idx + 1) }
+      }
+      output.v = sum_list([10, 20, 30], 0)
+    output: {"v": 60}
+
+  - name: "recursive string repeat"
+    mapping: |
+      map repeat(s, n) {
+        if n <= 0 { "" } else { s + repeat(s, n - 1) }
+      }
+      output.v = repeat("ab", 3)
+    output: {"v": "ababab"}
+
+  # --- Mutual recursion ---
+
+  - name: "mutual recursion is_even and is_odd"
+    mapping: |
+      map is_even(n) {
+        if n == 0 { true } else { is_odd(n - 1) }
+      }
+      map is_odd(n) {
+        if n == 0 { false } else { is_even(n - 1) }
+      }
+      output.even = is_even(4)
+      output.odd = is_odd(3)
+    output: {"even": true, "odd": true}
+
+  - name: "mutual recursion with larger values"
+    mapping: |
+      map is_even(n) {
+        if n == 0 { true } else { is_odd(n - 1) }
+      }
+      map is_odd(n) {
+        if n == 0 { false } else { is_even(n - 1) }
+      }
+      output.v = is_even(100)
+    output: {"v": true}
+
+  - name: "mutual recursion called before declaration"
+    mapping: |
+      output.v = ping(5)
+      map ping(n) {
+        if n <= 0 { "done" } else { pong(n - 1) }
+      }
+      map pong(n) {
+        if n <= 0 { "done" } else { ping(n - 1) }
+      }
+    output: {"v": "done"}
+
+  # --- Recursion depth support (at least 1000) ---
+
+  - name: "recursion supports 1000 levels deep"
+    mapping: |
+      map deep(n) {
+        if n <= 0 { 0 } else { 1 + deep(n - 1) }
+      }
+      output.v = deep(1000)
+    output: {"v": 1000}
+
+  # --- Recursion depth limit exceeded ---
+
+  - name: "exceeding recursion limit is runtime error"
+    mapping: |
+      map infinite(n) {
+        1 + infinite(n)
+      }
+      output.v = infinite(0)
+    error: "recursion"
+
+  - name: "mutual recursion exceeding limit is runtime error"
+    mapping: |
+      map ping(n) { pong(n) }
+      map pong(n) { ping(n) }
+      output.v = ping(0)
+    error: "recursion"
+
+  # --- Recursion limit error cannot be caught ---
+
+  - name: "recursion limit error cannot be caught with catch"
+    mapping: |
+      map infinite(n) {
+        1 + infinite(n)
+      }
+      output.v = infinite(0).catch("recovered")
+    error: "recursion"
+
+  - name: "recursion limit in nested call cannot be caught"
+    mapping: |
+      map infinite(n) {
+        infinite(n)
+      }
+      map wrapper(x) {
+        infinite(x).catch("safe")
+      }
+      output.v = wrapper(0)
+    error: "recursion"
+
+  # --- Recursion with match expression ---
+
+  - name: "recursive map using match"
+    mapping: |
+      map fib(n) {
+        match {
+          n <= 0 => 0,
+          n == 1 => 1,
+          _ => fib(n - 1) + fib(n - 2),
+        }
+      }
+      output.v = fib(10)
+    output: {"v": 55}

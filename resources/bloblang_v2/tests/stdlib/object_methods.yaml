@@ -1,0 +1,214 @@
+description: "Object methods — iter, keys, values, has_key, merge, without"
+
+tests:
+  # --- iter ---
+
+  - name: "iter produces key-value pairs"
+    mapping: |
+      $obj = {"a": 1}
+      output.result = $obj.iter()
+    output: {"result": [{"key": "a", "value": 1}]}
+
+  - name: "iter empty object"
+    mapping: |
+      output.result = {}.iter()
+    output: {"result": []}
+
+  - name: "iter preserves value types"
+    mapping: |
+      $obj = {"s": "hello", "n": 42, "b": true, "nil": null}
+      $entries = $obj.iter()
+      output.len = $entries.length()
+    output: {"len": 4}
+
+  - name: "iter entries have key and value fields"
+    mapping: |
+      $obj = {"x": 10}
+      $entry = $obj.iter()[0]
+      output.k = $entry.key
+      output.v = $entry.value
+    output: {"k": "x", "v": 10}
+
+  - name: "iter result can be used with map"
+    mapping: |
+      $obj = {"a": 1, "b": 2}
+      output.result = $obj.iter().map(e -> e.key + "=" + e.value.string()).sort()
+    output: {"result": ["a=1", "b=2"]}
+
+  # --- keys ---
+
+  - name: "keys of single-key object"
+    mapping: |
+      output.result = {"name": "Alice"}.keys()
+    output: {"result": ["name"]}
+
+  - name: "keys of empty object"
+    mapping: |
+      output.result = {}.keys()
+    output: {"result": []}
+
+  - name: "keys returns strings"
+    mapping: |
+      $obj = {"a": 1}
+      output.result = $obj.keys()[0].type()
+    output: {"result": "string"}
+
+  - name: "keys count matches object length"
+    mapping: |
+      $obj = {"a": 1, "b": 2, "c": 3}
+      output.result = $obj.keys().length()
+    output: {"result": 3}
+
+  - name: "keys can be sorted for deterministic comparison"
+    mapping: |
+      $obj = {"c": 3, "a": 1, "b": 2}
+      output.result = $obj.keys().sort()
+    output: {"result": ["a", "b", "c"]}
+
+  # --- values ---
+
+  - name: "values of single-key object"
+    mapping: |
+      output.result = {"x": 42}.values()
+    output: {"result": [42]}
+
+  - name: "values of empty object"
+    mapping: |
+      output.result = {}.values()
+    output: {"result": []}
+
+  - name: "values count matches object length"
+    mapping: |
+      $obj = {"a": 1, "b": 2, "c": 3}
+      output.result = $obj.values().length()
+    output: {"result": 3}
+
+  - name: "values can be sorted for deterministic comparison"
+    mapping: |
+      $obj = {"c": 3, "a": 1, "b": 2}
+      output.result = $obj.values().sort()
+    output: {"result": [1, 2, 3]}
+
+  - name: "values preserves types"
+    mapping: |
+      $obj = {"s": "hello", "n": 42}
+      $vals = $obj.values().sort_by(v -> v.type())
+      output.types = $vals.map(v -> v.type())
+    output: {"types": ["int64", "string"]}
+
+  # --- has_key ---
+
+  - name: "has_key returns true for existing key"
+    mapping: |
+      output.result = {"name": "Alice"}.has_key("name")
+    output: {"result": true}
+
+  - name: "has_key returns false for missing key"
+    mapping: |
+      output.result = {"name": "Alice"}.has_key("age")
+    output: {"result": false}
+
+  - name: "has_key on empty object"
+    mapping: |
+      output.result = {}.has_key("anything")
+    output: {"result": false}
+
+  - name: "has_key with null value still returns true"
+    mapping: |
+      output.result = {"x": null}.has_key("x")
+    output: {"result": true}
+
+  - name: "has_key checks only top-level"
+    mapping: |
+      $obj = {"a": {"b": 1}}
+      output.top = $obj.has_key("a")
+      output.nested = $obj.has_key("b")
+    output: {"top": true, "nested": false}
+
+  # --- merge ---
+
+  - name: "merge two objects"
+    mapping: |
+      output.result = {"a": 1}.merge({"b": 2})
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "merge other wins on conflict"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.merge({"b": 99, "c": 3})
+    output: {"result": {"a": 1, "b": 99, "c": 3}}
+
+  - name: "merge with empty object"
+    mapping: |
+      output.result = {"a": 1}.merge({})
+    output: {"result": {"a": 1}}
+
+  - name: "merge empty with non-empty"
+    mapping: |
+      output.result = {}.merge({"a": 1})
+    output: {"result": {"a": 1}}
+
+  - name: "merge two empty objects"
+    mapping: |
+      output.result = {}.merge({})
+    output: {"result": {}}
+
+  - name: "merge does not modify original"
+    mapping: |
+      $a = {"x": 1}
+      $b = {"y": 2}
+      $c = $a.merge($b)
+      output.a = $a
+      output.c = $c
+    output: {"a": {"x": 1}, "c": {"x": 1, "y": 2}}
+
+  - name: "merge nested objects are replaced not deep merged"
+    mapping: |
+      $a = {"config": {"host": "localhost", "port": 8080}}
+      $b = {"config": {"host": "remote"}}
+      output.result = $a.merge($b)
+    output: {"result": {"config": {"host": "remote"}}}
+
+  # --- without ---
+
+  - name: "without removes specified keys"
+    mapping: |
+      output.result = {"a": 1, "b": 2, "c": 3}.without(["b"])
+    output: {"result": {"a": 1, "c": 3}}
+
+  - name: "without multiple keys"
+    mapping: |
+      output.result = {"a": 1, "b": 2, "c": 3}.without(["a", "c"])
+    output: {"result": {"b": 2}}
+
+  - name: "without missing key is ignored"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.without(["c", "d"])
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "without empty key list"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.without([])
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "without all keys"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.without(["a", "b"])
+    output: {"result": {}}
+
+  - name: "without on empty object"
+    mapping: |
+      output.result = {}.without(["a"])
+    output: {"result": {}}
+
+  - name: "without does not modify original"
+    mapping: |
+      $obj = {"a": 1, "b": 2, "c": 3}
+      $new = $obj.without(["b"])
+      output.original = $obj
+      output.new = $new
+    output: {"original": {"a": 1, "b": 2, "c": 3}, "new": {"a": 1, "c": 3}}
+
+  - name: "without mix of present and missing keys"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.without(["a", "z"])
+    output: {"result": {"b": 2}}

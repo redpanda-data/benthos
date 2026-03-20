@@ -1,0 +1,198 @@
+description: "Match with 'as' binding — binding in conditions and results, block scoping of binding"
+
+tests:
+  # --- Basic match with as ---
+
+  - name: "match as binds value and uses in condition"
+    input: {"score": 85}
+    mapping: |
+      output.tier = match input.score as s {
+        s >= 100 => "gold",
+        s >= 50 => "silver",
+        _ => "bronze",
+      }
+    output: {"tier": "silver"}
+
+  - name: "match as selects first matching condition"
+    input: {"score": 150}
+    mapping: |
+      output.tier = match input.score as s {
+        s >= 100 => "gold",
+        s >= 50 => "silver",
+        _ => "bronze",
+      }
+    output: {"tier": "gold"}
+
+  - name: "match as falls to wildcard"
+    input: {"score": 10}
+    mapping: |
+      output.tier = match input.score as s {
+        s >= 100 => "gold",
+        s >= 50 => "silver",
+        _ => "bronze",
+      }
+    output: {"tier": "bronze"}
+
+  # --- Binding used in result expression ---
+
+  - name: "as binding used in result expression"
+    input: {"value": 42}
+    mapping: |
+      output.result = match input.value as v {
+        v > 0 => v * 2,
+        _ => 0,
+      }
+    output: {"result": 84}
+
+  - name: "as binding used in both condition and result"
+    input: {"name": "Alice"}
+    mapping: |
+      output.greeting = match input.name as n {
+        n == "Alice" => "Hello, " + n + "!",
+        n == "Bob" => "Hey " + n,
+        _ => "Hi " + n,
+      }
+    output: {"greeting": "Hello, Alice!"}
+
+  # --- Expression evaluated once ---
+
+  - name: "matched expression evaluated once"
+    mapping: |
+      $counter = 0
+      $counter = $counter + 1
+      output.result = match $counter as c {
+        c == 1 => "one",
+        c == 2 => "two",
+        _ => "other",
+      }
+    output: {"result": "one"}
+
+  # --- Non-boolean case is error ---
+
+  - name: "non-boolean case in match-as is runtime error"
+    mapping: |
+      output.result = match 42 as x {
+        "hello" => "yes",
+        _ => "no",
+      }
+    error: "bool"
+
+  - name: "integer case in match-as is runtime error"
+    mapping: |
+      output.result = match "test" as x {
+        42 => "yes",
+        _ => "no",
+      }
+    error: "bool"
+
+  # --- Wildcard exempt from boolean requirement ---
+
+  - name: "wildcard in match-as is not checked as boolean"
+    mapping: |
+      output.result = match 42 as x {
+        x > 100 => "big",
+        _ => "small",
+      }
+    output: {"result": "small"}
+
+  # --- Binding is block-scoped to the match ---
+
+  - name: "as binding not accessible after match"
+    mapping: |
+      output.result = match 42 as x {
+        x > 0 => "positive",
+        _ => "other",
+      }
+      output.leaked = x
+    compile_error: "x"
+
+  - name: "as binding does not shadow outer variable — it is a new scope"
+    mapping: |
+      $x = "outer"
+      output.inner = match 42 as x {
+        x > 0 => x,
+        _ => 0,
+      }
+      output.outer = $x
+    output: {"inner": 42, "outer": "outer"}
+
+  # --- Match-as with braced case body ---
+
+  - name: "match-as with braced body using binding and local vars"
+    input: {"price": 120}
+    mapping: |
+      output.label = match input.price as p {
+        p >= 100 => {
+          $discount = p * 0.1
+          "expensive (save " + $discount.string() + ")"
+        },
+        _ => "affordable",
+      }
+    output: {"label": "expensive (save 12)"}
+
+  # --- Match-as with string matched expression ---
+
+  - name: "match-as on string value"
+    input: {"name": "test_file.csv"}
+    mapping: |
+      output.type = match input.name as n {
+        n.has_suffix(".csv") => "csv",
+        n.has_suffix(".json") => "json",
+        _ => "unknown",
+      }
+    output: {"type": "csv"}
+
+  # --- Non-exhaustive match-as produces void ---
+
+  - name: "non-exhaustive match-as produces void"
+    mapping: |
+      output.x = "prior"
+      output.x = match 5 as v {
+        v > 100 => "big",
+        v > 50 => "medium",
+      }
+    output: {"x": "prior"}
+
+  # --- Match-as as statement ---
+
+  - name: "match-as as statement with output assignments"
+    input: {"score": 75}
+    mapping: |
+      match input.score as s {
+        s >= 90 => {
+          output.grade = "A"
+          output.pass = true
+        },
+        s >= 60 => {
+          output.grade = "B"
+          output.pass = true
+        },
+        _ => {
+          output.grade = "F"
+          output.pass = false
+        },
+      }
+    output: {"grade": "B", "pass": true}
+
+  # --- Cases after first true are not evaluated ---
+
+  - name: "cases after first true not evaluated in match-as"
+    mapping: |
+      output.result = match 10 as x {
+        x > 0 => "positive",
+        throw("should not evaluate") => "never",
+        _ => "default",
+      }
+    output: {"result": "positive"}
+
+  # --- Binding with computed expression ---
+
+  - name: "match-as with computed matched expression"
+    input: {"a": 10, "b": 20}
+    mapping: |
+      output.result = match (input.a + input.b) as total {
+        total >= 50 => "high",
+        total >= 20 => "medium",
+        _ => "low",
+      }
+    output: {"result": "medium"}

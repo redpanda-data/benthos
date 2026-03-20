@@ -1,0 +1,141 @@
+description: ".or() — rescues null, void, and deleted; does NOT catch errors; short-circuit evaluation"
+
+tests:
+  # --- Rescues null ---
+
+  - name: "or rescues null with string default"
+    mapping: |
+      output.result = null.or("default")
+    output: {"result": "default"}
+
+  - name: "or rescues null with integer default"
+    mapping: |
+      output.result = null.or(42)
+    output: {"result": 42}
+
+  - name: "or rescues null from missing input field"
+    input: {}
+    mapping: |
+      output.result = input.name.or("anonymous")
+    output: {"result": "anonymous"}
+
+  - name: "or rescues null with null (returns null)"
+    mapping: |
+      output.result = null.or(null)
+    output: {"result": null}
+
+  # --- Rescues void ---
+
+  - name: "or rescues void from if-without-else"
+    mapping: |
+      output.result = (if false { "hello" }).or("default")
+    output: {"result": "default"}
+
+  - name: "or rescues void from non-exhaustive match"
+    mapping: |
+      output.result = (match "bird" { "cat" => "meow" }).or("unknown")
+    output: {"result": "unknown"}
+
+  # --- Rescues deleted ---
+
+  - name: "or rescues deleted with string"
+    mapping: |
+      output.result = deleted().or("fallback")
+    output: {"result": "fallback"}
+
+  - name: "or rescues deleted with integer"
+    mapping: |
+      output.result = deleted().or(0)
+    output: {"result": 0}
+
+  # --- Non-null/void/deleted: returns value unchanged ---
+
+  - name: "or returns string unchanged"
+    mapping: |
+      output.result = "hello".or("default")
+    output: {"result": "hello"}
+
+  - name: "or returns zero unchanged (not null)"
+    mapping: |
+      output.result = 0.or(42)
+    output: {"result": 0}
+
+  - name: "or returns false unchanged (not null)"
+    mapping: |
+      output.result = false.or(true)
+    output: {"result": false}
+
+  - name: "or returns empty string unchanged"
+    mapping: |
+      output.result = "".or("default")
+    output: {"result": ""}
+
+  - name: "or returns empty array unchanged"
+    mapping: |
+      output.result = [].or([1, 2, 3])
+    output: {"result": []}
+
+  # --- Short-circuit: argument not evaluated when value present ---
+
+  - name: "or short-circuits on non-null (throw not evaluated)"
+    mapping: |
+      output.result = "hello".or(throw("should not run"))
+    output: {"result": "hello"}
+
+  - name: "or short-circuits on zero (throw not evaluated)"
+    mapping: |
+      output.result = 0.or(throw("should not run"))
+    output: {"result": 0}
+
+  - name: "or short-circuits on false (throw not evaluated)"
+    mapping: |
+      output.result = false.or(throw("should not run"))
+    output: {"result": false}
+
+  # --- Does NOT catch errors ---
+
+  - name: "or does not catch division by zero"
+    mapping: |
+      output.result = (5 / 0).or("default")
+    error: "division by zero"
+
+  - name: "or does not catch throw"
+    mapping: |
+      output.result = throw("boom").or("default")
+    error: "boom"
+
+  - name: "or does not catch type mismatch"
+    mapping: |
+      output.result = (5 + "hello").or(0)
+    error: "cannot add"
+
+  - name: "or does not catch out of bounds"
+    mapping: |
+      $arr = [1, 2]
+      output.result = $arr[5].or(0)
+    error: "out of bounds"
+
+  # --- Composing .or() and .catch() ---
+
+  - name: "catch then or — catch handles error, or not needed"
+    mapping: |
+      output.result = throw("x").catch(err -> "caught").or("default")
+    output: {"result": "caught"}
+
+  - name: "catch then or — catch returns null, or rescues"
+    mapping: |
+      output.result = throw("x").catch(err -> null).or("rescued")
+    output: {"result": "rescued"}
+
+  - name: "or then catch — or does not catch error, catch does"
+    mapping: |
+      output.result = (5 / 0).or("ignored").catch(err -> "caught")
+    output: {"result": "caught"}
+
+  # --- or can itself return deleted ---
+
+  - name: "or returns deleted — field removed"
+    mapping: |
+      output.x = "prior"
+      output.x = null.or(deleted())
+    output: {}

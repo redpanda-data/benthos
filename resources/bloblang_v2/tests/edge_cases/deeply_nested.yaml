@@ -1,0 +1,108 @@
+description: "Edge cases: deeply nested objects, arrays, and expression chains"
+
+tests:
+  # --- Deep object nesting ---
+
+  - name: "access deeply nested object field"
+    mapping: |
+      output = input.a.b.c.d.e
+    input: {"a": {"b": {"c": {"d": {"e": "deep"}}}}}
+    output: "deep"
+
+  - name: "assign deeply nested output path"
+    mapping: |
+      output.a.b.c.d.e = "deep"
+    output: {"a": {"b": {"c": {"d": {"e": "deep"}}}}}
+
+  - name: "deeply nested object with mixed types"
+    mapping: |
+      output.a.b.c = {"x": [1, 2, {"y": true}]}
+    output: {"a": {"b": {"c": {"x": [1, 2, {"y": true}]}}}}
+
+  - name: "multiple deeply nested assignments"
+    mapping: |
+      output.a.b.c = 1
+      output.a.b.d = 2
+      output.a.e = 3
+    output: {"a": {"b": {"c": 1, "d": 2}, "e": 3}}
+
+  # --- Deep array nesting ---
+
+  - name: "access deeply nested array element"
+    mapping: |
+      output = input.arr[0][0][0]
+    input: {"arr": [[[42]]]}
+    output: 42
+
+  - name: "deeply nested array literal"
+    mapping: |
+      output = [[[[1, 2], [3, 4]], [[5, 6]]]]
+    output: [[[[1, 2], [3, 4]], [[5, 6]]]]
+
+  - name: "mixed deep nesting — object in array in object"
+    mapping: |
+      output = input.data[0].items[1].value
+    input: {"data": [{"items": [{"value": "a"}, {"value": "b"}]}]}
+    output: "b"
+
+  # --- Deep expression chains ---
+
+  - name: "long method chain on string"
+    mapping: |
+      output = "  Hello World  ".trim().lowercase().replace("hello", "hi").uppercase()
+    output: "HI WORLD"
+
+  - name: "long method chain on array"
+    mapping: |
+      output = [3, 1, 4, 1, 5, 9, 2, 6].unique().sort().reverse()
+    output: [9, 6, 5, 4, 3, 2, 1]
+
+  - name: "chained map calls"
+    mapping: |
+      map inc(x) { x + 1 }
+      map double(x) { x * 2 }
+      output = double(inc(double(inc(1))))
+    output: 10
+
+  - name: "nested ternary-style if expressions"
+    mapping: |
+      $x = 5
+      output = if $x > 10 { "big" } else { if $x > 3 { "medium" } else { "small" } }
+    output: "medium"
+
+  - name: "nested match expressions"
+    mapping: |
+      $x = "b"
+      output = match $x {
+        "a" => match 1 { 1 => "a1", _ => "a?" },
+        "b" => match 2 { 1 => "b1", 2 => "b2", _ => "b?" },
+        _ => "other",
+      }
+    output: "b2"
+
+  # --- Deep object construction ---
+
+  - name: "object literal with nested objects and arrays"
+    mapping: |
+      output = {
+        "users": [
+          {"name": "Alice", "tags": ["admin", "user"]},
+          {"name": "Bob", "tags": ["user"]},
+        ],
+        "meta": {"count": 2, "active": true},
+      }
+    output: {"users": [{"name": "Alice", "tags": ["admin", "user"]}, {"name": "Bob", "tags": ["user"]}], "meta": {"count": 2, "active": true}}
+
+  # --- Deep null-safe access ---
+
+  - name: "null-safe chain through missing nested fields"
+    mapping: |
+      output = input.a?.b?.c?.d
+    input: {"a": null}
+    output: null
+
+  - name: "null-safe chain where middle is present"
+    mapping: |
+      output = input.a?.b?.c
+    input: {"a": {"b": {"c": 42}}}
+    output: 42

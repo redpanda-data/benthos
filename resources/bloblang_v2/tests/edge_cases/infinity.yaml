@@ -1,0 +1,126 @@
+description: "Edge cases: Infinity comparisons, arithmetic, equality, bool conversion"
+
+tests:
+  # --- Infinity comparisons ---
+
+  - name: "Infinity > any finite number"
+    mapping: |
+      output = input.inf > 999999999999.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+
+  - name: "Infinity >= any finite number"
+    mapping: |
+      output = input.inf >= 0.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+
+  - name: "-Infinity < any finite number"
+    mapping: |
+      output = input.ninf < -999999999999.0
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+
+  - name: "-Infinity <= any finite number"
+    mapping: |
+      output = input.ninf <= 0.0
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+
+  - name: "finite < Infinity"
+    mapping: |
+      output = 1000000.0 < input.inf
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+
+  - name: "finite > -Infinity"
+    mapping: |
+      output = -1000000.0 > input.ninf
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+
+  # --- Infinity equality ---
+
+  - name: "Infinity == Infinity is true"
+    mapping: |
+      output = input.inf == input.inf
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+
+  - name: "-Infinity == -Infinity is true"
+    mapping: |
+      output = input.ninf == input.ninf
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+
+  - name: "Infinity != -Infinity is true"
+    mapping: |
+      output = input.inf != input.ninf
+    input: {"inf": {_type: "float64", value: "Infinity"}, "ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+
+  - name: "Infinity > -Infinity"
+    mapping: |
+      output = input.inf > input.ninf
+    input: {"inf": {_type: "float64", value: "Infinity"}, "ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+
+  # --- Infinity arithmetic ---
+
+  - name: "Infinity + Infinity = Infinity"
+    mapping: |
+      output = input.inf + input.inf
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "Infinity"}
+
+  - name: "Infinity - Infinity = NaN"
+    mapping: |
+      output = input.inf - input.inf
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "NaN"}
+
+  - name: "Infinity * 2 = Infinity"
+    mapping: |
+      output = input.inf * 2.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "Infinity"}
+
+  - name: "Infinity * -1 = -Infinity"
+    mapping: |
+      output = input.inf * -1.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "-Infinity"}
+
+  - name: "-Infinity + -Infinity = -Infinity"
+    mapping: |
+      output = input.ninf + input.ninf
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: {_type: "float64", value: "-Infinity"}
+
+  - name: "Infinity * 0.0 = NaN"
+    mapping: |
+      output = input.inf * 0.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "NaN"}
+
+  # --- Infinity bool conversion ---
+
+  - name: "Infinity.bool() is true"
+    mapping: |
+      output = input.inf.bool()
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+
+  - name: "-Infinity.bool() is true"
+    mapping: |
+      output = input.ninf.bool()
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+
+  # --- Infinity type ---
+
+  - name: "Infinity type is float64"
+    mapping: |
+      output = input.inf.type()
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: "float64"

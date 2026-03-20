@@ -1,0 +1,170 @@
+description: "Match boolean form — with and without matched expression, non-boolean case error, first true wins"
+
+tests:
+  # --- Boolean match without expression ---
+
+  - name: "boolean match selects first true case"
+    input: {"score": 85}
+    mapping: |
+      output.grade = match {
+        input.score >= 90 => "A",
+        input.score >= 80 => "B",
+        input.score >= 70 => "C",
+        _ => "F",
+      }
+    output: {"grade": "B"}
+
+  - name: "boolean match selects first case"
+    input: {"score": 95}
+    mapping: |
+      output.grade = match {
+        input.score >= 90 => "A",
+        input.score >= 80 => "B",
+        _ => "F",
+      }
+    output: {"grade": "A"}
+
+  - name: "boolean match falls to wildcard"
+    input: {"score": 30}
+    mapping: |
+      output.grade = match {
+        input.score >= 90 => "A",
+        input.score >= 80 => "B",
+        input.score >= 70 => "C",
+        _ => "F",
+      }
+    output: {"grade": "F"}
+
+  - name: "boolean match first true wins even if later also true"
+    input: {"score": 95}
+    mapping: |
+      output.result = match {
+        input.score >= 80 => "eighty plus",
+        input.score >= 90 => "ninety plus",
+        _ => "other",
+      }
+    output: {"result": "eighty plus"}
+
+  # --- Non-boolean case is error ---
+
+  - name: "non-boolean case in boolean match is runtime error"
+    mapping: |
+      output.result = match {
+        "hello" => "yes",
+        _ => "no",
+      }
+    error: "bool"
+
+  - name: "integer case in boolean match is runtime error"
+    mapping: |
+      output.result = match {
+        42 => "yes",
+        _ => "no",
+      }
+    error: "bool"
+
+  - name: "null case in boolean match is runtime error"
+    mapping: |
+      output.result = match {
+        null => "yes",
+        _ => "no",
+      }
+    error: "bool"
+
+  # --- Wildcard exempt from boolean requirement ---
+
+  - name: "wildcard is not checked as boolean"
+    mapping: |
+      output.result = match {
+        false => "no",
+        _ => "default",
+      }
+    output: {"result": "default"}
+
+  # --- Cases evaluated in order, short-circuit ---
+
+  - name: "cases after first true are not evaluated"
+    mapping: |
+      output.result = match {
+        true => "first",
+        throw("should not evaluate") => "never",
+        _ => "default",
+      }
+    output: {"result": "first"}
+
+  # --- Non-exhaustive boolean match produces void ---
+
+  - name: "non-exhaustive boolean match produces void"
+    mapping: |
+      output.x = "prior"
+      output.x = match {
+        false => "nope",
+      }
+    output: {"x": "prior"}
+
+  # --- Boolean match with complex conditions ---
+
+  - name: "boolean match with compound conditions"
+    input: {"age": 25, "member": true}
+    mapping: |
+      output.discount = match {
+        input.age < 18 => "youth",
+        input.age >= 65 => "senior",
+        input.member && input.age >= 21 => "member",
+        _ => "none",
+      }
+    output: {"discount": "member"}
+
+  # --- Boolean match with variables ---
+
+  - name: "boolean match using variables in conditions"
+    mapping: |
+      $threshold = 50
+      $value = 75
+      output.result = match {
+        $value >= $threshold => "above",
+        _ => "below",
+      }
+    output: {"result": "above"}
+
+  # --- Boolean match with braced case body ---
+
+  - name: "boolean match case with braced body"
+    input: {"score": 85}
+    mapping: |
+      output.result = match {
+        input.score >= 80 => {
+          $label = "high"
+          $label + " score"
+        },
+        _ => "low score",
+      }
+    output: {"result": "high score"}
+
+  # --- Boolean match as statement ---
+
+  - name: "boolean match as statement assigns output"
+    input: {"level": 5}
+    mapping: |
+      match {
+        input.level >= 10 => {
+          output.rank = "expert"
+        },
+        input.level >= 5 => {
+          output.rank = "intermediate"
+        },
+        _ => {
+          output.rank = "beginner"
+        },
+      }
+    output: {"rank": "intermediate"}
+
+  # --- Non-boolean skipped by earlier true case does not error ---
+
+  - name: "non-boolean case after true case is never evaluated"
+    mapping: |
+      output.result = match {
+        true => "found",
+        "not a bool" => "never",
+      }
+    output: {"result": "found"}

@@ -1,0 +1,141 @@
+description: "Error propagation through expressions, postfix chains, and multiple error sources"
+
+tests:
+  # --- Errors propagate through arithmetic ---
+
+  - name: "error in left operand propagates through addition"
+    mapping: |
+      output.result = (5 / 0) + 1
+    error: "division by zero"
+
+  - name: "error in right operand propagates through addition"
+    mapping: |
+      output.result = 1 + (5 / 0)
+    error: "division by zero"
+
+  - name: "error in left operand propagates through multiplication"
+    mapping: |
+      output.result = (5 / 0) * 3
+    error: "division by zero"
+
+  - name: "error propagates through nested arithmetic"
+    mapping: |
+      output.result = (1 + (5 / 0)) * 2
+    error: "division by zero"
+
+  # --- Errors propagate through comparison and logical operators ---
+
+  - name: "error propagates through equality check"
+    mapping: |
+      output.result = (5 / 0) == 0
+    error: "division by zero"
+
+  - name: "error propagates through comparison"
+    mapping: |
+      output.result = (5 / 0) > 0
+    error: "division by zero"
+
+  - name: "error propagates through logical and"
+    mapping: |
+      output.result = true && ((5 / 0) > 0)
+    error: "division by zero"
+
+  - name: "error propagates through negation"
+    mapping: |
+      output.result = !throw("bad")
+    error: "bad"
+
+  # --- Postfix chain: subsequent operations skipped ---
+
+  - name: "error in method receiver skips subsequent method"
+    mapping: |
+      output.result = (5 / 0).string()
+    error: "division by zero"
+
+  - name: "error skips multiple chained methods"
+    mapping: |
+      output.result = (5 / 0).string().uppercase().length()
+    error: "division by zero"
+
+  - name: "error from method skips subsequent methods"
+    mapping: |
+      output.result = "hello".parse_int().abs()
+    error: "parse"
+
+  - name: "error in field access skips subsequent field"
+    input: {}
+    mapping: |
+      output.result = throw("no data").name.length()
+    error: "no data"
+
+  - name: "error in index access skips subsequent operations"
+    mapping: |
+      $arr = [1, 2]
+      output.result = $arr[5].string()
+    error: "out of bounds"
+
+  # --- Error propagation through string interpolation ---
+
+  - name: "error in string interpolation propagates"
+    mapping: |
+      output.result = "value is: %{(5 / 0).string()}"
+    error: "division by zero"
+
+  # --- Error propagates into variable assignment ---
+
+  - name: "error assigned to variable propagates on use"
+    mapping: |
+      $x = 5 / 0
+      output.result = $x
+    error: "division by zero"
+
+  # --- Error propagates through collection literal ---
+
+  - name: "error in array element propagates"
+    mapping: |
+      output.result = [1, 5 / 0, 3]
+    error: "division by zero"
+
+  - name: "error in object value propagates"
+    mapping: |
+      output.result = {"a": 5 / 0}
+    error: "division by zero"
+
+  # --- Error propagates through if condition ---
+
+  - name: "error in if condition propagates"
+    mapping: |
+      output.result = if (5 / 0) > 0 { "positive" } else { "negative" }
+    error: "division by zero"
+
+  # --- Error propagates through match subject ---
+
+  - name: "error in match subject propagates"
+    mapping: |
+      output.result = match (5 / 0) {
+        0 => "zero",
+        _ => "other",
+      }
+    error: "division by zero"
+
+  # --- Error propagates through map arguments ---
+
+  - name: "error in map argument propagates"
+    mapping: |
+      map double(val) { val * 2 }
+      output.result = double(5 / 0)
+    error: "division by zero"
+
+  # --- Type mismatch errors propagate ---
+
+  - name: "type mismatch error propagates through chain"
+    mapping: |
+      output.result = (5 + "hello").string()
+    error: "cannot add"
+
+  # --- Multiple error sources: first error wins ---
+
+  - name: "left operand error reported when both sides error"
+    mapping: |
+      output.result = (5 / 0) + (3 / 0)
+    error: "division by zero"

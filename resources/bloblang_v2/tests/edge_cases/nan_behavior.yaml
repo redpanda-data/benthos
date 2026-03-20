@@ -1,0 +1,124 @@
+description: "Edge cases: NaN equality, comparison, arithmetic, sort ordering, unique dedup, bool error"
+
+tests:
+  # --- NaN equality ---
+
+  - name: "NaN == NaN is false"
+    mapping: |
+      output = input.n == input.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "NaN != NaN is true"
+    mapping: |
+      output = input.n != input.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: true
+
+  - name: "NaN == 0.0 is false"
+    mapping: |
+      output = input.n == 0.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "NaN != 0.0 is true"
+    mapping: |
+      output = input.n != 0.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: true
+
+  # --- NaN comparison ---
+
+  - name: "NaN < 1.0 is false"
+    mapping: |
+      output = input.n < 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "NaN > 1.0 is false"
+    mapping: |
+      output = input.n > 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "NaN <= 1.0 is false"
+    mapping: |
+      output = input.n <= 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "NaN >= 1.0 is false"
+    mapping: |
+      output = input.n >= 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "1.0 < NaN is false"
+    mapping: |
+      output = 1.0 < input.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+
+  - name: "1.0 > NaN is false"
+    mapping: |
+      output = 1.0 > input.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+
+  # --- NaN arithmetic ---
+
+  - name: "NaN + 1.0 is NaN"
+    mapping: |
+      output = input.n + 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: {_type: "float64", value: "NaN"}
+
+  - name: "NaN * 0.0 is NaN"
+    mapping: |
+      output = input.n * 0.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: {_type: "float64", value: "NaN"}
+
+  - name: "NaN - NaN is NaN"
+    mapping: |
+      output = input.n - input.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: {_type: "float64", value: "NaN"}
+
+  # --- NaN in sort (total ordering: NaN after all values) ---
+
+  - name: "sort puts NaN after all finite values"
+    mapping: |
+      output = input.arr.sort()
+    input: {"arr": [3.0, {_type: "float64", value: "NaN"}, 1.0, 2.0]}
+    output: [1.0, 2.0, 3.0, {_type: "float64", value: "NaN"}]
+
+  - name: "sort with multiple NaN values keeps them at end"
+    mapping: |
+      output = input.arr.sort()
+    input: {"arr": [{_type: "float64", value: "NaN"}, 2.0, {_type: "float64", value: "NaN"}, 1.0]}
+    output: [1.0, 2.0, {_type: "float64", value: "NaN"}, {_type: "float64", value: "NaN"}]
+
+  # --- NaN in unique (NaN treated as equal) ---
+
+  - name: "unique treats multiple NaN as equal — keeps first"
+    mapping: |
+      output = input.arr.unique()
+    input: {"arr": [{_type: "float64", value: "NaN"}, 1.0, {_type: "float64", value: "NaN"}, 2.0]}
+    output: [{_type: "float64", value: "NaN"}, 1.0, 2.0]
+
+  # --- NaN bool conversion ---
+
+  - name: "NaN.bool() is error"
+    mapping: |
+      output = input.n.bool()
+    input: {"n": {_type: "float64", value: "NaN"}}
+    error: "NaN"
+
+  # --- NaN type ---
+
+  - name: "NaN type is float64"
+    mapping: |
+      output = input.n.type()
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: "float64"

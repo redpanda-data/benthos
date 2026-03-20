@@ -1,0 +1,135 @@
+description: "throw() — produces catchable errors, compile errors for bad args, conditional throw"
+
+tests:
+  # --- Basic throw ---
+
+  - name: "throw with string message produces error"
+    mapping: |
+      output.result = throw("something went wrong")
+    error: "something went wrong"
+
+  - name: "throw with empty string"
+    mapping: |
+      output.result = throw("")
+    error: ""
+
+  - name: "throw error propagates to output"
+    mapping: |
+      output.result = throw("halt")
+    error: "halt"
+
+  # --- Caught by catch ---
+
+  - name: "throw caught by catch returns fallback"
+    mapping: |
+      output.result = throw("x").catch(err -> "fallback")
+    output: {"result": "fallback"}
+
+  - name: "throw caught by catch — error message accessible"
+    mapping: |
+      output.result = throw("details here").catch(err -> err.what)
+    output: {"result": "details here"}
+
+  - name: "throw in chain caught by catch at end"
+    mapping: |
+      output.result = throw("fail").string().catch(err -> "ok")
+    output: {"result": "ok"}
+
+  # --- Uncaught throw halts mapping ---
+
+  - name: "uncaught throw halts mapping — subsequent assignment not reached"
+    mapping: |
+      output.a = throw("halt")
+      output.b = "should not appear"
+    error: "halt"
+
+  # --- Compile errors for bad arguments ---
+
+  - name: "throw with zero args is compile error"
+    mapping: |
+      output.result = throw()
+    compile_error: "throw"
+
+  - name: "throw with integer literal is compile error"
+    mapping: |
+      output.result = throw(42)
+    compile_error: "throw"
+
+  - name: "throw with boolean literal is compile error"
+    mapping: |
+      output.result = throw(true)
+    compile_error: "throw"
+
+  - name: "throw with null literal is compile error"
+    mapping: |
+      output.result = throw(null)
+    compile_error: "throw"
+
+  - name: "throw with two arguments is compile error"
+    mapping: |
+      output.result = throw("a", "b")
+    compile_error: "throw"
+
+  # --- Non-string dynamic expression is runtime error ---
+
+  - name: "throw with dynamic int expression is runtime error"
+    mapping: |
+      $x = 42
+      output.result = throw($x)
+    error: "throw"
+
+  - name: "throw with dynamic bool expression is runtime error"
+    mapping: |
+      $x = true
+      output.result = throw($x)
+    error: "throw"
+
+  # --- Dynamic string expression works ---
+
+  - name: "throw with dynamic string expression"
+    mapping: |
+      $msg = "dynamic error"
+      output.result = throw($msg)
+    error: "dynamic error"
+
+  - name: "throw with string interpolation"
+    mapping: |
+      $code = 404
+      output.result = throw("error code: %{$code.string()}")
+    error: "error code: 404"
+
+  # --- Conditional throw ---
+
+  - name: "conditional throw in if — condition true"
+    mapping: |
+      $x = -1
+      output.result = if $x < 0 { throw("negative value") } else { $x }
+    error: "negative value"
+
+  - name: "conditional throw in if — condition false"
+    mapping: |
+      $x = 5
+      output.result = if $x < 0 { throw("negative value") } else { $x }
+    output: {"result": 5}
+
+  - name: "conditional throw in statement assignment"
+    mapping: |
+      $valid = false
+      if !$valid { output.err = throw("invalid") }
+    error: "invalid"
+
+  - name: "conditional throw in match arm"
+    mapping: |
+      $status = "error"
+      output.result = match $status {
+        "ok" => "success",
+        "error" => throw("status was error"),
+        _ => "unknown",
+      }
+    error: "status was error"
+
+  - name: "conditional throw caught by catch"
+    mapping: |
+      $x = -1
+      output.result = (if $x < 0 { throw("negative") } else { $x }).catch(err -> 0)
+    output: {"result": 0}

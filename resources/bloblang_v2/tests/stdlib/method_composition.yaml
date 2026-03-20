@@ -1,0 +1,165 @@
+description: "Cross-method composition tests: chaining stdlib methods in realistic combinations"
+
+tests:
+  # --- String + encoding chains ---
+
+  - name: "trim then encode base64"
+    mapping: |
+      output = "  hello  ".trim().encode("base64")
+    output: "aGVsbG8="
+
+  - name: "split then map uppercase"
+    mapping: |
+      output = "a,b,c".split(",").map(v -> v.uppercase())
+    output: ["A", "B", "C"]
+
+  - name: "split then filter then join"
+    mapping: |
+      output = "a,,b,,c".split(",").filter(v -> v.length() > 0).join(",")
+    output: "a,b,c"
+
+  - name: "replace_all then split then length"
+    mapping: |
+      output = "one::two::three".replace_all("::", ",").split(",").length()
+    output: 3
+
+  # --- Numeric + type chains ---
+
+  - name: "abs then floor"
+    mapping: |
+      output = (-3.7).abs().floor()
+    output: 3.0
+
+  - name: "ceil then int64 conversion"
+    mapping: |
+      output = 3.2.ceil().int64()
+    output: 4
+
+  - name: "round then format_json"
+    mapping: |
+      output = 3.14159.round(2).format_json()
+    output: "3.14"
+
+  - name: "abs preserves int32 type through chain"
+    mapping: |
+      output = (-5).int32().abs().type()
+    output: "int32"
+
+  # --- Timestamp + format chains ---
+
+  - name: "ts_parse then ts_format custom"
+    mapping: |
+      output = "2024-01-15T10:30:00Z".ts_parse().ts_format("%Y-%m-%d")
+    output: "2024-01-15"
+
+  - name: "timestamp constructor then ts_add then ts_format"
+    mapping: |
+      output = timestamp(2024, 1, 15, 10, 0, 0).ts_add(30 * minute()).ts_format()
+    output: "2024-01-15T10:30:00Z"
+
+  - name: "ts_parse then ts_unix then ts_from_unix round-trip"
+    mapping: |
+      $s = "2024-01-15T10:30:00Z"
+      output = $s.ts_parse().ts_unix().ts_from_unix().ts_format()
+    output: "2024-01-15T10:30:00Z"
+
+  - name: "timestamp subtraction then comparison"
+    mapping: |
+      $a = timestamp(2024, 1, 15, 10, 0, 0)
+      $b = timestamp(2024, 1, 15, 11, 0, 0)
+      output = ($b - $a) == hour()
+    output: true
+
+  # --- JSON + object chains ---
+
+  - name: "parse_json then keys sorted"
+    mapping: |
+      output = '{"b":2,"a":1}'.parse_json().keys().sort()
+    output: ["a", "b"]
+
+  - name: "object merge then format_json"
+    mapping: |
+      output = {"a": 1}.merge({"b": 2}).format_json()
+    output: '{"a":1,"b":2}'
+
+  - name: "parse_json then map values"
+    mapping: |
+      output = '{"x":1,"y":2}'.parse_json().map_values(v -> v * 10)
+    output: {"x": 10, "y": 20}
+
+  - name: "format_json then parse_json idempotent"
+    mapping: |
+      $obj = {"name": "Alice", "age": 30, "active": true}
+      output = $obj.format_json().parse_json() == $obj
+    output: true
+
+  # --- Array + query chains ---
+
+  - name: "range then filter then sum"
+    mapping: |
+      output = range(1, 11).filter(v -> v % 2 == 0).sum()
+    output: 30
+
+  - name: "range then map then sort descending"
+    mapping: |
+      output = range(1, 4).map(v -> v * v).sort().reverse()
+    output: [9, 4, 1]
+
+  - name: "array map abs then max"
+    mapping: |
+      output = [-3, 1, -7, 4].map(v -> v.abs()).max()
+    output: 7
+
+  - name: "split then unique then sort then join"
+    mapping: |
+      output = "b,a,c,a,b".split(",").unique().sort().join(",")
+    output: "a,b,c"
+
+  # --- Encoding round-trip chains ---
+
+  - name: "string to base64 to hex round-trip"
+    mapping: |
+      output = "hello".encode("base64").decode("base64").encode("hex")
+    output: "68656c6c6f"
+
+  - name: "format_json then encode base64 then decode"
+    mapping: |
+      output = {"key": "value"}.format_json().encode("base64").decode("base64").string()
+    output: '{"key":"value"}'
+
+  # --- Error handling in chains ---
+
+  - name: "parse_json catch returns default"
+    mapping: |
+      output = "bad json".parse_json().catch(err -> "fallback")
+    output: "fallback"
+
+  - name: "ts_parse catch returns null"
+    mapping: |
+      output = "not-a-date".ts_parse().catch(err -> null)
+    output: null
+
+  - name: "chained method after or"
+    mapping: |
+      output = null.or("hello").uppercase()
+    output: "HELLO"
+
+  - name: "abs on parse_json result"
+    mapping: |
+      output = '"-42"'.parse_json().int64().abs()
+    output: 42
+
+  # --- Timestamp arithmetic composition ---
+
+  - name: "ts_add chained multiple times"
+    mapping: |
+      output = timestamp(2024, 1, 15, 10, 0, 0).ts_add(hour()).ts_add(30 * minute()).ts_add(15 * second())
+    output: {_type: "timestamp", value: "2024-01-15T11:30:15Z"}
+
+  - name: "ts_unix_nano to int then back preserves nanos"
+    mapping: |
+      $ts = timestamp(2024, 1, 15, 10, 30, 0, 123456789)
+      $nanos = $ts.ts_unix_nano()
+      $ts2 = $nanos.ts_from_unix_nano()
+      output = $ts2.ts_unix_nano() == $nanos
+    output: true

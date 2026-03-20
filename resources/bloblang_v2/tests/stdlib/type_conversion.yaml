@@ -1,0 +1,347 @@
+description: "Type conversion methods: .string(), .int32(), .int64(), .uint32(), .uint64(), .float32(), .float64(), .bool(), .char(), .bytes()"
+
+tests:
+  # --- .string() ---
+
+  - name: "string from int64"
+    mapping: |
+      output = 42.string()
+    output: "42"
+
+  - name: "string from negative int64"
+    mapping: |
+      output = (-100).string()
+    output: "-100"
+
+  - name: "string from float64"
+    mapping: |
+      output = 3.14.string()
+    output: "3.14"
+
+  - name: "string from float64 whole number"
+    mapping: |
+      output = 5.0.string()
+    output: "5.0"
+
+  - name: "string from negative zero"
+    mapping: |
+      output = input.nz.string()
+    input: {nz: {_type: "float64", value: "-0.0"}}
+    output: "0.0"
+
+  - name: "string from nan"
+    mapping: |
+      output = input.nan.string()
+    input: {nan: {_type: "float64", value: "NaN"}}
+    output: "NaN"
+
+  - name: "string from bool true"
+    mapping: |
+      output = true.string()
+    output: "true"
+
+  - name: "string from bool false"
+    mapping: |
+      output = false.string()
+    output: "false"
+
+  - name: "string from null"
+    mapping: |
+      output = null.string()
+    output: "null"
+
+  - name: "string from timestamp"
+    mapping: |
+      output = timestamp(2024, 3, 1, 12, 0, 0).string()
+    output: "2024-03-01T12:00:00Z"
+
+  - name: "string from array compact json"
+    mapping: |
+      output = [1, 2, 3].string()
+    output: "[1,2,3]"
+
+  - name: "string from object keys sorted"
+    mapping: |
+      output = {"b": 2, "a": 1}.string()
+    output: "{\"a\":1,\"b\":2}"
+
+  - name: "string from string is identity"
+    mapping: |
+      output = "hello".string()
+    output: "hello"
+
+  - name: "string from bytes valid utf8"
+    mapping: |
+      output = "hello".bytes().string()
+    output: "hello"
+
+  # --- .int32() ---
+
+  - name: "int32 from int64"
+    mapping: |
+      output = 100.int32()
+    output: {_type: "int32", value: "100"}
+
+  - name: "int32 from float64 truncates"
+    mapping: |
+      output = 3.9.int32()
+    output: {_type: "int32", value: "3"}
+
+  - name: "int32 from negative float truncates toward zero"
+    mapping: |
+      output = (-3.9).int32()
+    output: {_type: "int32", value: "-3"}
+
+  - name: "int32 from string"
+    mapping: |
+      output = "42".int32()
+    output: {_type: "int32", value: "42"}
+
+  - name: "int32 overflow positive"
+    mapping: |
+      output = 2147483648.int32()
+    error: "overflow"
+
+  - name: "int32 overflow negative"
+    mapping: |
+      output = (-2147483649).int32()
+    error: "overflow"
+
+  # --- .int64() ---
+
+  - name: "int64 from float64 truncates"
+    mapping: |
+      output = 9.99.int64()
+    output: 9
+
+  - name: "int64 from negative float truncates toward zero"
+    mapping: |
+      output = (-7.8).int64()
+    output: -7
+
+  - name: "int64 from string"
+    mapping: |
+      output = "-500".int64()
+    output: -500
+
+  - name: "int64 from invalid string"
+    mapping: |
+      output = "abc".int64()
+    error: "convert"
+
+  - name: "int64 identity"
+    mapping: |
+      output = 42.int64()
+    output: 42
+
+  # --- .uint32() ---
+
+  - name: "uint32 from int64"
+    mapping: |
+      output = 255.uint32()
+    output: {_type: "uint32", value: "255"}
+
+  - name: "uint32 from float truncates toward zero"
+    mapping: |
+      output = 3.7.uint32()
+    output: {_type: "uint32", value: "3"}
+
+  - name: "uint32 negative is error"
+    mapping: |
+      output = (-1).uint32()
+    error: "overflow"
+
+  - name: "uint32 overflow"
+    mapping: |
+      output = 4294967296.uint32()
+    error: "overflow"
+
+  - name: "uint32 from string"
+    mapping: |
+      output = "100".uint32()
+    output: {_type: "uint32", value: "100"}
+
+  # --- .uint64() ---
+
+  - name: "uint64 from int64"
+    mapping: |
+      output = 1000.uint64()
+    output: {_type: "uint64", value: "1000"}
+
+  - name: "uint64 from float truncates toward zero"
+    mapping: |
+      output = 99.9.uint64()
+    output: {_type: "uint64", value: "99"}
+
+  - name: "uint64 negative is error"
+    mapping: |
+      output = (-1).uint64()
+    error: "overflow"
+
+  - name: "uint64 from string"
+    mapping: |
+      output = "18446744073709551615".uint64()
+    output: {_type: "uint64", value: "18446744073709551615"}
+
+  # --- .float32() ---
+
+  - name: "float32 from int64"
+    mapping: |
+      output = 42.float32()
+    output: {_type: "float32", value: "42.0"}
+
+  - name: "float32 from float64"
+    mapping: |
+      output = 3.14.float32()
+    output: {_type: "float32", value: "3.14"}
+
+  - name: "float32 from string"
+    mapping: |
+      output = "2.5".float32()
+    output: {_type: "float32", value: "2.5"}
+
+  - name: "float32 from invalid string"
+    mapping: |
+      output = "nope".float32()
+    error: "convert"
+
+  # --- .float64() ---
+
+  - name: "float64 from int64"
+    mapping: |
+      output = 42.float64()
+    output: 42.0
+
+  - name: "float64 from string"
+    mapping: |
+      output = "3.14".float64()
+    output: 3.14
+
+  - name: "float64 from bool true"
+    mapping: |
+      output = true.float64()
+    output: 1.0
+
+  - name: "float64 from invalid string"
+    mapping: |
+      output = "xyz".float64()
+    error: "convert"
+
+  # --- .bool() ---
+
+  - name: "bool from true"
+    mapping: |
+      output = true.bool()
+    output: true
+
+  - name: "bool from false"
+    mapping: |
+      output = false.bool()
+    output: false
+
+  - name: "bool from string true"
+    mapping: |
+      output = "true".bool()
+    output: true
+
+  - name: "bool from string false"
+    mapping: |
+      output = "false".bool()
+    output: false
+
+  - name: "bool from int zero is false"
+    mapping: |
+      output = 0.bool()
+    output: false
+
+  - name: "bool from int nonzero is true"
+    mapping: |
+      output = 1.bool()
+    output: true
+
+  - name: "bool from negative int is true"
+    mapping: |
+      output = (-5).bool()
+    output: true
+
+  - name: "bool from float zero is false"
+    mapping: |
+      output = 0.0.bool()
+    output: false
+
+  - name: "bool from negative zero is false"
+    mapping: |
+      output = input.nz.bool()
+    input: {nz: {_type: "float64", value: "-0.0"}}
+    output: false
+
+  - name: "bool from infinity is true"
+    mapping: |
+      output = input.inf.bool()
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    output: true
+
+  - name: "bool from nan is error"
+    mapping: |
+      output = input.nan.bool()
+    input: {nan: {_type: "float64", value: "NaN"}}
+    error: "NaN"
+
+  - name: "bool from invalid string is error"
+    mapping: |
+      output = "maybe".bool()
+    error: "convert"
+
+  # --- .char() ---
+
+  - name: "char from ascii codepoint"
+    mapping: |
+      output = 65.char()
+    output: "A"
+
+  - name: "char from emoji codepoint"
+    mapping: |
+      output = 128512.char()
+    output: "\U0001F600"
+
+  - name: "char from non-ascii codepoint"
+    mapping: |
+      output = 233.char()
+    output: "\u00E9"
+
+  - name: "char from zero codepoint"
+    mapping: |
+      output = 0.char()
+    output: "\u0000"
+
+  - name: "char from invalid codepoint"
+    mapping: |
+      output = (-1).char()
+    error: "codepoint"
+
+  # --- .bytes() ---
+
+  - name: "bytes from string"
+    mapping: |
+      output = "hello".bytes()
+    output: {_type: "bytes", value: "aGVsbG8="}
+
+  - name: "bytes from bytes identity"
+    mapping: |
+      output = "hello".bytes().bytes()
+    output: {_type: "bytes", value: "aGVsbG8="}
+
+  - name: "bytes from int goes through string"
+    mapping: |
+      output = 42.bytes()
+    output: {_type: "bytes", value: "NDI="}
+
+  - name: "bytes from bool goes through string"
+    mapping: |
+      output = true.bytes()
+    output: {_type: "bytes", value: "dHJ1ZQ=="}
+
+  - name: "bytes from empty string"
+    mapping: |
+      output = "".bytes()
+    output: {_type: "bytes", value: ""}

@@ -1,0 +1,288 @@
+description: "Array query methods — any, all, find, contains, index_of, sum, min, max, fold"
+
+tests:
+  # --- any ---
+
+  - name: "any returns true when some match"
+    mapping: |
+      output.result = [1, 2, 3, 4].any(x -> x > 3)
+    output: {"result": true}
+
+  - name: "any returns false when none match"
+    mapping: |
+      output.result = [1, 2, 3].any(x -> x > 10)
+    output: {"result": false}
+
+  - name: "any returns false for empty array"
+    mapping: |
+      output.result = [].any(x -> x > 0)
+    output: {"result": false}
+
+  - name: "any short-circuits on first true"
+    mapping: |
+      output.result = [1, 2, 3].any(x -> if x == 1 { true } else { throw("should not reach") })
+    output: {"result": true}
+
+  - name: "any non-bool return is error"
+    mapping: |
+      output.result = [1, 2].any(x -> x * 2)
+    error: "bool"
+
+  # --- all ---
+
+  - name: "all returns true when all match"
+    mapping: |
+      output.result = [2, 4, 6].all(x -> x % 2 == 0)
+    output: {"result": true}
+
+  - name: "all returns false when some do not match"
+    mapping: |
+      output.result = [2, 3, 6].all(x -> x % 2 == 0)
+    output: {"result": false}
+
+  - name: "all returns true for empty array"
+    mapping: |
+      output.result = [].all(x -> x > 0)
+    output: {"result": true}
+
+  - name: "all short-circuits on first false"
+    mapping: |
+      output.result = [1, 2, 3].all(x -> if x == 1 { false } else { throw("should not reach") })
+    output: {"result": false}
+
+  - name: "all non-bool return is error"
+    mapping: |
+      output.result = [1, 2].all(x -> x.string())
+    error: "bool"
+
+  # --- find ---
+
+  - name: "find returns first match"
+    mapping: |
+      output.result = [1, 2, 3, 4].find(x -> x > 2)
+    output: {"result": 3}
+
+  - name: "find returns void when no match"
+    mapping: |
+      output.found = "before"
+      output.found = [1, 2, 3].find(x -> x > 10)
+    output: {"found": "before"}
+
+  - name: "find on empty array returns void"
+    mapping: |
+      output.found = "default"
+      output.found = [].find(x -> x > 0)
+    output: {"found": "default"}
+
+  - name: "find short-circuits on first match"
+    mapping: |
+      output.result = [10, 20, 30].find(x -> if x == 10 { true } else { throw("should not reach") })
+    output: {"result": 10}
+
+  - name: "find void result works with or"
+    mapping: |
+      output.result = [1, 2, 3].find(x -> x > 10).or("none")
+    output: {"result": "none"}
+
+  - name: "find void result assigned to output field is void (no assignment)"
+    mapping: |
+      output.result = [1, 2, 3].find(x -> x > 10)
+    output: {}
+
+  # --- contains (array) ---
+
+  - name: "contains finds integer"
+    mapping: |
+      output.result = [1, 2, 3].contains(2)
+    output: {"result": true}
+
+  - name: "contains does not find missing element"
+    mapping: |
+      output.result = [1, 2, 3].contains(4)
+    output: {"result": false}
+
+  - name: "contains finds string"
+    mapping: |
+      output.result = ["apple", "banana"].contains("banana")
+    output: {"result": true}
+
+  - name: "contains on empty array"
+    mapping: |
+      output.result = [].contains(1)
+    output: {"result": false}
+
+  - name: "contains with null"
+    mapping: |
+      output.result = [1, null, 3].contains(null)
+    output: {"result": true}
+
+  - name: "contains with bool"
+    mapping: |
+      output.result = [true, false].contains(false)
+    output: {"result": true}
+
+  - name: "contains type mismatch returns false"
+    mapping: |
+      output.result = [1, 2, 3].contains("2")
+    output: {"result": false}
+
+  # --- index_of (array) ---
+
+  - name: "index_of finds first occurrence"
+    mapping: |
+      output.result = [10, 20, 30, 20].index_of(20)
+    output: {"result": 1}
+
+  - name: "index_of returns -1 when not found"
+    mapping: |
+      output.result = [10, 20, 30].index_of(99)
+    output: {"result": -1}
+
+  - name: "index_of on empty array"
+    mapping: |
+      output.result = [].index_of(1)
+    output: {"result": -1}
+
+  - name: "index_of with string"
+    mapping: |
+      output.result = ["a", "b", "c"].index_of("b")
+    output: {"result": 1}
+
+  - name: "index_of type mismatch returns -1"
+    mapping: |
+      output.result = [1, 2, 3].index_of("1")
+    output: {"result": -1}
+
+  # --- sum ---
+
+  - name: "sum of integers"
+    mapping: |
+      output.result = [1, 2, 3, 4].sum()
+    output: {"result": 10}
+
+  - name: "sum of empty array is zero int64"
+    mapping: |
+      output.result = [].sum()
+    output: {"result": 0}
+
+  - name: "sum of floats"
+    mapping: |
+      output.result = [1.5, 2.5, 3.0].sum()
+    output: {"result": 7.0}
+
+  - name: "sum promotes int and float pairwise"
+    mapping: |
+      output.result = [1, 2.5, 3].sum()
+    output: {"result": 6.5}
+
+  - name: "sum non-numeric element is error"
+    mapping: |
+      output.result = [1, "two", 3].sum()
+    error: "numeric"
+
+  - name: "sum single element"
+    mapping: |
+      output.result = [42].sum()
+    output: {"result": 42}
+
+  # --- min ---
+
+  - name: "min of integers"
+    mapping: |
+      output.result = [3, 1, 4, 1, 5].min()
+    output: {"result": 1}
+
+  - name: "min of floats"
+    mapping: |
+      output.result = [3.14, 1.0, 2.71].min()
+    output: {"result": 1.0}
+
+  - name: "min of strings"
+    mapping: |
+      output.result = ["banana", "apple", "cherry"].min()
+    output: {"result": "apple"}
+
+  - name: "min of empty array is error"
+    mapping: |
+      output.result = [].min()
+    error: "empty"
+
+  - name: "min cross-family is error"
+    mapping: |
+      output.result = [1, "two"].min()
+    error: "sort"
+
+  - name: "min single element"
+    mapping: |
+      output.result = [42].min()
+    output: {"result": 42}
+
+  - name: "min with numeric promotion"
+    mapping: |
+      output.result = [3, 1.5, 2].min()
+    output: {"result": 1.5}
+
+  # --- max ---
+
+  - name: "max of integers"
+    mapping: |
+      output.result = [3, 1, 4, 1, 5].max()
+    output: {"result": 5}
+
+  - name: "max of floats"
+    mapping: |
+      output.result = [3.14, 1.0, 2.71].max()
+    output: {"result": 3.14}
+
+  - name: "max of strings"
+    mapping: |
+      output.result = ["banana", "apple", "cherry"].max()
+    output: {"result": "cherry"}
+
+  - name: "max of empty array is error"
+    mapping: |
+      output.result = [].max()
+    error: "empty"
+
+  - name: "max cross-family is error"
+    mapping: |
+      output.result = [1, "two"].max()
+    error: "sort"
+
+  - name: "max single element"
+    mapping: |
+      output.result = ["only"].max()
+    output: {"result": "only"}
+
+  # --- fold ---
+
+  - name: "fold sum with integer accumulator"
+    mapping: |
+      output.result = [1, 2, 3, 4].fold(0, (tally, x) -> tally + x)
+    output: {"result": 10}
+
+  - name: "fold string concatenation"
+    mapping: |
+      output.result = ["a", "b", "c"].fold("", (acc, x) -> acc + x)
+    output: {"result": "abc"}
+
+  - name: "fold on empty array returns initial value"
+    mapping: |
+      output.result = [].fold(42, (acc, x) -> acc + x)
+    output: {"result": 42}
+
+  - name: "fold builds array"
+    mapping: |
+      output.result = [1, 2, 3].fold([], (acc, x) -> acc.append(x * 10))
+    output: {"result": [10, 20, 30]}
+
+  - name: "fold builds object"
+    mapping: |
+      $pairs = [{"k": "a", "v": 1}, {"k": "b", "v": 2}]
+      output.result = $pairs.fold({}, (acc, item) -> acc.merge({item.k: item.v}))
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "fold with product"
+    mapping: |
+      output.result = [1, 2, 3, 4].fold(1, (product, x) -> product * x)
+    output: {"result": 24}

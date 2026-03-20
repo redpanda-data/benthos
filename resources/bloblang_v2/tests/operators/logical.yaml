@@ -1,0 +1,265 @@
+description: "Logical operators (&&, ||, !) — boolean requirement, short-circuit evaluation, associativity"
+
+tests:
+  # --- Basic AND ---
+  - name: "and_true_true"
+    mapping: |
+      output = true && true
+    output: true
+
+  - name: "and_true_false"
+    mapping: |
+      output = true && false
+    output: false
+
+  - name: "and_false_true"
+    mapping: |
+      output = false && true
+    output: false
+
+  - name: "and_false_false"
+    mapping: |
+      output = false && false
+    output: false
+
+  # --- Basic OR ---
+  - name: "or_true_true"
+    mapping: |
+      output = true || true
+    output: true
+
+  - name: "or_true_false"
+    mapping: |
+      output = true || false
+    output: true
+
+  - name: "or_false_true"
+    mapping: |
+      output = false || true
+    output: true
+
+  - name: "or_false_false"
+    mapping: |
+      output = false || false
+    output: false
+
+  # --- Basic NOT ---
+  - name: "not_true"
+    mapping: |
+      output = !true
+    output: false
+
+  - name: "not_false"
+    mapping: |
+      output = !false
+    output: true
+
+  - name: "double_negation"
+    mapping: |
+      output = !!true
+    output: true
+
+  # --- Short-circuit AND ---
+  - name: "and_short_circuit_false_lhs"
+    mapping: |
+      output = false && throw("should not be evaluated")
+    output: false
+
+  - name: "and_no_short_circuit_true_lhs"
+    mapping: |
+      output = true && throw("evaluated")
+    error: "evaluated"
+
+  # --- Short-circuit OR ---
+  - name: "or_short_circuit_true_lhs"
+    mapping: |
+      output = true || throw("should not be evaluated")
+    output: true
+
+  - name: "or_no_short_circuit_false_lhs"
+    mapping: |
+      output = false || throw("evaluated")
+    error: "evaluated"
+
+  # --- Non-boolean operands: AND ---
+  - name: "and_int_lhs"
+    mapping: |
+      output = 5 && true
+    error: "bool"
+
+  - name: "and_int_rhs"
+    mapping: |
+      output = true && 1
+    error: "bool"
+
+  - name: "and_string_lhs"
+    mapping: |
+      output = "yes" && true
+    error: "bool"
+
+  - name: "and_null_lhs"
+    mapping: |
+      output = null && true
+    error: "bool"
+
+  - name: "and_null_rhs"
+    mapping: |
+      output = true && null
+    error: "bool"
+
+  - name: "and_array_lhs"
+    mapping: |
+      output = [1, 2] && true
+    error: "bool"
+
+  - name: "and_object_lhs"
+    mapping: |
+      output = {"a": 1} && true
+    error: "bool"
+
+  # --- Non-boolean operands: OR ---
+  - name: "or_int_lhs"
+    mapping: |
+      output = 0 || false
+    error: "bool"
+
+  - name: "or_string_rhs"
+    mapping: |
+      output = false || "fallback"
+    error: "bool"
+
+  - name: "or_float_lhs"
+    mapping: |
+      output = 1.0 || true
+    error: "bool"
+
+  # --- Non-boolean operands: NOT ---
+  - name: "not_int"
+    mapping: |
+      output = !5
+    error: "bool"
+
+  - name: "not_string"
+    mapping: |
+      output = !"hello"
+    error: "bool"
+
+  - name: "not_null"
+    mapping: |
+      output = !null
+    error: "bool"
+
+  - name: "not_zero"
+    mapping: |
+      output = !0
+    error: "bool"
+
+  - name: "not_empty_string"
+    mapping: |
+      output = !""
+    error: "bool"
+
+  # --- Short-circuit skips type check on unevaluated side ---
+  - name: "and_short_circuit_skips_type_check"
+    mapping: |
+      output = false && "not a bool"
+    output: false
+
+  - name: "or_short_circuit_skips_type_check"
+    mapping: |
+      output = true || 42
+    output: true
+
+  # --- Left-associativity of AND ---
+  - name: "and_left_associative"
+    mapping: |
+      output = true && false && true
+    output: false
+
+  - name: "and_chain_all_true"
+    mapping: |
+      output = true && true && true
+    output: true
+
+  # --- Left-associativity of OR ---
+  - name: "or_left_associative"
+    mapping: |
+      output = false || false || true
+    output: true
+
+  - name: "or_chain_all_false"
+    mapping: |
+      output = false || false || false
+    output: false
+
+  # --- AND has higher precedence than OR ---
+  - name: "and_binds_tighter_than_or"
+    mapping: |
+      output = true || false && false
+    output: true
+
+  - name: "and_binds_tighter_than_or_reversed"
+    mapping: |
+      output = false && false || true
+    output: true
+
+  - name: "parens_override_and_or_precedence"
+    mapping: |
+      output = true || false && false
+    output: true
+
+  - name: "parens_force_or_first"
+    mapping: |
+      output = (true || false) && false
+    output: false
+
+  # --- Combinations ---
+  - name: "not_with_and"
+    mapping: |
+      output = !false && true
+    output: true
+
+  - name: "not_with_or"
+    mapping: |
+      output = !true || false
+    output: false
+
+  - name: "complex_logical_expression"
+    mapping: |
+      output = (true || false) && !(false && true)
+    output: true
+
+  - name: "not_binds_tighter_than_and"
+    mapping: |
+      output = !false && !false
+    output: true
+
+  # --- Short-circuit preserves left-to-right with associativity ---
+  - name: "and_chain_short_circuits_at_first_false"
+    mapping: |
+      output = true && false && throw("should not reach")
+    output: false
+
+  - name: "or_chain_short_circuits_at_first_true"
+    mapping: |
+      output = false || true || throw("should not reach")
+    output: true
+
+  # --- Using input values ---
+  - name: "and_with_input_booleans"
+    mapping: |
+      output = input.a && input.b
+    input: {"a": true, "b": false}
+    output: false
+
+  - name: "or_with_input_booleans"
+    mapping: |
+      output = input.a || input.b
+    input: {"a": false, "b": true}
+    output: true
+
+  - name: "not_with_input_boolean"
+    mapping: |
+      output = !input.flag
+    input: {"flag": true}
+    output: false

@@ -1,0 +1,182 @@
+description: "Input access: reading fields, metadata, various input types, immutability guarantees, non-existent fields return null"
+
+tests:
+  # --- Basic input field access ---
+
+  - name: "access top-level input field"
+    input: {"name": "Alice"}
+    mapping: |
+      output.v = input.name
+    output: {"v": "Alice"}
+
+  - name: "access nested input field"
+    input: {"user": {"name": "Bob", "age": 30}}
+    mapping: |
+      output.name = input.user.name
+      output.age = input.user.age
+    output: {"name": "Bob", "age": 30}
+
+  - name: "access deeply nested input field"
+    input: {"a": {"b": {"c": {"d": "deep"}}}}
+    mapping: |
+      output.v = input.a.b.c.d
+    output: {"v": "deep"}
+
+  - name: "access input array element by index"
+    input: [10, 20, 30]
+    mapping: |
+      output.first = input[0]
+      output.second = input[1]
+      output.third = input[2]
+    output: {"first": 10, "second": 20, "third": 30}
+
+  - name: "access nested array in input object"
+    input: {"items": ["a", "b", "c"]}
+    mapping: |
+      output.v = input.items[1]
+    output: {"v": "b"}
+
+  - name: "access object inside input array"
+    input: [{"name": "Alice"}, {"name": "Bob"}]
+    mapping: |
+      output.v = input[1].name
+    output: {"v": "Bob"}
+
+  # --- Input types ---
+
+  - name: "input is a string"
+    input: "hello world"
+    mapping: |
+      output.v = input
+    output: {"v": "hello world"}
+
+  - name: "input is a number"
+    input: 42
+    mapping: |
+      output.v = input
+    output: {"v": 42}
+
+  - name: "input is a float"
+    input: 3.14
+    mapping: |
+      output.v = input
+    output: {"v": 3.14}
+
+  - name: "input is a boolean"
+    input: true
+    mapping: |
+      output.v = input
+    output: {"v": true}
+
+  - name: "input is null"
+    input: null
+    mapping: |
+      output.v = input
+    output: {"v": null}
+
+  - name: "input is an empty object"
+    input: {}
+    mapping: |
+      output.v = input
+    output: {"v": {}}
+
+  - name: "input is an empty array"
+    input: []
+    mapping: |
+      output.v = input
+    output: {"v": []}
+
+  - name: "input defaults to null when not specified"
+    mapping: |
+      output.v = input
+    output: {"v": null}
+
+  # --- Non-existent fields return null ---
+
+  - name: "non-existent top-level field returns null"
+    input: {"name": "Alice"}
+    mapping: |
+      output.v = input.missing
+    output: {"v": null}
+
+  - name: "non-existent nested field returns null"
+    input: {"user": {}}
+    mapping: |
+      output.v = input.user.name
+    output: {"v": null}
+
+  - name: "non-existent deep path returns null"
+    input: {"a": 1}
+    mapping: |
+      output.v = input.x.y.z
+    output: {"v": null}
+
+  - name: "out of bounds array index returns null"
+    input: [1, 2, 3]
+    mapping: |
+      output.v = input[10]
+    output: {"v": null}
+
+  # --- Input metadata access ---
+
+  - name: "read single input metadata key"
+    input: {"data": 1}
+    input_metadata: {"source": "kafka"}
+    mapping: |
+      output.v = input@.source
+    output: {"v": "kafka"}
+
+  - name: "read all input metadata as object"
+    input: {"data": 1}
+    input_metadata: {"source": "kafka", "topic": "events"}
+    mapping: |
+      output.v = input@
+    output: {"v": {"source": "kafka", "topic": "events"}}
+
+  - name: "undefined metadata key returns null"
+    input: {"data": 1}
+    input_metadata: {"source": "kafka"}
+    mapping: |
+      output.v = input@.missing
+    output: {"v": null}
+
+  - name: "metadata with no input_metadata is empty object"
+    input: {"data": 1}
+    mapping: |
+      output.v = input@
+    output: {"v": {}}
+
+  - name: "metadata value can be any type"
+    input: {}
+    input_metadata: {"count": 42, "active": true, "tags": ["a", "b"]}
+    mapping: |
+      output.count = input@.count
+      output.active = input@.active
+      output.tags = input@.tags
+    output: {"count": 42, "active": true, "tags": ["a", "b"]}
+
+  - name: "nested metadata path access"
+    input: {}
+    input_metadata: {"routing": {"region": "us-west", "zone": "a"}}
+    mapping: |
+      output.v = input@.routing.region
+    output: {"v": "us-west"}
+
+  # --- Input immutability ---
+
+  - name: "input is not modified by output assignment from input"
+    input: {"name": "Alice", "age": 30}
+    mapping: |
+      output = input
+      output.name = "Bob"
+      output.original = input.name
+    output: {"name": "Bob", "age": 30, "original": "Alice"}
+
+  - name: "input array is not modified by variable mutation"
+    input: {"items": [1, 2, 3]}
+    mapping: |
+      $copy = input.items
+      $copy[0] = 99
+      output.input_first = input.items[0]
+      output.copy_first = $copy[0]
+    output: {"input_first": 1, "copy_first": 99}

@@ -1,0 +1,201 @@
+description: "Arithmetic operators (+, -, *, /, %) with all type combos, division/modulo by zero, null errors"
+
+tests:
+  # --- Addition ---
+
+  - name: "add int64 + int64"
+    mapping: |
+      output.result = 5 + 3
+    output: {"result": 8}
+
+  - name: "add float64 + float64"
+    mapping: |
+      output.result = 2.5 + 3.5
+    output: {"result": 6.0}
+
+  - name: "add int32 + int32 stays int32"
+    mapping: |
+      output.result = 5.int32() + 3.int32()
+    output: {"result": {_type: "int32", value: "8"}}
+
+  - name: "add uint64 + uint64 stays uint64"
+    mapping: |
+      output.result = 10.uint64() + 20.uint64()
+    output: {"result": {_type: "uint64", value: "30"}}
+
+  - name: "add float32 + float32 stays float32"
+    mapping: |
+      output.result = 1.5.float32() + 2.5.float32()
+    output: {"result": {_type: "float32", value: "4.0"}}
+
+  # --- Subtraction ---
+
+  - name: "subtract int64 - int64"
+    mapping: |
+      output.result = 10 - 3
+    output: {"result": 7}
+
+  - name: "subtract resulting in negative int64"
+    mapping: |
+      output.result = 3 - 10
+    output: {"result": -7}
+
+  # --- Multiplication ---
+
+  - name: "multiply int64 * int64"
+    mapping: |
+      output.result = 6 * 7
+    output: {"result": 42}
+
+  - name: "multiply float64 * float64"
+    mapping: |
+      output.result = 2.5 * 4.0
+    output: {"result": 10.0}
+
+  # --- Division (always produces float) ---
+
+  - name: "divide int64 / int64 produces float64"
+    mapping: |
+      output.result = 7 / 2
+    output: {"result": 3.5}
+
+  - name: "divide int64 / int64 exact still produces float64"
+    mapping: |
+      output.result = 10 / 2
+    output: {"result": 5.0}
+
+  - name: "divide float32 / float32 produces float32"
+    mapping: |
+      output.result = 10.0.float32() / 4.0.float32()
+    output: {"result": {_type: "float32", value: "2.5"}}
+
+  - name: "divide int32 / int32 produces float64 not int"
+    mapping: |
+      output.result = 7.int32() / 2.int32()
+    output: {"result": 3.5}
+
+  - name: "divide negative int64"
+    mapping: |
+      output.result = -7 / 2
+    output: {"result": -3.5}
+
+  - name: "chained division is left-associative"
+    mapping: |
+      output.result = 20 / 4 / 2
+    output: {"result": 2.5}
+
+  # --- Modulo (follows standard promotion, NOT division rule) ---
+
+  - name: "modulo int64 % int64 produces int64"
+    mapping: |
+      output.result = 7 % 2
+    output: {"result": 1}
+
+  - name: "modulo float64 % float64 (fmod)"
+    mapping: |
+      output.result = 7.5 % 2.0
+    output: {"result": 1.5}
+
+  - name: "modulo int64 % float64 promotes to float64"
+    mapping: |
+      output.result = 7 % 2.0
+    output: {"result": 1.0}
+
+  - name: "modulo negative dividend (truncated division remainder)"
+    mapping: |
+      output.result = -7 % 2
+    output: {"result": -1}
+
+  - name: "modulo negative float dividend (fmod semantics)"
+    mapping: |
+      output.result = -7.5 % 2.0
+    output: {"result": -1.5}
+
+  # --- Division by zero ---
+
+  - name: "division by zero int64"
+    mapping: |
+      output.result = 7 / 0
+    error: "division by zero"
+
+  - name: "division by zero float64 (no Infinity)"
+    mapping: |
+      output.result = 7.0 / 0.0
+    error: "division by zero"
+
+  # --- Modulo by zero ---
+
+  - name: "modulo by zero int64"
+    mapping: |
+      output.result = 7 % 0
+    error: "modulo by zero"
+
+  - name: "modulo by zero float64"
+    mapping: |
+      output.result = 7.0 % 0.0
+    error: "modulo by zero"
+
+  # --- Integer overflow ---
+
+  - name: "int64 addition overflow"
+    mapping: |
+      output.result = 9223372036854775807 + 1
+    error: "overflow"
+
+  - name: "int64 multiplication overflow"
+    mapping: |
+      output.result = 9223372036854775807 * 2
+    error: "overflow"
+
+  - name: "int32 overflow"
+    mapping: |
+      output.result = 2147483647.int32() + 1.int32()
+    error: "overflow"
+
+  - name: "uint64 no overflow where int64 would"
+    mapping: |
+      output.result = 9223372036854775807.uint64() + 1.uint64()
+    output: {"result": {_type: "uint64", value: "9223372036854775808"}}
+
+  # --- Null in arithmetic ---
+
+  - name: "null + int64 error"
+    mapping: |
+      output.result = null + 5
+    error: "cannot add"
+
+  - name: "null * int64 error"
+    mapping: |
+      output.result = null * 5
+    error: "arithmetic"
+
+  # --- Non-numeric operands ---
+
+  - name: "int64 + string error"
+    mapping: |
+      output.result = 5 + "3"
+    error: "cannot add"
+
+  - name: "int64 * bool error"
+    mapping: |
+      output.result = 5 * true
+    error: "arithmetic"
+
+  - name: "string - string error"
+    mapping: |
+      output.result = "hello" - "world"
+    error: "arithmetic"
+
+  # --- NaN and Infinity arithmetic ---
+
+  - name: "NaN + float64 produces NaN"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      output.result = input.val + 1.0
+    output: {"result": {_type: "float64", value: "NaN"}}
+
+  - name: "Infinity + float64 stays Infinity"
+    input: {val: {_type: "float64", value: "Infinity"}}
+    mapping: |
+      output.result = input.val + 1.0
+    output: {"result": {_type: "float64", value: "Infinity"}}

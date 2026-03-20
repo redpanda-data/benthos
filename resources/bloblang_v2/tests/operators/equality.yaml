@@ -1,0 +1,218 @@
+description: "Equality operators (==, !=) for all type combos, NaN, -0, cross-family, collections"
+
+tests:
+  # --- Numeric equality (same type) ---
+
+  - name: "int64 == int64 true"
+    mapping: |
+      output.result = 5 == 5
+    output: {"result": true}
+
+  - name: "int64 != int64 true"
+    mapping: |
+      output.result = 5 != 6
+    output: {"result": true}
+
+  # --- Numeric equality with promotion ---
+
+  - name: "int64 == float64 with promotion true"
+    mapping: |
+      output.result = 5 == 5.0
+    output: {"result": true}
+
+  - name: "int64 == float64 with promotion false"
+    mapping: |
+      output.result = 5 == 5.5
+    output: {"result": false}
+
+  - name: "int32 == int64 with promotion true"
+    mapping: |
+      output.result = 5.int32() == 5
+    output: {"result": true}
+
+  - name: "uint32 == int64 with promotion true"
+    mapping: |
+      output.result = 42.uint32() == 42
+    output: {"result": true}
+
+  # --- String equality ---
+
+  - name: "string == string true"
+    mapping: |
+      output.result = "hello" == "hello"
+    output: {"result": true}
+
+  - name: "empty string == empty string"
+    mapping: |
+      output.result = "" == ""
+    output: {"result": true}
+
+  # --- Boolean equality ---
+
+  - name: "true == true"
+    mapping: |
+      output.result = true == true
+    output: {"result": true}
+
+  - name: "true == false"
+    mapping: |
+      output.result = true == false
+    output: {"result": false}
+
+  # --- Null equality ---
+
+  - name: "null == null true"
+    mapping: |
+      output.result = null == null
+    output: {"result": true}
+
+  - name: "null != null false"
+    mapping: |
+      output.result = null != null
+    output: {"result": false}
+
+  # --- Cross-family: always false, NOT error ---
+
+  - name: "int64 == string is false (not error)"
+    mapping: |
+      output.result = 5 == "5"
+    output: {"result": false}
+
+  - name: "int64 != string is true"
+    mapping: |
+      output.result = 5 != "5"
+    output: {"result": true}
+
+  - name: "bool == int64 is false"
+    mapping: |
+      output.result = true == 1
+    output: {"result": false}
+
+  - name: "null == int64 is false"
+    mapping: |
+      output.result = null == 0
+    output: {"result": false}
+
+  - name: "string == bytes is false"
+    mapping: |
+      output.result = "hello" == "hello".bytes()
+    output: {"result": false}
+
+  # --- NaN equality ---
+
+  - name: "NaN == NaN is false"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      output.result = input.val == input.val
+    output: {"result": false}
+
+  - name: "NaN != NaN is true"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      output.result = input.val != input.val
+    output: {"result": true}
+
+  # --- Negative zero ---
+
+  - name: "-0.0 == 0.0 is true"
+    input: {val: {_type: "float64", value: "-0.0"}}
+    mapping: |
+      output.result = input.val == 0.0
+    output: {"result": true}
+
+  # --- Infinity equality ---
+
+  - name: "Infinity == Infinity is true"
+    input: {val: {_type: "float64", value: "Infinity"}}
+    mapping: |
+      output.result = input.val == input.val
+    output: {"result": true}
+
+  - name: "Infinity != negative Infinity"
+    input:
+      a: {_type: "float64", value: "Infinity"}
+      b: {_type: "float64", value: "-Infinity"}
+    mapping: |
+      output.result = input.a != input.b
+    output: {"result": true}
+
+  # --- Bytes equality ---
+
+  - name: "bytes == bytes true"
+    mapping: |
+      output.result = "hello".bytes() == "hello".bytes()
+    output: {"result": true}
+
+  # --- Timestamp equality ---
+
+  - name: "same timestamp == true"
+    input:
+      a: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
+      b: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
+    mapping: |
+      output.result = input.a == input.b
+    output: {"result": true}
+
+  - name: "different timestamp != true"
+    input:
+      a: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
+      b: {_type: "timestamp", value: "2024-06-15T10:30:00Z"}
+    mapping: |
+      output.result = input.a != input.b
+    output: {"result": true}
+
+  # --- Array equality ---
+
+  - name: "array == array same order true"
+    mapping: |
+      output.result = [1, 2, 3] == [1, 2, 3]
+    output: {"result": true}
+
+  - name: "array == array different order false (order matters)"
+    mapping: |
+      output.result = [1, 2, 3] == [3, 2, 1]
+    output: {"result": false}
+
+  - name: "array == array different length false"
+    mapping: |
+      output.result = [1, 2] == [1, 2, 3]
+    output: {"result": false}
+
+  - name: "empty array == empty array true"
+    mapping: |
+      output.result = [] == []
+    output: {"result": true}
+
+  # --- Object equality (order-independent) ---
+
+  - name: "object == object same keys true"
+    mapping: |
+      output.result = {"a": 1, "b": 2} == {"a": 1, "b": 2}
+    output: {"result": true}
+
+  - name: "object == object different key order still true"
+    mapping: |
+      output.result = {"a": 1, "b": 2} == {"b": 2, "a": 1}
+    output: {"result": true}
+
+  - name: "object == object different values false"
+    mapping: |
+      output.result = {"a": 1, "b": 2} == {"a": 1, "b": 3}
+    output: {"result": false}
+
+  - name: "empty object == empty object true"
+    mapping: |
+      output.result = {} == {}
+    output: {"result": true}
+
+  - name: "nested object deep equality"
+    mapping: |
+      output.result = {"a": {"x": 1}} == {"a": {"x": 1}}
+    output: {"result": true}
+
+  # --- Non-associative chaining is compile error ---
+
+  - name: "chained equality is compile error"
+    mapping: |
+      output.result = 1 == 1 == true
+    compile_error: "cannot chain"

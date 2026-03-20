@@ -1,0 +1,141 @@
+description: "Named arguments: syntax, order independence, mixing error, duplicate error, unknown arg error"
+
+tests:
+  # --- Basic named argument syntax ---
+
+  - name: "single named argument"
+    mapping: |
+      map double(x) { x * 2 }
+      output.v = double(x: 21)
+    output: {"v": 42}
+
+  - name: "two named arguments"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 10, b: 20)
+    output: {"v": 30}
+
+  - name: "three named arguments"
+    mapping: |
+      map calc(x, y, z) { x + y * z }
+      output.v = calc(x: 1, y: 2, z: 3)
+    output: {"v": 7}
+
+  # --- Order independence ---
+
+  - name: "named arguments in reverse order"
+    mapping: |
+      map sub(a, b) { a - b }
+      output.v = sub(b: 3, a: 10)
+    output: {"v": 7}
+
+  - name: "named arguments in arbitrary order"
+    mapping: |
+      map calc(x, y, z) { x + y * z }
+      output.v = calc(z: 3, x: 1, y: 2)
+    output: {"v": 7}
+
+  - name: "named arguments shuffled with three params"
+    mapping: |
+      map join(sep, first, second) {
+        first + sep + second
+      }
+      output.v = join(first: "hello", second: "world", sep: " ")
+    output: {"v": "hello world"}
+
+  # --- Named with defaults ---
+
+  - name: "named args with some defaults omitted"
+    mapping: |
+      map tag(value, prefix = "item", suffix = "end") {
+        prefix + ":" + value + ":" + suffix
+      }
+      output.v = tag(value: "foo")
+    output: {"v": "item:foo:end"}
+
+  - name: "named args override specific default"
+    mapping: |
+      map tag(value, prefix = "item", suffix = "end") {
+        prefix + ":" + value + ":" + suffix
+      }
+      output.v = tag(value: "foo", suffix: "done")
+    output: {"v": "item:foo:done"}
+
+  - name: "named args override all defaults"
+    mapping: |
+      map tag(value, prefix = "item", suffix = "end") {
+        prefix + ":" + value + ":" + suffix
+      }
+      output.v = tag(value: "foo", prefix: "x", suffix: "y")
+    output: {"v": "x:foo:y"}
+
+  # --- Mixing positional and named is compile error ---
+
+  - name: "mixing positional and named arguments is compile error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(1, b: 2)
+    compile_error: "mix"
+
+  - name: "mixing named then positional is compile error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1, 2)
+    compile_error: "mix"
+
+  # --- Duplicate named argument is compile error ---
+
+  - name: "duplicate named argument is compile error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1, a: 2)
+    compile_error: "duplicate"
+
+  - name: "duplicate named argument second param is compile error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1, b: 2, b: 3)
+    compile_error: "duplicate"
+
+  # --- Unknown named argument is error ---
+
+  - name: "unknown named argument is error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1, c: 2)
+    compile_error: "unknown"
+
+  - name: "all unknown named arguments is error"
+    mapping: |
+      map identity(x) { x }
+      output.v = identity(y: 42)
+    compile_error: "unknown"
+
+  # --- Missing required named argument is error ---
+
+  - name: "missing required named argument is error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1)
+    compile_error: "arity"
+
+  - name: "missing all required named arguments is error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add()
+    compile_error: "arity"
+
+  # --- Named arguments with expressions ---
+
+  - name: "named argument values can be expressions"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 3 * 2, b: 10 - 3)
+    output: {"v": 13}
+
+  - name: "named argument values from input"
+    input: {"x": 5, "y": 10}
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: input.x, b: input.y)
+    output: {"v": 15}

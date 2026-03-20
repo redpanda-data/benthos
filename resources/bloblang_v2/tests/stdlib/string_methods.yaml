@@ -1,0 +1,267 @@
+description: "String methods: uppercase, lowercase, trim, trim_prefix, trim_suffix, has_prefix, has_suffix, split, replace_all, repeat"
+
+tests:
+  # --- .uppercase() ---
+
+  - name: "uppercase basic"
+    mapping: |
+      output = "hello world".uppercase()
+    output: "HELLO WORLD"
+
+  - name: "uppercase already uppercase"
+    mapping: |
+      output = "HELLO".uppercase()
+    output: "HELLO"
+
+  - name: "uppercase empty string"
+    mapping: |
+      output = "".uppercase()
+    output: ""
+
+  - name: "uppercase mixed case"
+    mapping: |
+      output = "hElLo".uppercase()
+    output: "HELLO"
+
+  - name: "uppercase non-ascii"
+    mapping: |
+      output = "caf\u00E9".uppercase()
+    output: "CAF\u00C9"
+
+  # --- .lowercase() ---
+
+  - name: "lowercase basic"
+    mapping: |
+      output = "HELLO WORLD".lowercase()
+    output: "hello world"
+
+  - name: "lowercase already lowercase"
+    mapping: |
+      output = "hello".lowercase()
+    output: "hello"
+
+  - name: "lowercase empty string"
+    mapping: |
+      output = "".lowercase()
+    output: ""
+
+  - name: "lowercase mixed case"
+    mapping: |
+      output = "HeLLo".lowercase()
+    output: "hello"
+
+  # --- .trim() ---
+
+  - name: "trim spaces"
+    mapping: |
+      output = "  hello  ".trim()
+    output: "hello"
+
+  - name: "trim tabs and newlines"
+    mapping: |
+      output = "\t\nhello\n\t".trim()
+    output: "hello"
+
+  - name: "trim no whitespace unchanged"
+    mapping: |
+      output = "hello".trim()
+    output: "hello"
+
+  - name: "trim empty string"
+    mapping: |
+      output = "".trim()
+    output: ""
+
+  - name: "trim only whitespace"
+    mapping: |
+      output = "   \t\n  ".trim()
+    output: ""
+
+  # --- .trim_prefix() ---
+
+  - name: "trim_prefix present"
+    mapping: |
+      output = "hello world".trim_prefix("hello ")
+    output: "world"
+
+  - name: "trim_prefix absent"
+    mapping: |
+      output = "hello world".trim_prefix("xyz")
+    output: "hello world"
+
+  - name: "trim_prefix empty prefix"
+    mapping: |
+      output = "hello".trim_prefix("")
+    output: "hello"
+
+  - name: "trim_prefix entire string"
+    mapping: |
+      output = "hello".trim_prefix("hello")
+    output: ""
+
+  - name: "trim_prefix only removes first occurrence"
+    mapping: |
+      output = "aaa".trim_prefix("a")
+    output: "aa"
+
+  # --- .trim_suffix() ---
+
+  - name: "trim_suffix present"
+    mapping: |
+      output = "hello world".trim_suffix(" world")
+    output: "hello"
+
+  - name: "trim_suffix absent"
+    mapping: |
+      output = "hello world".trim_suffix("xyz")
+    output: "hello world"
+
+  - name: "trim_suffix empty suffix"
+    mapping: |
+      output = "hello".trim_suffix("")
+    output: "hello"
+
+  - name: "trim_suffix entire string"
+    mapping: |
+      output = "hello".trim_suffix("hello")
+    output: ""
+
+  # --- .has_prefix() ---
+
+  - name: "has_prefix true"
+    mapping: |
+      output = "hello world".has_prefix("hello")
+    output: true
+
+  - name: "has_prefix false"
+    mapping: |
+      output = "hello world".has_prefix("world")
+    output: false
+
+  - name: "has_prefix empty prefix is always true"
+    mapping: |
+      output = "hello".has_prefix("")
+    output: true
+
+  - name: "has_prefix exact match"
+    mapping: |
+      output = "hello".has_prefix("hello")
+    output: true
+
+  # --- .has_suffix() ---
+
+  - name: "has_suffix true"
+    mapping: |
+      output = "hello world".has_suffix("world")
+    output: true
+
+  - name: "has_suffix false"
+    mapping: |
+      output = "hello world".has_suffix("hello")
+    output: false
+
+  - name: "has_suffix empty suffix is always true"
+    mapping: |
+      output = "hello".has_suffix("")
+    output: true
+
+  - name: "has_suffix exact match"
+    mapping: |
+      output = "hello".has_suffix("hello")
+    output: true
+
+  # --- .split() ---
+
+  - name: "split by comma"
+    mapping: |
+      output = "a,b,c".split(",")
+    output: ["a", "b", "c"]
+
+  - name: "split no delimiter found"
+    mapping: |
+      output = "hello".split(",")
+    output: ["hello"]
+
+  - name: "split empty string by comma"
+    mapping: |
+      output = "".split(",")
+    output: [""]
+
+  - name: "split empty string by empty string"
+    mapping: |
+      output = "".split("")
+    output: []
+
+  - name: "split by empty string produces codepoints"
+    mapping: |
+      output = "hello".split("")
+    output: ["h", "e", "l", "l", "o"]
+
+  - name: "split by empty string with non-ascii"
+    mapping: |
+      output = "caf\u00E9".split("")
+    output: ["c", "a", "f", "\u00E9"]
+
+  - name: "split with multi-char delimiter"
+    mapping: |
+      output = "one::two::three".split("::")
+    output: ["one", "two", "three"]
+
+  - name: "split trailing delimiter"
+    mapping: |
+      output = "a,b,".split(",")
+    output: ["a", "b", ""]
+
+  # --- .replace_all() ---
+
+  - name: "replace_all basic"
+    mapping: |
+      output = "hello world".replace_all("world", "earth")
+    output: "hello earth"
+
+  - name: "replace_all multiple occurrences"
+    mapping: |
+      output = "aabaa".replace_all("a", "x")
+    output: "xxbxx"
+
+  - name: "replace_all no match"
+    mapping: |
+      output = "hello".replace_all("xyz", "abc")
+    output: "hello"
+
+  - name: "replace_all empty old with new"
+    mapping: |
+      output = "ab".replace_all("", "-")
+    output: "-a-b-"
+
+  - name: "replace_all remove substring"
+    mapping: |
+      output = "hello world".replace_all(" world", "")
+    output: "hello"
+
+  # --- .repeat() ---
+
+  - name: "repeat basic"
+    mapping: |
+      output = "ab".repeat(3)
+    output: "ababab"
+
+  - name: "repeat zero times"
+    mapping: |
+      output = "hello".repeat(0)
+    output: ""
+
+  - name: "repeat one time"
+    mapping: |
+      output = "hello".repeat(1)
+    output: "hello"
+
+  - name: "repeat negative count is error"
+    mapping: |
+      output = "hello".repeat(-1)
+    error: "count"
+
+  - name: "repeat empty string"
+    mapping: |
+      output = "".repeat(5)
+    output: ""

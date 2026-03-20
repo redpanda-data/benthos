@@ -1,0 +1,185 @@
+description: "If as statement — standalone with output assignments, empty body, else-if, trailing expression error"
+
+tests:
+  # --- Basic if statement with output assignment ---
+
+  - name: "if statement assigns to output when true"
+    input: {"type": "user"}
+    mapping: |
+      if input.type == "user" {
+        output.role = "member"
+      }
+    output: {"role": "member"}
+
+  - name: "if statement skips body when false"
+    input: {"type": "guest"}
+    mapping: |
+      if input.type == "user" {
+        output.role = "member"
+      }
+    output: {}
+
+  - name: "if statement with multiple output assignments"
+    input: {"type": "admin"}
+    mapping: |
+      if input.type == "admin" {
+        output.role = "admin"
+        output.level = 10
+      }
+    output: {"role": "admin", "level": 10}
+
+  # --- Empty body is valid no-op ---
+
+  - name: "empty if body is valid no-op"
+    mapping: |
+      if true { }
+      output.x = "after"
+    output: {"x": "after"}
+
+  - name: "empty else body is valid no-op"
+    mapping: |
+      if false {
+        output.x = "then"
+      } else { }
+    output: {}
+
+  # --- If-else statement ---
+
+  - name: "if-else statement selects correct branch"
+    input: {"type": "admin"}
+    mapping: |
+      if input.type == "admin" {
+        output.role = "admin"
+      } else {
+        output.role = "user"
+      }
+    output: {"role": "admin"}
+
+  - name: "if-else statement takes else branch"
+    input: {"type": "guest"}
+    mapping: |
+      if input.type == "admin" {
+        output.role = "admin"
+      } else {
+        output.role = "user"
+      }
+    output: {"role": "user"}
+
+  # --- Else-if chains ---
+
+  - name: "else-if chain selects middle branch"
+    input: {"type": "mod"}
+    mapping: |
+      if input.type == "admin" {
+        output.role = "admin"
+        output.permissions = ["read", "write", "delete"]
+      } else if input.type == "mod" {
+        output.role = "moderator"
+        output.permissions = ["read", "write"]
+      } else {
+        output.role = "user"
+        output.permissions = ["read"]
+      }
+    output: {"role": "moderator", "permissions": ["read", "write"]}
+
+  - name: "else-if chain falls to else"
+    input: {"type": "visitor"}
+    mapping: |
+      if input.type == "admin" {
+        output.role = "admin"
+      } else if input.type == "mod" {
+        output.role = "moderator"
+      } else {
+        output.role = "user"
+      }
+    output: {"role": "user"}
+
+  - name: "else-if without final else — no branch matches is no-op"
+    input: {"type": "visitor"}
+    mapping: |
+      if input.type == "admin" {
+        output.role = "admin"
+      } else if input.type == "mod" {
+        output.role = "moderator"
+      }
+    output: {}
+
+  # --- Statement context modifies outer variables ---
+
+  - name: "if statement modifies outer variable"
+    mapping: |
+      $x = 10
+      if true {
+        $x = 20
+      }
+      output.result = $x
+    output: {"result": 20}
+
+  - name: "if statement does not modify outer variable when false"
+    mapping: |
+      $x = 10
+      if false {
+        $x = 20
+      }
+      output.result = $x
+    output: {"result": 10}
+
+  # --- New variables in if statement are block-scoped ---
+
+  - name: "new variable in if statement body not visible outside"
+    mapping: |
+      if true {
+        $local = 42
+      }
+      output.result = $local
+    compile_error: "local"
+
+  # --- Trailing expression in statement body is parse error ---
+
+  - name: "trailing expression in if statement is compile error"
+    mapping: |
+      if true {
+        $x = 10
+        $x + 5
+      }
+    compile_error: "expression"
+
+  - name: "bare expression as only content in if statement is compile error"
+    mapping: |
+      if true {
+        42
+      }
+    compile_error: "expression"
+
+  # --- Nested if statements ---
+
+  - name: "nested if statements"
+    input: {"type": "admin", "active": true}
+    mapping: |
+      if input.type == "admin" {
+        if input.active {
+          output.status = "active admin"
+        } else {
+          output.status = "inactive admin"
+        }
+      }
+    output: {"status": "active admin"}
+
+  # --- If statement preserves prior output ---
+
+  - name: "if statement preserves output from before"
+    mapping: |
+      output.before = "exists"
+      if true {
+        output.added = "new"
+      }
+    output: {"before": "exists", "added": "new"}
+
+  # --- Non-boolean condition error ---
+
+  - name: "non-boolean condition in if statement is error"
+    mapping: |
+      if 42 {
+        output.x = "yes"
+      }
+    error: "bool"

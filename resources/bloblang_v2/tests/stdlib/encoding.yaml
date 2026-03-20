@@ -1,0 +1,348 @@
+description: "Encoding and parsing methods: parse_json, format_json, encode, decode"
+
+tests:
+  # --- parse_json: objects ---
+
+  - name: "parse_json object"
+    mapping: |
+      output = '{"name":"Alice","age":30}'.parse_json()
+    output: {"name": "Alice", "age": 30}
+
+  - name: "parse_json empty object"
+    mapping: |
+      output = '{}'.parse_json()
+    output: {}
+
+  # --- parse_json: arrays ---
+
+  - name: "parse_json array of ints"
+    mapping: |
+      output = '[1,2,3]'.parse_json()
+    output: [1, 2, 3]
+
+  - name: "parse_json empty array"
+    mapping: |
+      output = '[]'.parse_json()
+    output: []
+
+  # --- parse_json: scalars ---
+
+  - name: "parse_json string"
+    mapping: |
+      output = '"hello"'.parse_json()
+    output: "hello"
+
+  - name: "parse_json integer is int64"
+    mapping: |
+      output = '42'.parse_json().type()
+    output: "int64"
+
+  - name: "parse_json integer value"
+    mapping: |
+      output = '42'.parse_json()
+    output: 42
+
+  - name: "parse_json float with decimal is float64"
+    mapping: |
+      output = '3.14'.parse_json().type()
+    output: "float64"
+
+  - name: "parse_json float value"
+    mapping: |
+      output = '3.14'.parse_json()
+    output: 3.14
+
+  - name: "parse_json exponent is float64"
+    mapping: |
+      output = '1e3'.parse_json().type()
+    output: "float64"
+
+  - name: "parse_json exponent value"
+    mapping: |
+      output = '1e3'.parse_json()
+    output: 1000.0
+
+  - name: "parse_json boolean true"
+    mapping: |
+      output = 'true'.parse_json()
+    output: true
+
+  - name: "parse_json boolean false"
+    mapping: |
+      output = 'false'.parse_json()
+    output: false
+
+  - name: "parse_json null"
+    mapping: |
+      output = 'null'.parse_json()
+    output: null
+
+  - name: "parse_json negative integer"
+    mapping: |
+      output = '-100'.parse_json()
+    output: -100
+
+  - name: "parse_json zero integer"
+    mapping: |
+      output = '0'.parse_json()
+    output: 0
+
+  # --- parse_json: errors ---
+
+  - name: "parse_json invalid json"
+    mapping: |
+      output = 'not json'.parse_json()
+    error: "parse"
+
+  - name: "parse_json empty string"
+    mapping: |
+      output = ''.parse_json()
+    error: "parse"
+
+  - name: "parse_json truncated object"
+    mapping: |
+      output = '{"name":'.parse_json()
+    error: "parse"
+
+  # --- format_json: basic ---
+
+  - name: "format_json object keys sorted"
+    mapping: |
+      output = {"b": 2, "a": 1}.format_json()
+    output: '{"a":1,"b":2}'
+
+  - name: "format_json array"
+    mapping: |
+      output = [1, 2, 3].format_json()
+    output: "[1,2,3]"
+
+  - name: "format_json string"
+    mapping: |
+      output = "hello".format_json()
+    output: '"hello"'
+
+  - name: "format_json integer"
+    mapping: |
+      output = 42.format_json()
+    output: "42"
+
+  - name: "format_json boolean"
+    mapping: |
+      output = true.format_json()
+    output: "true"
+
+  - name: "format_json null"
+    mapping: |
+      output = null.format_json()
+    output: "null"
+
+  - name: "format_json empty object"
+    mapping: |
+      output = {}.format_json()
+    output: "{}"
+
+  - name: "format_json empty array"
+    mapping: |
+      output = [].format_json()
+    output: "[]"
+
+  # --- format_json: indent ---
+
+  - name: "format_json with two-space indent"
+    mapping: |
+      output = {"a": 1}.format_json(indent: "  ")
+    output: "{\n  \"a\": 1\n}"
+
+  - name: "format_json with tab indent"
+    mapping: |
+      output = {"a": 1}.format_json(indent: "\t")
+    output: "{\n\t\"a\": 1\n}"
+
+  # --- format_json: escape_html ---
+
+  - name: "format_json escapes html by default"
+    mapping: |
+      output = {"html": "<b>hi</b>"}.format_json()
+    output: '{"html":"\u003cb\u003ehi\u003c/b\u003e"}'
+
+  - name: "format_json escape_html false"
+    mapping: |
+      output = {"html": "<b>hi</b>"}.format_json(escape_html: false)
+    output: '{"html":"<b>hi</b>"}'
+
+  # --- format_json: timestamps ---
+
+  - name: "format_json timestamp as RFC 3339"
+    mapping: |
+      output = timestamp(2024, 1, 15, 10, 30, 0).format_json()
+    output: '"2024-01-15T10:30:00Z"'
+
+  # --- format_json: errors ---
+
+  - name: "format_json bytes is error"
+    mapping: |
+      output = "hello".bytes().format_json()
+    error: "bytes"
+
+  - name: "format_json nested bytes is error"
+    mapping: |
+      output = {"data": "hello".bytes()}.format_json()
+    error: "bytes"
+
+  - name: "format_json NaN is error"
+    mapping: |
+      output = input.nan.format_json()
+    input: {nan: {_type: "float64", value: "NaN"}}
+    error: "NaN"
+
+  - name: "format_json Infinity is error"
+    mapping: |
+      output = input.inf.format_json()
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    error: "Infinity"
+
+  # --- format_json / parse_json round-trip ---
+
+  - name: "format then parse round-trip object"
+    mapping: |
+      $obj = {"name": "Alice", "age": 30}
+      output = $obj.format_json().parse_json()
+    output: {"name": "Alice", "age": 30}
+
+  - name: "format then parse round-trip array"
+    mapping: |
+      $arr = [1, "two", true, null]
+      output = $arr.format_json().parse_json()
+    output: [1, "two", true, null]
+
+  # --- encode: base64 ---
+
+  - name: "encode base64 from string"
+    mapping: |
+      output = "hello".encode("base64")
+    output: "aGVsbG8="
+
+  - name: "encode base64 from bytes"
+    mapping: |
+      output = "hello".bytes().encode("base64")
+    output: "aGVsbG8="
+
+  - name: "encode base64 empty string"
+    mapping: |
+      output = "".encode("base64")
+    output: ""
+
+  # --- encode: base64url ---
+
+  - name: "encode base64url"
+    mapping: |
+      output = "hello?world>".encode("base64url")
+    output: "aGVsbG8/d29ybGQ+"
+
+  # --- encode: base64rawurl ---
+
+  - name: "encode base64rawurl no padding"
+    mapping: |
+      output = "hello".encode("base64rawurl")
+    output: "aGVsbG8"
+
+  # --- encode: hex ---
+
+  - name: "encode hex from string"
+    mapping: |
+      output = "hello".encode("hex")
+    output: "68656c6c6f"
+
+  - name: "encode hex from bytes"
+    mapping: |
+      output = "hello".bytes().encode("hex")
+    output: "68656c6c6f"
+
+  - name: "encode hex empty"
+    mapping: |
+      output = "".encode("hex")
+    output: ""
+
+  # --- decode: base64 ---
+
+  - name: "decode base64 returns bytes"
+    mapping: |
+      output = "aGVsbG8=".decode("base64").type()
+    output: "bytes"
+
+  - name: "decode base64 to string"
+    mapping: |
+      output = "aGVsbG8=".decode("base64").string()
+    output: "hello"
+
+  # --- decode: base64url ---
+
+  - name: "decode base64url to string"
+    mapping: |
+      output = "aGVsbG8_d29ybGQ-".decode("base64url").string()
+    output: "hello?world>"
+
+  # --- decode: base64rawurl ---
+
+  - name: "decode base64rawurl to string"
+    mapping: |
+      output = "aGVsbG8".decode("base64rawurl").string()
+    output: "hello"
+
+  # --- decode: hex ---
+
+  - name: "decode hex returns bytes"
+    mapping: |
+      output = "68656c6c6f".decode("hex").type()
+    output: "bytes"
+
+  - name: "decode hex to string"
+    mapping: |
+      output = "68656c6c6f".decode("hex").string()
+    output: "hello"
+
+  # --- decode: errors ---
+
+  - name: "decode invalid base64"
+    mapping: |
+      output = "!!!".decode("base64")
+    error: "decode"
+
+  - name: "decode invalid hex"
+    mapping: |
+      output = "zzzz".decode("hex")
+    error: "decode"
+
+  # --- encode/decode round-trips ---
+
+  - name: "base64 encode decode round-trip"
+    mapping: |
+      output = "hello world!".encode("base64").decode("base64").string()
+    output: "hello world!"
+
+  - name: "hex encode decode round-trip"
+    mapping: |
+      output = "hello world!".encode("hex").decode("hex").string()
+    output: "hello world!"
+
+  - name: "base64rawurl encode decode round-trip"
+    mapping: |
+      output = "test data".encode("base64rawurl").decode("base64rawurl").string()
+    output: "test data"
+
+  - name: "base64url encode decode round-trip"
+    mapping: |
+      output = "test data".encode("base64url").decode("base64url").string()
+    output: "test data"
+
+  # --- encode: named arg ---
+
+  - name: "encode with named scheme arg"
+    mapping: |
+      output = "hello".encode(scheme: "hex")
+    output: "68656c6c6f"
+
+  - name: "decode with named scheme arg"
+    mapping: |
+      output = "68656c6c6f".decode(scheme: "hex").string()
+    output: "hello"

@@ -1,0 +1,103 @@
+description: "Imports: basic namespace import, calling imported maps, passing arguments"
+
+files:
+  "helpers.blobl": |
+    map double(x) { x * 2 }
+    map greet(name) { "hello " + name }
+    map add(a, b) { a + b }
+    map constant() { 42 }
+
+tests:
+  # --- Basic namespace-qualified calls ---
+
+  - name: "import and call zero-param map"
+    mapping: |
+      import "helpers.blobl" as h
+      output.v = h::constant()
+    output: {"v": 42}
+
+  - name: "import and call single-param map"
+    mapping: |
+      import "helpers.blobl" as h
+      output.v = h::double(21)
+    output: {"v": 42}
+
+  - name: "import and call two-param map"
+    mapping: |
+      import "helpers.blobl" as h
+      output.v = h::add(3, 7)
+    output: {"v": 10}
+
+  - name: "import and call map with string arg"
+    mapping: |
+      import "helpers.blobl" as h
+      output.v = h::greet("world")
+    output: {"v": "hello world"}
+
+  - name: "call imported map multiple times"
+    mapping: |
+      import "helpers.blobl" as h
+      output.a = h::double(5)
+      output.b = h::double(10)
+    output: {"a": 10, "b": 20}
+
+  - name: "call multiple imported maps"
+    mapping: |
+      import "helpers.blobl" as h
+      output.sum = h::add(h::double(3), h::constant())
+    output: {"sum": 48}
+
+  # --- Import with local maps ---
+
+  - name: "imported maps coexist with local maps"
+    mapping: |
+      import "helpers.blobl" as h
+      map triple(x) { x * 3 }
+      output.v = h::double(5) + triple(2)
+    output: {"v": 16}
+
+  - name: "local map can call imported map"
+    mapping: |
+      import "helpers.blobl" as h
+      map quad(x) { h::double(h::double(x)) }
+      output.v = quad(3)
+    output: {"v": 12}
+
+  # --- Import with input data ---
+
+  - name: "imported map processes input data"
+    mapping: |
+      import "helpers.blobl" as h
+      output.v = h::double(input.x)
+    input: {"x": 7}
+    output: {"v": 14}
+
+  # --- Error cases ---
+
+  - name: "calling non-existent map in namespace is error"
+    mapping: |
+      import "helpers.blobl" as h
+      output.v = h::nonexistent(1)
+    compile_error: "nonexistent"
+
+  - name: "file not found is error"
+    mapping: |
+      import "missing.blobl" as m
+      output.v = m::foo(1)
+    compile_error: "missing"
+
+  - name: "statements in imported file are compile error"
+    files:
+      "bad_lib.blobl": |
+        $x = 42
+        map foo(a) { a + $x }
+    mapping: |
+      import "bad_lib.blobl" as lib
+      output.v = lib::foo(1)
+    compile_error: "statement"
+
+  - name: "calling imported map without namespace is compile error"
+    mapping: |
+      import "helpers.blobl" as h
+      output.v = double(5)
+    compile_error: "double"

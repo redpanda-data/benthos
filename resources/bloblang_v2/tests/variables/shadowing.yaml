@@ -1,0 +1,237 @@
+description: "Variable shadowing in expression contexts: if-expression, match expression, lambda bodies; outer unchanged; same-scope reassignment within expression"
+
+tests:
+  # --- If-expression shadows outer variable ---
+
+  - name: "if-expression shadows outer variable"
+    input: {"flag": true}
+    mapping: |
+      $value = 10
+      output.inner = if input.flag {
+        $value = 20
+        $value
+      }
+      output.outer = $value
+    output: {"inner": 20, "outer": 10}
+
+  - name: "if-expression shadow does not affect outer when condition false"
+    input: {"flag": false}
+    mapping: |
+      $value = 10
+      output.inner = if input.flag {
+        $value = 20
+        $value
+      }
+      output.outer = $value
+    output: {"outer": 10}
+
+  - name: "if-else expression shadows in both branches"
+    input: {"flag": true}
+    mapping: |
+      $x = "original"
+      output.result = if input.flag {
+        $x = "from-if"
+        $x
+      } else {
+        $x = "from-else"
+        $x
+      }
+      output.outer = $x
+    output: {"result": "from-if", "outer": "original"}
+
+  - name: "if-else expression shadow in else branch"
+    input: {"flag": false}
+    mapping: |
+      $x = "original"
+      output.result = if input.flag {
+        $x = "from-if"
+        $x
+      } else {
+        $x = "from-else"
+        $x
+      }
+      output.outer = $x
+    output: {"result": "from-else", "outer": "original"}
+
+  # --- Match expression shadows outer variable ---
+
+  - name: "match expression shadows outer variable"
+    input: {"kind": "a"}
+    mapping: |
+      $val = "outer"
+      output.result = match input.kind {
+        "a" => {
+          $val = "inner-a"
+          $val
+        },
+        _ => "default",
+      }
+      output.outer = $val
+    output: {"result": "inner-a", "outer": "outer"}
+
+  - name: "match expression shadow in different arms"
+    input: {"kind": "b"}
+    mapping: |
+      $val = "outer"
+      output.result = match input.kind {
+        "a" => {
+          $val = "inner-a"
+          $val
+        },
+        "b" => {
+          $val = "inner-b"
+          $val
+        },
+        _ => "default",
+      }
+      output.outer = $val
+    output: {"result": "inner-b", "outer": "outer"}
+
+  - name: "match expression default arm also shadows"
+    input: {"kind": "c"}
+    mapping: |
+      $val = 0
+      output.result = match input.kind {
+        "a" => {
+          $val = 1
+          $val
+        },
+        _ => {
+          $val = 99
+          $val
+        },
+      }
+      output.outer = $val
+    output: {"result": 99, "outer": 0}
+
+  # --- Same-scope reassignment within expression body ---
+
+  - name: "reassignment within if-expression body is mutation not shadow"
+    input: {"flag": true}
+    mapping: |
+      $outer = "untouched"
+      output.result = if input.flag {
+        $x = 1
+        $x = 2
+        $x = 3
+        $x
+      }
+      output.outer = $outer
+    output: {"result": 3, "outer": "untouched"}
+
+  - name: "reassignment within match-expression body is mutation"
+    input: {"kind": "a"}
+    mapping: |
+      output.result = match input.kind {
+        "a" => {
+          $acc = 0
+          $acc = $acc + 10
+          $acc = $acc + 20
+          $acc
+        },
+        _ => 0,
+      }
+    output: {"result": 30}
+
+  # --- New variables in expression block are block-scoped ---
+
+  - name: "new variable in if-expression not visible outside"
+    input: {"flag": true}
+    mapping: |
+      output.result = if input.flag {
+        $local = 42
+        $local
+      }
+      output.after = $local
+    compile_error: "undeclared"
+
+  - name: "new variable in match-expression not visible outside"
+    mapping: |
+      output.result = match "a" {
+        "a" => {
+          $inner = "found"
+          $inner
+        },
+        _ => "default",
+      }
+      output.after = $inner
+    compile_error: "undeclared"
+
+  # --- Nested expression contexts ---
+
+  - name: "nested if-expressions each shadow independently"
+    input: {"a": true, "b": true}
+    mapping: |
+      $x = "top"
+      output.inner = if input.a {
+        $x = "level1"
+        output.nested = if input.b {
+          $x = "level2"
+          $x
+        }
+        $x
+      }
+      output.outer = $x
+    output: {"nested": "level2", "inner": "level1", "outer": "top"}
+
+  - name: "shadow does not leak between sibling expressions"
+    input: {"flag": true}
+    mapping: |
+      $x = "original"
+      output.first = if input.flag {
+        $x = "first"
+        $x
+      }
+      output.second = if input.flag {
+        $x
+      }
+      output.outer = $x
+    output: {"first": "first", "second": "original", "outer": "original"}
+
+  # --- Lambda expression context shadows ---
+
+  - name: "lambda body shadows outer variable"
+    mapping: |
+      $x = "outer"
+      output.result = [1, 2, 3].map(n -> {
+        $x = n * 10
+        $x
+      })
+      output.outer = $x
+    output: {"result": [10, 20, 30], "outer": "outer"}
+
+  # --- Map body expression context shadows ---
+
+  - name: "map body shadows outer variable via expression context"
+    mapping: |
+      map add_label(data) {
+        $tag = "inner"
+        {"value": data, "tag": $tag}
+      }
+      $tag = "outer"
+      output.result = add_label(42)
+      output.tag = $tag
+    output: {"result": {"value": 42, "tag": "inner"}, "tag": "outer"}
+
+  # --- Expression context: outer variable read but not mutated ---
+
+  - name: "expression reads outer variable without mutating it"
+    input: {"flag": true}
+    mapping: |
+      $base = 100
+      output.result = if input.flag {
+        $base + 50
+      }
+      output.base = $base
+    output: {"result": 150, "base": 100}
+
+  - name: "match expression reads outer variable without mutating it"
+    input: {"multiplier": 3}
+    mapping: |
+      $base = 10
+      output.result = match input.multiplier {
+        3 => $base * 3,
+        _ => $base,
+      }
+      output.base = $base
+    output: {"result": 30, "base": 10}

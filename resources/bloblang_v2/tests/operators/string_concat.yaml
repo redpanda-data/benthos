@@ -1,0 +1,201 @@
+description: "String and bytes concatenation with + operator — same-type concat, cross-type errors, explicit conversion"
+
+tests:
+  # --- String + String ---
+  - name: "concat_two_strings"
+    mapping: |
+      output = "hello" + " world"
+    output: "hello world"
+
+  - name: "concat_empty_left"
+    mapping: |
+      output = "" + "world"
+    output: "world"
+
+  - name: "concat_empty_right"
+    mapping: |
+      output = "hello" + ""
+    output: "hello"
+
+  - name: "concat_both_empty"
+    mapping: |
+      output = "" + ""
+    output: ""
+
+  - name: "concat_multiple_strings"
+    mapping: |
+      output = "a" + "b" + "c"
+    output: "abc"
+
+  - name: "concat_unicode_strings"
+    mapping: |
+      output = "café" + " ☕"
+    output: "café ☕"
+
+  - name: "concat_emoji_strings"
+    mapping: |
+      output = "hello " + "😀"
+    output: "hello 😀"
+
+  - name: "concat_with_escape_sequences"
+    mapping: |
+      output = "line1\n" + "line2"
+    output: "line1\nline2"
+
+  - name: "concat_from_input"
+    mapping: |
+      output = input.first + " " + input.last
+    input: {"first": "John", "last": "Doe"}
+    output: "John Doe"
+
+  # --- Bytes + Bytes ---
+  - name: "concat_two_bytes"
+    mapping: |
+      output = "hello".bytes() + " world".bytes()
+    output: {_type: "bytes", value: "aGVsbG8gd29ybGQ="}
+
+  - name: "concat_empty_bytes_left"
+    mapping: |
+      output = "".bytes() + "world".bytes()
+    output: {_type: "bytes", value: "d29ybGQ="}
+
+  - name: "concat_empty_bytes_right"
+    mapping: |
+      output = "hello".bytes() + "".bytes()
+    output: {_type: "bytes", value: "aGVsbG8="}
+
+  - name: "concat_both_empty_bytes"
+    mapping: |
+      output = "".bytes() + "".bytes()
+    output: {_type: "bytes", value: ""}
+
+  - name: "concat_multiple_bytes"
+    mapping: |
+      output = "a".bytes() + "b".bytes() + "c".bytes()
+    output: {_type: "bytes", value: "YWJj"}
+
+  # --- Cross-type errors: string + number ---
+  - name: "string_plus_int"
+    mapping: |
+      output = "count: " + 5
+    error: "cannot add"
+
+  - name: "int_plus_string"
+    mapping: |
+      output = 5 + " items"
+    error: "cannot add"
+
+  - name: "string_plus_float"
+    mapping: |
+      output = "value: " + 3.14
+    error: "cannot add"
+
+  - name: "float_plus_string"
+    mapping: |
+      output = 3.14 + " meters"
+    error: "cannot add"
+
+  # --- Cross-type errors: string + bytes ---
+  - name: "string_plus_bytes"
+    mapping: |
+      output = "hello" + "world".bytes()
+    error: "cannot add"
+
+  - name: "bytes_plus_string"
+    mapping: |
+      output = "hello".bytes() + "world"
+    error: "cannot add"
+
+  # --- Cross-type errors: string + bool ---
+  - name: "string_plus_bool"
+    mapping: |
+      output = "flag: " + true
+    error: "cannot add"
+
+  - name: "bool_plus_string"
+    mapping: |
+      output = true + " is set"
+    error: "cannot add"
+
+  # --- Cross-type errors: string + null ---
+  - name: "string_plus_null"
+    mapping: |
+      output = "value: " + null
+    error: "cannot add"
+
+  - name: "null_plus_string"
+    mapping: |
+      output = null + "value"
+    error: "cannot add"
+
+  # --- Cross-type errors: string + array ---
+  - name: "string_plus_array"
+    mapping: |
+      output = "items: " + [1, 2, 3]
+    error: "cannot add"
+
+  # --- Cross-type errors: string + object ---
+  - name: "string_plus_object"
+    mapping: |
+      output = "data: " + {"a": 1}
+    error: "cannot add"
+
+  # --- Cross-type errors: bytes + number ---
+  - name: "bytes_plus_int"
+    mapping: |
+      output = "data".bytes() + 42
+    error: "cannot add"
+
+  - name: "int_plus_bytes"
+    mapping: |
+      output = 42 + "data".bytes()
+    error: "cannot add"
+
+  # --- Cross-type errors: bytes + bool ---
+  - name: "bytes_plus_bool"
+    mapping: |
+      output = "data".bytes() + true
+    error: "cannot add"
+
+  # --- Cross-type errors: bytes + null ---
+  - name: "bytes_plus_null"
+    mapping: |
+      output = "data".bytes() + null
+    error: "cannot add"
+
+  # --- Explicit conversion with .string() ---
+  - name: "int_to_string_concat"
+    mapping: |
+      output = 5.string() + "3"
+    output: "53"
+
+  - name: "string_concat_int_rhs_converted"
+    mapping: |
+      output = "count: " + 42.string()
+    output: "count: 42"
+
+  - name: "float_to_string_concat"
+    mapping: |
+      output = 3.14.string() + " meters"
+    output: "3.14 meters"
+
+  - name: "bool_to_string_concat"
+    mapping: |
+      output = "flag is " + true.string()
+    output: "flag is true"
+
+  - name: "null_to_string_concat"
+    mapping: |
+      output = "value is " + null.string()
+    output: "value is null"
+
+  - name: "multiple_conversions"
+    mapping: |
+      output = "sum: " + 2.string() + " + " + 3.string() + " = " + 5.string()
+    output: "sum: 2 + 3 = 5"
+
+  # --- Left-associativity of string concat ---
+  - name: "concat_left_associative"
+    mapping: |
+      output = "a" + "b" + "c" + "d"
+    output: "abcd"

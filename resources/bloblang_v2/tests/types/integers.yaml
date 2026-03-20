@@ -1,0 +1,273 @@
+description: "Integer types: int32, int64, uint32, uint64 literals, limits, and conversions"
+
+tests:
+  # --- int64 literals (default) ---
+
+  - name: "integer literal is int64"
+    mapping: |
+      output = 42.type()
+    output: "int64"
+
+  - name: "zero literal is int64"
+    mapping: |
+      output = 0.type()
+    output: "int64"
+
+  - name: "negative integer via unary minus"
+    mapping: |
+      output = (-10).type()
+    output: "int64"
+
+  - name: "negative integer value"
+    mapping: |
+      output = -10
+    output: -10
+
+  - name: "int64 max value"
+    mapping: |
+      output = 9223372036854775807
+    output: 9223372036854775807
+
+  - name: "int64 min value"
+    mapping: |
+      output = -9223372036854775808
+    output: -9223372036854775808
+
+  # --- int32 conversions ---
+
+  - name: "int32 from int64 literal"
+    mapping: |
+      output = 42.int32()
+    output: {_type: "int32", value: "42"}
+
+  - name: "int32 type check"
+    mapping: |
+      output = 42.int32().type()
+    output: "int32"
+
+  - name: "int32 from string"
+    mapping: |
+      output = "42".int32()
+    output: {_type: "int32", value: "42"}
+
+  - name: "int32 max value"
+    mapping: |
+      output = 2147483647.int32()
+    output: {_type: "int32", value: "2147483647"}
+
+  - name: "int32 min value"
+    mapping: |
+      output = (-2147483648).int32()
+    output: {_type: "int32", value: "-2147483648"}
+
+  - name: "int32 overflow positive"
+    mapping: |
+      output = 2147483648.int32()
+    error: "overflow"
+
+  - name: "int32 overflow negative"
+    mapping: |
+      output = (-2147483649).int32()
+    error: "overflow"
+
+  - name: "int32 zero"
+    mapping: |
+      output = 0.int32()
+    output: {_type: "int32", value: "0"}
+
+  - name: "int32 negative"
+    mapping: |
+      output = (-100).int32()
+    output: {_type: "int32", value: "-100"}
+
+  # --- uint32 conversions ---
+
+  - name: "uint32 from int64"
+    mapping: |
+      output = 42.uint32()
+    output: {_type: "uint32", value: "42"}
+
+  - name: "uint32 type check"
+    mapping: |
+      output = 42.uint32().type()
+    output: "uint32"
+
+  - name: "uint32 from string"
+    mapping: |
+      output = "255".uint32()
+    output: {_type: "uint32", value: "255"}
+
+  - name: "uint32 max value"
+    mapping: |
+      output = 4294967295.uint32()
+    output: {_type: "uint32", value: "4294967295"}
+
+  - name: "uint32 zero"
+    mapping: |
+      output = 0.uint32()
+    output: {_type: "uint32", value: "0"}
+
+  - name: "uint32 overflow"
+    mapping: |
+      output = 4294967296.uint32()
+    error: "overflow"
+
+  - name: "uint32 negative is error"
+    mapping: |
+      output = (-1).uint32()
+    error: "overflow"
+
+  # --- uint64 conversions ---
+
+  - name: "uint64 from int64"
+    mapping: |
+      output = 42.uint64()
+    output: {_type: "uint64", value: "42"}
+
+  - name: "uint64 type check"
+    mapping: |
+      output = 42.uint64().type()
+    output: "uint64"
+
+  - name: "uint64 from string"
+    mapping: |
+      output = "1000".uint64()
+    output: {_type: "uint64", value: "1000"}
+
+  - name: "uint64 max from string"
+    mapping: |
+      output = "18446744073709551615".uint64()
+    output: {_type: "uint64", value: "18446744073709551615"}
+
+  - name: "uint64 zero"
+    mapping: |
+      output = 0.uint64()
+    output: {_type: "uint64", value: "0"}
+
+  - name: "uint64 negative is error"
+    mapping: |
+      output = (-1).uint64()
+    error: "overflow"
+
+  - name: "uint64 max as bare literal is compile error"
+    mapping: |
+      output = 18446744073709551615.uint64()
+    compile_error: "exceeds"
+
+  - name: "uint64 overflow from string"
+    mapping: |
+      output = "18446744073709551616".uint64()
+    error: "overflow"
+
+  # --- int64 conversions ---
+
+  - name: "int64 from string"
+    mapping: |
+      output = "42".int64()
+    output: 42
+
+  - name: "int64 from float truncates"
+    mapping: |
+      output = 3.9.int64()
+    output: 3
+
+  - name: "int64 from negative float truncates toward zero"
+    mapping: |
+      output = (-3.9).int64()
+    output: -3
+
+  - name: "int64 from bool true"
+    mapping: |
+      output = true.int64()
+    output: 1
+
+  - name: "int64 from bool false"
+    mapping: |
+      output = false.int64()
+    output: 0
+
+  - name: "int64 from invalid string"
+    mapping: |
+      output = "not_a_number".int64()
+    error: "convert"
+
+  # --- Cross-type integer equality (promotion) ---
+
+  - name: "int32 equals int64 same value"
+    mapping: |
+      output = 5.int32() == 5
+    output: true
+
+  - name: "int32 not equals int64 different value"
+    mapping: |
+      output = 5.int32() == 6
+    output: false
+
+  - name: "uint32 equals int64 same value"
+    mapping: |
+      output = 42.uint32() == 42
+    output: true
+
+  - name: "uint64 equals int64 same value"
+    mapping: |
+      output = 42.uint64() == 42
+    output: true
+
+  - name: "int64 equals float64 same value"
+    mapping: |
+      output = 5 == 5.0
+    output: true
+
+  # --- Integer arithmetic basics ---
+
+  - name: "int64 addition"
+    mapping: |
+      output = 5 + 3
+    output: 8
+
+  - name: "int64 subtraction"
+    mapping: |
+      output = 10 - 3
+    output: 7
+
+  - name: "int64 multiplication"
+    mapping: |
+      output = 6 * 7
+    output: 42
+
+  - name: "int64 modulo"
+    mapping: |
+      output = 7 % 2
+    output: 1
+
+  - name: "int64 division produces float64"
+    mapping: |
+      output = 7 / 2
+    output: 3.5
+
+  - name: "int64 overflow addition"
+    mapping: |
+      output = 9223372036854775807 + 1
+    error: "overflow"
+
+  - name: "int64 overflow subtraction"
+    mapping: |
+      output = -9223372036854775808 - 1
+    error: "overflow"
+
+  # --- Conversion from float to integer types ---
+
+  - name: "float to int32"
+    mapping: |
+      output = 3.14.int32()
+    output: {_type: "int32", value: "3"}
+
+  - name: "float to uint32"
+    mapping: |
+      output = 100.0.uint32()
+    output: {_type: "uint32", value: "100"}
+
+  - name: "float to uint64"
+    mapping: |
+      output = 100.0.uint64()
+    output: {_type: "uint64", value: "100"}

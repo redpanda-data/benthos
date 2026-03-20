@@ -1,0 +1,80 @@
+description: "Edge cases: precision loss when promoting large int64 to float64, explicit conversion unchecked"
+
+tests:
+  # --- int64 > 2^53 + float arithmetic errors ---
+
+  - name: "int64 just above 2^53 plus float is error"
+    mapping: |
+      output = 9007199254740993 + 1.0
+    error: "exact"
+
+  - name: "int64 at 2^53 plus float is ok"
+    mapping: |
+      output = 9007199254740992 + 1.0
+    output: 9007199254740993.0
+
+  - name: "int64 well above 2^53 plus float is error"
+    mapping: |
+      output = 9223372036854775807 + 0.0
+    error: "exact"
+
+  - name: "large int64 minus float is error"
+    mapping: |
+      output = 9007199254740993 - 1.0
+    error: "exact"
+
+  - name: "large int64 times float is error"
+    mapping: |
+      output = 9007199254740993 * 2.0
+    error: "exact"
+
+  - name: "negative large int64 plus float is error"
+    mapping: |
+      output = -9007199254740993 + 1.0
+    error: "exact"
+
+  # --- Small int64 with float is fine ---
+
+  - name: "small int64 plus float is ok"
+    mapping: |
+      output = 42 + 1.5
+    output: 43.5
+
+  - name: "int64 at 2^53 minus 1 plus float is ok"
+    mapping: |
+      output = 9007199254740991 + 1.0
+    output: 9007199254740992.0
+
+  # --- Explicit conversion (.float64()) is unchecked ---
+
+  - name: "explicit float64 conversion of large int64 is unchecked"
+    mapping: |
+      output = 9007199254740993.float64()
+    output: 9007199254740992.0
+
+  - name: "explicit float64 conversion of int64 max is unchecked"
+    mapping: |
+      output = 9223372036854775807.float64().type()
+    output: "float64"
+
+  # --- uint64 > int64 max + int is error ---
+
+  - name: "uint64 above int64 max plus int is error"
+    mapping: |
+      $big = "18446744073709551615".uint64()
+      output = $big + 1
+    error: "overflow"
+
+  # --- Boundary: exactly 2^53 ---
+
+  - name: "int64 exactly 2^53 float64 roundtrip is exact"
+    mapping: |
+      $v = 9007199254740992
+      output = $v + 0.5
+    output: 9007199254740992.5
+
+  - name: "int64 exactly 2^53 plus 1 float operation errors"
+    mapping: |
+      $v = 9007199254740993
+      output = $v + 0.5
+    error: "exact"

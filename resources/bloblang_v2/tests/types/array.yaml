@@ -1,0 +1,167 @@
+description: "Array literals, indexing, nesting, trailing commas, and methods"
+
+tests:
+  # --- Literals ---
+
+  - name: "empty array literal"
+    mapping: |
+      output.arr = []
+    output: {"arr": []}
+
+  - name: "single element array"
+    mapping: |
+      output.arr = [42]
+    output: {"arr": [42]}
+
+  - name: "multi-element array"
+    mapping: |
+      output.arr = [1, 2, 3]
+    output: {"arr": [1, 2, 3]}
+
+  - name: "mixed type array"
+    mapping: |
+      output.arr = [1, "two", true, null, 3.14]
+    output: {"arr": [1, "two", true, null, 3.14]}
+
+  - name: "trailing comma allowed"
+    mapping: |
+      output.arr = [1, 2, 3,]
+    output: {"arr": [1, 2, 3]}
+
+  - name: "nested arrays"
+    mapping: |
+      output.arr = [[1, 2], [3, 4]]
+    output: {"arr": [[1, 2], [3, 4]]}
+
+  - name: "array with expressions"
+    mapping: |
+      $x = 10
+      output.arr = [$x, $x + 1, $x * 2]
+    output: {"arr": [10, 11, 20]}
+
+  - name: "deeply nested arrays"
+    mapping: |
+      output.arr = [[[1]]]
+    output: {"arr": [[[1]]]}
+
+  # --- Indexing ---
+
+  - name: "index first element"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[0]
+    output: {"v": 10}
+
+  - name: "index last element positive"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[2]
+    output: {"v": 30}
+
+  - name: "negative index last element"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-1]
+    output: {"v": 30}
+
+  - name: "negative index second to last"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-2]
+    output: {"v": 20}
+
+  - name: "negative index first element"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-3]
+    output: {"v": 10}
+
+  - name: "out of bounds positive index"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[3]
+    error: "out of bounds"
+
+  - name: "out of bounds negative index"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-4]
+    error: "out of bounds"
+
+  - name: "index empty array"
+    mapping: |
+      $arr = []
+      output.v = $arr[0]
+    error: "out of bounds"
+
+  - name: "index with float whole number accepted"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[2.0]
+    output: {"v": 30}
+
+  - name: "index with non-whole float is error"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[1.5]
+    error: "whole number"
+
+  - name: "index with string is error"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr["0"]
+    error: "non-numeric"
+
+  - name: "nested array indexing"
+    mapping: |
+      $arr = [[1, 2], [3, 4]]
+      output.v = $arr[1][0]
+    output: {"v": 3}
+
+  # --- Length ---
+
+  - name: "length of empty array"
+    mapping: |
+      output.len = [].length()
+    output: {"len": 0}
+
+  - name: "length of non-empty array"
+    mapping: |
+      output.len = [1, 2, 3].length()
+    output: {"len": 3}
+
+  # --- Type ---
+
+  - name: "array type"
+    mapping: |
+      output.t = [1, 2, 3].type()
+    output: {"t": "array"}
+
+  - name: "empty array type"
+    mapping: |
+      output.t = [].type()
+    output: {"t": "array"}
+
+  # --- Array from input ---
+
+  - name: "array from input field"
+    input: {"items": [10, 20, 30]}
+    mapping: |
+      output.first = input.items[0]
+      output.last = input.items[-1]
+      output.len = input.items.length()
+    output: {"first": 10, "last": 30, "len": 3}
+
+  # --- Deleted in array literal ---
+
+  - name: "deleted in array literal removes element"
+    mapping: |
+      output.arr = [1, deleted(), 3]
+    output: {"arr": [1, 3]}
+
+  # --- Void in array literal is error ---
+
+  - name: "void in array literal is error"
+    mapping: |
+      output.arr = [1, if false { 2 }, 3]
+    error: "void"
