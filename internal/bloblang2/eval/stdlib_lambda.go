@@ -622,7 +622,18 @@ func (interp *Interpreter) extractLambdaOrMapRef(args []syntax.CallArg) *syntax.
 
 	// Bare identifier → map name reference. Synthesize a lambda.
 	if ident, ok := args[0].Value.(*syntax.IdentExpr); ok {
-		if _, exists := interp.maps[ident.Name]; exists {
+		if m, exists := interp.maps[ident.Name]; exists {
+			// Check arity: map must accept exactly 1 required arg for
+			// higher-order methods like .map(), .filter(), etc.
+			required := 0
+			for _, p := range m.Params {
+				if p.Default == nil && !p.Discard {
+					required++
+				}
+			}
+			if required != 1 {
+				return nil // will trigger "requires a lambda argument" error
+			}
 			return &syntax.LambdaExpr{
 				TokenPos: ident.TokenPos,
 				Params:   []syntax.Param{{Name: "__arg", Pos: ident.TokenPos}},

@@ -235,18 +235,18 @@ func evalAdd(left, right any) any {
 	if ls, ok := left.(string); ok {
 		rs, ok := right.(string)
 		if !ok {
-			return NewError(fmt.Sprintf("cannot add string and %T", right))
+			return NewError("cannot add string and " + typeName(right) + ": not numeric")
 		}
 		return ls + rs
 	}
 	if _, ok := right.(string); ok {
-		return NewError(fmt.Sprintf("cannot add %T and string", left))
+		return NewError("cannot add " + typeName(left) + " and string: not numeric")
 	}
 	// Bytes concatenation.
 	if lb, ok := left.([]byte); ok {
 		rb, ok := right.([]byte)
 		if !ok {
-			return NewError(fmt.Sprintf("cannot add bytes and %T", right))
+			return NewError("cannot add bytes and " + typeName(right))
 		}
 		result := make([]byte, len(lb)+len(rb))
 		copy(result, lb)
