@@ -369,7 +369,7 @@ func TestInterp_IntPlusFloatPromotion(t *testing.T) {
 }
 
 func TestInterp_IntPlusFloatExceedsPrecision(t *testing.T) {
-	runExpectError(t, `output = 9007199254740993 + 1.0`, nil, "promotion")
+	runExpectError(t, `output = 9007199254740993 + 1.0`, nil, "float64 exact range")
 }
 
 func TestInterp_Uint64ExceedsInt64Range(t *testing.T) {

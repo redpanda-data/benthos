@@ -402,6 +402,9 @@ func (interp *Interpreter) evalFieldAccess(e *syntax.FieldAccessExpr) any {
 	if e.NullSafe && receiver == nil {
 		return nil
 	}
+	if receiver == nil {
+		return NewError(fmt.Sprintf("cannot access field %q on null", e.Field))
+	}
 	obj, ok := receiver.(map[string]any)
 	if !ok {
 		return NewError(fmt.Sprintf("cannot access field %q on %T", e.Field, receiver))
@@ -590,7 +593,7 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 
 	// Bind parameters.
 	mapScope := newScope(nil, scopeExpression) // isolated: no parent
-	if err := interp.bindParams(mapScope, m.Params, args); err != "" {
+	if err := interp.bindParams(mapScope, m.Params, args, e.Args, e.Named); err != "" {
 		return NewError(err)
 	}
 
@@ -879,7 +882,11 @@ func (interp *Interpreter) evalArgs(args []syntax.CallArg) []any {
 	return result
 }
 
-func (interp *Interpreter) bindParams(s *scope, params []syntax.Param, args []any) string {
+func (interp *Interpreter) bindParams(s *scope, params []syntax.Param, args []any, callArgs []syntax.CallArg, named bool) string {
+	if named {
+		return interp.bindNamedParams(s, params, callArgs)
+	}
+
 	argIdx := 0
 	for _, p := range params {
 		if p.Discard {
@@ -892,10 +899,36 @@ func (interp *Interpreter) bindParams(s *scope, params []syntax.Param, args []an
 			s.vars[p.Name] = DeepClone(args[argIdx])
 			argIdx++
 		} else if p.Default != nil {
-			// Defaults are literal expressions — evaluate them.
 			s.vars[p.Name] = interp.evalExpr(p.Default)
 		} else {
 			return fmt.Sprintf("missing argument for parameter %q", p.Name)
+		}
+	}
+	return ""
+}
+
+func (interp *Interpreter) bindNamedParams(s *scope, params []syntax.Param, callArgs []syntax.CallArg) string {
+	// Build a map of provided named arguments.
+	provided := make(map[string]any, len(callArgs))
+	for _, arg := range callArgs {
+		val := interp.evalExpr(arg.Value)
+		if IsError(val) {
+			return ErrorMessage(val)
+		}
+		provided[arg.Name] = val
+	}
+
+	// Bind each parameter.
+	for _, p := range params {
+		if p.Discard {
+			continue
+		}
+		if val, ok := provided[p.Name]; ok {
+			s.vars[p.Name] = DeepClone(val)
+		} else if p.Default != nil {
+			s.vars[p.Name] = interp.evalExpr(p.Default)
+		} else {
+			return fmt.Sprintf("missing named argument for parameter %q", p.Name)
 		}
 	}
 	return ""
@@ -960,51 +993,46 @@ func (interp *Interpreter) indexValue(receiver, index any) any {
 	case map[string]any:
 		key, ok := index.(string)
 		if !ok {
-			return NewError(fmt.Sprintf("object index must be string, got %T", index))
+			return NewError(fmt.Sprintf("non-string index on object: got %T", index))
 		}
 		return r[key]
 	case []any:
-		idx, ok := toInt64(index)
-		if !ok {
-			return NewError(fmt.Sprintf("array index must be integer, got %T", index))
-		}
-		if idx < 0 {
-			idx += int64(len(r))
-		}
-		if idx < 0 || idx >= int64(len(r)) {
-			return NewError("index out of bounds")
-		}
-		return r[idx]
+		return indexSequence(index, int64(len(r)), func(i int64) any { return r[i] })
 	case string:
-		idx, ok := toInt64(index)
-		if !ok {
-			return NewError(fmt.Sprintf("string index must be integer, got %T", index))
-		}
 		runes := []rune(r)
-		if idx < 0 {
-			idx += int64(len(runes))
-		}
-		if idx < 0 || idx >= int64(len(runes)) {
-			return NewError("index out of bounds")
-		}
-		return int64(runes[idx])
+		return indexSequence(index, int64(len(runes)), func(i int64) any { return int64(runes[i]) })
 	case []byte:
-		idx, ok := toInt64(index)
-		if !ok {
-			return NewError(fmt.Sprintf("bytes index must be integer, got %T", index))
-		}
-		if idx < 0 {
-			idx += int64(len(r))
-		}
-		if idx < 0 || idx >= int64(len(r)) {
-			return NewError("index out of bounds")
-		}
-		return int64(r[idx])
+		return indexSequence(index, int64(len(r)), func(i int64) any { return int64(r[i]) })
 	case nil:
 		return NewError("cannot index null value")
 	default:
 		return NewError(fmt.Sprintf("cannot index %T", receiver))
 	}
+}
+
+func indexSequence(index any, length int64, get func(int64) any) any {
+	idx, ok := toInt64(index)
+	if !ok {
+		// Distinguish non-numeric from non-whole-number float.
+		if f, isFloat := index.(float64); isFloat {
+			if f != math.Trunc(f) {
+				return NewError("index must be a whole number, got float with fractional part")
+			}
+		}
+		if f, isFloat := index.(float32); isFloat {
+			if float64(f) != math.Trunc(float64(f)) {
+				return NewError("index must be a whole number, got float with fractional part")
+			}
+		}
+		return NewError(fmt.Sprintf("non-numeric index: got %T", index))
+	}
+	if idx < 0 {
+		idx += length
+	}
+	if idx < 0 || idx >= length {
+		return NewError("index out of bounds")
+	}
+	return get(idx)
 }
 
 func toInt64(v any) (int64, bool) {

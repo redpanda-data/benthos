@@ -32,6 +32,30 @@ type TestCase struct {
 	NoMetadataCheck bool              `yaml:"no_metadata_check"`
 	OutputType      string            `yaml:"output_type"`
 	Files           map[string]string `yaml:"files"`
+	HasOutput       bool              `yaml:"-"` // set by custom unmarshaling; true when output field is present
+}
+
+// UnmarshalYAML implements custom unmarshaling to detect when the output
+// field is explicitly set (including to null).
+func (tc *TestCase) UnmarshalYAML(value *yaml.Node) error {
+	// Use an alias type to avoid infinite recursion.
+	type rawTestCase TestCase
+	var raw rawTestCase
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	*tc = TestCase(raw)
+
+	// Check if "output" key is present in the YAML mapping.
+	if value.Kind == yaml.MappingNode {
+		for i := 0; i < len(value.Content)-1; i += 2 {
+			if value.Content[i].Value == "output" {
+				tc.HasOutput = true
+				break
+			}
+		}
+	}
+	return nil
 }
 
 // LoadFile reads and unmarshals a single YAML test file.
