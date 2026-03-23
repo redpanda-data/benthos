@@ -31,8 +31,9 @@ type Interpreter struct {
 	depth int // recursion depth
 
 	// Methods and functions (pluggable for extensibility).
-	methods   map[string]MethodFunc
-	functions map[string]FunctionFunc
+	methods       map[string]MethodFunc
+	functions     map[string]FunctionFunc
+	lambdaMethods map[string]lambdaMethodFunc
 }
 
 // MethodFunc is a stdlib method implementation.
@@ -426,16 +427,41 @@ func (interp *Interpreter) evalIndex(e *syntax.IndexExpr) any {
 }
 
 func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
+	// Intrinsic: .catch() — intercepts errors, passes void/deleted through.
+	if e.Method == "catch" {
+		return interp.evalCatch(e)
+	}
+
+	// Intrinsic: .or() — rescues null/void/deleted with short-circuit evaluation.
+	if e.Method == "or" {
+		return interp.evalOr(e)
+	}
+
 	receiver := interp.evalExpr(e.Receiver)
+
+	// Error propagation: errors skip method calls (except .catch handled above).
 	if IsError(receiver) {
 		return receiver
 	}
+
+	// Null-safe: ?.method() returns nil if receiver is null.
 	if e.NullSafe && receiver == nil {
 		return nil
 	}
 
-	// TODO: Implement intrinsic methods (.catch, .or) and stdlib dispatch.
-	// For now, check the methods table.
+	// Void and deleted in method calls (except .or handled above) are errors.
+	if IsVoid(receiver) {
+		return NewError("cannot call method on void")
+	}
+	if IsDeleted(receiver) {
+		return NewError("cannot call method on deleted value")
+	}
+
+	// Lambda methods: these receive unevaluated AST args (for lambdas).
+	if lm, ok := interp.lambdaMethods[e.Method]; ok {
+		return lm(receiver, e.Args)
+	}
+
 	fn, ok := interp.methods[e.Method]
 	if !ok {
 		return NewError(fmt.Sprintf("unknown method .%s()", e.Method))
@@ -449,6 +475,66 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 	}
 
 	return fn(receiver, args)
+}
+
+func (interp *Interpreter) evalCatch(e *syntax.MethodCallExpr) any {
+	receiver := interp.evalExpr(e.Receiver)
+
+	// .catch() passes non-errors (including void and deleted) through unchanged.
+	if !IsError(receiver) {
+		return receiver
+	}
+
+	// Error: invoke the catch handler lambda.
+	if len(e.Args) != 1 {
+		return NewError(".catch() requires exactly one argument")
+	}
+	lambda, ok := e.Args[0].Value.(*syntax.LambdaExpr)
+	if !ok {
+		return NewError(".catch() argument must be a lambda")
+	}
+
+	// Build the error object: {"what": "error message"}.
+	errObj := map[string]any{"what": ErrorMessage(receiver)}
+
+	return interp.callLambda(lambda, []any{errObj})
+}
+
+func (interp *Interpreter) evalOr(e *syntax.MethodCallExpr) any {
+	receiver := interp.evalExpr(e.Receiver)
+
+	// .or() rescues null, void, and deleted — returns the argument.
+	// For all other values (including errors), returns the receiver unchanged.
+	if receiver != nil && !IsVoid(receiver) && !IsDeleted(receiver) {
+		return receiver
+	}
+
+	// Short-circuit: only evaluate the argument when rescuing.
+	if len(e.Args) != 1 {
+		return NewError(".or() requires exactly one argument")
+	}
+	return interp.evalExpr(e.Args[0].Value)
+}
+
+func (interp *Interpreter) callLambda(lambda *syntax.LambdaExpr, args []any) any {
+	lambdaScope := newScope(interp.scope, scopeExpression)
+	for i, p := range lambda.Params {
+		if p.Discard {
+			continue
+		}
+		if i < len(args) {
+			lambdaScope.vars[p.Name] = DeepClone(args[i])
+		} else if p.Default != nil {
+			lambdaScope.vars[p.Name] = interp.evalExpr(p.Default)
+		}
+	}
+
+	saved := interp.scope
+	interp.scope = lambdaScope
+	result := interp.evalExprBody(lambda.Body)
+	interp.scope = saved
+
+	return result
 }
 
 func (interp *Interpreter) evalCall(e *syntax.CallExpr) any {
