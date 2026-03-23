@@ -337,7 +337,11 @@ func evalDivide(left, right any) any {
 		return a / b
 	}
 
-	af, bf := toFloat64(left), toFloat64(right)
+	af, aOk := checkedToFloat64(left)
+	bf, bOk := checkedToFloat64(right)
+	if !aOk || !bOk {
+		return NewError("integer exceeds float64 exact range (magnitude > 2^53)")
+	}
 	if bf == 0 {
 		return NewError("division by zero")
 	}
@@ -397,14 +401,8 @@ func evalModulo(left, right any) any {
 }
 
 func evalCompare(left, right any, op string) any {
-	// Timestamp comparison.
-	if lt, ok := left.(time.Time); ok {
-		rt, ok := right.(time.Time)
-		if !ok {
-			return NewError(fmt.Sprintf("cannot compare timestamp and %T", right))
-		}
-		return timestampCompare(lt, rt, op)
-	}
+	// Note: timestamp comparisons are handled in evalBinaryOp before
+	// this function is called (the early-return block at the top).
 
 	if !isNumeric(left) && !isNumeric(right) {
 		// String comparison.
@@ -575,21 +573,6 @@ func typeName(v any) string {
 		return "bytes"
 	default:
 		return fmt.Sprintf("%T", v)
-	}
-}
-
-func timestampCompare(a, b time.Time, op string) any {
-	switch op {
-	case ">":
-		return a.After(b)
-	case ">=":
-		return !a.Before(b)
-	case "<":
-		return a.Before(b)
-	case "<=":
-		return !a.After(b)
-	default:
-		return false
 	}
 }
 
