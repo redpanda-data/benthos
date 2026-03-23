@@ -429,7 +429,7 @@ func (r *resolver) checkMapArity(e *CallExpr, m *MapDecl) {
 				continue
 			}
 			if !provided[p.Name] && p.Default == nil {
-				r.error(e.TokenPos, fmt.Sprintf("missing required named argument %q", p.Name))
+				r.error(e.TokenPos, fmt.Sprintf("arity mismatch: missing required named argument %q", p.Name))
 			}
 		}
 	} else {

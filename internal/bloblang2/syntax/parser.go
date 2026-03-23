@@ -162,6 +162,11 @@ func (p *parser) parseParam() Param {
 
 	if p.at(UNDERSCORE) {
 		p.advance()
+		if p.at(ASSIGN) {
+			p.error(pos, "discard parameter _ cannot have a default value")
+			p.advance()      // skip =
+			p.parseLiteral() // consume the value
+		}
 		return Param{Discard: true, Pos: pos}
 	}
 
@@ -171,6 +176,14 @@ func (p *parser) parseParam() Param {
 	if p.at(ASSIGN) {
 		p.advance()
 		param.Default = p.parseLiteral()
+		// Check that the default is actually a single literal (not an expression).
+		if !p.at(COMMA) && !p.at(RPAREN) {
+			p.error(p.tok.Pos, "default parameter values must be literals, not expressions")
+			// Skip the rest of the expression to recover.
+			for !p.at(COMMA) && !p.at(RPAREN) && !p.at(EOF) {
+				p.advance()
+			}
+		}
 	}
 
 	return param
@@ -319,7 +332,7 @@ func (p *parser) parseAssignTarget() (AssignTarget, bool) {
 		p.advance()
 
 	default:
-		p.error(p.tok.Pos, fmt.Sprintf("expected output or $variable as assignment target, got %s", p.tok.Type))
+		p.error(p.tok.Pos, fmt.Sprintf("unexpected expression in statement context (expected output or $variable assignment, got %s)", p.tok.Type))
 		return target, false
 	}
 
@@ -800,7 +813,8 @@ func (p *parser) parseLambdaBody() *ExprBody {
 }
 
 // isLambdaBlock peeks inside { to determine if it's a lambda block
-// (has var assignments) or an object literal / expression.
+// (has var assignments, output assignments, or identifier assignments)
+// or an object literal.
 func (p *parser) isLambdaBlock() bool {
 	savedTok := p.tok
 	savedS := *p.s
@@ -810,8 +824,22 @@ func (p *parser) isLambdaBlock() bool {
 	for p.tok.Type == NL {
 		p.advance()
 	}
-	// If the first content token is VAR, it's likely a block.
-	isBlock := p.tok.Type == VAR
+
+	var isBlock bool
+	switch p.tok.Type {
+	case VAR, OUTPUT:
+		// Definitely a block.
+		isBlock = true
+	case IDENT:
+		// Could be block (x = ...) or object literal (key: value).
+		// Peek ahead: if followed by = it's an assignment attempt.
+		savedInner := p.tok
+		savedInnerS := *p.s
+		p.advance()
+		isBlock = p.tok.Type == ASSIGN
+		*p.s = savedInnerS
+		p.tok = savedInner
+	}
 
 	*p.s = savedS
 	p.tok = savedTok
@@ -964,6 +992,30 @@ func (p *parser) parseExprBody() *ExprBody {
 	body := &ExprBody{}
 
 	for {
+		// Check for output assignment in expression context — not allowed.
+		if p.at(OUTPUT) && p.isOutputAssignAhead() {
+			p.error(p.tok.Pos, "cannot assign to output in expression context (only $variable assignments are allowed)")
+			p.recover()
+			p.skipNL()
+			continue
+		}
+
+		// Check for bare identifier assignment (param = value) — parameters are read-only.
+		if p.at(IDENT) {
+			savedTok := p.tok
+			savedS := *p.s
+			p.advance()
+			isAssign := p.tok.Type == ASSIGN
+			*p.s = savedS
+			p.tok = savedTok
+			if isAssign {
+				p.error(p.tok.Pos, "cannot assign to identifier (parameters are read-only, use $variable for local assignments)")
+				p.recover()
+				p.skipNL()
+				continue
+			}
+		}
+
 		// Try to parse var assignment: $var[.path...] = expr
 		if p.at(VAR) && p.isVarAssignAhead() {
 			va := p.parseVarAssign()
@@ -980,6 +1032,42 @@ func (p *parser) parseExprBody() *ExprBody {
 	// Final expression.
 	body.Result = p.parseExpr(0)
 	return body
+}
+
+// isOutputAssignAhead checks whether output is being used as an assignment
+// target by scanning forward for `=` after `output[.path...]` or `output@[.path...]`.
+func (p *parser) isOutputAssignAhead() bool {
+	savedTok := p.tok
+	savedS := *p.s
+
+	p.advance() // skip OUTPUT
+	if p.tok.Type == AT {
+		p.advance() // skip @
+	}
+	// Skip path components.
+	for p.tok.Type == DOT || p.tok.Type == LBRACKET || p.tok.Type == QLBRACKET || p.tok.Type == QDOT {
+		if p.tok.Type == LBRACKET || p.tok.Type == QLBRACKET {
+			depth := 1
+			p.advance()
+			for depth > 0 && p.tok.Type != EOF {
+				switch p.tok.Type {
+				case LBRACKET, QLBRACKET:
+					depth++
+				case RBRACKET:
+					depth--
+				}
+				p.advance()
+			}
+		} else {
+			p.advance() // skip . or ?.
+			p.advance() // skip field name
+		}
+	}
+	isAssign := p.tok.Type == ASSIGN
+
+	*p.s = savedS
+	p.tok = savedTok
+	return isAssign
 }
 
 // isVarAssignAhead checks whether the current VAR token starts a var
