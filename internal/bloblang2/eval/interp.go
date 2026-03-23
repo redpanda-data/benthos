@@ -138,6 +138,18 @@ func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
 	switch a.Target.Root {
 	case syntax.AssignOutput:
 		if a.Target.MetaAccess {
+			// Metadata root assignment validation (Section 7.4, 9.2).
+			if len(a.Target.Path) == 0 {
+				if IsDeleted(value) {
+					panic(runtimeError{message: "cannot delete metadata object"})
+				}
+				obj, ok := value.(map[string]any)
+				if !ok {
+					panic(runtimeError{message: fmt.Sprintf("metadata must be an object, got %T", value)})
+				}
+				interp.outputMeta = DeepClone(obj).(map[string]any)
+				return
+			}
 			var meta any = interp.outputMeta
 			interp.assignPath(&meta, a.Target.Path, value)
 			if m, ok := meta.(map[string]any); ok {
@@ -327,6 +339,12 @@ func (interp *Interpreter) evalBinary(e *syntax.BinaryExpr) any {
 	if IsError(left) {
 		return left
 	}
+	if IsVoid(left) {
+		return NewError("void in expression")
+	}
+	if IsDeleted(left) {
+		return NewError("deleted value in expression")
+	}
 
 	// Short-circuit for logical operators.
 	if e.Op == syntax.AND {
@@ -370,6 +388,12 @@ func (interp *Interpreter) evalBinary(e *syntax.BinaryExpr) any {
 	if IsError(right) {
 		return right
 	}
+	if IsVoid(right) {
+		return NewError("void in expression")
+	}
+	if IsDeleted(right) {
+		return NewError("deleted value in expression")
+	}
 
 	return interp.evalBinaryOp(e.Op, left, right)
 }
@@ -378,6 +402,12 @@ func (interp *Interpreter) evalUnary(e *syntax.UnaryExpr) any {
 	operand := interp.evalExpr(e.Operand)
 	if IsError(operand) {
 		return operand
+	}
+	if IsVoid(operand) {
+		return NewError("void in expression")
+	}
+	if IsDeleted(operand) {
+		return NewError("deleted value in expression")
 	}
 
 	switch e.Op {
@@ -972,9 +1002,13 @@ func (interp *Interpreter) assignPathRecursive(current *any, path []syntax.PathS
 
 	switch seg.Kind {
 	case syntax.PathSegField:
-		// Ensure current is an object.
+		// Ensure current is an object. Auto-create only from nil.
 		obj, ok := (*current).(map[string]any)
 		if !ok {
+			if *current != nil {
+				panic(runtimeError{message: fmt.Sprintf(
+					"cannot access field %q on %T (expected object)", seg.Name, *current)})
+			}
 			obj = make(map[string]any)
 			*current = obj
 		}
@@ -990,7 +1024,7 @@ func (interp *Interpreter) assignPathRecursive(current *any, path []syntax.PathS
 
 		child, exists := obj[seg.Name]
 		if !exists {
-			child = make(map[string]any)
+			child = nil // will be auto-created by recursive call
 		}
 		interp.assignPathRecursive(&child, path[1:], value)
 		obj[seg.Name] = child

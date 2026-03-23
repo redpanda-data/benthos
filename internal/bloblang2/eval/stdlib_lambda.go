@@ -269,6 +269,9 @@ func (interp *Interpreter) methodFold(receiver any, args []syntax.CallArg) any {
 		if IsError(tally) {
 			return tally
 		}
+		if IsVoid(tally) {
+			return NewError("fold() lambda returned void")
+		}
 	}
 	return tally
 }

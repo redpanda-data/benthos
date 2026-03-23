@@ -63,7 +63,7 @@ tests:
     mapping: |
       $big = "18446744073709551615".uint64()
       output = $big + 1
-    error: "overflow"
+    error: "uint64 value exceeds int64 range"
 
   # --- Boundary: exactly 2^53 ---
 
