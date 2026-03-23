@@ -52,9 +52,3 @@ func (s *scope) set(name string, value any) {
 	}
 	s.vars[name] = value
 }
-
-// has reports whether the variable exists in this scope (not ancestors).
-func (s *scope) has(name string) bool {
-	_, ok := s.vars[name]
-	return ok
-}
