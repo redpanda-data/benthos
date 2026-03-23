@@ -462,7 +462,7 @@ func methodUint64(receiver any, _ []any) any {
 	case string:
 		n, err := strconv.ParseUint(v, 10, 64)
 		if err != nil {
-			return NewError("cannot convert string to uint64: " + err.Error())
+			return NewError("uint64 overflow: " + err.Error())
 		}
 		return n
 	default:
