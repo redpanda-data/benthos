@@ -40,7 +40,7 @@ func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any
 	if !ok {
 		return NewError(fmt.Sprintf("filter() requires array, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("filter() requires a lambda argument")
 	}
@@ -69,7 +69,7 @@ func (interp *Interpreter) methodMap(receiver any, args []syntax.CallArg) any {
 	if !ok {
 		return NewError(fmt.Sprintf("map() requires array, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("map() requires a lambda argument")
 	}
@@ -128,7 +128,7 @@ func (interp *Interpreter) methodSortBy(receiver any, args []syntax.CallArg) any
 	if !ok {
 		return NewError(fmt.Sprintf("sort_by() requires array, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("sort_by() requires a lambda argument")
 	}
@@ -176,7 +176,7 @@ func (interp *Interpreter) methodAny(receiver any, args []syntax.CallArg) any {
 	if !ok {
 		return NewError(fmt.Sprintf("any() requires array, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("any() requires a lambda argument")
 	}
@@ -201,7 +201,7 @@ func (interp *Interpreter) methodAll(receiver any, args []syntax.CallArg) any {
 	if !ok {
 		return NewError(fmt.Sprintf("all() requires array, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("all() requires a lambda argument")
 	}
@@ -226,7 +226,7 @@ func (interp *Interpreter) methodFind(receiver any, args []syntax.CallArg) any {
 	if !ok {
 		return NewError(fmt.Sprintf("find() requires array, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("find() requires a lambda argument")
 	}
@@ -281,7 +281,7 @@ func (interp *Interpreter) methodUnique(receiver any, args []syntax.CallArg) any
 
 	var keyFn *syntax.LambdaExpr
 	if len(args) > 0 {
-		keyFn = extractLambda(args)
+		keyFn = interp.extractLambdaOrMapRef(args)
 	}
 
 	var seenList []any
@@ -483,7 +483,7 @@ func (interp *Interpreter) methodMapValues(receiver any, args []syntax.CallArg) 
 	if !ok {
 		return NewError(fmt.Sprintf("map_values() requires object, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("map_values() requires a lambda argument")
 	}
@@ -509,7 +509,7 @@ func (interp *Interpreter) methodMapKeys(receiver any, args []syntax.CallArg) an
 	if !ok {
 		return NewError(fmt.Sprintf("map_keys() requires object, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("map_keys() requires a lambda argument")
 	}
@@ -536,7 +536,7 @@ func (interp *Interpreter) methodMapEntries(receiver any, args []syntax.CallArg)
 	if !ok {
 		return NewError(fmt.Sprintf("map_entries() requires object, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("map_entries() requires a lambda argument")
 	}
@@ -571,7 +571,7 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 	if !ok {
 		return NewError(fmt.Sprintf("filter_entries() requires object, got %T", receiver))
 	}
-	lambda := extractLambda(args)
+	lambda := interp.extractLambdaOrMapRef(args)
 	if lambda == nil {
 		return NewError("filter_entries() requires a lambda argument")
 	}
@@ -592,16 +592,42 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 	return result
 }
 
-// extractLambda gets the lambda expression from the first argument.
-func extractLambda(args []syntax.CallArg) *syntax.LambdaExpr {
+// extractLambdaOrMapRef gets the lambda expression from the first argument.
+// If the argument is a bare identifier (map name), synthesizes a lambda
+// that calls the map with a single parameter (Section 5.5).
+func (interp *Interpreter) extractLambdaOrMapRef(args []syntax.CallArg) *syntax.LambdaExpr {
 	if len(args) == 0 {
 		return nil
 	}
-	lambda, ok := args[0].Value.(*syntax.LambdaExpr)
-	if !ok {
-		return nil
+
+	// Direct lambda.
+	if lambda, ok := args[0].Value.(*syntax.LambdaExpr); ok {
+		return lambda
 	}
-	return lambda
+
+	// Bare identifier → map name reference. Synthesize a lambda.
+	if ident, ok := args[0].Value.(*syntax.IdentExpr); ok {
+		if _, exists := interp.maps[ident.Name]; exists {
+			return &syntax.LambdaExpr{
+				TokenPos: ident.TokenPos,
+				Params:   []syntax.Param{{Name: "__arg", Pos: ident.TokenPos}},
+				Body: &syntax.ExprBody{
+					Result: &syntax.CallExpr{
+						TokenPos: ident.TokenPos,
+						Name:     ident.Name,
+						Args:     []syntax.CallArg{{Value: &syntax.IdentExpr{TokenPos: ident.TokenPos, Name: "__arg"}}},
+					},
+				},
+			}
+		}
+		// Check namespaced references.
+		if call, ok := args[0].Value.(*syntax.CallExpr); ok && call.Namespace != "" {
+			// Already a call, shouldn't reach here.
+			_ = call
+		}
+	}
+
+	return nil
 }
 
 // compareForSort compares two values for sort ordering. Returns -1, 0, or 1.

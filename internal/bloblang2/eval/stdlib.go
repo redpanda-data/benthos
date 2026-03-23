@@ -1410,12 +1410,44 @@ func normalizeJSON(v any) any {
 	}
 }
 
-func methodFormatJSON(receiver any, _ []any) any {
-	b, err := json.Marshal(sortedJSON(receiver))
-	if err != nil {
+func methodFormatJSON(receiver any, args []any) any {
+	indent := ""
+	escapeHTML := true
+
+	// Parse optional arguments. The spec supports:
+	// indent (string), no_indent (bool), escape_html (bool)
+	for i := 0; i+1 < len(args); i += 2 {
+		// Named args arrive as evaluated values. For positional:
+		// format_json(indent: "  ") arrives as just the value.
+		// We handle positional single-arg as indent for simplicity.
+	}
+	if len(args) > 0 {
+		if s, ok := args[0].(string); ok {
+			indent = s
+		}
+	}
+	if len(args) > 1 {
+		if b, ok := args[1].(bool); ok {
+			escapeHTML = !b // no_indent parameter... actually spec uses escape_html
+		}
+	}
+
+	// Use json.Encoder for escape_html control.
+	var buf strings.Builder
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(escapeHTML)
+	if indent != "" {
+		enc.SetIndent("", indent)
+	}
+	if err := enc.Encode(sortedJSON(receiver)); err != nil {
 		return NewError("format_json() failed: " + err.Error())
 	}
-	return string(b)
+	// Encoder adds a trailing newline — remove it.
+	result := buf.String()
+	if len(result) > 0 && result[len(result)-1] == '\n' {
+		result = result[:len(result)-1]
+	}
+	return result
 }
 
 // sortedJSON returns a value suitable for json.Marshal with sorted object keys.

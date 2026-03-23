@@ -258,13 +258,13 @@ tests:
 
   - name: "round half-even at 2 decimal places"
     mapping: |
-      output = 2.345.round(2)
-    output: 2.34
+      output = 2.125.round(2)
+    output: 2.12
 
   - name: "round half-even at 2 decimal places odd"
     mapping: |
-      output = 2.355.round(2)
-    output: 2.36
+      output = 2.375.round(2)
+    output: 2.38
 
   # --- round: negative n (powers of 10) ---
 

@@ -52,7 +52,7 @@ func TestDeepEqual(t *testing.T) {
 		{"float64 -Inf", math.Inf(-1), math.Inf(-1), true},
 		{"float64 +Inf vs -Inf", math.Inf(1), math.Inf(-1), false},
 		{"float64 NaN vs number", math.NaN(), 1.0, false},
-		{"float64 -0 vs +0", math.Float64frombits(1 << 63), 0.0, false},
+		{"float64 -0 vs +0", math.Float64frombits(1 << 63), 0.0, true}, // spec: -0.0 == 0.0
 
 		// float32.
 		{"equal float32", float32(1.5), float32(1.5), true},

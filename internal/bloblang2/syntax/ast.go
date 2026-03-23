@@ -38,10 +38,11 @@ func (p *Program) nodePos() Pos {
 
 // MapDecl is a user-defined function declaration.
 type MapDecl struct {
-	TokenPos Pos
-	Name     string
-	Params   []Param
-	Body     *ExprBody
+	TokenPos   Pos
+	Name       string
+	Params     []Param
+	Body       *ExprBody
+	Namespaces map[string][]*MapDecl // namespaces available to this map (from its file's imports)
 }
 
 func (m *MapDecl) nodePos() Pos { return m.TokenPos }

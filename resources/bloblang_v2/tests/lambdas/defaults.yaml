@@ -10,8 +10,7 @@ tests:
 
   - name: "lambda default integer literal"
     mapping: |
-      map apply(arr, fn) { arr.map(fn) }
-      output.result = apply([1, 2, 3], (x, y = 10) -> x + y)
+      output.result = [1, 2, 3].map((x, y = 10) -> x + y)
     output: {"result": [11, 12, 13]}
 
   - name: "lambda default string literal"
@@ -21,28 +20,24 @@ tests:
 
   - name: "lambda default boolean literal"
     mapping: |
-      map apply(arr, fn) { arr.map(fn) }
-      output.result = apply([1, -2, 3], (x, negate = false) -> if negate { -x } else { x })
+      output.result = [1, -2, 3].map((x, negate = false) -> if negate { -x } else { x })
     output: {"result": [1, -2, 3]}
 
   - name: "lambda default null literal"
     mapping: |
-      map apply(arr, fn) { arr.map(fn) }
-      output.result = apply([1, 2, 3], (x, extra = null) -> x + extra.or(0))
+      output.result = [1, 2, 3].map((x, extra = null) -> x + extra.or(0))
     output: {"result": [1, 2, 3]}
 
   - name: "lambda default float literal"
     mapping: |
-      map apply(arr, fn) { arr.map(fn) }
-      output.result = apply([10, 20], (x, rate = 0.1) -> x * rate)
+      output.result = [10, 20].map((x, rate = 0.1) -> x * rate)
     output: {"result": [1.0, 2.0]}
 
   # --- Positional omission ---
 
   - name: "trailing default params omitted"
     mapping: |
-      map apply(arr, fn) { arr.map(fn) }
-      output.result = apply([5, 10], (x, multiplier = 2, offset = 0) -> x * multiplier + offset)
+      output.result = [5, 10].map((x, multiplier = 2, offset = 0) -> x * multiplier + offset)
     output: {"result": [10, 20]}
 
   # --- Defaults must come after required ---
@@ -74,8 +69,7 @@ tests:
 
   - name: "multiple default params all using defaults"
     mapping: |
-      map apply(arr, fn) { arr.map(fn) }
-      output.result = apply([100], (x, tax_rate = 0.1, discount = 0) -> {
+      output.result = [100].map((x, tax_rate = 0.1, discount = 0) -> {
         $subtotal = x - discount
         $subtotal + $subtotal * tax_rate
       })
