@@ -934,53 +934,119 @@ func (interp *Interpreter) bindNamedParams(s *scope, params []syntax.Param, call
 	return ""
 }
 
-// assignPath sets a value at a path within a root value.
+// assignPath sets a value at a path within a root value, auto-creating
+// intermediate objects and arrays as needed.
 func (interp *Interpreter) assignPath(root *any, path []syntax.PathSegment, value any) {
 	if len(path) == 0 {
-		*root = value
+		*root = DeepClone(value)
 		return
 	}
 
-	// Navigate to parent, then set the final segment.
-	current := root
-	for i, seg := range path[:len(path)-1] {
-		_ = i
-		switch seg.Kind {
-		case syntax.PathSegField:
-			obj, ok := (*current).(map[string]any)
-			if !ok {
-				obj = make(map[string]any)
-				*current = obj
-			}
-			if _, exists := obj[seg.Name]; !exists {
-				obj[seg.Name] = make(map[string]any)
-			}
-			v := obj[seg.Name]
-			current = &v
-			// Write back after modification.
-			defer func(obj map[string]any, name string, ptr *any) {
-				obj[name] = *ptr
-			}(obj, seg.Name, current)
-		default:
-			// TODO: handle index segments in assignment paths.
-		}
-	}
+	interp.assignPathRecursive(root, path, value)
+}
 
-	last := path[len(path)-1]
-	switch last.Kind {
+func (interp *Interpreter) assignPathRecursive(current *any, path []syntax.PathSegment, value any) {
+	seg := path[0]
+	isLast := len(path) == 1
+
+	switch seg.Kind {
 	case syntax.PathSegField:
+		// Ensure current is an object.
 		obj, ok := (*current).(map[string]any)
 		if !ok {
 			obj = make(map[string]any)
 			*current = obj
 		}
-		if IsDeleted(value) {
-			delete(obj, last.Name)
-		} else {
-			obj[last.Name] = value
+
+		if isLast {
+			if IsDeleted(value) {
+				delete(obj, seg.Name)
+			} else {
+				obj[seg.Name] = value
+			}
+			return
 		}
-	default:
-		// TODO: handle index assignment.
+
+		child, exists := obj[seg.Name]
+		if !exists {
+			child = make(map[string]any)
+		}
+		interp.assignPathRecursive(&child, path[1:], value)
+		obj[seg.Name] = child
+
+	case syntax.PathSegIndex:
+		idx := interp.evalExpr(seg.Index)
+		if IsError(idx) {
+			return
+		}
+
+		// String index → object field.
+		if key, ok := idx.(string); ok {
+			obj, ok := (*current).(map[string]any)
+			if !ok {
+				obj = make(map[string]any)
+				*current = obj
+			}
+			if isLast {
+				if IsDeleted(value) {
+					delete(obj, key)
+				} else {
+					obj[key] = value
+				}
+				return
+			}
+			child, exists := obj[key]
+			if !exists {
+				child = make(map[string]any)
+			}
+			interp.assignPathRecursive(&child, path[1:], value)
+			obj[key] = child
+			return
+		}
+
+		// Integer index → array element.
+		i, ok := toInt64(idx)
+		if !ok {
+			return
+		}
+
+		arr, isArr := (*current).([]any)
+		if !isArr {
+			// Auto-create array.
+			arr = make([]any, 0)
+		}
+
+		// Handle negative indexing.
+		if i < 0 {
+			i += int64(len(arr))
+		}
+
+		if isLast && IsDeleted(value) {
+			// Delete array element: remove and shift.
+			if i >= 0 && i < int64(len(arr)) {
+				arr = append(arr[:i], arr[i+1:]...)
+				*current = arr
+			}
+			return
+		}
+
+		// Grow array with null gaps if needed.
+		for int64(len(arr)) <= i {
+			arr = append(arr, nil)
+		}
+		*current = arr
+
+		if isLast {
+			arr[i] = value
+			return
+		}
+
+		child := arr[i]
+		if child == nil {
+			child = make(map[string]any)
+		}
+		interp.assignPathRecursive(&child, path[1:], value)
+		arr[i] = child
 	}
 }
 
