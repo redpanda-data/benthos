@@ -32,6 +32,7 @@ type Interpreter struct {
 
 	// Methods and functions (pluggable for extensibility).
 	methods       map[string]MethodFunc
+	methodParams  map[string][]MethodParam // parameter metadata for named arg support
 	functions     map[string]FunctionFunc
 	lambdaMethods map[string]lambdaMethodFunc
 }
@@ -40,17 +41,25 @@ type Interpreter struct {
 // Receiver is the value the method is called on.
 type MethodFunc func(receiver any, args []any) any
 
+// MethodParam describes a method parameter for named argument support.
+type MethodParam struct {
+	Name       string
+	Default    any // default value (nil means required)
+	HasDefault bool
+}
+
 // FunctionFunc is a stdlib function implementation.
 type FunctionFunc func(args []any) any
 
 // New creates a new interpreter for the given program.
 func New(prog *syntax.Program) *Interpreter {
 	interp := &Interpreter{
-		prog:       prog,
-		maps:       make(map[string]*syntax.MapDecl),
-		namespaces: make(map[string]map[string]*syntax.MapDecl),
-		methods:    make(map[string]MethodFunc),
-		functions:  make(map[string]FunctionFunc),
+		prog:         prog,
+		maps:         make(map[string]*syntax.MapDecl),
+		namespaces:   make(map[string]map[string]*syntax.MapDecl),
+		methods:      make(map[string]MethodFunc),
+		methodParams: make(map[string][]MethodParam),
+		functions:    make(map[string]FunctionFunc),
 	}
 
 	// Hoist map declarations.
@@ -73,6 +82,13 @@ func New(prog *syntax.Program) *Interpreter {
 // RegisterMethod registers a stdlib method.
 func (interp *Interpreter) RegisterMethod(name string, fn MethodFunc) {
 	interp.methods[name] = fn
+}
+
+// RegisterMethodWithParams registers a stdlib method with parameter metadata
+// for named argument support.
+func (interp *Interpreter) RegisterMethodWithParams(name string, fn MethodFunc, params []MethodParam) {
+	interp.methods[name] = fn
+	interp.methodParams[name] = params
 }
 
 // RegisterFunction registers a stdlib function.
@@ -507,7 +523,17 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 		return NewError(fmt.Sprintf("unknown method .%s()", e.Method))
 	}
 
-	args := interp.evalArgs(e.Args)
+	// Evaluate arguments, resolving named args to positional if needed.
+	var args []any
+	if e.Named {
+		resolved := interp.resolveNamedMethodArgs(e)
+		if IsError(resolved) {
+			return resolved
+		}
+		args = resolved.([]any)
+	} else {
+		args = interp.evalArgs(e.Args)
+	}
 	for _, a := range args {
 		if IsError(a) {
 			return a
@@ -931,6 +957,48 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 // -----------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------
+
+// resolveNamedMethodArgs maps named arguments to positional using the method's
+// parameter metadata. Returns []any or an errorVal.
+func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any {
+	params, ok := interp.methodParams[e.Method]
+	if !ok {
+		// No parameter metadata — evaluate named args by name order.
+		// This allows methods without explicit param specs to still work.
+		args := make([]any, 0, len(e.Args))
+		for _, arg := range e.Args {
+			v := interp.evalExpr(arg.Value)
+			if IsError(v) {
+				return v
+			}
+			args = append(args, v)
+		}
+		return args
+	}
+
+	// Build named arg map.
+	named := make(map[string]any, len(e.Args))
+	for _, arg := range e.Args {
+		v := interp.evalExpr(arg.Value)
+		if IsError(v) {
+			return v
+		}
+		named[arg.Name] = v
+	}
+
+	// Map to positional based on parameter metadata.
+	args := make([]any, len(params))
+	for i, p := range params {
+		if v, ok := named[p.Name]; ok {
+			args[i] = v
+		} else if p.HasDefault {
+			args[i] = p.Default
+		} else {
+			return NewError(fmt.Sprintf(".%s(): missing required argument %q", e.Method, p.Name))
+		}
+	}
+	return args
+}
 
 func (interp *Interpreter) evalArgs(args []syntax.CallArg) []any {
 	result := make([]any, len(args))
