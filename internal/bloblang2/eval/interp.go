@@ -484,7 +484,7 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 
 	// Methods that accept null receivers.
 	nullOK := e.Method == "type" || e.Method == "string" || e.Method == "not_null" ||
-		e.Method == "bool" || e.Method == "bytes"
+		e.Method == "bool" || e.Method == "bytes" || e.Method == "format_json"
 	if receiver == nil && !e.NullSafe && !nullOK {
 		return NewError(fmt.Sprintf(".%s() does not support null", e.Method))
 	}
@@ -1074,7 +1074,11 @@ func (interp *Interpreter) assignPathRecursive(current *any, path []syntax.PathS
 
 		arr, isArr := (*current).([]any)
 		if !isArr {
-			// Auto-create array.
+			if *current != nil {
+				panic(runtimeError{message: fmt.Sprintf(
+					"cannot index into %T (expected array)", *current)})
+			}
+			// Auto-create array from nil.
 			arr = make([]any, 0)
 		}
 
