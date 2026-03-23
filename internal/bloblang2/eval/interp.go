@@ -31,8 +31,7 @@ type Interpreter struct {
 	depth int // recursion depth
 
 	// Methods and functions (pluggable for extensibility).
-	methods       map[string]MethodFunc
-	methodParams  map[string][]MethodParam // parameter metadata for named arg support
+	methods       map[string]MethodSpec
 	functions     map[string]FunctionFunc
 	lambdaMethods map[string]lambdaMethodFunc
 }
@@ -48,18 +47,27 @@ type MethodParam struct {
 	HasDefault bool
 }
 
+// MethodSpec bundles a method implementation with its behavioral metadata.
+// Metadata is colocated with the method definition so the interpreter dispatch
+// does not need hardcoded name lists.
+type MethodSpec struct {
+	Fn          MethodFunc
+	Params      []MethodParam // nil for methods with no named-arg support
+	AcceptsNull bool          // receiver can be nil (e.g., type, string, not_null)
+}
+
 // FunctionFunc is a stdlib function implementation.
+// Can be extended to FunctionSpec if function-level metadata is needed.
 type FunctionFunc func(args []any) any
 
 // New creates a new interpreter for the given program.
 func New(prog *syntax.Program) *Interpreter {
 	interp := &Interpreter{
-		prog:         prog,
-		maps:         make(map[string]*syntax.MapDecl),
-		namespaces:   make(map[string]map[string]*syntax.MapDecl),
-		methods:      make(map[string]MethodFunc),
-		methodParams: make(map[string][]MethodParam),
-		functions:    make(map[string]FunctionFunc),
+		prog:       prog,
+		maps:       make(map[string]*syntax.MapDecl),
+		namespaces: make(map[string]map[string]*syntax.MapDecl),
+		methods:    make(map[string]MethodSpec),
+		functions:  make(map[string]FunctionFunc),
 	}
 
 	// Hoist map declarations.
@@ -79,16 +87,9 @@ func New(prog *syntax.Program) *Interpreter {
 	return interp
 }
 
-// RegisterMethod registers a stdlib method.
-func (interp *Interpreter) RegisterMethod(name string, fn MethodFunc) {
-	interp.methods[name] = fn
-}
-
-// RegisterMethodWithParams registers a stdlib method with parameter metadata
-// for named argument support.
-func (interp *Interpreter) RegisterMethodWithParams(name string, fn MethodFunc, params []MethodParam) {
-	interp.methods[name] = fn
-	interp.methodParams[name] = params
+// RegisterMethod registers a stdlib method with its behavioral metadata.
+func (interp *Interpreter) RegisterMethod(name string, spec MethodSpec) {
+	interp.methods[name] = spec
 }
 
 // RegisterFunction registers a stdlib function.
@@ -172,6 +173,12 @@ func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
 				interp.outputMeta = m
 			}
 		} else {
+			// Message drop: output = deleted() — set flag and exit immediately
+			// without storing the sentinel in interp.output.
+			if len(a.Target.Path) == 0 && IsDeleted(value) {
+				interp.deleted = true
+				return
+			}
 			interp.assignPath(&interp.output, a.Target.Path, value)
 		}
 	case syntax.AssignVar:
@@ -191,11 +198,6 @@ func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
 			interp.setPath(&clone, a.Target.Path, value)
 			interp.scope.set(a.Target.VarName, clone)
 		}
-	}
-
-	// Check for message drop: output = deleted()
-	if a.Target.Root == syntax.AssignOutput && !a.Target.MetaAccess && len(a.Target.Path) == 0 && IsDeleted(value) {
-		interp.deleted = true
 	}
 }
 
@@ -250,7 +252,11 @@ func (interp *Interpreter) execMatchStmt(s *syntax.MatchStmt) {
 	}
 
 	for _, c := range s.Cases {
-		if interp.matchCaseMatches(c, subject, s.Binding, s.Subject != nil) {
+		matched, errVal := interp.matchCaseMatches(c, subject, s.Binding, s.Subject != nil)
+		if errVal != nil {
+			panic(runtimeError{message: ErrorMessage(errVal)})
+		}
+		if matched {
 			body, ok := c.Body.([]syntax.Stmt)
 			if !ok {
 				return
@@ -498,10 +504,34 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 		return nil
 	}
 
-	// Methods that accept null receivers.
-	nullOK := e.Method == "type" || e.Method == "string" || e.Method == "not_null" ||
-		e.Method == "bool" || e.Method == "bytes" || e.Method == "format_json"
-	if receiver == nil && !e.NullSafe && !nullOK {
+	// Look up the method (lambda methods first, then regular methods).
+	// We need the spec before the null check so we can read AcceptsNull.
+	if lm, ok := interp.lambdaMethods[e.Method]; ok {
+		// Lambda methods don't accept null receivers.
+		if receiver == nil && !e.NullSafe {
+			return NewError(fmt.Sprintf(".%s() does not support null", e.Method))
+		}
+		if IsVoid(receiver) {
+			return NewError("cannot call method on void")
+		}
+		if IsDeleted(receiver) {
+			return NewError("cannot call method on deleted value")
+		}
+		return lm(receiver, e.Args)
+	}
+
+	spec, ok := interp.methods[e.Method]
+	if !ok {
+		// Unknown method — but if receiver is null, the null error is more helpful
+		// since unknown methods are normally caught at compile time.
+		if receiver == nil {
+			return NewError(fmt.Sprintf(".%s() does not support null", e.Method))
+		}
+		return NewError(fmt.Sprintf("unknown method .%s()", e.Method))
+	}
+
+	// Null check using spec metadata.
+	if receiver == nil && !e.NullSafe && !spec.AcceptsNull {
 		return NewError(fmt.Sprintf(".%s() does not support null", e.Method))
 	}
 
@@ -511,16 +541,6 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 	}
 	if IsDeleted(receiver) {
 		return NewError("cannot call method on deleted value")
-	}
-
-	// Lambda methods: these receive unevaluated AST args (for lambdas).
-	if lm, ok := interp.lambdaMethods[e.Method]; ok {
-		return lm(receiver, e.Args)
-	}
-
-	fn, ok := interp.methods[e.Method]
-	if !ok {
-		return NewError(fmt.Sprintf("unknown method .%s()", e.Method))
 	}
 
 	// Evaluate arguments, resolving named args to positional if needed.
@@ -540,7 +560,7 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 		}
 	}
 
-	return fn(receiver, args)
+	return spec.Fn(receiver, args)
 }
 
 func (interp *Interpreter) evalCatch(e *syntax.MethodCallExpr) any {
@@ -744,7 +764,11 @@ func (interp *Interpreter) evalMatchExpr(e *syntax.MatchExpr) any {
 	}
 
 	for _, c := range e.Cases {
-		if interp.matchCaseMatches(c, subject, e.Binding, e.Subject != nil) {
+		matched, errVal := interp.matchCaseMatches(c, subject, e.Binding, e.Subject != nil)
+		if errVal != nil {
+			return errVal
+		}
+		if matched {
 			childScope := newScope(interp.scope, scopeExpression)
 			if e.Binding != "" {
 				childScope.vars[e.Binding] = subject
@@ -768,22 +792,24 @@ func (interp *Interpreter) evalMatchExpr(e *syntax.MatchExpr) any {
 	return Void
 }
 
-func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, binding string, hasSubject bool) bool {
+// matchCaseMatches returns (matched, errorValue). If errorValue is non-nil,
+// the case expression produced an error that should be propagated.
+func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, binding string, hasSubject bool) (bool, any) {
 	if c.Wildcard {
-		return true
+		return true, nil
 	}
 
 	if hasSubject && binding == "" {
 		// Equality match: compare pattern against subject.
 		patternVal := interp.evalExpr(c.Pattern)
 		if IsError(patternVal) {
-			return false
+			return false, patternVal
 		}
 		// Boolean case values are a runtime error in equality match.
 		if _, ok := patternVal.(bool); ok {
 			panic(runtimeError{message: "boolean case value in equality match (use 'as' for boolean conditions)"})
 		}
-		return valuesEqual(subject, patternVal)
+		return valuesEqual(subject, patternVal), nil
 	}
 
 	// Boolean match (with or without 'as'): case must evaluate to bool.
@@ -796,23 +822,23 @@ func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, bin
 		patternVal := interp.evalExpr(c.Pattern)
 		interp.scope = saved
 		if IsError(patternVal) {
-			return false
+			return false, patternVal
 		}
 		b, ok := patternVal.(bool)
 		if !ok {
 			panic(runtimeError{message: fmt.Sprintf("boolean match case must evaluate to bool, got %T", patternVal)})
 		}
-		return b
+		return b, nil
 	}
 	patternVal := interp.evalExpr(c.Pattern)
 	if IsError(patternVal) {
-		return false
+		return false, patternVal
 	}
 	b, ok := patternVal.(bool)
 	if !ok {
 		panic(runtimeError{message: fmt.Sprintf("boolean match case must evaluate to bool, got %T", patternVal)})
 	}
-	return b
+	return b, nil
 }
 
 func (interp *Interpreter) evalArrayLiteral(e *syntax.ArrayLiteral) any {
@@ -943,12 +969,12 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 			if seg.NullSafe && current == nil {
 				return nil
 			}
-			fn, ok := interp.methods[seg.Name]
+			spec, ok := interp.methods[seg.Name]
 			if !ok {
 				return NewError(fmt.Sprintf("unknown method .%s()", seg.Name))
 			}
 			args := interp.evalArgs(seg.Args)
-			current = fn(current, args)
+			current = spec.Fn(current, args)
 		}
 	}
 	return current
@@ -961,8 +987,8 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 // resolveNamedMethodArgs maps named arguments to positional using the method's
 // parameter metadata. Returns []any or an errorVal.
 func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any {
-	params, ok := interp.methodParams[e.Method]
-	if !ok {
+	spec, specOK := interp.methods[e.Method]
+	if !specOK || spec.Params == nil {
 		// No parameter metadata — evaluate named args by name order.
 		// This allows methods without explicit param specs to still work.
 		args := make([]any, 0, len(e.Args))
@@ -987,8 +1013,8 @@ func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any 
 	}
 
 	// Map to positional based on parameter metadata.
-	args := make([]any, len(params))
-	for i, p := range params {
+	args := make([]any, len(spec.Params))
+	for i, p := range spec.Params {
 		if v, ok := named[p.Name]; ok {
 			args[i] = v
 		} else if p.HasDefault {
@@ -1003,7 +1029,14 @@ func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any 
 func (interp *Interpreter) evalArgs(args []syntax.CallArg) []any {
 	result := make([]any, len(args))
 	for i, a := range args {
-		result[i] = interp.evalExpr(a.Value)
+		v := interp.evalExpr(a.Value)
+		if IsVoid(v) {
+			result[i] = NewError("void passed as argument (use .or() to provide a default)")
+		} else if IsDeleted(v) {
+			result[i] = NewError("deleted() passed as argument")
+		} else {
+			result[i] = v
+		}
 	}
 	return result
 }
@@ -1157,10 +1190,11 @@ func (interp *Interpreter) assignPathRecursive(current *any, path []syntax.PathS
 
 		if isLast && IsDeleted(value) {
 			// Delete array element: remove and shift.
-			if i >= 0 && i < int64(len(arr)) {
-				arr = append(arr[:i], arr[i+1:]...)
-				*current = arr
+			if i < 0 || i >= int64(len(arr)) {
+				panic(runtimeError{message: "array index deletion: index out of bounds"})
 			}
+			arr = append(arr[:i], arr[i+1:]...)
+			*current = arr
 			return
 		}
 

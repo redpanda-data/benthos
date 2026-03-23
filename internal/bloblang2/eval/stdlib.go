@@ -209,101 +209,103 @@ func (interp *Interpreter) registerFunctions() {
 }
 
 func (interp *Interpreter) registerMethods() {
-	// Type conversion.
-	interp.RegisterMethod("type", methodType)
-	interp.RegisterMethod("string", methodString)
-	interp.RegisterMethod("int64", methodInt64)
-	interp.RegisterMethod("int32", methodInt32)
-	interp.RegisterMethod("uint32", methodUint32)
-	interp.RegisterMethod("uint64", methodUint64)
-	interp.RegisterMethod("float64", methodFloat64)
-	interp.RegisterMethod("float32", methodFloat32)
-	interp.RegisterMethod("bool", methodBool)
-	interp.RegisterMethod("bytes", methodBytes)
-	interp.RegisterMethod("char", methodChar)
-	// not_null registered below with params.
+	m := func(fn MethodFunc) MethodSpec { return MethodSpec{Fn: fn} }
+
+	// Type conversion and introspection.
+	interp.RegisterMethod("type", MethodSpec{Fn: methodType, AcceptsNull: true})
+	interp.RegisterMethod("string", MethodSpec{Fn: methodString, AcceptsNull: true})
+	interp.RegisterMethod("int64", m(methodInt64))
+	interp.RegisterMethod("int32", m(methodInt32))
+	interp.RegisterMethod("uint32", m(methodUint32))
+	interp.RegisterMethod("uint64", m(methodUint64))
+	interp.RegisterMethod("float64", m(methodFloat64))
+	interp.RegisterMethod("float32", m(methodFloat32))
+	interp.RegisterMethod("bool", m(methodBool))
+	interp.RegisterMethod("bytes", MethodSpec{Fn: methodBytes, AcceptsNull: true})
+	interp.RegisterMethod("char", m(methodChar))
 
 	// Sequence methods.
-	interp.RegisterMethod("length", methodLength)
-	interp.RegisterMethod("contains", methodContains)
-	interp.RegisterMethod("reverse", methodReverse)
+	interp.RegisterMethod("length", m(methodLength))
+	interp.RegisterMethod("contains", m(methodContains))
+	interp.RegisterMethod("reverse", m(methodReverse))
 
 	// String methods.
-	interp.RegisterMethod("uppercase", methodUppercase)
-	interp.RegisterMethod("lowercase", methodLowercase)
-	interp.RegisterMethod("trim", methodTrim)
-	interp.RegisterMethod("trim_prefix", methodTrimPrefix)
-	interp.RegisterMethod("trim_suffix", methodTrimSuffix)
-	interp.RegisterMethod("has_prefix", methodHasPrefix)
-	interp.RegisterMethod("has_suffix", methodHasSuffix)
-	interp.RegisterMethod("split", methodSplit)
-	interp.RegisterMethod("replace_all", methodReplaceAll)
-	interp.RegisterMethod("repeat", methodRepeat)
-	interp.RegisterMethod("re_match", methodReMatch)
-	interp.RegisterMethod("re_find_all", methodReFindAll)
-	interp.RegisterMethod("re_replace_all", methodReReplaceAll)
+	interp.RegisterMethod("uppercase", m(methodUppercase))
+	interp.RegisterMethod("lowercase", m(methodLowercase))
+	interp.RegisterMethod("trim", m(methodTrim))
+	interp.RegisterMethod("trim_prefix", m(methodTrimPrefix))
+	interp.RegisterMethod("trim_suffix", m(methodTrimSuffix))
+	interp.RegisterMethod("has_prefix", m(methodHasPrefix))
+	interp.RegisterMethod("has_suffix", m(methodHasSuffix))
+	interp.RegisterMethod("split", m(methodSplit))
+	interp.RegisterMethod("replace_all", m(methodReplaceAll))
+	interp.RegisterMethod("repeat", m(methodRepeat))
+	interp.RegisterMethod("re_match", m(methodReMatch))
+	interp.RegisterMethod("re_find_all", m(methodReFindAll))
+	interp.RegisterMethod("re_replace_all", m(methodReReplaceAll))
 
 	// Numeric methods.
-	interp.RegisterMethod("abs", methodAbs)
-	interp.RegisterMethod("floor", methodFloor)
-	interp.RegisterMethod("ceil", methodCeil)
-	interp.RegisterMethod("round", methodRound)
+	interp.RegisterMethod("abs", m(methodAbs))
+	interp.RegisterMethod("floor", m(methodFloor))
+	interp.RegisterMethod("ceil", m(methodCeil))
+	interp.RegisterMethod("round", m(methodRound))
 
 	// Array methods.
-	interp.RegisterMethod("append", methodAppend)
-	interp.RegisterMethod("concat", methodConcat)
-	interp.RegisterMethod("flatten", methodFlatten)
-	interp.RegisterMethod("enumerate", methodEnumerate)
-	interp.RegisterMethod("join", methodJoin)
-	interp.RegisterMethod("sum", methodSum)
-	interp.RegisterMethod("min", methodMin)
-	interp.RegisterMethod("max", methodMax)
+	interp.RegisterMethod("append", m(methodAppend))
+	interp.RegisterMethod("concat", m(methodConcat))
+	interp.RegisterMethod("flatten", m(methodFlatten))
+	interp.RegisterMethod("enumerate", m(methodEnumerate))
+	interp.RegisterMethod("join", m(methodJoin))
+	interp.RegisterMethod("sum", m(methodSum))
+	interp.RegisterMethod("min", m(methodMin))
+	interp.RegisterMethod("max", m(methodMax))
 
 	// Object methods.
-	interp.RegisterMethod("keys", methodKeys)
-	interp.RegisterMethod("values", methodValues)
-	interp.RegisterMethod("has_key", methodHasKey)
-	interp.RegisterMethod("merge", methodMerge)
-	interp.RegisterMethod("without", methodWithout)
-	interp.RegisterMethod("iter", methodIter)
-	interp.RegisterMethod("collect", methodCollect)
+	interp.RegisterMethod("keys", m(methodKeys))
+	interp.RegisterMethod("values", m(methodValues))
+	interp.RegisterMethod("has_key", m(methodHasKey))
+	interp.RegisterMethod("merge", m(methodMerge))
+	interp.RegisterMethod("without", m(methodWithout))
+	interp.RegisterMethod("iter", m(methodIter))
+	interp.RegisterMethod("collect", m(methodCollect))
 
 	// Timestamp methods.
-	interp.RegisterMethod("ts_unix", methodTsUnix)
-	interp.RegisterMethod("ts_unix_milli", methodTsUnixMilli)
-	interp.RegisterMethod("ts_unix_micro", methodTsUnixMicro)
-	interp.RegisterMethod("ts_unix_nano", methodTsUnixNano)
-	interp.RegisterMethod("ts_from_unix", methodTsFromUnix)
-	interp.RegisterMethod("ts_from_unix_milli", methodTsFromUnixMilli)
-	interp.RegisterMethod("ts_from_unix_micro", methodTsFromUnixMicro)
-	interp.RegisterMethod("ts_from_unix_nano", methodTsFromUnixNano)
-	// ts_add, ts_parse, ts_format registered below with params.
+	interp.RegisterMethod("ts_unix", m(methodTsUnix))
+	interp.RegisterMethod("ts_unix_milli", m(methodTsUnixMilli))
+	interp.RegisterMethod("ts_unix_micro", m(methodTsUnixMicro))
+	interp.RegisterMethod("ts_unix_nano", m(methodTsUnixNano))
+	interp.RegisterMethod("ts_from_unix", m(methodTsFromUnix))
+	interp.RegisterMethod("ts_from_unix_milli", m(methodTsFromUnixMilli))
+	interp.RegisterMethod("ts_from_unix_micro", m(methodTsFromUnixMicro))
+	interp.RegisterMethod("ts_from_unix_nano", m(methodTsFromUnixNano))
+	interp.RegisterMethod("ts_parse", MethodSpec{Fn: methodTsParse, Params: []MethodParam{
+		{Name: "format", Default: defaultTimestampFormat, HasDefault: true},
+	}})
+	interp.RegisterMethod("ts_format", MethodSpec{Fn: methodTsFormat, Params: []MethodParam{
+		{Name: "format", Default: defaultTimestampFormat, HasDefault: true},
+	}})
+	interp.RegisterMethod("ts_add", MethodSpec{Fn: methodTsAdd, Params: []MethodParam{
+		{Name: "nanos"},
+	}})
 
 	// Encoding methods.
-	interp.RegisterMethod("parse_json", methodParseJSON)
-	interp.RegisterMethodWithParams("format_json", methodFormatJSON, []MethodParam{
+	interp.RegisterMethod("parse_json", m(methodParseJSON))
+	interp.RegisterMethod("format_json", MethodSpec{Fn: methodFormatJSON, AcceptsNull: true, Params: []MethodParam{
 		{Name: "indent", Default: "", HasDefault: true},
 		{Name: "no_indent", Default: false, HasDefault: true},
 		{Name: "escape_html", Default: true, HasDefault: true},
-	})
-	interp.RegisterMethodWithParams("encode", methodEncode, []MethodParam{
+	}})
+	interp.RegisterMethod("encode", MethodSpec{Fn: methodEncode, Params: []MethodParam{
 		{Name: "scheme"},
-	})
-	interp.RegisterMethodWithParams("decode", methodDecode, []MethodParam{
+	}})
+	interp.RegisterMethod("decode", MethodSpec{Fn: methodDecode, Params: []MethodParam{
 		{Name: "scheme"},
-	})
-	interp.RegisterMethodWithParams("ts_parse", methodTsParse, []MethodParam{
-		{Name: "format", Default: defaultTimestampFormat, HasDefault: true},
-	})
-	interp.RegisterMethodWithParams("ts_format", methodTsFormat, []MethodParam{
-		{Name: "format", Default: defaultTimestampFormat, HasDefault: true},
-	})
-	interp.RegisterMethodWithParams("ts_add", methodTsAdd, []MethodParam{
-		{Name: "nanos"},
-	})
-	interp.RegisterMethodWithParams("not_null", methodNotNull, []MethodParam{
+	}})
+
+	// Error handling.
+	interp.RegisterMethod("not_null", MethodSpec{Fn: methodNotNull, AcceptsNull: true, Params: []MethodParam{
 		{Name: "message", Default: "unexpected null value", HasDefault: true},
-	})
+	}})
 }
 
 // -----------------------------------------------------------------------
@@ -376,12 +378,18 @@ func methodString(receiver any, _ []any) any {
 		}
 		return string(v)
 	case []any:
+		if containsBytes(v) {
+			return NewError("cannot convert array to string: contains bytes value (convert bytes explicitly before embedding in containers)")
+		}
 		b, err := json.Marshal(sortedJSON(v))
 		if err != nil {
 			return NewError("cannot convert array to string: " + err.Error())
 		}
 		return string(b)
 	case map[string]any:
+		if containsBytes(v) {
+			return NewError("cannot convert object to string: contains bytes value (convert bytes explicitly before embedding in containers)")
+		}
 		b, err := json.Marshal(sortedJSON(v))
 		if err != nil {
 			return NewError("cannot convert object to string: " + err.Error())
@@ -390,6 +398,27 @@ func methodString(receiver any, _ []any) any {
 	default:
 		return NewError(fmt.Sprintf("cannot convert %T to string", receiver))
 	}
+}
+
+// containsBytes recursively checks whether a value tree contains any []byte values.
+func containsBytes(v any) bool {
+	switch val := v.(type) {
+	case []byte:
+		return true
+	case []any:
+		for _, elem := range val {
+			if containsBytes(elem) {
+				return true
+			}
+		}
+	case map[string]any:
+		for _, elem := range val {
+			if containsBytes(elem) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func formatFloat(f float64) string {

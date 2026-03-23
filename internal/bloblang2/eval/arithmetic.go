@@ -13,6 +13,13 @@ func (interp *Interpreter) evalBinaryOp(op syntax.TokenType, left, right any) an
 	if op == syntax.MINUS {
 		if lt, ok := left.(time.Time); ok {
 			if rt, ok := right.(time.Time); ok {
+				// Check for int64 nanosecond overflow before computing.
+				// math.MaxInt64 ns ≈ 9223372036 seconds ≈ 292 years.
+				const maxNanoSeconds = int64(math.MaxInt64 / 1_000_000_000)
+				diffSec := lt.Unix() - rt.Unix()
+				if diffSec > maxNanoSeconds || diffSec < -maxNanoSeconds {
+					return NewError("timestamp subtraction overflow: difference exceeds int64 nanosecond range (~292 years)")
+				}
 				return lt.Sub(rt).Nanoseconds()
 			}
 			return NewError("cannot subtract timestamp and " + typeName(right))
@@ -199,16 +206,36 @@ func numericEqual(a, b any) bool {
 		}
 	}
 
-	// Different numeric types: use checked promotion to float64.
-	af, aOk := checkedToFloat64(a)
-	bf, bOk := checkedToFloat64(b)
-	if !aOk || !bOk {
-		return false // promotion failed — not equal
+	// Different numeric types: use checked promotion to a common type.
+	pl, pr, kind, _ := promoteChecked(a, b)
+	if kind == promoteError {
+		return false // promotion failed — values cannot be equal
 	}
-	if math.IsNaN(af) || math.IsNaN(bf) {
+
+	switch kind {
+	case promoteInt64:
+		return pl.(int64) == pr.(int64)
+	case promoteInt32:
+		return pl.(int32) == pr.(int32)
+	case promoteUint32:
+		return pl.(uint32) == pr.(uint32)
+	case promoteUint64:
+		return pl.(uint64) == pr.(uint64)
+	case promoteFloat64:
+		af, bf := pl.(float64), pr.(float64)
+		if math.IsNaN(af) || math.IsNaN(bf) {
+			return false
+		}
+		return af == bf
+	case promoteFloat32:
+		af, bf := pl.(float32), pr.(float32)
+		if math.IsNaN(float64(af)) || math.IsNaN(float64(bf)) {
+			return false
+		}
+		return af == bf
+	default:
 		return false
 	}
-	return af == bf
 }
 
 func toFloat64(v any) float64 {
@@ -402,16 +429,65 @@ func evalCompare(left, right any, op string) any {
 		return NewError(fmt.Sprintf("cannot compare %s and %s: not comparable types", typeName(left), typeName(right)))
 	}
 
-	af, bf := toFloat64(left), toFloat64(right)
+	// Promote using checked rules (same as arithmetic).
+	pl, pr, kind, promErr := promoteChecked(left, right)
+	if promErr != "" {
+		return NewError(promErr)
+	}
+
+	switch kind {
+	case promoteInt64:
+		a, b := pl.(int64), pr.(int64)
+		return compareOrdered(a, b, op)
+	case promoteInt32:
+		a, b := pl.(int32), pr.(int32)
+		return compareOrdered(int64(a), int64(b), op)
+	case promoteUint32:
+		a, b := pl.(uint32), pr.(uint32)
+		return compareOrdered(uint64(a), uint64(b), op)
+	case promoteUint64:
+		a, b := pl.(uint64), pr.(uint64)
+		return compareOrdered(a, b, op)
+	case promoteFloat64:
+		a, b := pl.(float64), pr.(float64)
+		return compareFloat(a, b, op)
+	case promoteFloat32:
+		a, b := pl.(float32), pr.(float32)
+		return compareFloat(float64(a), float64(b), op)
+	default:
+		return NewError("unexpected promotion result")
+	}
+}
+
+type ordered interface {
+	~int64 | ~uint64
+}
+
+func compareOrdered[T ordered](a, b T, op string) any {
 	switch op {
 	case ">":
-		return af > bf
+		return a > b
 	case ">=":
-		return af >= bf
+		return a >= b
 	case "<":
-		return af < bf
+		return a < b
 	case "<=":
-		return af <= bf
+		return a <= b
+	default:
+		return false
+	}
+}
+
+func compareFloat(a, b float64, op string) any {
+	switch op {
+	case ">":
+		return a > b
+	case ">=":
+		return a >= b
+	case "<":
+		return a < b
+	case "<=":
+		return a <= b
 	default:
 		return false
 	}
