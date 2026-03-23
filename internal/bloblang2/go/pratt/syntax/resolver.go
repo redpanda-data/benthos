@@ -320,6 +320,18 @@ func (r *resolver) resolveExpr(expr Expr) {
 	case *LambdaExpr:
 		r.resolveLambda(e)
 	case *PathExpr:
+		// Check map isolation for the path root.
+		if r.inMap {
+			switch e.Root {
+			case PathRootInput, PathRootInputMeta:
+				r.error(e.TokenPos, "cannot access input inside a map body")
+			case PathRootOutput, PathRootOutputMeta:
+				r.error(e.TokenPos, "cannot access output inside a map body")
+			}
+		}
+		if e.Root == PathRootVar && !r.scope.isDeclared(e.VarName) {
+			r.error(e.TokenPos, "undeclared variable $"+e.VarName)
+		}
 		for _, seg := range e.Segments {
 			if seg.Index != nil {
 				r.resolveExpr(seg.Index)
