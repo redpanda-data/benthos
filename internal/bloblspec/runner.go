@@ -204,7 +204,7 @@ func validateExpectations(tc *TestCase) error {
 	if tc.Deleted {
 		count++
 	}
-	if tc.Output != nil || tc.NoOutputCheck {
+	if tc.HasOutput || tc.Output != nil || tc.NoOutputCheck {
 		count++
 	}
 
