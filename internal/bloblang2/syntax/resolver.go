@@ -134,6 +134,11 @@ func (r *resolver) resolveStmt(stmt Stmt) {
 }
 
 func (r *resolver) resolveAssignment(a *Assignment) {
+	// Lambdas cannot be stored in variables or assigned to output.
+	if _, ok := a.Value.(*LambdaExpr); ok {
+		r.error(a.TokenPos, "lambda expressions cannot be stored as values")
+	}
+
 	r.resolveExpr(a.Value)
 
 	// Track variable declarations.
@@ -195,6 +200,9 @@ func (r *resolver) resolveExprBody(body *ExprBody) {
 		return
 	}
 	for _, va := range body.Assignments {
+		if _, ok := va.Value.(*LambdaExpr); ok {
+			r.error(va.TokenPos, "lambda expressions cannot be stored as values")
+		}
 		r.resolveExpr(va.Value)
 		if !r.scope.isDeclared(va.Name) {
 			r.scope.vars[va.Name] = true
@@ -323,10 +331,33 @@ func (r *resolver) resolveCall(e *CallExpr) {
 		}
 	}
 
-	// Arity check for user-defined maps.
-	if e.Namespace == "" {
-		if m := r.findMap(e.Name); m != nil {
+	// Check that the function/map exists.
+	if e.Namespace == "" && e.Name != "throw" && e.Name != "deleted" {
+		m := r.findMap(e.Name)
+		if m == nil && !r.knownFunctions[e.Name] {
+			r.error(e.TokenPos, fmt.Sprintf("unknown function or map %q", e.Name))
+		}
+		if m != nil {
 			r.checkMapArity(e, m)
+		}
+	}
+
+	// Namespace-qualified call: check namespace and map exist.
+	if e.Namespace != "" {
+		maps, nsExists := r.prog.Namespaces[e.Namespace]
+		if !nsExists {
+			r.error(e.TokenPos, fmt.Sprintf("unknown namespace %q", e.Namespace))
+		} else {
+			found := false
+			for _, m := range maps {
+				if m.Name == e.Name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				r.error(e.TokenPos, fmt.Sprintf("nonexistent map %s::%s()", e.Namespace, e.Name))
+			}
 		}
 	}
 
