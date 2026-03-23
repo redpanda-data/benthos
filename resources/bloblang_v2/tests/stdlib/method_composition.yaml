@@ -74,7 +74,7 @@ tests:
 
   - name: "parse_json then keys sorted"
     mapping: |
-      output = '{"b":2,"a":1}'.parse_json().keys().sort()
+      output = `{"b":2,"a":1}`.parse_json().keys().sort()
     output: ["a", "b"]
 
   - name: "object merge then format_json"
@@ -84,7 +84,7 @@ tests:
 
   - name: "parse_json then map values"
     mapping: |
-      output = '{"x":1,"y":2}'.parse_json().map_values(v -> v * 10)
+      output = `{"x":1,"y":2}`.parse_json().map_values(v -> v * 10)
     output: {"x": 10, "y": 20}
 
   - name: "format_json then parse_json idempotent"
@@ -146,7 +146,7 @@ tests:
 
   - name: "abs on parse_json result"
     mapping: |
-      output = '"-42"'.parse_json().int64().abs()
+      output = `"-42"`.parse_json().int64().abs()
     output: 42
 
   # --- Timestamp arithmetic composition ---
