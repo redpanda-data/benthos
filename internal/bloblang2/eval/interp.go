@@ -1,0 +1,1007 @@
+package eval
+
+import (
+	"errors"
+	"fmt"
+	"math"
+	"strconv"
+
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/syntax"
+)
+
+// maxRecursionDepth is the maximum allowed recursion depth for map calls.
+const maxRecursionDepth = 10000
+
+// Interpreter executes a parsed Bloblang V2 program.
+type Interpreter struct {
+	prog *syntax.Program
+
+	// Runtime state.
+	input      any
+	inputMeta  map[string]any
+	output     any
+	outputMeta map[string]any
+	deleted    bool
+
+	// Map table: local maps + namespaced imports.
+	maps       map[string]*syntax.MapDecl
+	namespaces map[string]map[string]*syntax.MapDecl
+
+	scope *scope
+	depth int // recursion depth
+
+	// Methods and functions (pluggable for extensibility).
+	methods   map[string]MethodFunc
+	functions map[string]FunctionFunc
+}
+
+// MethodFunc is a stdlib method implementation.
+// Receiver is the value the method is called on.
+type MethodFunc func(receiver any, args []any) any
+
+// FunctionFunc is a stdlib function implementation.
+type FunctionFunc func(args []any) any
+
+// New creates a new interpreter for the given program.
+func New(prog *syntax.Program) *Interpreter {
+	interp := &Interpreter{
+		prog:       prog,
+		maps:       make(map[string]*syntax.MapDecl),
+		namespaces: make(map[string]map[string]*syntax.MapDecl),
+		methods:    make(map[string]MethodFunc),
+		functions:  make(map[string]FunctionFunc),
+	}
+
+	// Hoist map declarations.
+	for _, m := range prog.Maps {
+		interp.maps[m.Name] = m
+	}
+
+	// Build namespace tables from imports.
+	for ns, maps := range prog.Namespaces {
+		table := make(map[string]*syntax.MapDecl, len(maps))
+		for _, m := range maps {
+			table[m.Name] = m
+		}
+		interp.namespaces[ns] = table
+	}
+
+	return interp
+}
+
+// RegisterMethod registers a stdlib method.
+func (interp *Interpreter) RegisterMethod(name string, fn MethodFunc) {
+	interp.methods[name] = fn
+}
+
+// RegisterFunction registers a stdlib function.
+func (interp *Interpreter) RegisterFunction(name string, fn FunctionFunc) {
+	interp.functions[name] = fn
+}
+
+// Exec runs the program against the given input and metadata.
+func (interp *Interpreter) Exec(input any, metadata map[string]any) (output any, outputMeta map[string]any, deleted bool, err error) {
+	interp.input = input
+	interp.inputMeta = metadata
+	interp.output = make(map[string]any)
+	interp.outputMeta = make(map[string]any)
+	interp.deleted = false
+	interp.scope = newScope(nil, scopeStatement)
+	interp.depth = 0
+
+	for _, stmt := range interp.prog.Stmts {
+		interp.execStmt(stmt)
+		if interp.deleted {
+			return nil, nil, true, nil
+		}
+	}
+
+	return interp.output, interp.outputMeta, false, nil
+}
+
+// -----------------------------------------------------------------------
+// Statement execution
+// -----------------------------------------------------------------------
+
+func (interp *Interpreter) execStmt(stmt syntax.Stmt) {
+	switch s := stmt.(type) {
+	case *syntax.Assignment:
+		interp.execAssignment(s)
+	case *syntax.IfStmt:
+		interp.execIfStmt(s)
+	case *syntax.MatchStmt:
+		interp.execMatchStmt(s)
+	}
+}
+
+func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
+	value := interp.evalExpr(a.Value)
+
+	// Error propagation: if value is an error, it halts the mapping.
+	if IsError(value) {
+		panic(runtimeError{message: ErrorMessage(value)})
+	}
+
+	// Void handling.
+	if IsVoid(value) {
+		// For variable targets: declaration with void is an error,
+		// reassignment with void skips the assignment.
+		if a.Target.Root == syntax.AssignVar && len(a.Target.Path) == 0 {
+			if _, exists := interp.scope.get(a.Target.VarName); !exists {
+				panic(runtimeError{message: "void in variable declaration (use .or() to provide a default)"})
+			}
+		}
+		return
+	}
+
+	switch a.Target.Root {
+	case syntax.AssignOutput:
+		if a.Target.MetaAccess {
+			var meta any = interp.outputMeta
+			interp.assignPath(&meta, a.Target.Path, value)
+			if m, ok := meta.(map[string]any); ok {
+				interp.outputMeta = m
+			}
+		} else {
+			interp.assignPath(&interp.output, a.Target.Path, value)
+		}
+	case syntax.AssignVar:
+		if IsDeleted(value) {
+			if len(a.Target.Path) == 0 {
+				panic(runtimeError{message: "cannot assign deleted() to a variable"})
+			}
+		}
+		if len(a.Target.Path) == 0 {
+			interp.scope.set(a.Target.VarName, DeepClone(value))
+		} else {
+			existing, ok := interp.scope.get(a.Target.VarName)
+			if !ok {
+				panic(runtimeError{message: fmt.Sprintf("variable $%s not declared", a.Target.VarName)})
+			}
+			clone := DeepClone(existing)
+			interp.setPath(&clone, a.Target.Path, value)
+			interp.scope.set(a.Target.VarName, clone)
+		}
+	}
+
+	// Check for message drop: output = deleted()
+	if a.Target.Root == syntax.AssignOutput && !a.Target.MetaAccess && len(a.Target.Path) == 0 && IsDeleted(value) {
+		interp.deleted = true
+	}
+}
+
+func (interp *Interpreter) execIfStmt(s *syntax.IfStmt) {
+	for _, branch := range s.Branches {
+		cond := interp.evalExpr(branch.Cond)
+		if IsError(cond) {
+			panic(runtimeError{message: ErrorMessage(cond)})
+		}
+		b, ok := cond.(bool)
+		if !ok {
+			panic(runtimeError{message: fmt.Sprintf("if condition must be boolean, got %T", cond)})
+		}
+		if b {
+			childScope := newScope(interp.scope, scopeStatement)
+			saved := interp.scope
+			interp.scope = childScope
+			for _, stmt := range branch.Body {
+				interp.execStmt(stmt)
+				if interp.deleted {
+					interp.scope = saved
+					return
+				}
+			}
+			interp.scope = saved
+			return
+		}
+	}
+
+	if s.Else != nil {
+		childScope := newScope(interp.scope, scopeStatement)
+		saved := interp.scope
+		interp.scope = childScope
+		for _, stmt := range s.Else {
+			interp.execStmt(stmt)
+			if interp.deleted {
+				interp.scope = saved
+				return
+			}
+		}
+		interp.scope = saved
+	}
+}
+
+func (interp *Interpreter) execMatchStmt(s *syntax.MatchStmt) {
+	var subject any
+	if s.Subject != nil {
+		subject = interp.evalExpr(s.Subject)
+		if IsError(subject) {
+			panic(runtimeError{message: ErrorMessage(subject)})
+		}
+	}
+
+	for _, c := range s.Cases {
+		if interp.matchCaseMatches(c, subject, s.Binding, s.Subject != nil) {
+			body, ok := c.Body.([]syntax.Stmt)
+			if !ok {
+				return
+			}
+			childScope := newScope(interp.scope, scopeStatement)
+			if s.Binding != "" {
+				childScope.vars[s.Binding] = subject
+			}
+			saved := interp.scope
+			interp.scope = childScope
+			for _, stmt := range body {
+				interp.execStmt(stmt)
+				if interp.deleted {
+					interp.scope = saved
+					return
+				}
+			}
+			interp.scope = saved
+			return
+		}
+	}
+}
+
+// -----------------------------------------------------------------------
+// Expression evaluation
+// -----------------------------------------------------------------------
+
+func (interp *Interpreter) evalExpr(expr syntax.Expr) any {
+	switch e := expr.(type) {
+	case *syntax.LiteralExpr:
+		return interp.evalLiteral(e)
+	case *syntax.BinaryExpr:
+		return interp.evalBinary(e)
+	case *syntax.UnaryExpr:
+		return interp.evalUnary(e)
+	case *syntax.InputExpr:
+		return interp.input
+	case *syntax.InputMetaExpr:
+		return DeepClone(interp.inputMeta)
+	case *syntax.OutputExpr:
+		return DeepClone(interp.output)
+	case *syntax.OutputMetaExpr:
+		return DeepClone(interp.outputMeta)
+	case *syntax.VarExpr:
+		v, ok := interp.scope.get(e.Name)
+		if !ok {
+			panic(runtimeError{message: "undefined variable $" + e.Name})
+		}
+		return v
+	case *syntax.IdentExpr:
+		return interp.evalIdent(e)
+	case *syntax.CallExpr:
+		return interp.evalCall(e)
+	case *syntax.FieldAccessExpr:
+		return interp.evalFieldAccess(e)
+	case *syntax.MethodCallExpr:
+		return interp.evalMethodCall(e)
+	case *syntax.IndexExpr:
+		return interp.evalIndex(e)
+	case *syntax.IfExpr:
+		return interp.evalIfExpr(e)
+	case *syntax.MatchExpr:
+		return interp.evalMatchExpr(e)
+	case *syntax.ArrayLiteral:
+		return interp.evalArrayLiteral(e)
+	case *syntax.ObjectLiteral:
+		return interp.evalObjectLiteral(e)
+	case *syntax.LambdaExpr:
+		// Lambdas in expression position shouldn't be evaluated directly.
+		// They're handled by the method that receives them.
+		panic(runtimeError{message: "lambda expression cannot be used as a value"})
+	case *syntax.PathExpr:
+		return interp.evalPathExpr(e)
+	default:
+		panic(runtimeError{message: fmt.Sprintf("unknown expression type %T", expr)})
+	}
+}
+
+func (interp *Interpreter) evalLiteral(e *syntax.LiteralExpr) any {
+	switch e.TokenType {
+	case syntax.INT:
+		n, _ := strconv.ParseInt(e.Value, 10, 64)
+		return n
+	case syntax.FLOAT:
+		f, _ := strconv.ParseFloat(e.Value, 64)
+		return f
+	case syntax.STRING, syntax.RAW_STRING:
+		return e.Value
+	case syntax.TRUE:
+		return true
+	case syntax.FALSE:
+		return false
+	case syntax.NULL:
+		return nil
+	default:
+		return nil
+	}
+}
+
+func (interp *Interpreter) evalBinary(e *syntax.BinaryExpr) any {
+	left := interp.evalExpr(e.Left)
+	if IsError(left) {
+		return left
+	}
+
+	// Short-circuit for logical operators.
+	if e.Op == syntax.AND {
+		b, ok := left.(bool)
+		if !ok {
+			return NewError(fmt.Sprintf("&& requires boolean operands, got %T", left))
+		}
+		if !b {
+			return false
+		}
+		right := interp.evalExpr(e.Right)
+		if IsError(right) {
+			return right
+		}
+		rb, ok := right.(bool)
+		if !ok {
+			return NewError(fmt.Sprintf("&& requires boolean operands, got %T", right))
+		}
+		return rb
+	}
+	if e.Op == syntax.OR {
+		b, ok := left.(bool)
+		if !ok {
+			return NewError(fmt.Sprintf("|| requires boolean operands, got %T", left))
+		}
+		if b {
+			return true
+		}
+		right := interp.evalExpr(e.Right)
+		if IsError(right) {
+			return right
+		}
+		rb, ok := right.(bool)
+		if !ok {
+			return NewError(fmt.Sprintf("|| requires boolean operands, got %T", right))
+		}
+		return rb
+	}
+
+	right := interp.evalExpr(e.Right)
+	if IsError(right) {
+		return right
+	}
+
+	return interp.evalBinaryOp(e.Op, left, right)
+}
+
+func (interp *Interpreter) evalUnary(e *syntax.UnaryExpr) any {
+	operand := interp.evalExpr(e.Operand)
+	if IsError(operand) {
+		return operand
+	}
+
+	switch e.Op {
+	case syntax.MINUS:
+		return numericNegate(operand)
+	case syntax.BANG:
+		b, ok := operand.(bool)
+		if !ok {
+			return NewError(fmt.Sprintf("! requires boolean operand, got %T", operand))
+		}
+		return !b
+	default:
+		return NewError(fmt.Sprintf("unknown unary operator %s", e.Op))
+	}
+}
+
+func (interp *Interpreter) evalFieldAccess(e *syntax.FieldAccessExpr) any {
+	receiver := interp.evalExpr(e.Receiver)
+	if IsError(receiver) {
+		return receiver
+	}
+	if e.NullSafe && receiver == nil {
+		return nil
+	}
+	obj, ok := receiver.(map[string]any)
+	if !ok {
+		return NewError(fmt.Sprintf("cannot access field %q on %T", e.Field, receiver))
+	}
+	return obj[e.Field]
+}
+
+func (interp *Interpreter) evalIndex(e *syntax.IndexExpr) any {
+	receiver := interp.evalExpr(e.Receiver)
+	if IsError(receiver) {
+		return receiver
+	}
+	if e.NullSafe && receiver == nil {
+		return nil
+	}
+
+	index := interp.evalExpr(e.Index)
+	if IsError(index) {
+		return index
+	}
+
+	return interp.indexValue(receiver, index)
+}
+
+func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
+	receiver := interp.evalExpr(e.Receiver)
+	if IsError(receiver) {
+		return receiver
+	}
+	if e.NullSafe && receiver == nil {
+		return nil
+	}
+
+	// TODO: Implement intrinsic methods (.catch, .or) and stdlib dispatch.
+	// For now, check the methods table.
+	fn, ok := interp.methods[e.Method]
+	if !ok {
+		return NewError(fmt.Sprintf("unknown method .%s()", e.Method))
+	}
+
+	args := interp.evalArgs(e.Args)
+	for _, a := range args {
+		if IsError(a) {
+			return a
+		}
+	}
+
+	return fn(receiver, args)
+}
+
+func (interp *Interpreter) evalCall(e *syntax.CallExpr) any {
+	// Check for namespace-qualified call.
+	if e.Namespace != "" {
+		return interp.callNamespaced(e)
+	}
+
+	// Check for user-defined map.
+	if m, ok := interp.maps[e.Name]; ok {
+		return interp.callMap(m, e)
+	}
+
+	// Check stdlib functions.
+	if fn, ok := interp.functions[e.Name]; ok {
+		args := interp.evalArgs(e.Args)
+		for _, a := range args {
+			if IsError(a) {
+				return a
+			}
+		}
+		return fn(args)
+	}
+
+	return NewError(fmt.Sprintf("unknown function %s()", e.Name))
+}
+
+func (interp *Interpreter) callNamespaced(e *syntax.CallExpr) any {
+	ns, ok := interp.namespaces[e.Namespace]
+	if !ok {
+		return NewError(fmt.Sprintf("unknown namespace %q", e.Namespace))
+	}
+	m, ok := ns[e.Name]
+	if !ok {
+		return NewError(fmt.Sprintf("unknown function %s::%s()", e.Namespace, e.Name))
+	}
+	return interp.callMap(m, e)
+}
+
+func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
+	interp.depth++
+	if interp.depth > maxRecursionDepth {
+		panic(recursionError{})
+	}
+	defer func() { interp.depth-- }()
+
+	args := interp.evalArgs(e.Args)
+	for _, a := range args {
+		if IsError(a) {
+			return a
+		}
+	}
+
+	// Bind parameters.
+	mapScope := newScope(nil, scopeExpression) // isolated: no parent
+	if err := interp.bindParams(mapScope, m.Params, args); err != "" {
+		return NewError(err)
+	}
+
+	// Evaluate the map body.
+	saved := interp.scope
+	interp.scope = mapScope
+	result := interp.evalExprBody(m.Body)
+	interp.scope = saved
+
+	return result
+}
+
+func (interp *Interpreter) evalIdent(e *syntax.IdentExpr) any {
+	// Check scope (parameters, variables).
+	if v, ok := interp.scope.get(e.Name); ok {
+		return v
+	}
+	// Bare map name without call — error per spec.
+	if _, ok := interp.maps[e.Name]; ok {
+		return NewError("map " + e.Name + " cannot be used as a value (call it with parentheses)")
+	}
+	return NewError("undefined identifier " + e.Name)
+}
+
+func (interp *Interpreter) evalIfExpr(e *syntax.IfExpr) any {
+	for _, branch := range e.Branches {
+		cond := interp.evalExpr(branch.Cond)
+		if IsError(cond) {
+			return cond
+		}
+		b, ok := cond.(bool)
+		if !ok {
+			return NewError(fmt.Sprintf("if condition must be boolean, got %T", cond))
+		}
+		if b {
+			childScope := newScope(interp.scope, scopeExpression)
+			saved := interp.scope
+			interp.scope = childScope
+			result := interp.evalExprBody(branch.Body)
+			interp.scope = saved
+			return result
+		}
+	}
+
+	if e.Else != nil {
+		childScope := newScope(interp.scope, scopeExpression)
+		saved := interp.scope
+		interp.scope = childScope
+		result := interp.evalExprBody(e.Else)
+		interp.scope = saved
+		return result
+	}
+
+	return Void
+}
+
+func (interp *Interpreter) evalMatchExpr(e *syntax.MatchExpr) any {
+	var subject any
+	if e.Subject != nil {
+		subject = interp.evalExpr(e.Subject)
+		if IsError(subject) {
+			return subject
+		}
+	}
+
+	for _, c := range e.Cases {
+		if interp.matchCaseMatches(c, subject, e.Binding, e.Subject != nil) {
+			childScope := newScope(interp.scope, scopeExpression)
+			if e.Binding != "" {
+				childScope.vars[e.Binding] = subject
+			}
+			saved := interp.scope
+			interp.scope = childScope
+
+			var result any
+			switch body := c.Body.(type) {
+			case syntax.Expr:
+				result = interp.evalExpr(body)
+			case *syntax.ExprBody:
+				result = interp.evalExprBody(body)
+			}
+
+			interp.scope = saved
+			return result
+		}
+	}
+
+	return Void
+}
+
+func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, binding string, hasSubject bool) bool {
+	if c.Wildcard {
+		return true
+	}
+
+	if hasSubject && binding == "" {
+		// Equality match: compare pattern against subject.
+		patternVal := interp.evalExpr(c.Pattern)
+		if IsError(patternVal) {
+			return false
+		}
+		// Boolean case values are a runtime error in equality match.
+		if _, ok := patternVal.(bool); ok {
+			panic(runtimeError{message: "boolean case value in equality match (use 'as' for boolean conditions)"})
+		}
+		return valuesEqual(subject, patternVal)
+	}
+
+	// Boolean match (with or without 'as'): case must evaluate to bool.
+	if binding != "" {
+		// Evaluate pattern in a child scope with the binding.
+		childScope := newScope(interp.scope, interp.scope.mode)
+		childScope.vars[binding] = subject
+		saved := interp.scope
+		interp.scope = childScope
+		patternVal := interp.evalExpr(c.Pattern)
+		interp.scope = saved
+		if IsError(patternVal) {
+			return false
+		}
+		b, ok := patternVal.(bool)
+		if !ok {
+			panic(runtimeError{message: fmt.Sprintf("boolean match case must evaluate to bool, got %T", patternVal)})
+		}
+		return b
+	}
+	patternVal := interp.evalExpr(c.Pattern)
+	if IsError(patternVal) {
+		return false
+	}
+	b, ok := patternVal.(bool)
+	if !ok {
+		panic(runtimeError{message: fmt.Sprintf("boolean match case must evaluate to bool, got %T", patternVal)})
+	}
+	return b
+}
+
+func (interp *Interpreter) evalArrayLiteral(e *syntax.ArrayLiteral) any {
+	result := make([]any, 0, len(e.Elements))
+	for _, elem := range e.Elements {
+		val := interp.evalExpr(elem)
+		if IsError(val) {
+			return val
+		}
+		if IsVoid(val) {
+			return NewError("void in array literal (use deleted() to omit elements, or add an else branch)")
+		}
+		if IsDeleted(val) {
+			continue // deleted elements are removed
+		}
+		result = append(result, val)
+	}
+	return result
+}
+
+func (interp *Interpreter) evalObjectLiteral(e *syntax.ObjectLiteral) any {
+	result := make(map[string]any, len(e.Entries))
+	for _, entry := range e.Entries {
+		key := interp.evalExpr(entry.Key)
+		if IsError(key) {
+			return key
+		}
+		keyStr, ok := key.(string)
+		if !ok {
+			return NewError(fmt.Sprintf("object key must be string, got %T", key))
+		}
+		val := interp.evalExpr(entry.Value)
+		if IsError(val) {
+			return val
+		}
+		if IsVoid(val) {
+			return NewError("void in object literal (use deleted() to omit fields, or add an else branch)")
+		}
+		if IsDeleted(val) {
+			continue // deleted fields are removed
+		}
+		result[keyStr] = val
+	}
+	return result
+}
+
+func (interp *Interpreter) evalExprBody(body *syntax.ExprBody) any {
+	for _, va := range body.Assignments {
+		val := interp.evalExpr(va.Value)
+		if IsError(val) {
+			return val
+		}
+		if IsVoid(val) {
+			// Void in variable declaration is an error.
+			// Void in reassignment skips the assignment.
+			if interp.scope.has(va.Name) {
+				continue
+			}
+			return NewError("void in variable declaration (use .or() to provide a default)")
+		}
+		if IsDeleted(val) {
+			if len(va.Path) == 0 {
+				return NewError("cannot assign deleted() to a variable")
+			}
+		}
+		if len(va.Path) == 0 {
+			interp.scope.set(va.Name, DeepClone(val))
+		} else {
+			existing, ok := interp.scope.get(va.Name)
+			if !ok {
+				return NewError(fmt.Sprintf("variable $%s not declared", va.Name))
+			}
+			clone := DeepClone(existing)
+			interp.setPath(&clone, va.Path, val)
+			interp.scope.set(va.Name, clone)
+		}
+	}
+	return interp.evalExpr(body.Result)
+}
+
+func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
+	var root any
+	switch e.Root {
+	case syntax.PathRootInput:
+		root = interp.input
+	case syntax.PathRootInputMeta:
+		root = interp.inputMeta
+	case syntax.PathRootOutput:
+		root = DeepClone(interp.output)
+	case syntax.PathRootOutputMeta:
+		root = DeepClone(interp.outputMeta)
+	case syntax.PathRootVar:
+		v, ok := interp.scope.get(e.VarName)
+		if !ok {
+			return NewError("undefined variable $" + e.VarName)
+		}
+		root = v
+	}
+
+	current := root
+	for _, seg := range e.Segments {
+		if IsError(current) {
+			return current
+		}
+		switch seg.Kind {
+		case syntax.PathSegField:
+			if seg.NullSafe && current == nil {
+				return nil
+			}
+			obj, ok := current.(map[string]any)
+			if !ok {
+				return NewError(fmt.Sprintf("cannot access field %q on %T", seg.Name, current))
+			}
+			current = obj[seg.Name]
+		case syntax.PathSegIndex:
+			if seg.NullSafe && current == nil {
+				return nil
+			}
+			idx := interp.evalExpr(seg.Index)
+			if IsError(idx) {
+				return idx
+			}
+			current = interp.indexValue(current, idx)
+			if IsError(current) {
+				return current
+			}
+		case syntax.PathSegMethod:
+			if seg.NullSafe && current == nil {
+				return nil
+			}
+			fn, ok := interp.methods[seg.Name]
+			if !ok {
+				return NewError(fmt.Sprintf("unknown method .%s()", seg.Name))
+			}
+			args := interp.evalArgs(seg.Args)
+			current = fn(current, args)
+		}
+	}
+	return current
+}
+
+// -----------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------
+
+func (interp *Interpreter) evalArgs(args []syntax.CallArg) []any {
+	result := make([]any, len(args))
+	for i, a := range args {
+		result[i] = interp.evalExpr(a.Value)
+	}
+	return result
+}
+
+func (interp *Interpreter) bindParams(s *scope, params []syntax.Param, args []any) string {
+	argIdx := 0
+	for _, p := range params {
+		if p.Discard {
+			if argIdx < len(args) {
+				argIdx++
+			}
+			continue
+		}
+		if argIdx < len(args) {
+			s.vars[p.Name] = DeepClone(args[argIdx])
+			argIdx++
+		} else if p.Default != nil {
+			// Defaults are literal expressions — evaluate them.
+			s.vars[p.Name] = interp.evalExpr(p.Default)
+		} else {
+			return fmt.Sprintf("missing argument for parameter %q", p.Name)
+		}
+	}
+	return ""
+}
+
+// assignPath sets a value at a path within a root value.
+func (interp *Interpreter) assignPath(root *any, path []syntax.PathSegment, value any) {
+	if len(path) == 0 {
+		*root = value
+		return
+	}
+
+	// Navigate to parent, then set the final segment.
+	current := root
+	for i, seg := range path[:len(path)-1] {
+		_ = i
+		switch seg.Kind {
+		case syntax.PathSegField:
+			obj, ok := (*current).(map[string]any)
+			if !ok {
+				obj = make(map[string]any)
+				*current = obj
+			}
+			if _, exists := obj[seg.Name]; !exists {
+				obj[seg.Name] = make(map[string]any)
+			}
+			v := obj[seg.Name]
+			current = &v
+			// Write back after modification.
+			defer func(obj map[string]any, name string, ptr *any) {
+				obj[name] = *ptr
+			}(obj, seg.Name, current)
+		default:
+			// TODO: handle index segments in assignment paths.
+		}
+	}
+
+	last := path[len(path)-1]
+	switch last.Kind {
+	case syntax.PathSegField:
+		obj, ok := (*current).(map[string]any)
+		if !ok {
+			obj = make(map[string]any)
+			*current = obj
+		}
+		if IsDeleted(value) {
+			delete(obj, last.Name)
+		} else {
+			obj[last.Name] = value
+		}
+	default:
+		// TODO: handle index assignment.
+	}
+}
+
+func (interp *Interpreter) setPath(root *any, path []syntax.PathSegment, value any) {
+	interp.assignPath(root, path, value)
+}
+
+func (interp *Interpreter) indexValue(receiver, index any) any {
+	switch r := receiver.(type) {
+	case map[string]any:
+		key, ok := index.(string)
+		if !ok {
+			return NewError(fmt.Sprintf("object index must be string, got %T", index))
+		}
+		return r[key]
+	case []any:
+		idx, ok := toInt64(index)
+		if !ok {
+			return NewError(fmt.Sprintf("array index must be integer, got %T", index))
+		}
+		if idx < 0 {
+			idx += int64(len(r))
+		}
+		if idx < 0 || idx >= int64(len(r)) {
+			return NewError("index out of bounds")
+		}
+		return r[idx]
+	case string:
+		idx, ok := toInt64(index)
+		if !ok {
+			return NewError(fmt.Sprintf("string index must be integer, got %T", index))
+		}
+		runes := []rune(r)
+		if idx < 0 {
+			idx += int64(len(runes))
+		}
+		if idx < 0 || idx >= int64(len(runes)) {
+			return NewError("index out of bounds")
+		}
+		return int64(runes[idx])
+	case []byte:
+		idx, ok := toInt64(index)
+		if !ok {
+			return NewError(fmt.Sprintf("bytes index must be integer, got %T", index))
+		}
+		if idx < 0 {
+			idx += int64(len(r))
+		}
+		if idx < 0 || idx >= int64(len(r)) {
+			return NewError("index out of bounds")
+		}
+		return int64(r[idx])
+	case nil:
+		return NewError("cannot index null value")
+	default:
+		return NewError(fmt.Sprintf("cannot index %T", receiver))
+	}
+}
+
+func toInt64(v any) (int64, bool) {
+	switch n := v.(type) {
+	case int64:
+		return n, true
+	case int32:
+		return int64(n), true
+	case uint32:
+		return int64(n), true
+	case uint64:
+		if n > math.MaxInt64 {
+			return 0, false
+		}
+		return int64(n), true
+	case float64:
+		if n != math.Trunc(n) {
+			return 0, false
+		}
+		return int64(n), true
+	case float32:
+		f := float64(n)
+		if f != math.Trunc(f) {
+			return 0, false
+		}
+		return int64(f), true
+	default:
+		return 0, false
+	}
+}
+
+func numericNegate(v any) any {
+	switch n := v.(type) {
+	case int64:
+		if n == math.MinInt64 {
+			return NewError("int64 overflow")
+		}
+		return -n
+	case int32:
+		if n == math.MinInt32 {
+			return NewError("int32 overflow")
+		}
+		return -n
+	case float64:
+		return -n
+	case float32:
+		return -n
+	case uint32:
+		return -int64(n)
+	case uint64:
+		if n > math.MaxInt64 {
+			return NewError("cannot negate uint64 value exceeding int64 range")
+		}
+		return -int64(n)
+	default:
+		return NewError(fmt.Sprintf("cannot negate %T", v))
+	}
+}
+
+// -----------------------------------------------------------------------
+// Error handling via panic/recover
+// -----------------------------------------------------------------------
+
+type runtimeError struct {
+	message string
+}
+
+type recursionError struct{}
+
+// Run executes the program with panic recovery, converting runtime panics
+// to error returns.
+func (interp *Interpreter) Run(input any, metadata map[string]any) (output any, outputMeta map[string]any, deleted bool, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case runtimeError:
+				err = fmt.Errorf("%s", e.message)
+			case recursionError:
+				err = errors.New("maximum recursion depth exceeded")
+			default:
+				panic(r) // re-panic for unexpected errors
+			}
+		}
+	}()
+	return interp.Exec(input, metadata)
+}
