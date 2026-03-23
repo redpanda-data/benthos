@@ -5,103 +5,103 @@ tests:
 
   - name: "parse_json object"
     mapping: |
-      output = '{"name":"Alice","age":30}'.parse_json()
+      output = `{"name":"Alice","age":30}`.parse_json()
     output: {"name": "Alice", "age": 30}
 
   - name: "parse_json empty object"
     mapping: |
-      output = '{}'.parse_json()
+      output = `{}`.parse_json()
     output: {}
 
   # --- parse_json: arrays ---
 
   - name: "parse_json array of ints"
     mapping: |
-      output = '[1,2,3]'.parse_json()
+      output = `[1,2,3]`.parse_json()
     output: [1, 2, 3]
 
   - name: "parse_json empty array"
     mapping: |
-      output = '[]'.parse_json()
+      output = `[]`.parse_json()
     output: []
 
   # --- parse_json: scalars ---
 
   - name: "parse_json string"
     mapping: |
-      output = '"hello"'.parse_json()
+      output = `"hello"`.parse_json()
     output: "hello"
 
   - name: "parse_json integer is int64"
     mapping: |
-      output = '42'.parse_json().type()
+      output = `42`.parse_json().type()
     output: "int64"
 
   - name: "parse_json integer value"
     mapping: |
-      output = '42'.parse_json()
+      output = `42`.parse_json()
     output: 42
 
   - name: "parse_json float with decimal is float64"
     mapping: |
-      output = '3.14'.parse_json().type()
+      output = `3.14`.parse_json().type()
     output: "float64"
 
   - name: "parse_json float value"
     mapping: |
-      output = '3.14'.parse_json()
+      output = `3.14`.parse_json()
     output: 3.14
 
   - name: "parse_json exponent is float64"
     mapping: |
-      output = '1e3'.parse_json().type()
+      output = `1e3`.parse_json().type()
     output: "float64"
 
   - name: "parse_json exponent value"
     mapping: |
-      output = '1e3'.parse_json()
+      output = `1e3`.parse_json()
     output: 1000.0
 
   - name: "parse_json boolean true"
     mapping: |
-      output = 'true'.parse_json()
+      output = `true`.parse_json()
     output: true
 
   - name: "parse_json boolean false"
     mapping: |
-      output = 'false'.parse_json()
+      output = `false`.parse_json()
     output: false
 
   - name: "parse_json null"
     mapping: |
-      output = 'null'.parse_json()
+      output = `null`.parse_json()
     output: null
 
   - name: "parse_json negative integer"
     mapping: |
-      output = '-100'.parse_json()
+      output = `-100`.parse_json()
     output: -100
 
   - name: "parse_json zero integer"
     mapping: |
-      output = '0'.parse_json()
+      output = `0`.parse_json()
     output: 0
 
   # --- parse_json: errors ---
 
   - name: "parse_json invalid json"
     mapping: |
-      output = 'not json'.parse_json()
+      output = `not json`.parse_json()
     error: "parse"
 
   - name: "parse_json empty string"
     mapping: |
-      output = ''.parse_json()
+      output = ``.parse_json()
     error: "parse"
 
   - name: "parse_json truncated object"
     mapping: |
-      output = '{"name":'.parse_json()
+      output = `{"name":`.parse_json()
     error: "parse"
 
   # --- format_json: basic ---
