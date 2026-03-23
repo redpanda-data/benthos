@@ -1,0 +1,33 @@
+// Package bloblang2 provides a Bloblang V2 implementation that satisfies
+// the bloblspec.Interpreter interface.
+package bloblang2
+
+import (
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/eval"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/syntax"
+	"github.com/redpanda-data/benthos/v4/internal/bloblspec"
+)
+
+// Interp implements bloblspec.Interpreter for Bloblang V2.
+type Interp struct{}
+
+// Compile parses and compiles a Bloblang V2 mapping.
+func (i *Interp) Compile(mapping string, files map[string]string) (bloblspec.Mapping, error) {
+	prog, errs := syntax.Parse(mapping, "", files)
+	if len(errs) > 0 {
+		return nil, &bloblspec.CompileError{Message: syntax.FormatErrors(errs)}
+	}
+	return &compiledMapping{prog: prog}, nil
+}
+
+type compiledMapping struct {
+	prog *syntax.Program
+}
+
+// Exec runs the compiled mapping against input and metadata.
+func (m *compiledMapping) Exec(input any, metadata map[string]any) (any, map[string]any, bool, error) {
+	interp := eval.New(m.prog)
+	interp.RegisterStdlib()
+	interp.RegisterLambdaMethods()
+	return interp.Run(input, metadata)
+}
