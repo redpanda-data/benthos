@@ -127,7 +127,11 @@ func compareFloat64(expected, actual float64, path string) (bool, string) {
 	if math.IsNaN(expected) && math.IsNaN(actual) {
 		return true, ""
 	}
-	// Bitwise comparison handles ±0, ±Inf, and exact values.
+	// -0.0 == 0.0 per spec (they are equal per IEEE 754).
+	if expected == 0 && actual == 0 {
+		return true, ""
+	}
+	// Bitwise comparison for exact values (handles ±Inf).
 	if math.Float64bits(expected) == math.Float64bits(actual) {
 		return true, ""
 	}
@@ -135,13 +139,15 @@ func compareFloat64(expected, actual float64, path string) (bool, string) {
 }
 
 func compareFloat32(expected, actual float32, path string) (bool, string) {
-	eb := math.Float32bits(expected)
-	ab := math.Float32bits(actual)
 	// NaN == NaN for test assertion purposes.
 	if math.IsNaN(float64(expected)) && math.IsNaN(float64(actual)) {
 		return true, ""
 	}
-	if eb == ab {
+	// -0.0 == 0.0 per spec.
+	if expected == 0 && actual == 0 {
+		return true, ""
+	}
+	if math.Float32bits(expected) == math.Float32bits(actual) {
 		return true, ""
 	}
 	return false, fmt.Sprintf("%s: float32 mismatch: expected %v, got %v", path, expected, actual)

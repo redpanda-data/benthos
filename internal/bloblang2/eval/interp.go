@@ -259,13 +259,13 @@ func (interp *Interpreter) evalExpr(expr syntax.Expr) any {
 	case *syntax.UnaryExpr:
 		return interp.evalUnary(e)
 	case *syntax.InputExpr:
-		return interp.input
+		return interp.input // immutable, no clone needed
 	case *syntax.InputMetaExpr:
-		return DeepClone(interp.inputMeta)
+		return interp.inputMeta // immutable, no clone needed
 	case *syntax.OutputExpr:
-		return DeepClone(interp.output)
+		return DeepClone(interp.output) // mutable, must snapshot
 	case *syntax.OutputMetaExpr:
-		return DeepClone(interp.outputMeta)
+		return DeepClone(interp.outputMeta) // mutable, must snapshot
 	case *syntax.VarExpr:
 		v, ok := interp.scope.get(e.Name)
 		if !ok {
@@ -597,11 +597,32 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 		return NewError(err)
 	}
 
-	// Evaluate the map body.
-	saved := interp.scope
+	// Evaluate the map body. If the map has its own namespace context
+	// (from an imported file), temporarily switch to it so that
+	// qualified calls within the map resolve correctly.
+	savedScope := interp.scope
+	savedNamespaces := interp.namespaces
+	savedMaps := interp.maps
+
 	interp.scope = mapScope
+	if m.Namespaces != nil {
+		// Build namespace tables for this map's context.
+		nsTable := make(map[string]map[string]*syntax.MapDecl, len(m.Namespaces))
+		for ns, maps := range m.Namespaces {
+			table := make(map[string]*syntax.MapDecl, len(maps))
+			for _, md := range maps {
+				table[md.Name] = md
+			}
+			nsTable[ns] = table
+		}
+		interp.namespaces = nsTable
+	}
+
 	result := interp.evalExprBody(m.Body)
-	interp.scope = saved
+
+	interp.scope = savedScope
+	interp.namespaces = savedNamespaces
+	interp.maps = savedMaps
 
 	return result
 }

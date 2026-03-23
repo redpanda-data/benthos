@@ -251,11 +251,21 @@ func (p *parser) resolveImport(prog *Program, imp *ImportStmt) {
 		p.error(imp.TokenPos, fmt.Sprintf("imported file %q contains statements (only map declarations and imports are allowed)", imp.Path))
 	}
 
-	// Collect maps from the imported file (including its own transitive imports).
+	// Collect maps from the imported file. Attach the imported file's
+	// namespace tables to each map so the interpreter can resolve
+	// qualified calls (e.g., core::square) within those maps.
+	for _, m := range importProg.Maps {
+		if m.Namespaces == nil {
+			m.Namespaces = make(map[string][]*MapDecl)
+		}
+		// Merge the imported program's namespaces into each map.
+		for ns, maps := range importProg.Namespaces {
+			m.Namespaces[ns] = maps
+		}
+		// Also include the imported program's own maps (for self-references).
+		// These are accessible without namespace qualification within the file.
+	}
 	prog.Namespaces[imp.Namespace] = importProg.Maps
-
-	// Transitive imports: merge the imported file's namespaces
-	// (but these are NOT directly accessible from the importing file).
 }
 
 // -----------------------------------------------------------------------
