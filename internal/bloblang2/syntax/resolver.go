@@ -136,7 +136,14 @@ func (r *resolver) resolveStmt(stmt Stmt) {
 func (r *resolver) resolveAssignment(a *Assignment) {
 	// Lambdas cannot be stored in variables or assigned to output.
 	if _, ok := a.Value.(*LambdaExpr); ok {
-		r.error(a.TokenPos, "lambda expressions cannot be stored as values")
+		r.error(a.TokenPos, "lambda expressions cannot be stored in a variable or assigned to output")
+	}
+
+	// Map/function names cannot be stored in variables.
+	if ident, ok := a.Value.(*IdentExpr); ok {
+		if a.Target.Root == AssignVar && (r.isKnownMap(ident.Name) || r.knownFunctions[ident.Name]) {
+			r.error(a.TokenPos, fmt.Sprintf("cannot store %s in a variable (it is not a value)", ident.Name))
+		}
 	}
 
 	r.resolveExpr(a.Value)
@@ -246,7 +253,7 @@ func (r *resolver) resolveExpr(expr Expr) {
 				// method argument (higher-order). We check this in the
 				// method arg context; in all other positions it's an error.
 				if !r.inMethodArg {
-					r.error(e.TokenPos, fmt.Sprintf("cannot use %s as a value (call it with parentheses or pass to a method)", e.Name))
+					r.error(e.TokenPos, e.Name+" is not a valid expression (call it with parentheses or pass to a method)")
 				}
 			} else {
 				r.error(e.TokenPos, fmt.Sprintf("undeclared identifier %q", e.Name))
@@ -264,6 +271,20 @@ func (r *resolver) resolveExpr(expr Expr) {
 		saved := r.inMethodArg
 		r.inMethodArg = true
 		for _, arg := range e.Args {
+			// Check map name references passed to higher-order methods.
+			if ident, ok := arg.Value.(*IdentExpr); ok {
+				if m := r.findMap(ident.Name); m != nil {
+					required := 0
+					for _, p := range m.Params {
+						if p.Default == nil && !p.Discard {
+							required++
+						}
+					}
+					if required != 1 {
+						r.error(ident.TokenPos, fmt.Sprintf("arity mismatch: %s() requires %d arguments, but higher-order methods pass 1", ident.Name, required))
+					}
+				}
+			}
 			r.resolveExpr(arg.Value)
 		}
 		r.inMethodArg = saved
