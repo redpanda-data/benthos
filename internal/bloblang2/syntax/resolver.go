@@ -30,6 +30,7 @@ type resolver struct {
 	errors         []PosError
 	scope          *resolveScope
 	inMap          bool // true when inside a map body
+	inMethodArg    bool // true when resolving a method argument
 }
 
 type resolveScope struct {
@@ -231,16 +232,14 @@ func (r *resolver) resolveExpr(expr Expr) {
 		}
 	case *IdentExpr:
 		// Bare identifiers must resolve to a parameter or variable.
-		// Map/function names are only valid in call position or as
-		// higher-order method arguments (handled by lambda methods).
 		if !r.scope.isDeclared(e.Name) {
 			if r.isKnownMap(e.Name) || r.knownFunctions[e.Name] {
-				// Map/function name used as a value — only valid as method arg.
-				// The parser puts these in method arg lists; if we see them
-				// elsewhere (e.g., $fn = double), that's a compile error.
-				// However, we can't easily distinguish here from method arg
-				// context without tracking position. For now, allow it and
-				// let the interpreter handle the error for non-method contexts.
+				// Map/function name in expression position — only valid as
+				// method argument (higher-order). We check this in the
+				// method arg context; in all other positions it's an error.
+				if !r.inMethodArg {
+					r.error(e.TokenPos, fmt.Sprintf("cannot use %s as a value (call it with parentheses or pass to a method)", e.Name))
+				}
 			} else {
 				r.error(e.TokenPos, fmt.Sprintf("undeclared identifier %q", e.Name))
 			}
@@ -254,9 +253,12 @@ func (r *resolver) resolveExpr(expr Expr) {
 		r.resolveCall(e)
 	case *MethodCallExpr:
 		r.resolveExpr(e.Receiver)
+		saved := r.inMethodArg
+		r.inMethodArg = true
 		for _, arg := range e.Args {
 			r.resolveExpr(arg.Value)
 		}
+		r.inMethodArg = saved
 	case *FieldAccessExpr:
 		r.resolveExpr(e.Receiver)
 	case *IndexExpr:
@@ -353,7 +355,19 @@ func (r *resolver) checkMapArity(e *CallExpr, m *MapDecl) {
 	}
 
 	if e.Named {
-		// Named args: check required params are provided.
+		// Named args: check for unknown arg names.
+		paramNames := make(map[string]bool)
+		for _, p := range m.Params {
+			if !p.Discard {
+				paramNames[p.Name] = true
+			}
+		}
+		for _, arg := range e.Args {
+			if !paramNames[arg.Name] {
+				r.error(e.TokenPos, fmt.Sprintf("unknown named argument %q", arg.Name))
+			}
+		}
+		// Check required params are provided.
 		provided := make(map[string]bool)
 		for _, arg := range e.Args {
 			provided[arg.Name] = true
