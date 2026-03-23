@@ -290,7 +290,7 @@ func TestInterp_MapIsolation(t *testing.T) {
 func TestInterp_OutputDeleted(t *testing.T) {
 	prog, _ := syntax.Parse("output = deleted()", "", nil)
 	interp := New(prog)
-	interp.RegisterFunction("deleted", func(args []any) any { return Deleted })
+	interp.RegisterFunction("deleted", FunctionSpec{Fn: func(_ []any) any { return Deleted }})
 	_, _, deleted, err := interp.Run(nil, map[string]any{})
 	if err != nil {
 		t.Fatal(err)
@@ -303,7 +303,7 @@ func TestInterp_OutputDeleted(t *testing.T) {
 func TestInterp_FieldDeleted(t *testing.T) {
 	prog, _ := syntax.Parse("output.a = 1\noutput.b = 2\noutput.b = deleted()", "", nil)
 	interp := New(prog)
-	interp.RegisterFunction("deleted", func(args []any) any { return Deleted })
+	interp.RegisterFunction("deleted", FunctionSpec{Fn: func(_ []any) any { return Deleted }})
 	output, _, _, err := interp.Run(nil, map[string]any{})
 	if err != nil {
 		t.Fatal(err)

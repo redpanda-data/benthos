@@ -13,27 +13,25 @@ import (
 // RegisterLambdaMethods registers methods that take lambda arguments and
 // need access to the interpreter for evaluation.
 func (interp *Interpreter) RegisterLambdaMethods() {
-	interp.lambdaMethods = map[string]lambdaMethodFunc{
-		"filter":         interp.methodFilter,
-		"map":            interp.methodMap,
-		"sort":           interp.methodSort,
-		"sort_by":        interp.methodSortBy,
-		"any":            interp.methodAny,
-		"all":            interp.methodAll,
-		"find":           interp.methodFind,
-		"fold":           interp.methodFold,
-		"unique":         interp.methodUnique,
-		"without_index":  interp.methodWithoutIndex,
-		"index_of":       interp.methodIndexOf,
-		"slice":          interp.methodSlice,
-		"map_values":     interp.methodMapValues,
-		"map_keys":       interp.methodMapKeys,
-		"map_entries":    interp.methodMapEntries,
-		"filter_entries": interp.methodFilterEntries,
-	}
-}
+	lm := func(fn lambdaMethodFunc) MethodSpec { return MethodSpec{LambdaFn: fn} }
 
-type lambdaMethodFunc func(receiver any, args []syntax.CallArg) any
+	interp.RegisterMethod("filter", lm(interp.methodFilter))
+	interp.RegisterMethod("map", lm(interp.methodMap))
+	interp.RegisterMethod("sort", lm(interp.methodSort))
+	interp.RegisterMethod("sort_by", lm(interp.methodSortBy))
+	interp.RegisterMethod("any", lm(interp.methodAny))
+	interp.RegisterMethod("all", lm(interp.methodAll))
+	interp.RegisterMethod("find", lm(interp.methodFind))
+	interp.RegisterMethod("fold", lm(interp.methodFold))
+	interp.RegisterMethod("unique", lm(interp.methodUnique))
+	interp.RegisterMethod("without_index", lm(interp.methodWithoutIndex))
+	interp.RegisterMethod("index_of", lm(interp.methodIndexOf))
+	interp.RegisterMethod("slice", lm(interp.methodSlice))
+	interp.RegisterMethod("map_values", lm(interp.methodMapValues))
+	interp.RegisterMethod("map_keys", lm(interp.methodMapKeys))
+	interp.RegisterMethod("map_entries", lm(interp.methodMapEntries))
+	interp.RegisterMethod("filter_entries", lm(interp.methodFilterEntries))
+}
 
 func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any {
 	arr, ok := receiver.([]any)

@@ -16,6 +16,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 )
 
 // RegisterStdlib registers all standard library functions and methods.
@@ -24,187 +26,198 @@ func (interp *Interpreter) RegisterStdlib() {
 	interp.registerMethods()
 }
 
-// StdlibFunctionNames returns the names of all stdlib functions.
-func StdlibFunctionNames() map[string]bool {
-	return map[string]bool{
-		"uuid_v4": true, "now": true, "random_int": true, "range": true,
-		"timestamp": true, "second": true, "minute": true, "hour": true, "day": true,
-		"throw": true, "deleted": true,
+// MethodNames returns the names of all registered methods.
+func (interp *Interpreter) MethodNames() map[string]bool {
+	names := make(map[string]bool, len(interp.methods))
+	for name := range interp.methods {
+		names[name] = true
 	}
+	return names
 }
 
-// StdlibMethodNames returns the names of all stdlib methods.
-func StdlibMethodNames() map[string]bool {
-	return map[string]bool{
-		// Type conversion.
-		"string": true, "int32": true, "int64": true, "uint32": true, "uint64": true,
-		"float32": true, "float64": true, "bool": true, "char": true, "bytes": true,
-		// Introspection.
-		"type": true,
-		// Sequence.
-		"length": true, "contains": true, "index_of": true, "slice": true, "reverse": true,
-		// String.
-		"uppercase": true, "lowercase": true, "trim": true, "trim_prefix": true, "trim_suffix": true,
-		"has_prefix": true, "has_suffix": true, "split": true, "replace_all": true, "repeat": true,
-		"re_match": true, "re_find_all": true, "re_replace_all": true,
-		// Array.
-		"filter": true, "map": true, "sort": true, "sort_by": true,
-		"append": true, "concat": true, "flatten": true, "unique": true,
-		"without_index": true, "enumerate": true, "any": true, "all": true,
-		"find": true, "join": true, "sum": true, "min": true, "max": true,
-		"fold": true, "collect": true,
-		// Object.
-		"iter": true, "keys": true, "values": true, "has_key": true,
-		"merge": true, "without": true, "map_values": true, "map_keys": true,
-		"map_entries": true, "filter_entries": true,
-		// Numeric.
-		"abs": true, "floor": true, "ceil": true, "round": true,
-		// Timestamp.
-		"ts_parse": true, "ts_format": true,
-		"ts_unix": true, "ts_unix_milli": true, "ts_unix_micro": true, "ts_unix_nano": true,
-		"ts_from_unix": true, "ts_from_unix_milli": true, "ts_from_unix_micro": true, "ts_from_unix_nano": true,
-		"ts_add": true,
-		// Error handling (intrinsics handled separately, but listed for validation).
-		"catch": true, "or": true, "not_null": true,
-		// Encoding.
-		"parse_json": true, "format_json": true, "encode": true, "decode": true,
+// FunctionInfos returns compile-time metadata for all registered functions,
+// keyed by name. Used by the resolver for arity checking.
+func (interp *Interpreter) FunctionInfos() map[string]syntax.FunctionInfo {
+	infos := make(map[string]syntax.FunctionInfo, len(interp.functions))
+	for name, spec := range interp.functions {
+		required, total := 0, 0
+		for _, p := range spec.Params {
+			total++
+			if !p.HasDefault {
+				required++
+			}
+		}
+		infos[name] = syntax.FunctionInfo{Required: required, Total: total}
 	}
+	return infos
+}
+
+// StdlibNames creates a temporary interpreter with stdlib registered and
+// returns the method and function info maps. Used by the resolver for
+// compile-time name validation and arity checking.
+func StdlibNames() (methods map[string]bool, functions map[string]syntax.FunctionInfo) {
+	interp := New(nil)
+	interp.RegisterStdlib()
+	interp.RegisterLambdaMethods()
+	return interp.MethodNames(), interp.FunctionInfos()
 }
 
 func (interp *Interpreter) registerFunctions() {
-	interp.RegisterFunction("deleted", func(_ []any) any { return Deleted })
-	interp.RegisterFunction("throw", func(args []any) any {
-		if len(args) != 1 {
-			return NewError("throw() requires exactly one string argument")
-		}
-		msg, ok := args[0].(string)
-		if !ok {
-			return NewError(fmt.Sprintf("throw() requires a string argument, got %T", args[0]))
-		}
-		return NewError(msg)
-	})
-	interp.RegisterFunction("uuid_v4", func(_ []any) any {
-		return uuid.New().String()
-	})
-	interp.RegisterFunction("now", func(_ []any) any {
-		return time.Now().UTC()
-	})
-	interp.RegisterFunction("random_int", func(args []any) any {
-		if len(args) != 2 {
-			return NewError("random_int() requires min and max arguments")
-		}
-		minVal, ok1 := toInt64(args[0])
-		maxVal, ok2 := toInt64(args[1])
-		if !ok1 || !ok2 {
-			return NewError("random_int() requires integer arguments")
-		}
-		if minVal > maxVal {
-			return NewError("random_int(): min must be <= max")
-		}
-		return minVal + rand.Int64N(maxVal-minVal+1)
-	})
-	interp.RegisterFunction("range", func(args []any) any {
-		if len(args) < 2 || len(args) > 3 {
-			return NewError("range() requires 2 or 3 arguments")
-		}
-		start, ok1 := toInt64(args[0])
-		stop, ok2 := toInt64(args[1])
-		if !ok1 || !ok2 {
-			return NewError("range() requires integer arguments")
-		}
-		var step int64
-		if len(args) == 3 {
-			s, ok := toInt64(args[2])
-			if !ok {
-				return NewError("range() step must be integer")
-			}
-			if s == 0 {
-				return NewError("range() step cannot be zero")
-			}
-			if (start < stop && s < 0) || (start > stop && s > 0) {
-				return NewError("range() step direction contradicts start/stop")
-			}
-			step = s
-		} else {
-			if start <= stop {
-				step = 1
-			} else {
-				step = -1
-			}
-		}
-		if start == stop {
-			return []any{}
-		}
-		var result []any
-		if step > 0 {
-			for i := start; i < stop; i += step {
-				result = append(result, i)
-			}
-		} else {
-			for i := start; i > stop; i += step {
-				result = append(result, i)
-			}
-		}
-		return result
-	})
-	interp.RegisterFunction("second", func(_ []any) any { return int64(1_000_000_000) })
-	interp.RegisterFunction("minute", func(_ []any) any { return int64(60_000_000_000) })
-	interp.RegisterFunction("hour", func(_ []any) any { return int64(3_600_000_000_000) })
-	interp.RegisterFunction("day", func(_ []any) any { return int64(86_400_000_000_000) })
+	f := func(fn FunctionFunc) FunctionSpec { return FunctionSpec{Fn: fn} }
 
-	interp.RegisterFunction("timestamp", func(args []any) any {
-		if len(args) < 3 {
-			return NewError("timestamp() requires at least year, month, day")
-		}
-		year, ok1 := toInt64(args[0])
-		month, ok2 := toInt64(args[1])
-		day, ok3 := toInt64(args[2])
-		if !ok1 || !ok2 || !ok3 {
-			return NewError("timestamp() requires integer year, month, day")
-		}
-		var hour, minute, sec, nano int64
-		tz := "UTC"
-		if len(args) > 3 {
-			hour, _ = toInt64(args[3])
-		}
-		if len(args) > 4 {
-			minute, _ = toInt64(args[4])
-		}
-		if len(args) > 5 {
-			sec, _ = toInt64(args[5])
-		}
-		if len(args) > 6 {
-			nano, _ = toInt64(args[6])
-		}
-		if len(args) > 7 {
-			if s, ok := args[7].(string); ok {
-				tz = s
+	interp.RegisterFunction("deleted", FunctionSpec{Fn: func(_ []any) any { return Deleted }})
+	interp.RegisterFunction("throw", FunctionSpec{
+		Fn: func(args []any) any {
+			if len(args) != 1 {
+				return NewError("throw() requires exactly one string argument")
 			}
-		}
-		// Validate ranges per spec.
-		if month < 1 || month > 12 {
-			return NewError(fmt.Sprintf("timestamp(): month %d out of range (1-12)", month))
-		}
-		if day < 1 || day > 31 {
-			return NewError(fmt.Sprintf("timestamp(): day %d out of range (1-31)", day))
-		}
-		if hour < 0 || hour > 23 {
-			return NewError(fmt.Sprintf("timestamp(): hour %d out of range (0-23)", hour))
-		}
-		if minute < 0 || minute > 59 {
-			return NewError(fmt.Sprintf("timestamp(): minute %d out of range (0-59)", minute))
-		}
-		if sec < 0 || sec > 59 {
-			return NewError(fmt.Sprintf("timestamp(): second %d out of range (0-59)", sec))
-		}
-		if nano < 0 || nano > 999999999 {
-			return NewError(fmt.Sprintf("timestamp(): nano %d out of range (0-999999999)", nano))
-		}
-		loc, err := time.LoadLocation(tz)
-		if err != nil {
-			return NewError("timestamp(): unknown timezone " + tz)
-		}
-		return time.Date(int(year), time.Month(month), int(day), int(hour), int(minute), int(sec), int(nano), loc)
+			msg, ok := args[0].(string)
+			if !ok {
+				return NewError(fmt.Sprintf("throw() requires a string argument, got %T", args[0]))
+			}
+			return NewError(msg)
+		},
+		Params: []FunctionParam{{Name: "message"}},
+	})
+	interp.RegisterFunction("uuid_v4", f(func(_ []any) any {
+		return uuid.New().String()
+	}))
+	interp.RegisterFunction("now", f(func(_ []any) any {
+		return time.Now().UTC()
+	}))
+	interp.RegisterFunction("random_int", FunctionSpec{
+		Fn: func(args []any) any {
+			if len(args) != 2 {
+				return NewError("random_int() requires min and max arguments")
+			}
+			minVal, ok1 := toInt64(args[0])
+			maxVal, ok2 := toInt64(args[1])
+			if !ok1 || !ok2 {
+				return NewError("random_int() requires integer arguments")
+			}
+			if minVal > maxVal {
+				return NewError("random_int(): min must be <= max")
+			}
+			return minVal + rand.Int64N(maxVal-minVal+1)
+		},
+		Params: []FunctionParam{{Name: "min"}, {Name: "max"}},
+	})
+	interp.RegisterFunction("range", FunctionSpec{
+		Fn: func(args []any) any {
+			if len(args) < 2 || len(args) > 3 {
+				return NewError("range() requires 2 or 3 arguments")
+			}
+			start, ok1 := toInt64(args[0])
+			stop, ok2 := toInt64(args[1])
+			if !ok1 || !ok2 {
+				return NewError("range() requires integer arguments")
+			}
+			var step int64
+			if len(args) == 3 {
+				s, ok := toInt64(args[2])
+				if !ok {
+					return NewError("range() step must be integer")
+				}
+				if s == 0 {
+					return NewError("range() step cannot be zero")
+				}
+				if (start < stop && s < 0) || (start > stop && s > 0) {
+					return NewError("range() step direction contradicts start/stop")
+				}
+				step = s
+			} else {
+				if start <= stop {
+					step = 1
+				} else {
+					step = -1
+				}
+			}
+			if start == stop {
+				return []any{}
+			}
+			var result []any
+			if step > 0 {
+				for i := start; i < stop; i += step {
+					result = append(result, i)
+				}
+			} else {
+				for i := start; i > stop; i += step {
+					result = append(result, i)
+				}
+			}
+			return result
+		},
+		Params: []FunctionParam{{Name: "start"}, {Name: "stop"}, {Name: "step", HasDefault: true}},
+	})
+	interp.RegisterFunction("second", f(func(_ []any) any { return int64(1_000_000_000) }))
+	interp.RegisterFunction("minute", f(func(_ []any) any { return int64(60_000_000_000) }))
+	interp.RegisterFunction("hour", f(func(_ []any) any { return int64(3_600_000_000_000) }))
+	interp.RegisterFunction("day", f(func(_ []any) any { return int64(86_400_000_000_000) }))
+
+	interp.RegisterFunction("timestamp", FunctionSpec{
+		Fn: func(args []any) any {
+			if len(args) < 3 {
+				return NewError("timestamp() requires at least year, month, day")
+			}
+			year, ok1 := toInt64(args[0])
+			month, ok2 := toInt64(args[1])
+			day, ok3 := toInt64(args[2])
+			if !ok1 || !ok2 || !ok3 {
+				return NewError("timestamp() requires integer year, month, day")
+			}
+			var hour, minute, sec, nano int64
+			tz := "UTC"
+			if len(args) > 3 {
+				hour, _ = toInt64(args[3])
+			}
+			if len(args) > 4 {
+				minute, _ = toInt64(args[4])
+			}
+			if len(args) > 5 {
+				sec, _ = toInt64(args[5])
+			}
+			if len(args) > 6 {
+				nano, _ = toInt64(args[6])
+			}
+			if len(args) > 7 {
+				if s, ok := args[7].(string); ok {
+					tz = s
+				}
+			}
+			if month < 1 || month > 12 {
+				return NewError(fmt.Sprintf("timestamp(): month %d out of range (1-12)", month))
+			}
+			if day < 1 || day > 31 {
+				return NewError(fmt.Sprintf("timestamp(): day %d out of range (1-31)", day))
+			}
+			if hour < 0 || hour > 23 {
+				return NewError(fmt.Sprintf("timestamp(): hour %d out of range (0-23)", hour))
+			}
+			if minute < 0 || minute > 59 {
+				return NewError(fmt.Sprintf("timestamp(): minute %d out of range (0-59)", minute))
+			}
+			if sec < 0 || sec > 59 {
+				return NewError(fmt.Sprintf("timestamp(): second %d out of range (0-59)", sec))
+			}
+			if nano < 0 || nano > 999999999 {
+				return NewError(fmt.Sprintf("timestamp(): nano %d out of range (0-999999999)", nano))
+			}
+			loc, err := time.LoadLocation(tz)
+			if err != nil {
+				return NewError("timestamp(): unknown timezone " + tz)
+			}
+			return time.Date(int(year), time.Month(month), int(day), int(hour), int(minute), int(sec), int(nano), loc)
+		},
+		Params: []FunctionParam{
+			{Name: "year"},
+			{Name: "month"},
+			{Name: "day"},
+			{Name: "hour", HasDefault: true},
+			{Name: "minute", HasDefault: true},
+			{Name: "second", HasDefault: true},
+			{Name: "nano", HasDefault: true},
+			{Name: "timezone", HasDefault: true},
+		},
 	})
 }
 
@@ -306,6 +319,11 @@ func (interp *Interpreter) registerMethods() {
 	interp.RegisterMethod("not_null", MethodSpec{Fn: methodNotNull, AcceptsNull: true, Params: []MethodParam{
 		{Name: "message", Default: "unexpected null value", HasDefault: true},
 	}})
+
+	// Intrinsic methods — dispatch handled inline in evalMethodCall,
+	// registered here for name resolution only.
+	interp.RegisterMethod("catch", MethodSpec{Intrinsic: true})
+	interp.RegisterMethod("or", MethodSpec{Intrinsic: true})
 }
 
 // -----------------------------------------------------------------------
