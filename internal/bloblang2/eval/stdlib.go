@@ -221,7 +221,7 @@ func (interp *Interpreter) registerMethods() {
 	interp.RegisterMethod("bool", methodBool)
 	interp.RegisterMethod("bytes", methodBytes)
 	interp.RegisterMethod("char", methodChar)
-	interp.RegisterMethod("not_null", methodNotNull)
+	// not_null registered below with params.
 
 	// Sequence methods.
 	interp.RegisterMethod("length", methodLength)
@@ -277,15 +277,33 @@ func (interp *Interpreter) registerMethods() {
 	interp.RegisterMethod("ts_from_unix_milli", methodTsFromUnixMilli)
 	interp.RegisterMethod("ts_from_unix_micro", methodTsFromUnixMicro)
 	interp.RegisterMethod("ts_from_unix_nano", methodTsFromUnixNano)
-	interp.RegisterMethod("ts_add", methodTsAdd)
-	interp.RegisterMethod("ts_parse", methodTsParse)
-	interp.RegisterMethod("ts_format", methodTsFormat)
+	// ts_add, ts_parse, ts_format registered below with params.
 
 	// Encoding methods.
 	interp.RegisterMethod("parse_json", methodParseJSON)
-	interp.RegisterMethod("format_json", methodFormatJSON)
-	interp.RegisterMethod("encode", methodEncode)
-	interp.RegisterMethod("decode", methodDecode)
+	interp.RegisterMethodWithParams("format_json", methodFormatJSON, []MethodParam{
+		{Name: "indent", Default: "", HasDefault: true},
+		{Name: "no_indent", Default: false, HasDefault: true},
+		{Name: "escape_html", Default: true, HasDefault: true},
+	})
+	interp.RegisterMethodWithParams("encode", methodEncode, []MethodParam{
+		{Name: "scheme"},
+	})
+	interp.RegisterMethodWithParams("decode", methodDecode, []MethodParam{
+		{Name: "scheme"},
+	})
+	interp.RegisterMethodWithParams("ts_parse", methodTsParse, []MethodParam{
+		{Name: "format", Default: defaultTimestampFormat, HasDefault: true},
+	})
+	interp.RegisterMethodWithParams("ts_format", methodTsFormat, []MethodParam{
+		{Name: "format", Default: defaultTimestampFormat, HasDefault: true},
+	})
+	interp.RegisterMethodWithParams("ts_add", methodTsAdd, []MethodParam{
+		{Name: "nanos"},
+	})
+	interp.RegisterMethodWithParams("not_null", methodNotNull, []MethodParam{
+		{Name: "message", Default: "unexpected null value", HasDefault: true},
+	})
 }
 
 // -----------------------------------------------------------------------
@@ -1443,24 +1461,23 @@ func normalizeJSONNumbers(v any) any {
 }
 
 func methodFormatJSON(receiver any, args []any) any {
+	// Args mapped by RegisterMethodWithParams: [indent, no_indent, escape_html]
 	indent := ""
 	escapeHTML := true
 
-	// Parse optional arguments. The spec supports:
-	// indent (string), no_indent (bool), escape_html (bool)
-	for i := 0; i+1 < len(args); i += 2 {
-		// Named args arrive as evaluated values. For positional:
-		// format_json(indent: "  ") arrives as just the value.
-		// We handle positional single-arg as indent for simplicity.
-	}
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok {
 			indent = s
 		}
 	}
 	if len(args) > 1 {
-		if b, ok := args[1].(bool); ok {
-			escapeHTML = !b // no_indent parameter... actually spec uses escape_html
+		if b, ok := args[1].(bool); ok && b {
+			indent = "" // no_indent overrides indent
+		}
+	}
+	if len(args) > 2 {
+		if b, ok := args[2].(bool); ok {
+			escapeHTML = b
 		}
 	}
 
