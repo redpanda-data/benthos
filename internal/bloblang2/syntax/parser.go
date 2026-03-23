@@ -640,6 +640,9 @@ func (p *parser) parsePrefix() Expr {
 
 	case VAR:
 		p.advance()
+		if p.at(LPAREN) {
+			p.error(tok.Pos, fmt.Sprintf("$%s is a variable, not a callable function (use a named map instead)", tok.Literal))
+		}
 		return &VarExpr{TokenPos: tok.Pos, Name: tok.Literal}
 
 	case IDENT:
@@ -1189,12 +1192,30 @@ func (p *parser) parseArgList() ([]CallArg, bool) {
 	var args []CallArg
 	for {
 		if named {
+			// Named mode: expect "name: value".
+			if p.tok.Type != IDENT {
+				p.error(p.tok.Pos, "cannot mix named and positional arguments in the same call")
+				// Recovery: skip to ) or EOF.
+				for !p.at(RPAREN) && !p.at(EOF) {
+					p.advance()
+				}
+				break
+			}
 			nameTok := p.expect(IDENT)
 			p.expect(COLON)
 			value := p.parseExpr(0)
 			args = append(args, CallArg{Name: nameTok.Literal, Value: value})
 		} else {
+			// Positional mode: after parsing a value, check if ":"
+			// follows an identifier — that indicates named arg mixing.
 			value := p.parseExpr(0)
+			if p.at(COLON) {
+				p.error(p.tok.Pos, "cannot mix positional and named arguments in the same call")
+				for !p.at(RPAREN) && !p.at(EOF) {
+					p.advance()
+				}
+				break
+			}
 			args = append(args, CallArg{Value: value})
 		}
 		if !p.at(COMMA) {
