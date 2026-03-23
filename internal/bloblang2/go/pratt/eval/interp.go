@@ -31,9 +31,8 @@ type Interpreter struct {
 	depth int // recursion depth
 
 	// Methods and functions (pluggable for extensibility).
-	methods       map[string]MethodSpec
-	functions     map[string]FunctionFunc
-	lambdaMethods map[string]lambdaMethodFunc
+	methods   map[string]MethodSpec
+	functions map[string]FunctionSpec
 }
 
 // MethodFunc is a stdlib method implementation.
@@ -51,14 +50,30 @@ type MethodParam struct {
 // Metadata is colocated with the method definition so the interpreter dispatch
 // does not need hardcoded name lists.
 type MethodSpec struct {
-	Fn          MethodFunc
-	Params      []MethodParam // nil for methods with no named-arg support
-	AcceptsNull bool          // receiver can be nil (e.g., type, string, not_null)
+	Fn          MethodFunc       // regular method (mutually exclusive with LambdaFn)
+	LambdaFn    lambdaMethodFunc // lambda method (mutually exclusive with Fn)
+	Intrinsic   bool             // marks catch/or — dispatch handled inline, registered for name resolution only
+	Params      []MethodParam    // nil for methods with no named-arg support
+	AcceptsNull bool             // receiver can be nil (e.g., type, string, not_null)
 }
 
+// lambdaMethodFunc is a method that receives unevaluated AST args (for lambda/map-ref arguments).
+type lambdaMethodFunc func(receiver any, args []syntax.CallArg) any
+
 // FunctionFunc is a stdlib function implementation.
-// Can be extended to FunctionSpec if function-level metadata is needed.
 type FunctionFunc func(args []any) any
+
+// FunctionSpec bundles a function implementation with its behavioral metadata.
+type FunctionSpec struct {
+	Fn     FunctionFunc
+	Params []FunctionParam // for compile-time arity checking
+}
+
+// FunctionParam describes a function parameter for compile-time validation.
+type FunctionParam struct {
+	Name       string
+	HasDefault bool
+}
 
 // New creates a new interpreter for the given program.
 func New(prog *syntax.Program) *Interpreter {
@@ -67,21 +82,23 @@ func New(prog *syntax.Program) *Interpreter {
 		maps:       make(map[string]*syntax.MapDecl),
 		namespaces: make(map[string]map[string]*syntax.MapDecl),
 		methods:    make(map[string]MethodSpec),
-		functions:  make(map[string]FunctionFunc),
+		functions:  make(map[string]FunctionSpec),
 	}
 
-	// Hoist map declarations.
-	for _, m := range prog.Maps {
-		interp.maps[m.Name] = m
-	}
-
-	// Build namespace tables from imports.
-	for ns, maps := range prog.Namespaces {
-		table := make(map[string]*syntax.MapDecl, len(maps))
-		for _, m := range maps {
-			table[m.Name] = m
+	if prog != nil {
+		// Hoist map declarations.
+		for _, m := range prog.Maps {
+			interp.maps[m.Name] = m
 		}
-		interp.namespaces[ns] = table
+
+		// Build namespace tables from imports.
+		for ns, maps := range prog.Namespaces {
+			table := make(map[string]*syntax.MapDecl, len(maps))
+			for _, m := range maps {
+				table[m.Name] = m
+			}
+			interp.namespaces[ns] = table
+		}
 	}
 
 	return interp
@@ -92,9 +109,9 @@ func (interp *Interpreter) RegisterMethod(name string, spec MethodSpec) {
 	interp.methods[name] = spec
 }
 
-// RegisterFunction registers a stdlib function.
-func (interp *Interpreter) RegisterFunction(name string, fn FunctionFunc) {
-	interp.functions[name] = fn
+// RegisterFunction registers a stdlib function with its behavioral metadata.
+func (interp *Interpreter) RegisterFunction(name string, spec FunctionSpec) {
+	interp.functions[name] = spec
 }
 
 // Exec runs the program against the given input and metadata.
@@ -504,22 +521,7 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 		return nil
 	}
 
-	// Look up the method (lambda methods first, then regular methods).
-	// We need the spec before the null check so we can read AcceptsNull.
-	if lm, ok := interp.lambdaMethods[e.Method]; ok {
-		// Lambda methods don't accept null receivers.
-		if receiver == nil && !e.NullSafe {
-			return NewError(fmt.Sprintf(".%s() does not support null", e.Method))
-		}
-		if IsVoid(receiver) {
-			return NewError("cannot call method on void")
-		}
-		if IsDeleted(receiver) {
-			return NewError("cannot call method on deleted value")
-		}
-		return lm(receiver, e.Args)
-	}
-
+	// Look up the method. We need the spec before the null check so we can read AcceptsNull.
 	spec, ok := interp.methods[e.Method]
 	if !ok {
 		// Unknown method — but if receiver is null, the null error is more helpful
@@ -541,6 +543,11 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 	}
 	if IsDeleted(receiver) {
 		return NewError("cannot call method on deleted value")
+	}
+
+	// Lambda methods: receive unevaluated AST args (for lambdas/map-refs).
+	if spec.LambdaFn != nil {
+		return spec.LambdaFn(receiver, e.Args)
 	}
 
 	// Evaluate arguments, resolving named args to positional if needed.
@@ -635,14 +642,14 @@ func (interp *Interpreter) evalCall(e *syntax.CallExpr) any {
 	}
 
 	// Check stdlib functions.
-	if fn, ok := interp.functions[e.Name]; ok {
+	if spec, ok := interp.functions[e.Name]; ok {
 		args := interp.evalArgs(e.Args)
 		for _, a := range args {
 			if IsError(a) {
 				return a
 			}
 		}
-		return fn(args)
+		return spec.Fn(args)
 	}
 
 	return NewError(fmt.Sprintf("unknown function %s()", e.Name))
@@ -973,8 +980,31 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 			if !ok {
 				return NewError(fmt.Sprintf("unknown method .%s()", seg.Name))
 			}
-			args := interp.evalArgs(seg.Args)
-			current = spec.Fn(current, args)
+			// Intrinsic methods (catch/or) cannot appear in path expressions
+			// because they require control over receiver evaluation.
+			if spec.Intrinsic {
+				return NewError(fmt.Sprintf(".%s() cannot be used in path expressions", seg.Name))
+			}
+			if current == nil && !seg.NullSafe && !spec.AcceptsNull {
+				return NewError(fmt.Sprintf(".%s() does not support null", seg.Name))
+			}
+			if IsVoid(current) {
+				return NewError("cannot call method on void")
+			}
+			if IsDeleted(current) {
+				return NewError("cannot call method on deleted value")
+			}
+			if spec.LambdaFn != nil {
+				current = spec.LambdaFn(current, seg.Args)
+			} else {
+				args := interp.evalArgs(seg.Args)
+				for _, a := range args {
+					if IsError(a) {
+						return a
+					}
+				}
+				current = spec.Fn(current, args)
+			}
 		}
 	}
 	return current

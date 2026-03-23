@@ -2,6 +2,15 @@ package syntax
 
 import "fmt"
 
+// FunctionInfo carries compile-time metadata about a stdlib function.
+type FunctionInfo struct {
+	// Required is the number of required parameters.
+	Required int
+	// Total is the total number of parameters (required + optional).
+	// -1 means no arity checking (variadic or handled at runtime).
+	Total int
+}
+
 // Resolve performs semantic analysis on a parsed program, checking for:
 //   - Undeclared variable references
 //   - Block-scoped variable visibility
@@ -9,11 +18,11 @@ import "fmt"
 //   - Lambda purity (no output assignments)
 //   - Boolean literal cases in equality match
 //   - Duplicate map names
-//   - Arity mismatches for throw/deleted
+//   - Function arity mismatches
 //
-// knownMethods and knownFunctions are sets of recognized names for
-// compile-time validation.
-func Resolve(prog *Program, knownMethods, knownFunctions map[string]bool) []PosError {
+// knownMethods is the set of recognized method names.
+// knownFunctions maps function names to their compile-time metadata.
+func Resolve(prog *Program, knownMethods map[string]bool, knownFunctions map[string]FunctionInfo) []PosError {
 	r := &resolver{
 		prog:           prog,
 		knownMethods:   knownMethods,
@@ -26,7 +35,7 @@ func Resolve(prog *Program, knownMethods, knownFunctions map[string]bool) []PosE
 type resolver struct {
 	prog           *Program
 	knownMethods   map[string]bool
-	knownFunctions map[string]bool
+	knownFunctions map[string]FunctionInfo
 	errors         []PosError
 	scope          *resolveScope
 	inMap          bool // true when inside a map body
@@ -141,7 +150,8 @@ func (r *resolver) resolveAssignment(a *Assignment) {
 
 	// Map/function names cannot be stored in variables.
 	if ident, ok := a.Value.(*IdentExpr); ok {
-		if a.Target.Root == AssignVar && (r.isKnownMap(ident.Name) || r.knownFunctions[ident.Name]) {
+		_, isFn := r.knownFunctions[ident.Name]
+		if a.Target.Root == AssignVar && (r.isKnownMap(ident.Name) || isFn) {
 			r.error(a.TokenPos, fmt.Sprintf("cannot store %s in a variable (it is not a value)", ident.Name))
 		}
 	}
@@ -248,7 +258,8 @@ func (r *resolver) resolveExpr(expr Expr) {
 	case *IdentExpr:
 		// Bare identifiers must resolve to a parameter or variable.
 		if !r.scope.isDeclared(e.Name) {
-			if r.isKnownMap(e.Name) || r.knownFunctions[e.Name] {
+			_, isFn := r.knownFunctions[e.Name]
+			if r.isKnownMap(e.Name) || isFn {
 				// Map/function name in expression position — only valid as
 				// method argument (higher-order). We check this in the
 				// method arg context; in all other positions it's an error.
@@ -321,22 +332,6 @@ func (r *resolver) resolveExpr(expr Expr) {
 }
 
 func (r *resolver) resolveCall(e *CallExpr) {
-	// Validate throw() arguments at compile time.
-	if e.Name == "throw" && e.Namespace == "" {
-		if len(e.Args) != 1 {
-			r.error(e.TokenPos, "throw() requires exactly one string argument")
-		} else if lit, ok := e.Args[0].Value.(*LiteralExpr); ok {
-			if lit.TokenType != STRING && lit.TokenType != RAW_STRING {
-				r.error(e.TokenPos, "throw() requires a string argument")
-			}
-		}
-	}
-
-	// Validate deleted() takes no args.
-	if e.Name == "deleted" && e.Namespace == "" && len(e.Args) != 0 {
-		r.error(e.TokenPos, "deleted() takes no arguments")
-	}
-
 	// Validate named arg consistency.
 	if e.Named && len(e.Args) > 0 {
 		seen := make(map[string]bool)
@@ -352,14 +347,25 @@ func (r *resolver) resolveCall(e *CallExpr) {
 		}
 	}
 
-	// Check that the function/map exists.
-	if e.Namespace == "" && e.Name != "throw" && e.Name != "deleted" {
+	// Check that the function/map exists and validate arity.
+	// User maps take priority over stdlib functions (maps shadow stdlib).
+	if e.Namespace == "" {
 		m := r.findMap(e.Name)
-		if m == nil && !r.knownFunctions[e.Name] {
-			r.error(e.TokenPos, fmt.Sprintf("unknown function or map %q", e.Name))
-		}
 		if m != nil {
 			r.checkMapArity(e, m)
+		} else if fi, ok := r.knownFunctions[e.Name]; ok {
+			r.checkFunctionArity(e, fi)
+		} else {
+			r.error(e.TokenPos, fmt.Sprintf("unknown function or map %q", e.Name))
+		}
+
+		// Special compile-time check: throw() literal arg must be a string.
+		if e.Name == "throw" && len(e.Args) == 1 {
+			if lit, ok := e.Args[0].Value.(*LiteralExpr); ok {
+				if lit.TokenType != STRING && lit.TokenType != RAW_STRING {
+					r.error(e.TokenPos, "throw() requires a string argument")
+				}
+			}
 		}
 	}
 
@@ -442,6 +448,21 @@ func (r *resolver) checkMapArity(e *CallExpr, m *MapDecl) {
 			r.error(e.TokenPos, fmt.Sprintf("arity mismatch: %s() accepts at most %d arguments, got %d",
 				e.Name, total, len(e.Args)))
 		}
+	}
+}
+
+func (r *resolver) checkFunctionArity(e *CallExpr, fi FunctionInfo) {
+	if fi.Total < 0 {
+		return // no arity checking
+	}
+	nArgs := len(e.Args)
+	if nArgs < fi.Required {
+		r.error(e.TokenPos, fmt.Sprintf("%s() requires at least %d arguments, got %d",
+			e.Name, fi.Required, nArgs))
+	}
+	if nArgs > fi.Total {
+		r.error(e.TokenPos, fmt.Sprintf("%s() accepts at most %d arguments, got %d",
+			e.Name, fi.Total, nArgs))
 	}
 }
 

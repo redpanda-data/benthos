@@ -19,7 +19,8 @@ func (i *Interp) Compile(mapping string, files map[string]string) (spectest.Mapp
 	}
 
 	// Name resolution pass: semantic checks.
-	resolveErrs := syntax.Resolve(prog, eval.StdlibMethodNames(), eval.StdlibFunctionNames())
+	methods, functions := eval.StdlibNames()
+	resolveErrs := syntax.Resolve(prog, methods, functions)
 	if len(resolveErrs) > 0 {
 		return nil, &spectest.CompileError{Message: syntax.FormatErrors(resolveErrs)}
 	}
