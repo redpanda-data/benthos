@@ -15,10 +15,10 @@ func (interp *Interpreter) evalBinaryOp(op syntax.TokenType, left, right any) an
 			if rt, ok := right.(time.Time); ok {
 				return lt.Sub(rt).Nanoseconds()
 			}
-			return NewError(fmt.Sprintf("cannot subtract %T from timestamp", right))
+			return NewError("cannot subtract timestamp and " + typeName(right))
 		}
 	}
-	// Timestamp comparison.
+	// Timestamp operations.
 	if lt, ok := left.(time.Time); ok {
 		if rt, ok := right.(time.Time); ok {
 			switch op {
@@ -35,21 +35,21 @@ func (interp *Interpreter) evalBinaryOp(op syntax.TokenType, left, right any) an
 			case syntax.NE:
 				return !lt.Equal(rt)
 			default:
-				return NewError(fmt.Sprintf("unsupported timestamp operation %s", op))
+				// ts + ts, ts * ts, etc.
+				return NewError("cannot " + opVerb(op.String()) + " timestamp and timestamp")
 			}
 		}
 		if op == syntax.EQ || op == syntax.NE {
-			// Cross-family: always false/true.
-			return op == syntax.NE
+			return op == syntax.NE // cross-family: always false/true
 		}
-		return NewError(fmt.Sprintf("cannot compare timestamp with %T", right))
+		// ts + number, ts * number, ts > number, etc. — all errors except ts - ts (handled above).
+		return NewError("cannot " + opVerb(op.String()) + " timestamp and " + typeName(right))
 	}
-	// Reject timestamp on right side for arithmetic.
 	if _, ok := right.(time.Time); ok {
 		if op == syntax.EQ || op == syntax.NE {
 			return op == syntax.NE // cross-family
 		}
-		return NewError(fmt.Sprintf("cannot use %s with timestamp", op))
+		return NewError("cannot " + opVerb(op.String()) + " " + typeName(left) + " and timestamp")
 	}
 
 	switch op {
@@ -259,7 +259,7 @@ func evalAdd(left, right any) any {
 
 func evalArith(left, right any, op string) any {
 	if !isNumeric(left) || !isNumeric(right) {
-		return NewError(fmt.Sprintf("cannot %s %T and %T", opVerb(op), left, right))
+		return arithError(left, right, op)
 	}
 
 	// Promote to common type.
@@ -384,7 +384,7 @@ func evalCompare(left, right any, op string) any {
 		if ls, ok := left.(string); ok {
 			rs, ok := right.(string)
 			if !ok {
-				return NewError(fmt.Sprintf("cannot compare string and %T", right))
+				return NewError(fmt.Sprintf("cannot compare string and %s: not comparable", typeName(right)))
 			}
 			return stringCompare(ls, rs, op)
 		}
@@ -392,14 +392,14 @@ func evalCompare(left, right any, op string) any {
 		if lb, ok := left.([]byte); ok {
 			rb, ok := right.([]byte)
 			if !ok {
-				return NewError(fmt.Sprintf("cannot compare bytes and %T", right))
+				return NewError(fmt.Sprintf("cannot compare bytes and %s: not comparable", typeName(right)))
 			}
 			return bytesCompare(lb, rb, op)
 		}
-		return NewError(fmt.Sprintf("cannot compare %T and %T", left, right))
+		return NewError(fmt.Sprintf("cannot compare %s and %s: not comparable types", typeName(left), typeName(right)))
 	}
 	if !isNumeric(left) || !isNumeric(right) {
-		return NewError(fmt.Sprintf("cannot compare %T and %T", left, right))
+		return NewError(fmt.Sprintf("cannot compare %s and %s: not comparable types", typeName(left), typeName(right)))
 	}
 
 	af, bf := toFloat64(left), toFloat64(right)
@@ -458,8 +458,47 @@ func opVerb(op string) string {
 		return "subtract"
 	case "*":
 		return "multiply"
+	case ">", ">=", "<", "<=":
+		return "compare"
 	default:
 		return "perform arithmetic on"
+	}
+}
+
+func arithError(left, right any, op string) any {
+	return NewError(fmt.Sprintf("cannot %s %s and %s: arithmetic requires numeric types",
+		opVerb(op), typeName(left), typeName(right)))
+}
+
+func typeName(v any) string {
+	if v == nil {
+		return "null"
+	}
+	switch v.(type) {
+	case string:
+		return "string"
+	case bool:
+		return "bool"
+	case int64:
+		return "int64"
+	case int32:
+		return "int32"
+	case uint32:
+		return "uint32"
+	case uint64:
+		return "uint64"
+	case float64:
+		return "float64"
+	case float32:
+		return "float32"
+	case []any:
+		return "array"
+	case map[string]any:
+		return "object"
+	case []byte:
+		return "bytes"
+	default:
+		return fmt.Sprintf("%T", v)
 	}
 }
 

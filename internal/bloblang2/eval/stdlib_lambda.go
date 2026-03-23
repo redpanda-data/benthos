@@ -288,7 +288,16 @@ func (interp *Interpreter) methodUnique(receiver any, args []syntax.CallArg) any
 	}
 
 	var seenList []any
+	seenNaN := false
 	contains := func(key any) bool {
+		// NaN values are considered equal for unique() per spec.
+		if isNaN(key) {
+			if seenNaN {
+				return true
+			}
+			seenNaN = true
+			return false
+		}
 		for _, s := range seenList {
 			if valuesEqual(s, key) {
 				return true
@@ -548,6 +557,9 @@ func (interp *Interpreter) methodMapEntries(receiver any, args []syntax.CallArg)
 		entry := interp.callLambda(lambda, []any{k, v})
 		if IsError(entry) {
 			return entry
+		}
+		if IsVoid(entry) {
+			return NewError("map_entries() lambda returned void")
 		}
 		if IsDeleted(entry) {
 			continue
