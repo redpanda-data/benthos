@@ -33,6 +33,7 @@ type TestCase struct {
 	OutputType      string            `yaml:"output_type"`
 	Files           map[string]string `yaml:"files"`
 	HasOutput       bool              `yaml:"-"` // set by custom unmarshaling; true when output field is present
+	HasError        bool              `yaml:"-"` // set by custom unmarshaling; true when error field is present
 }
 
 // UnmarshalYAML implements custom unmarshaling to detect when the output
@@ -49,9 +50,11 @@ func (tc *TestCase) UnmarshalYAML(value *yaml.Node) error {
 	// Check if "output" key is present in the YAML mapping.
 	if value.Kind == yaml.MappingNode {
 		for i := 0; i < len(value.Content)-1; i += 2 {
-			if value.Content[i].Value == "output" {
+			switch value.Content[i].Value {
+			case "output":
 				tc.HasOutput = true
-				break
+			case "error":
+				tc.HasError = true
 			}
 		}
 	}

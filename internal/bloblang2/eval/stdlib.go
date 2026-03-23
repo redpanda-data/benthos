@@ -1396,32 +1396,45 @@ func methodParseJSON(receiver any, _ []any) any {
 	default:
 		return NewError(fmt.Sprintf("parse_json() requires string or bytes, got %T", receiver))
 	}
+	dec := json.NewDecoder(strings.NewReader(string(data)))
+	dec.UseNumber()
 	var result any
-	if err := json.Unmarshal(data, &result); err != nil {
+	if err := dec.Decode(&result); err != nil {
 		return NewError("parse_json() failed: " + err.Error())
 	}
-	// Normalize: json.Unmarshal uses float64 for all numbers.
-	return normalizeJSON(result)
+	return normalizeJSONNumbers(result)
 }
 
-func normalizeJSON(v any) any {
+func normalizeJSONNumbers(v any) any {
 	switch val := v.(type) {
-	case float64:
-		// If it's a whole number that fits int64, convert.
-		if val == math.Trunc(val) && !math.IsInf(val, 0) && !math.IsNaN(val) {
-			if val >= math.MinInt64 && val <= math.MaxInt64 {
-				return int64(val)
+	case json.Number:
+		s := val.String()
+		// Spec: numbers with decimal or exponent → float64, else → int64.
+		if strings.ContainsAny(s, ".eE") {
+			f, err := val.Float64()
+			if err != nil {
+				return NewError("parse_json(): invalid number " + s)
 			}
+			return f
 		}
-		return val
+		n, err := val.Int64()
+		if err != nil {
+			// Exceeds int64 range → float64 (may lose precision).
+			f, err := val.Float64()
+			if err != nil {
+				return NewError("parse_json(): invalid number " + s)
+			}
+			return f
+		}
+		return n
 	case map[string]any:
 		for k, v := range val {
-			val[k] = normalizeJSON(v)
+			val[k] = normalizeJSONNumbers(v)
 		}
 		return val
 	case []any:
 		for i, v := range val {
-			val[i] = normalizeJSON(v)
+			val[i] = normalizeJSONNumbers(v)
 		}
 		return val
 	default:
