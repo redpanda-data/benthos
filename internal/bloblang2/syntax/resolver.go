@@ -84,6 +84,9 @@ func (r *resolver) resolve() {
 }
 
 func (r *resolver) resolveMapDecl(m *MapDecl) {
+	// Validate parameter list.
+	r.validateParams(m.Params, m.TokenPos)
+
 	saved := r.scope
 	savedInMap := r.inMap
 
@@ -99,6 +102,23 @@ func (r *resolver) resolveMapDecl(m *MapDecl) {
 
 	r.scope = saved
 	r.inMap = savedInMap
+}
+
+func (r *resolver) validateParams(params []Param, _ Pos) {
+	seenDefault := false
+	for _, p := range params {
+		if p.Discard {
+			if p.Default != nil {
+				r.error(p.Pos, "discard parameter _ cannot have a default value")
+			}
+			continue
+		}
+		if p.Default != nil {
+			seenDefault = true
+		} else if seenDefault {
+			r.error(p.Pos, "required parameter after default parameter")
+		}
+	}
 }
 
 func (r *resolver) resolveStmt(stmt Stmt) {
@@ -210,9 +230,18 @@ func (r *resolver) resolveExpr(expr Expr) {
 			r.error(e.TokenPos, "undeclared variable $"+e.Name)
 		}
 	case *IdentExpr:
-		// Bare identifiers must resolve to a parameter, map, or function.
+		// Bare identifiers must resolve to a parameter or variable.
+		// Map/function names are only valid in call position or as
+		// higher-order method arguments (handled by lambda methods).
 		if !r.scope.isDeclared(e.Name) {
-			if !r.isKnownMap(e.Name) && !r.knownFunctions[e.Name] {
+			if r.isKnownMap(e.Name) || r.knownFunctions[e.Name] {
+				// Map/function name used as a value — only valid as method arg.
+				// The parser puts these in method arg lists; if we see them
+				// elsewhere (e.g., $fn = double), that's a compile error.
+				// However, we can't easily distinguish here from method arg
+				// context without tracking position. For now, allow it and
+				// let the interpreter handle the error for non-method contexts.
+			} else {
 				r.error(e.TokenPos, fmt.Sprintf("undeclared identifier %q", e.Name))
 			}
 		}
@@ -277,9 +306,86 @@ func (r *resolver) resolveCall(e *CallExpr) {
 		r.error(e.TokenPos, "deleted() takes no arguments")
 	}
 
+	// Validate named arg consistency.
+	if e.Named && len(e.Args) > 0 {
+		seen := make(map[string]bool)
+		for _, arg := range e.Args {
+			if arg.Name == "" {
+				r.error(e.TokenPos, "cannot mix positional and named arguments")
+				break
+			}
+			if seen[arg.Name] {
+				r.error(e.TokenPos, fmt.Sprintf("duplicate named argument %q", arg.Name))
+			}
+			seen[arg.Name] = true
+		}
+	}
+
+	// Arity check for user-defined maps.
+	if e.Namespace == "" {
+		if m := r.findMap(e.Name); m != nil {
+			r.checkMapArity(e, m)
+		}
+	}
+
 	for _, arg := range e.Args {
 		r.resolveExpr(arg.Value)
 	}
+}
+
+func (r *resolver) checkMapArity(e *CallExpr, m *MapDecl) {
+	required := 0
+	total := 0
+	hasDiscard := false
+	for _, p := range m.Params {
+		total++
+		if p.Discard {
+			hasDiscard = true
+			required++ // discard params still need an argument
+		} else if p.Default == nil {
+			required++
+		}
+	}
+
+	if e.Named && hasDiscard {
+		r.error(e.TokenPos, "cannot use named arguments with discard parameters")
+		return
+	}
+
+	if e.Named {
+		// Named args: check required params are provided.
+		provided := make(map[string]bool)
+		for _, arg := range e.Args {
+			provided[arg.Name] = true
+		}
+		for _, p := range m.Params {
+			if p.Discard {
+				continue
+			}
+			if !provided[p.Name] && p.Default == nil {
+				r.error(e.TokenPos, fmt.Sprintf("missing required named argument %q", p.Name))
+			}
+		}
+	} else {
+		// Positional args: check count.
+		if len(e.Args) < required {
+			r.error(e.TokenPos, fmt.Sprintf("arity mismatch: %s() requires at least %d arguments, got %d",
+				e.Name, required, len(e.Args)))
+		}
+		if len(e.Args) > total {
+			r.error(e.TokenPos, fmt.Sprintf("arity mismatch: %s() accepts at most %d arguments, got %d",
+				e.Name, total, len(e.Args)))
+		}
+	}
+}
+
+func (r *resolver) findMap(name string) *MapDecl {
+	for _, m := range r.prog.Maps {
+		if m.Name == name {
+			return m
+		}
+	}
+	return nil
 }
 
 func (r *resolver) resolveIfExpr(e *IfExpr) {
@@ -350,6 +456,8 @@ func (r *resolver) resolveMatchExpr(e *MatchExpr) {
 }
 
 func (r *resolver) resolveLambda(e *LambdaExpr) {
+	r.validateParams(e.Params, e.TokenPos)
+
 	child := newResolveScope(r.scope)
 	for _, p := range e.Params {
 		if !p.Discard {
