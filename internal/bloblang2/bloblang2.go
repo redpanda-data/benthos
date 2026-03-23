@@ -18,6 +18,9 @@ func (i *Interp) Compile(mapping string, files map[string]string) (spectest.Mapp
 		return nil, &spectest.CompileError{Message: syntax.FormatErrors(errs)}
 	}
 
+	// Optimization pass: path collapse, constant folding, dead code elimination.
+	syntax.Optimize(prog)
+
 	// Name resolution pass: semantic checks.
 	methods, functions := eval.StdlibNames()
 	resolveErrs := syntax.Resolve(prog, methods, functions)
