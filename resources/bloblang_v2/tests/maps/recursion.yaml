@@ -22,7 +22,7 @@ tests:
   - name: "recursive countdown to build array"
     mapping: |
       map countdown(n) {
-        if n <= 0 { [] } else { [n] + countdown(n - 1) }
+        if n <= 0 { [] } else { [n].concat(countdown(n - 1)) }
       }
       output.v = countdown(5)
     output: {"v": [5, 4, 3, 2, 1]}
