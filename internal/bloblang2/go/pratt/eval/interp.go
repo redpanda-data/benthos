@@ -6,7 +6,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/redpanda-data/benthos/v4/internal/bloblang2/syntax"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 )
 
 // maxRecursionDepth is the maximum allowed recursion depth for map calls.

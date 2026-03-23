@@ -1,4 +1,4 @@
-package bloblspec
+package spectest
 
 // Interpreter compiles and executes Bloblang V2 mappings.
 type Interpreter interface {

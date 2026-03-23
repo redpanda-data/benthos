@@ -3,9 +3,9 @@ package bloblang2
 import (
 	"testing"
 
-	"github.com/redpanda-data/benthos/v4/internal/bloblspec"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/spectest"
 )
 
 func TestBloblangV2Spec(t *testing.T) {
-	bloblspec.RunT(t, "../../resources/bloblang_v2/tests", &Interp{})
+	spectest.RunT(t, "spec/tests", &Interp{})
 }

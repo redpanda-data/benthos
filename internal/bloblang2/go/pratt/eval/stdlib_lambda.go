@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/redpanda-data/benthos/v4/internal/bloblang2/syntax"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 )
 
 // RegisterLambdaMethods registers methods that take lambda arguments and
