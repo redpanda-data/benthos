@@ -780,8 +780,8 @@ func (interp *Interpreter) evalExprBody(body *syntax.ExprBody) any {
 		}
 		if IsVoid(val) {
 			// Void in variable declaration is an error.
-			// Void in reassignment skips the assignment.
-			if interp.scope.has(va.Name) {
+			// Void in reassignment (variable exists in any reachable scope) skips.
+			if _, exists := interp.scope.get(va.Name); exists {
 				continue
 			}
 			return NewError("void in variable declaration (use .or() to provide a default)")

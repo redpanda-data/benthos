@@ -3,11 +3,55 @@ package eval
 import (
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/syntax"
 )
 
 func (interp *Interpreter) evalBinaryOp(op syntax.TokenType, left, right any) any {
+	// Timestamp subtraction: ts - ts = int64 nanoseconds.
+	if op == syntax.MINUS {
+		if lt, ok := left.(time.Time); ok {
+			if rt, ok := right.(time.Time); ok {
+				return lt.Sub(rt).Nanoseconds()
+			}
+			return NewError(fmt.Sprintf("cannot subtract %T from timestamp", right))
+		}
+	}
+	// Timestamp comparison.
+	if lt, ok := left.(time.Time); ok {
+		if rt, ok := right.(time.Time); ok {
+			switch op {
+			case syntax.GT:
+				return lt.After(rt)
+			case syntax.GE:
+				return !lt.Before(rt)
+			case syntax.LT:
+				return lt.Before(rt)
+			case syntax.LE:
+				return !lt.After(rt)
+			case syntax.EQ:
+				return lt.Equal(rt)
+			case syntax.NE:
+				return !lt.Equal(rt)
+			default:
+				return NewError(fmt.Sprintf("unsupported timestamp operation %s", op))
+			}
+		}
+		if op == syntax.EQ || op == syntax.NE {
+			// Cross-family: always false/true.
+			return op == syntax.NE
+		}
+		return NewError(fmt.Sprintf("cannot compare timestamp with %T", right))
+	}
+	// Reject timestamp on right side for arithmetic.
+	if _, ok := right.(time.Time); ok {
+		if op == syntax.EQ || op == syntax.NE {
+			return op == syntax.NE // cross-family
+		}
+		return NewError(fmt.Sprintf("cannot use %s with timestamp", op))
+	}
+
 	switch op {
 	case syntax.PLUS:
 		return evalAdd(left, right)
@@ -48,6 +92,14 @@ func valuesEqual(a, b any) bool {
 	// Numeric equality with promotion.
 	if isNumeric(a) && isNumeric(b) {
 		return numericEqual(a, b)
+	}
+
+	// Timestamp equality.
+	if at, ok := a.(time.Time); ok {
+		if bt, ok := b.(time.Time); ok {
+			return at.Equal(bt)
+		}
+		return false // cross-family
 	}
 
 	// Same type required for non-numeric.
@@ -97,9 +149,46 @@ func isNumeric(v any) bool {
 }
 
 func numericEqual(a, b any) bool {
-	// Promote both to float64 for comparison.
-	af, bf := toFloat64(a), toFloat64(b)
-	// NaN handling: NaN != NaN.
+	// Same type: compare directly (no promotion, no precision loss).
+	switch av := a.(type) {
+	case int64:
+		if bv, ok := b.(int64); ok {
+			return av == bv
+		}
+	case int32:
+		if bv, ok := b.(int32); ok {
+			return av == bv
+		}
+	case uint32:
+		if bv, ok := b.(uint32); ok {
+			return av == bv
+		}
+	case uint64:
+		if bv, ok := b.(uint64); ok {
+			return av == bv
+		}
+	case float64:
+		if bv, ok := b.(float64); ok {
+			if math.IsNaN(av) || math.IsNaN(bv) {
+				return false
+			}
+			return av == bv
+		}
+	case float32:
+		if bv, ok := b.(float32); ok {
+			if math.IsNaN(float64(av)) || math.IsNaN(float64(bv)) {
+				return false
+			}
+			return av == bv
+		}
+	}
+
+	// Different numeric types: use checked promotion to float64.
+	af, aOk := checkedToFloat64(a)
+	bf, bOk := checkedToFloat64(b)
+	if !aOk || !bOk {
+		return false // promotion failed — not equal
+	}
 	if math.IsNaN(af) || math.IsNaN(bf) {
 		return false
 	}
@@ -261,6 +350,15 @@ func evalModulo(left, right any) any {
 }
 
 func evalCompare(left, right any, op string) any {
+	// Timestamp comparison.
+	if lt, ok := left.(time.Time); ok {
+		rt, ok := right.(time.Time)
+		if !ok {
+			return NewError(fmt.Sprintf("cannot compare timestamp and %T", right))
+		}
+		return timestampCompare(lt, rt, op)
+	}
+
 	if !isNumeric(left) && !isNumeric(right) {
 		// String comparison.
 		if ls, ok := left.(string); ok {
@@ -286,6 +384,21 @@ func evalCompare(left, right any, op string) any {
 		return af < bf
 	case "<=":
 		return af <= bf
+	default:
+		return false
+	}
+}
+
+func timestampCompare(a, b time.Time, op string) any {
+	switch op {
+	case ">":
+		return a.After(b)
+	case ">=":
+		return !a.Before(b)
+	case "<":
+		return a.Before(b)
+	case "<=":
+		return !a.After(b)
 	default:
 		return false
 	}
