@@ -181,6 +181,25 @@ func (interp *Interpreter) registerFunctions() {
 				tz = s
 			}
 		}
+		// Validate ranges per spec.
+		if month < 1 || month > 12 {
+			return NewError(fmt.Sprintf("timestamp(): month %d out of range (1-12)", month))
+		}
+		if day < 1 || day > 31 {
+			return NewError(fmt.Sprintf("timestamp(): day %d out of range (1-31)", day))
+		}
+		if hour < 0 || hour > 23 {
+			return NewError(fmt.Sprintf("timestamp(): hour %d out of range (0-23)", hour))
+		}
+		if minute < 0 || minute > 59 {
+			return NewError(fmt.Sprintf("timestamp(): minute %d out of range (0-59)", minute))
+		}
+		if sec < 0 || sec > 59 {
+			return NewError(fmt.Sprintf("timestamp(): second %d out of range (0-59)", sec))
+		}
+		if nano < 0 || nano > 999999999 {
+			return NewError(fmt.Sprintf("timestamp(): nano %d out of range (0-999999999)", nano))
+		}
 		loc, err := time.LoadLocation(tz)
 		if err != nil {
 			return NewError("timestamp(): unknown timezone " + tz)
