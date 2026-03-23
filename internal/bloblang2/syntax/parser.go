@@ -778,15 +778,44 @@ func (p *parser) parseMultiParamLambda(pos Pos) Expr {
 
 func (p *parser) parseLambdaBody() *ExprBody {
 	if p.at(LBRACE) {
-		p.advance()
-		body := p.parseExprBody()
-		p.skipNL()
-		p.expect(RBRACE)
-		return body
+		// Disambiguate: lambda block vs object literal.
+		// Per spec Section 10: {} is parsed as empty object literal.
+		// A lambda block requires at least one var assignment ($var = ...)
+		// followed by a final expression. If the content after { doesn't
+		// start with $var, parse as a single expression (object literal).
+		if p.isLambdaBlock() {
+			p.advance() // skip {
+			body := p.parseExprBody()
+			p.skipNL()
+			p.expect(RBRACE)
+			return body
+		}
+		// Object literal or other expression starting with {.
+		expr := p.parseExpr(0)
+		return &ExprBody{Result: expr}
 	}
 	// Single expression.
 	expr := p.parseExpr(0)
 	return &ExprBody{Result: expr}
+}
+
+// isLambdaBlock peeks inside { to determine if it's a lambda block
+// (has var assignments) or an object literal / expression.
+func (p *parser) isLambdaBlock() bool {
+	savedTok := p.tok
+	savedS := *p.s
+
+	p.advance() // skip {
+	// Skip optional NL.
+	for p.tok.Type == NL {
+		p.advance()
+	}
+	// If the first content token is VAR, it's likely a block.
+	isBlock := p.tok.Type == VAR
+
+	*p.s = savedS
+	p.tok = savedTok
+	return isBlock
 }
 
 func (p *parser) parseArrayLiteral() Expr {
