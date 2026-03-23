@@ -81,7 +81,7 @@ tests:
   - name: "ts_unix returns epoch seconds"
     mapping: |
       output = timestamp(2024, 1, 15, 10, 30, 0).ts_unix()
-    output: 1705313400
+    output: 1705314600
 
   - name: "ts_unix returns int64"
     mapping: |
@@ -96,19 +96,19 @@ tests:
   - name: "ts_unix truncates sub-second"
     mapping: |
       output = timestamp(2024, 1, 15, 10, 30, 0, 999999999).ts_unix()
-    output: 1705313400
+    output: 1705314600
 
   # --- ts_unix_milli ---
 
   - name: "ts_unix_milli returns epoch millis"
     mapping: |
       output = timestamp(2024, 1, 15, 10, 30, 0).ts_unix_milli()
-    output: 1705313400000
+    output: 1705314600000
 
   - name: "ts_unix_milli with fractional seconds"
     mapping: |
       output = timestamp(2024, 1, 15, 10, 30, 0, 123000000).ts_unix_milli()
-    output: 1705313400123
+    output: 1705314600123
 
   - name: "ts_unix_milli returns int64"
     mapping: |
@@ -120,24 +120,24 @@ tests:
   - name: "ts_unix_micro returns epoch micros"
     mapping: |
       output = timestamp(2024, 1, 15, 10, 30, 0).ts_unix_micro()
-    output: 1705313400000000
+    output: 1705314600000000
 
   - name: "ts_unix_micro with fractional seconds"
     mapping: |
       output = timestamp(2024, 1, 15, 10, 30, 0, 123456000).ts_unix_micro()
-    output: 1705313400123456
+    output: 1705314600123456
 
   # --- ts_unix_nano ---
 
   - name: "ts_unix_nano returns epoch nanos"
     mapping: |
       output = timestamp(2024, 1, 15, 10, 30, 0).ts_unix_nano()
-    output: 1705313400000000000
+    output: 1705314600000000000
 
   - name: "ts_unix_nano with full precision"
     mapping: |
       output = timestamp(2024, 1, 15, 10, 30, 0, 123456789).ts_unix_nano()
-    output: 1705313400123456789
+    output: 1705314600123456789
 
   - name: "ts_unix_nano returns int64"
     mapping: |
@@ -148,12 +148,12 @@ tests:
 
   - name: "ts_from_unix integer seconds"
     mapping: |
-      output = 1705313400.ts_from_unix()
+      output = 1705314600.ts_from_unix()
     output: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
 
   - name: "ts_from_unix float sub-second"
     mapping: |
-      output = 1705313400.5.ts_from_unix()
+      output = 1705314600.5.ts_from_unix()
     output: {_type: "timestamp", value: "2024-01-15T10:30:00.5Z"}
 
   - name: "ts_from_unix epoch zero"
@@ -163,43 +163,43 @@ tests:
 
   - name: "ts_from_unix returns timestamp type"
     mapping: |
-      output = 1705313400.ts_from_unix().type()
+      output = 1705314600.ts_from_unix().type()
     output: "timestamp"
 
   # --- ts_from_unix_milli ---
 
   - name: "ts_from_unix_milli whole seconds"
     mapping: |
-      output = 1705313400000.ts_from_unix_milli()
+      output = 1705314600000.ts_from_unix_milli()
     output: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
 
   - name: "ts_from_unix_milli with millis"
     mapping: |
-      output = 1705313400123.ts_from_unix_milli()
+      output = 1705314600123.ts_from_unix_milli()
     output: {_type: "timestamp", value: "2024-01-15T10:30:00.123Z"}
 
   # --- ts_from_unix_micro ---
 
   - name: "ts_from_unix_micro whole seconds"
     mapping: |
-      output = 1705313400000000.ts_from_unix_micro()
+      output = 1705314600000000.ts_from_unix_micro()
     output: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
 
   - name: "ts_from_unix_micro with micros"
     mapping: |
-      output = 1705313400123456.ts_from_unix_micro()
+      output = 1705314600123456.ts_from_unix_micro()
     output: {_type: "timestamp", value: "2024-01-15T10:30:00.123456Z"}
 
   # --- ts_from_unix_nano ---
 
   - name: "ts_from_unix_nano whole seconds"
     mapping: |
-      output = 1705313400000000000.ts_from_unix_nano()
+      output = 1705314600000000000.ts_from_unix_nano()
     output: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
 
   - name: "ts_from_unix_nano with full precision"
     mapping: |
-      output = 1705313400123456789.ts_from_unix_nano()
+      output = 1705314600123456789.ts_from_unix_nano()
     output: {_type: "timestamp", value: "2024-01-15T10:30:00.123456789Z"}
 
   # --- Round-trips ---

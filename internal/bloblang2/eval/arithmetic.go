@@ -388,6 +388,14 @@ func evalCompare(left, right any, op string) any {
 			}
 			return stringCompare(ls, rs, op)
 		}
+		// Bytes comparison (lexicographic).
+		if lb, ok := left.([]byte); ok {
+			rb, ok := right.([]byte)
+			if !ok {
+				return NewError(fmt.Sprintf("cannot compare bytes and %T", right))
+			}
+			return bytesCompare(lb, rb, op)
+		}
 		return NewError(fmt.Sprintf("cannot compare %T and %T", left, right))
 	}
 	if !isNumeric(left) || !isNumeric(right) {
@@ -404,6 +412,39 @@ func evalCompare(left, right any, op string) any {
 		return af < bf
 	case "<=":
 		return af <= bf
+	default:
+		return false
+	}
+}
+
+func bytesCompare(a, b []byte, op string) any {
+	cmp := 0
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if a[i] < b[i] {
+			cmp = -1
+			break
+		}
+		if a[i] > b[i] {
+			cmp = 1
+			break
+		}
+	}
+	if cmp == 0 {
+		if len(a) < len(b) {
+			cmp = -1
+		} else if len(a) > len(b) {
+			cmp = 1
+		}
+	}
+	switch op {
+	case ">":
+		return cmp > 0
+	case ">=":
+		return cmp >= 0
+	case "<":
+		return cmp < 0
+	case "<=":
+		return cmp <= 0
 	default:
 		return false
 	}

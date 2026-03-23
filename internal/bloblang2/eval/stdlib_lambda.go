@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"sort"
@@ -375,6 +376,12 @@ func (interp *Interpreter) methodIndexOf(receiver any, args []syntax.CallArg) an
 			}
 		}
 		return int64(-1)
+	case []byte:
+		tb, ok := target.([]byte)
+		if !ok {
+			return NewError("bytes index_of() requires bytes argument")
+		}
+		return int64(bytes.Index(v, tb))
 	default:
 		return NewError(fmt.Sprintf("index_of() not supported on %T", receiver))
 	}
