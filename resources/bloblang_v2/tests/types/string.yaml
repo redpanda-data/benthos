@@ -94,7 +94,7 @@ tests:
 
   - name: "raw string with newlines preserved"
     mapping: "output = `line1\nline2`"
-    output: "line1\\nline2"
+    output: "line1\nline2"
 
   # --- String length (codepoint-based) ---
 

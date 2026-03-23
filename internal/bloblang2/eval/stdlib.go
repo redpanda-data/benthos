@@ -1451,6 +1451,11 @@ func methodFormatJSON(receiver any, args []any) any {
 		}
 	}
 
+	// Check for non-JSON-representable values.
+	if err := checkJSONSerializable(receiver); err != "" {
+		return NewError(err)
+	}
+
 	// Use json.Encoder for escape_html control.
 	var buf strings.Builder
 	enc := json.NewEncoder(&buf)
@@ -1467,6 +1472,41 @@ func methodFormatJSON(receiver any, args []any) any {
 		result = result[:len(result)-1]
 	}
 	return result
+}
+
+func checkJSONSerializable(v any) string {
+	switch val := v.(type) {
+	case float64:
+		if math.IsNaN(val) {
+			return "format_json(): NaN is not representable in JSON"
+		}
+		if math.IsInf(val, 0) {
+			return "format_json(): Infinity is not representable in JSON"
+		}
+	case float32:
+		f := float64(val)
+		if math.IsNaN(f) {
+			return "format_json(): NaN is not representable in JSON"
+		}
+		if math.IsInf(f, 0) {
+			return "format_json(): Infinity is not representable in JSON"
+		}
+	case []byte:
+		return "format_json(): bytes have no implicit JSON serialization"
+	case map[string]any:
+		for _, v := range val {
+			if err := checkJSONSerializable(v); err != "" {
+				return err
+			}
+		}
+	case []any:
+		for _, v := range val {
+			if err := checkJSONSerializable(v); err != "" {
+				return err
+			}
+		}
+	}
+	return ""
 }
 
 // sortedJSON returns a value suitable for json.Marshal with sorted object keys.

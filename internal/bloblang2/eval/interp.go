@@ -482,6 +482,13 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 		return nil
 	}
 
+	// Methods that accept null receivers.
+	nullOK := e.Method == "type" || e.Method == "string" || e.Method == "not_null" ||
+		e.Method == "bool" || e.Method == "bytes"
+	if receiver == nil && !e.NullSafe && !nullOK {
+		return NewError(fmt.Sprintf(".%s() does not support null", e.Method))
+	}
+
 	// Void and deleted in method calls (except .or handled above) are errors.
 	if IsVoid(receiver) {
 		return NewError("cannot call method on void")
