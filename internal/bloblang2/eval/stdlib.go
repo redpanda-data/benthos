@@ -1,6 +1,7 @@
 package eval
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -236,6 +237,8 @@ func (interp *Interpreter) registerMethods() {
 	interp.RegisterMethod("enumerate", methodEnumerate)
 	interp.RegisterMethod("join", methodJoin)
 	interp.RegisterMethod("sum", methodSum)
+	interp.RegisterMethod("min", methodMin)
+	interp.RegisterMethod("max", methodMax)
 
 	// Object methods.
 	interp.RegisterMethod("keys", methodKeys)
@@ -374,29 +377,7 @@ func formatFloat(f float64) string {
 }
 
 func formatTimestamp(t time.Time) string {
-	s := t.Format(time.RFC3339Nano)
-	// Trim trailing fractional zeros per spec.
-	if idx := strings.Index(s, "."); idx != -1 {
-		end := len(s)
-		if s[end-1] == 'Z' {
-			end--
-		} else {
-			// Find timezone offset.
-			for i := end - 1; i >= 0; i-- {
-				if s[i] == '+' || s[i] == '-' {
-					end = i
-					break
-				}
-			}
-		}
-		trimmed := strings.TrimRight(s[idx:end], "0")
-		if trimmed == "." {
-			s = s[:idx] + s[end:]
-		} else {
-			s = s[:idx] + trimmed + s[end:]
-		}
-	}
-	return s
+	return strftimeFormat(t, defaultTimestampFormat)
 }
 
 func methodInt64(receiver any, _ []any) any {
@@ -436,7 +417,7 @@ func methodInt32(receiver any, _ []any) any {
 	}
 	n := i64.(int64)
 	if n > math.MaxInt32 || n < math.MinInt32 {
-		return NewError("value exceeds int32 range")
+		return NewError("int32 overflow")
 	}
 	return int32(n)
 }
@@ -447,7 +428,7 @@ func methodUint32(receiver any, _ []any) any {
 		return v
 	case int64:
 		if v < 0 || v > math.MaxUint32 {
-			return NewError("value exceeds uint32 range")
+			return NewError("uint32 overflow")
 		}
 		return uint32(v)
 	case string:
@@ -463,7 +444,7 @@ func methodUint32(receiver any, _ []any) any {
 		}
 		n := i64.(int64)
 		if n < 0 || n > math.MaxUint32 {
-			return NewError("value exceeds uint32 range")
+			return NewError("uint32 overflow")
 		}
 		return uint32(n)
 	}
@@ -475,7 +456,7 @@ func methodUint64(receiver any, _ []any) any {
 		return v
 	case int64:
 		if v < 0 {
-			return NewError("negative value cannot be uint64")
+			return NewError("uint64 overflow: negative value")
 		}
 		return uint64(v)
 	case string:
@@ -491,7 +472,7 @@ func methodUint64(receiver any, _ []any) any {
 		}
 		n := i64.(int64)
 		if n < 0 {
-			return NewError("negative value cannot be uint64")
+			return NewError("uint64 overflow: negative value")
 		}
 		return uint64(n)
 	}
@@ -642,6 +623,12 @@ func methodContains(receiver any, args []any) any {
 			}
 		}
 		return false
+	case []byte:
+		target, ok := args[0].([]byte)
+		if !ok {
+			return NewError("bytes contains() requires bytes argument")
+		}
+		return bytes.Contains(v, target)
 	default:
 		return NewError(fmt.Sprintf("contains() not supported on %T", receiver))
 	}
@@ -1076,6 +1063,48 @@ func methodSum(receiver any, _ []any) any {
 	return result
 }
 
+func methodMin(receiver any, _ []any) any {
+	arr, ok := receiver.([]any)
+	if !ok {
+		return NewError(fmt.Sprintf("min() requires array, got %T", receiver))
+	}
+	if len(arr) == 0 {
+		return NewError("min() requires non-empty array")
+	}
+	result := arr[0]
+	for _, elem := range arr[1:] {
+		cmp := compareForSort(result, elem)
+		if IsError(cmp) {
+			return cmp
+		}
+		if cmp.(int64) > 0 {
+			result = elem
+		}
+	}
+	return result
+}
+
+func methodMax(receiver any, _ []any) any {
+	arr, ok := receiver.([]any)
+	if !ok {
+		return NewError(fmt.Sprintf("max() requires array, got %T", receiver))
+	}
+	if len(arr) == 0 {
+		return NewError("max() requires non-empty array")
+	}
+	result := arr[0]
+	for _, elem := range arr[1:] {
+		cmp := compareForSort(result, elem)
+		if IsError(cmp) {
+			return cmp
+		}
+		if cmp.(int64) < 0 {
+			result = elem
+		}
+	}
+	return result
+}
+
 // -----------------------------------------------------------------------
 // Object methods
 // -----------------------------------------------------------------------
@@ -1296,25 +1325,42 @@ func methodTsAdd(receiver any, args []any) any {
 	return t.Add(time.Duration(nanos))
 }
 
+const defaultTimestampFormat = "%Y-%m-%dT%H:%M:%S%f%z"
+
 func methodTsParse(receiver any, args []any) any {
 	s, ok := receiver.(string)
 	if !ok {
 		return NewError(fmt.Sprintf("ts_parse() requires string, got %T", receiver))
 	}
-	// Default: RFC3339.
-	t, err := time.Parse(time.RFC3339Nano, s)
+
+	format := defaultTimestampFormat
+	if len(args) > 0 {
+		if f, ok := args[0].(string); ok {
+			format = f
+		}
+	}
+
+	t, err := strftimeParse(s, format)
 	if err != nil {
 		return NewError("ts_parse() failed: " + err.Error())
 	}
 	return t
 }
 
-func methodTsFormat(receiver any, _ []any) any {
+func methodTsFormat(receiver any, args []any) any {
 	t, ok := receiver.(time.Time)
 	if !ok {
 		return NewError(fmt.Sprintf("ts_format() requires timestamp, got %T", receiver))
 	}
-	return formatTimestamp(t)
+
+	format := defaultTimestampFormat
+	if len(args) > 0 {
+		if f, ok := args[0].(string); ok {
+			format = f
+		}
+	}
+
+	return strftimeFormat(t, format)
 }
 
 // -----------------------------------------------------------------------

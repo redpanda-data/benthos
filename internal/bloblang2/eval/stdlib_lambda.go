@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"time"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/syntax"
 )
@@ -630,6 +631,19 @@ func compareForSort(a, b any) any {
 				return int64(-1)
 			}
 			if as > bs {
+				return int64(1)
+			}
+			return int64(0)
+		}
+	}
+
+	// Timestamp comparison.
+	if at, ok := a.(time.Time); ok {
+		if bt, ok := b.(time.Time); ok {
+			if at.Before(bt) {
+				return int64(-1)
+			}
+			if at.After(bt) {
 				return int64(1)
 			}
 			return int64(0)

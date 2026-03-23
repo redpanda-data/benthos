@@ -102,6 +102,22 @@ func valuesEqual(a, b any) bool {
 		return false // cross-family
 	}
 
+	// Bytes equality.
+	if ab, ok := a.([]byte); ok {
+		if bb, ok := b.([]byte); ok {
+			if len(ab) != len(bb) {
+				return false
+			}
+			for i := range ab {
+				if ab[i] != bb[i] {
+					return false
+				}
+			}
+			return true
+		}
+		return false // cross-family
+	}
+
 	// Same type required for non-numeric.
 	switch av := a.(type) {
 	case string:
@@ -223,6 +239,9 @@ func evalAdd(left, right any) any {
 		}
 		return ls + rs
 	}
+	if _, ok := right.(string); ok {
+		return NewError(fmt.Sprintf("cannot add %T and string", left))
+	}
 	// Bytes concatenation.
 	if lb, ok := left.([]byte); ok {
 		rb, ok := right.([]byte)
@@ -240,14 +259,15 @@ func evalAdd(left, right any) any {
 
 func evalArith(left, right any, op string) any {
 	if !isNumeric(left) || !isNumeric(right) {
-		return NewError(fmt.Sprintf("cannot perform arithmetic %s on %T and %T", op, left, right))
+		return NewError(fmt.Sprintf("cannot %s %T and %T", opVerb(op), left, right))
 	}
 
 	// Promote to common type.
-	pl, pr, kind := promote(left, right)
-	if kind == promoteError {
-		return NewError("numeric promotion error for " + op)
+	pl, pr, kind, promErr := promoteChecked(left, right)
+	if promErr != "" {
+		return NewError(promErr)
 	}
+	_ = kind
 
 	switch kind {
 	case promoteInt64:
@@ -302,9 +322,9 @@ func evalModulo(left, right any) any {
 		return NewError(fmt.Sprintf("cannot modulo %T by %T", left, right))
 	}
 
-	pl, pr, kind := promote(left, right)
-	if kind == promoteError {
-		return NewError("numeric promotion error for %")
+	pl, pr, kind, promErr := promoteChecked(left, right)
+	if promErr != "" {
+		return NewError(promErr)
 	}
 
 	switch kind {
@@ -389,6 +409,19 @@ func evalCompare(left, right any, op string) any {
 	}
 }
 
+func opVerb(op string) string {
+	switch op {
+	case "+":
+		return "add"
+	case "-":
+		return "subtract"
+	case "*":
+		return "multiply"
+	default:
+		return "perform arithmetic on"
+	}
+}
+
 func timestampCompare(a, b time.Time, op string) any {
 	switch op {
 	case ">":
@@ -435,11 +468,31 @@ const (
 	promoteFloat64
 )
 
+// promoteChecked promotes two values and returns a specific error message on failure.
+func promoteChecked(a, b any) (any, any, promoteKind, string) {
+	pa, pb, kind := promote(a, b)
+	if kind == promoteError {
+		// Determine specific error.
+		ak, bk := numericKind(a), numericKind(b)
+		if (ak == promoteUint64 || bk == promoteUint64) && !isFloatKind(ak) && !isFloatKind(bk) {
+			return nil, nil, promoteError, "uint64 value exceeds int64 range"
+		}
+		return nil, nil, promoteError, "integer exceeds float64 exact range (magnitude > 2^53)"
+	}
+	return pa, pb, kind, ""
+}
+
 func promote(a, b any) (any, any, promoteKind) {
 	ak, bk := numericKind(a), numericKind(b)
 
 	if ak == bk {
 		return a, b, ak
+	}
+
+	// Same signedness, different width: widen.
+	// uint32 + uint64 → uint64.
+	if (ak == promoteUint32 && bk == promoteUint64) || (ak == promoteUint64 && bk == promoteUint32) {
+		return toU64(a), toU64(b), promoteUint64
 	}
 
 	// Any float involved → float64 (except float32+float32 which stays float32,
@@ -460,6 +513,17 @@ func promote(a, b any) (any, any, promoteKind) {
 		return nil, nil, promoteError
 	}
 	return ai, bi, promoteInt64
+}
+
+func toU64(v any) any {
+	switch n := v.(type) {
+	case uint32:
+		return uint64(n)
+	case uint64:
+		return n
+	default:
+		return nil
+	}
 }
 
 func isFloatKind(k promoteKind) bool {
