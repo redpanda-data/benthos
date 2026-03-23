@@ -35,7 +35,7 @@ tests:
 
   - name: "now returns a timestamp"
     mapping: |
-      output.ts = now()
+      output = now()
     no_output_check: true
     output_type: "timestamp"
 

@@ -159,7 +159,7 @@ func runTestCase(file *TestFile, tc *TestCase, interp Interpreter) (ResultKind, 
 
 	// 4. Execute.
 	output, outputMeta, deleted, execErr := mapping.Exec(input, inputMeta)
-	if tc.Error != "" {
+	if tc.Error != "" || tc.HasError {
 		return KindFail, checkRuntimeError(execErr, tc.Error)
 	}
 	if tc.Deleted {
@@ -198,7 +198,7 @@ func validateExpectations(tc *TestCase) error {
 	if tc.CompileError != "" {
 		count++
 	}
-	if tc.Error != "" {
+	if tc.Error != "" || tc.HasError {
 		count++
 	}
 	if tc.Deleted {
