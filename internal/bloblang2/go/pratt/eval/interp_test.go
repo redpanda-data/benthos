@@ -3,7 +3,7 @@ package eval
 import (
 	"testing"
 
-	"github.com/redpanda-data/benthos/v4/internal/bloblang2/syntax"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 )
 
 func run(t *testing.T, src string, input any) (any, map[string]any, bool) {

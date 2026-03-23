@@ -1,27 +1,27 @@
 // Package bloblang2 provides a Bloblang V2 implementation that satisfies
-// the bloblspec.Interpreter interface.
+// the spectest.Interpreter interface.
 package bloblang2
 
 import (
-	"github.com/redpanda-data/benthos/v4/internal/bloblang2/eval"
-	"github.com/redpanda-data/benthos/v4/internal/bloblang2/syntax"
-	"github.com/redpanda-data/benthos/v4/internal/bloblspec"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/eval"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/spectest"
 )
 
-// Interp implements bloblspec.Interpreter for Bloblang V2.
+// Interp implements spectest.Interpreter for Bloblang V2.
 type Interp struct{}
 
 // Compile parses and compiles a Bloblang V2 mapping.
-func (i *Interp) Compile(mapping string, files map[string]string) (bloblspec.Mapping, error) {
+func (i *Interp) Compile(mapping string, files map[string]string) (spectest.Mapping, error) {
 	prog, errs := syntax.Parse(mapping, "", files)
 	if len(errs) > 0 {
-		return nil, &bloblspec.CompileError{Message: syntax.FormatErrors(errs)}
+		return nil, &spectest.CompileError{Message: syntax.FormatErrors(errs)}
 	}
 
 	// Name resolution pass: semantic checks.
 	resolveErrs := syntax.Resolve(prog, eval.StdlibMethodNames(), eval.StdlibFunctionNames())
 	if len(resolveErrs) > 0 {
-		return nil, &bloblspec.CompileError{Message: syntax.FormatErrors(resolveErrs)}
+		return nil, &spectest.CompileError{Message: syntax.FormatErrors(resolveErrs)}
 	}
 
 	return &compiledMapping{prog: prog}, nil

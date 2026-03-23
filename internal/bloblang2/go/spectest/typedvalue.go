@@ -1,4 +1,4 @@
-package bloblspec
+package spectest
 
 import (
 	"encoding/base64"

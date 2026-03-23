@@ -5,7 +5,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/redpanda-data/benthos/v4/internal/bloblang2/syntax"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 )
 
 func (interp *Interpreter) evalBinaryOp(op syntax.TokenType, left, right any) any {
