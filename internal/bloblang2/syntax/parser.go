@@ -375,11 +375,16 @@ func (p *parser) parsePathSegments() []PathSegment {
 	}
 }
 
-// expectWord consumes the current token as a word (identifier or keyword).
-// Keywords are valid as field names after dot.
+// expectWord consumes the current token as a word (identifier, keyword,
+// or quoted string). Keywords are valid as field names after dot.
+// Quoted strings (."field with spaces") are also valid per spec Section 3.1.
 func (p *parser) expectWord() string {
 	tok := p.tok
 	if tok.Type == IDENT || tok.Type.IsKeyword() || tok.Type == DELETED || tok.Type == THROW {
+		p.advance()
+		return tok.Literal
+	}
+	if tok.Type == STRING {
 		p.advance()
 		return tok.Literal
 	}

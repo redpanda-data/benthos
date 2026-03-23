@@ -17,6 +17,13 @@ func (i *Interp) Compile(mapping string, files map[string]string) (bloblspec.Map
 	if len(errs) > 0 {
 		return nil, &bloblspec.CompileError{Message: syntax.FormatErrors(errs)}
 	}
+
+	// Name resolution pass: semantic checks.
+	resolveErrs := syntax.Resolve(prog, eval.StdlibMethodNames(), eval.StdlibFunctionNames())
+	if len(resolveErrs) > 0 {
+		return nil, &bloblspec.CompileError{Message: syntax.FormatErrors(resolveErrs)}
+	}
+
 	return &compiledMapping{prog: prog}, nil
 }
 
