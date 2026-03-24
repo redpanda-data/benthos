@@ -126,6 +126,15 @@ tests:
       }
     error: "boolean"
 
+  - name: "dynamic boolean case error is catchable"
+    input: {"threshold": 100, "score": 150}
+    mapping: |
+      output.result = (match input.score {
+        input.score >= input.threshold => "high",
+        _ => "low",
+      }).catch(err -> "caught: " + err.what)
+    output: {"result": "caught: boolean case value in equality match (use 'as' for boolean conditions)"}
+
   # --- Expression evaluated once ---
 
   - name: "matched expression evaluated once (side effects)"

@@ -157,6 +157,11 @@ tests:
       output.result = [{"a": 1}].sort()
     error: "sortable"
 
+  - name: "sort int64 above 2^53 mixed with float is error"
+    mapping: |
+      output.result = [9007199254740993, 1.0].sort()
+    error: "exact"
+
   - name: "sort NaN sorts after all values"
     input: {"nan": {_type: "float64", value: "NaN"}}
     mapping: |

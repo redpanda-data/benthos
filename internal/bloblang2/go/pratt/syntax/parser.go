@@ -678,19 +678,28 @@ func (p *parser) parseIdentOrCall() Expr {
 	tok := p.tok
 	p.advance()
 
-	// Check for qualified name: namespace::name
+	// Check for qualified name: namespace::name or namespace::name(args)
 	if p.at(DCOLON) {
 		p.advance()
 		name := p.expect(IDENT)
-		p.expect(LPAREN)
-		args, named := p.parseArgList()
-		p.expect(RPAREN)
-		return &CallExpr{
+		if p.at(LPAREN) {
+			// Qualified call: namespace::name(args)
+			p.advance()
+			args, named := p.parseArgList()
+			p.expect(RPAREN)
+			return &CallExpr{
+				TokenPos:  tok.Pos,
+				Namespace: tok.Literal,
+				Name:      name.Literal,
+				Args:      args,
+				Named:     named,
+			}
+		}
+		// Bare qualified reference: namespace::name (for higher-order method args)
+		return &IdentExpr{
 			TokenPos:  tok.Pos,
 			Namespace: tok.Literal,
 			Name:      name.Literal,
-			Args:      args,
-			Named:     named,
 		}
 	}
 

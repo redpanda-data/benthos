@@ -157,6 +157,11 @@ tests:
       output = range(stop: 10, start: 0, step: 3)
     output: [0, 3, 6, 9]
 
+  - name: "range named args omit optional step"
+    mapping: |
+      output = range(stop: 3, start: 0)
+    output: [0, 1, 2]
+
   # --- timestamp constructor ---
 
   - name: "timestamp required args only"
