@@ -73,6 +73,17 @@ tests:
       output = random_int(10, 5)
     error: "min"
 
+  - name: "random_int named args reorder correctly"
+    mapping: |
+      output = random_int(max: 5, min: 5)
+    output: 5
+
+  - name: "random_int named args reversed still works"
+    mapping: |
+      $v = random_int(max: 10, min: 10)
+      output = $v
+    output: 10
+
   - name: "random_int negative range"
     mapping: |
       $v = random_int(-10, -10)
@@ -136,6 +147,16 @@ tests:
       output = range(0, 3)[0].type()
     output: "int64"
 
+  - name: "range named args reorder correctly"
+    mapping: |
+      output = range(stop: 3, start: 0)
+    output: [0, 1, 2]
+
+  - name: "range named args with step"
+    mapping: |
+      output = range(stop: 10, start: 0, step: 3)
+    output: [0, 3, 6, 9]
+
   # --- timestamp constructor ---
 
   - name: "timestamp required args only"
@@ -177,6 +198,16 @@ tests:
     mapping: |
       output = timestamp(2024, 1, 1, 0, 0, 0, 0, "Fake/Zone")
     error: "timezone"
+
+  - name: "timestamp named args skip middle optional params"
+    mapping: |
+      output = timestamp(year: 2024, month: 7, day: 4, timezone: "America/Chicago")
+    output: {_type: "timestamp", value: "2024-07-04T00:00:00-05:00"}
+
+  - name: "timestamp named args all required only"
+    mapping: |
+      output = timestamp(day: 15, month: 3, year: 2024)
+    output: {_type: "timestamp", value: "2024-03-15T00:00:00Z"}
 
   # --- duration constants ---
 

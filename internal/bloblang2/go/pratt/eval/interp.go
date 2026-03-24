@@ -69,9 +69,11 @@ type FunctionSpec struct {
 	Params []FunctionParam // for compile-time arity checking
 }
 
-// FunctionParam describes a function parameter for compile-time validation.
+// FunctionParam describes a function parameter for compile-time validation
+// and named argument resolution.
 type FunctionParam struct {
 	Name       string
+	Default    any // default value (used for named arg resolution)
 	HasDefault bool
 }
 
@@ -643,7 +645,16 @@ func (interp *Interpreter) evalCall(e *syntax.CallExpr) any {
 
 	// Check stdlib functions.
 	if spec, ok := interp.functions[e.Name]; ok {
-		args := interp.evalArgs(e.Args)
+		var args []any
+		if e.Named {
+			resolved := interp.resolveNamedFuncArgs(e, spec)
+			if IsError(resolved) {
+				return resolved
+			}
+			args = resolved.([]any)
+		} else {
+			args = interp.evalArgs(e.Args)
+		}
 		for _, a := range args {
 			if IsError(a) {
 				return a
@@ -1014,15 +1025,22 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 // Helpers
 // -----------------------------------------------------------------------
 
-// resolveNamedMethodArgs maps named arguments to positional using the method's
-// parameter metadata. Returns []any or an errorVal.
-func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any {
-	spec, specOK := interp.methods[e.Method]
-	if !specOK || spec.Params == nil {
+// namedArgParam is a unified parameter descriptor for named argument resolution,
+// used by both methods and functions.
+type namedArgParam struct {
+	Name       string
+	Default    any
+	HasDefault bool
+}
+
+// resolveNamedArgs maps named call arguments to positional order using parameter
+// metadata. context is used in error messages (e.g., ".replace_all()", "random_int()").
+// Returns []any or an errorVal.
+func (interp *Interpreter) resolveNamedArgs(callArgs []syntax.CallArg, params []namedArgParam, context string) any {
+	if len(params) == 0 {
 		// No parameter metadata — evaluate named args by name order.
-		// This allows methods without explicit param specs to still work.
-		args := make([]any, 0, len(e.Args))
-		for _, arg := range e.Args {
+		args := make([]any, 0, len(callArgs))
+		for _, arg := range callArgs {
 			v := interp.evalExpr(arg.Value)
 			if IsError(v) {
 				return v
@@ -1033,8 +1051,8 @@ func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any 
 	}
 
 	// Build named arg map.
-	named := make(map[string]any, len(e.Args))
-	for _, arg := range e.Args {
+	named := make(map[string]any, len(callArgs))
+	for _, arg := range callArgs {
 		v := interp.evalExpr(arg.Value)
 		if IsError(v) {
 			return v
@@ -1043,15 +1061,62 @@ func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any 
 	}
 
 	// Map to positional based on parameter metadata.
-	args := make([]any, len(spec.Params))
-	for i, p := range spec.Params {
+	args := make([]any, len(params))
+	for i, p := range params {
 		if v, ok := named[p.Name]; ok {
 			args[i] = v
 		} else if p.HasDefault {
 			args[i] = p.Default
 		} else {
-			return NewError(fmt.Sprintf(".%s(): missing required argument %q", e.Method, p.Name))
+			return NewError(fmt.Sprintf("%s: missing required argument %q", context, p.Name))
 		}
+	}
+	return args
+}
+
+// resolveNamedMethodArgs maps named arguments to positional using the method's
+// parameter metadata. Returns []any or an errorVal.
+func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any {
+	spec, specOK := interp.methods[e.Method]
+	var params []namedArgParam
+	if specOK && spec.Params != nil {
+		params = make([]namedArgParam, len(spec.Params))
+		for i, p := range spec.Params {
+			params[i] = namedArgParam(p)
+		}
+	}
+	return interp.resolveNamedArgs(e.Args, params, "."+e.Method+"()")
+}
+
+// resolveNamedFuncArgs maps named arguments to positional using the function's
+// parameter metadata. Trailing unspecified optional args are truncated so that
+// functions using len(args) for optional parameter detection continue to work.
+// Returns []any or an errorVal.
+func (interp *Interpreter) resolveNamedFuncArgs(e *syntax.CallExpr, spec FunctionSpec) any {
+	params := make([]namedArgParam, len(spec.Params))
+	for i, p := range spec.Params {
+		params[i] = namedArgParam(p)
+	}
+	resolved := interp.resolveNamedArgs(e.Args, params, e.Name+"()")
+	if IsError(resolved) {
+		return resolved
+	}
+	args := resolved.([]any)
+
+	// Truncate trailing default-filled args: find the last parameter position
+	// that was explicitly provided and trim the slice there.
+	provided := make(map[string]bool, len(e.Args))
+	for _, arg := range e.Args {
+		provided[arg.Name] = true
+	}
+	lastExplicit := -1
+	for i, p := range spec.Params {
+		if provided[p.Name] {
+			lastExplicit = i
+		}
+	}
+	if lastExplicit >= 0 && lastExplicit < len(args)-1 {
+		args = args[:lastExplicit+1]
 	}
 	return args
 }

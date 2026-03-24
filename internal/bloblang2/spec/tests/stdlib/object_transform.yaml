@@ -168,7 +168,7 @@ tests:
   - name: "filter_entries void return is error"
     mapping: |
       output.result = {"a": 1}.filter_entries((k, v) -> if false { true })
-    error: "bool"
+    error: "void"
 
   - name: "filter_entries does not modify original"
     mapping: |
