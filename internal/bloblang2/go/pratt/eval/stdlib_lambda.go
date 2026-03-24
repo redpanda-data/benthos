@@ -13,24 +13,27 @@ import (
 // RegisterLambdaMethods registers methods that take lambda arguments and
 // need access to the interpreter for evaluation.
 func (interp *Interpreter) RegisterLambdaMethods() {
-	lm := func(fn lambdaMethodFunc) MethodSpec { return MethodSpec{LambdaFn: fn} }
+	lm := func(fn lambdaMethodFunc, params ...MethodParam) MethodSpec {
+		return MethodSpec{LambdaFn: fn, Params: params}
+	}
+	fnParam := MethodParam{Name: "fn"}
 
-	interp.RegisterMethod("filter", lm(interp.methodFilter))
-	interp.RegisterMethod("map", lm(interp.methodMap))
-	interp.RegisterMethod("sort", lm(interp.methodSort))
-	interp.RegisterMethod("sort_by", lm(interp.methodSortBy))
-	interp.RegisterMethod("any", lm(interp.methodAny))
-	interp.RegisterMethod("all", lm(interp.methodAll))
-	interp.RegisterMethod("find", lm(interp.methodFind))
-	interp.RegisterMethod("fold", lm(interp.methodFold))
-	interp.RegisterMethod("unique", lm(interp.methodUnique))
-	interp.RegisterMethod("without_index", lm(interp.methodWithoutIndex))
-	interp.RegisterMethod("index_of", lm(interp.methodIndexOf))
-	interp.RegisterMethod("slice", lm(interp.methodSlice))
-	interp.RegisterMethod("map_values", lm(interp.methodMapValues))
-	interp.RegisterMethod("map_keys", lm(interp.methodMapKeys))
-	interp.RegisterMethod("map_entries", lm(interp.methodMapEntries))
-	interp.RegisterMethod("filter_entries", lm(interp.methodFilterEntries))
+	interp.RegisterMethod("filter", lm(interp.methodFilter, fnParam))
+	interp.RegisterMethod("map", lm(interp.methodMap, fnParam))
+	interp.RegisterMethod("sort", MethodSpec{LambdaFn: interp.methodSort})
+	interp.RegisterMethod("sort_by", lm(interp.methodSortBy, fnParam))
+	interp.RegisterMethod("any", lm(interp.methodAny, fnParam))
+	interp.RegisterMethod("all", lm(interp.methodAll, fnParam))
+	interp.RegisterMethod("find", lm(interp.methodFind, fnParam))
+	interp.RegisterMethod("fold", lm(interp.methodFold, MethodParam{Name: "initial"}, fnParam))
+	interp.RegisterMethod("unique", lm(interp.methodUnique, MethodParam{Name: "fn", HasDefault: true}))
+	interp.RegisterMethod("without_index", lm(interp.methodWithoutIndex, MethodParam{Name: "index"}))
+	interp.RegisterMethod("index_of", lm(interp.methodIndexOf, MethodParam{Name: "target"}))
+	interp.RegisterMethod("slice", lm(interp.methodSlice, MethodParam{Name: "low"}, MethodParam{Name: "high", HasDefault: true}))
+	interp.RegisterMethod("map_values", lm(interp.methodMapValues, fnParam))
+	interp.RegisterMethod("map_keys", lm(interp.methodMapKeys, fnParam))
+	interp.RegisterMethod("map_entries", lm(interp.methodMapEntries, fnParam))
+	interp.RegisterMethod("filter_entries", lm(interp.methodFilterEntries, fnParam))
 }
 
 func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any {
@@ -627,8 +630,8 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 }
 
 // extractLambdaOrMapRef gets the lambda expression from the first argument.
-// If the argument is a bare identifier (map name), synthesizes a lambda
-// that calls the map with a single parameter (Section 5.5).
+// If the argument is a bare identifier or qualified reference (map name),
+// synthesizes a lambda that calls the map with a single parameter (Section 5.5).
 func (interp *Interpreter) extractLambdaOrMapRef(args []syntax.CallArg) *syntax.LambdaExpr {
 	if len(args) == 0 {
 		return nil
@@ -639,40 +642,59 @@ func (interp *Interpreter) extractLambdaOrMapRef(args []syntax.CallArg) *syntax.
 		return lambda
 	}
 
-	// Bare identifier → map name reference. Synthesize a lambda.
+	// Bare identifier or qualified reference → map name reference.
 	if ident, ok := args[0].Value.(*syntax.IdentExpr); ok {
-		if m, exists := interp.maps[ident.Name]; exists {
-			// Check arity: map must accept exactly 1 required arg for
-			// higher-order methods like .map(), .filter(), etc.
-			required := 0
-			for _, p := range m.Params {
-				if p.Default == nil && !p.Discard {
-					required++
-				}
-			}
-			if required != 1 {
-				return nil // will trigger "requires a lambda argument" error
-			}
-			return &syntax.LambdaExpr{
-				TokenPos: ident.TokenPos,
-				Params:   []syntax.Param{{Name: "__arg", Pos: ident.TokenPos}},
-				Body: &syntax.ExprBody{
-					Result: &syntax.CallExpr{
-						TokenPos: ident.TokenPos,
-						Name:     ident.Name,
-						Args:     []syntax.CallArg{{Value: &syntax.IdentExpr{TokenPos: ident.TokenPos, Name: "__arg"}}},
-					},
-				},
-			}
+		if ident.Namespace != "" {
+			// Qualified reference: namespace::name
+			return interp.synthesizeNamespacedMapLambda(ident)
 		}
-		// Check namespaced references.
-		if call, ok := args[0].Value.(*syntax.CallExpr); ok && call.Namespace != "" {
-			// Already a call, shouldn't reach here.
-			_ = call
+		// Local map reference.
+		if m, exists := interp.maps[ident.Name]; exists {
+			return interp.synthesizeMapLambda(ident.TokenPos, ident.Name, "", m)
 		}
 	}
 
 	return nil
+}
+
+// synthesizeMapLambda creates a lambda that calls the given map with a single
+// argument. Returns nil if the map doesn't accept exactly 1 required param.
+func (interp *Interpreter) synthesizeMapLambda(pos syntax.Pos, name, namespace string, m *syntax.MapDecl) *syntax.LambdaExpr {
+	required := 0
+	for _, p := range m.Params {
+		if p.Default == nil && !p.Discard {
+			required++
+		}
+	}
+	if required != 1 {
+		return nil // will trigger "requires a lambda argument" error
+	}
+	return &syntax.LambdaExpr{
+		TokenPos: pos,
+		Params:   []syntax.Param{{Name: "__arg", Pos: pos}},
+		Body: &syntax.ExprBody{
+			Result: &syntax.CallExpr{
+				TokenPos:  pos,
+				Namespace: namespace,
+				Name:      name,
+				Args:      []syntax.CallArg{{Value: &syntax.IdentExpr{TokenPos: pos, Name: "__arg"}}},
+			},
+		},
+	}
+}
+
+// synthesizeNamespacedMapLambda looks up a qualified map reference and
+// synthesizes a lambda for it.
+func (interp *Interpreter) synthesizeNamespacedMapLambda(ident *syntax.IdentExpr) *syntax.LambdaExpr {
+	ns, ok := interp.namespaces[ident.Namespace]
+	if !ok {
+		return nil
+	}
+	m, ok := ns[ident.Name]
+	if !ok {
+		return nil
+	}
+	return interp.synthesizeMapLambda(ident.TokenPos, ident.Name, ident.Namespace, m)
 }
 
 // compareForSort compares two values for sort ordering. Returns -1, 0, or 1.
@@ -690,14 +712,39 @@ func compareForSort(a, b any) any {
 		return int64(-1)
 	}
 
-	// Numeric comparison.
+	// Numeric comparison with checked promotion.
 	if isNumeric(a) && isNumeric(b) {
-		af, bf := toFloat64(a), toFloat64(b)
-		if af < bf {
-			return int64(-1)
+		pl, pr, kind, promErr := promoteChecked(a, b)
+		if promErr != "" {
+			return NewError(promErr)
 		}
-		if af > bf {
-			return int64(1)
+		switch kind {
+		case promoteInt64:
+			return cmpOrdered(pl.(int64), pr.(int64))
+		case promoteInt32:
+			return cmpOrdered(int64(pl.(int32)), int64(pr.(int32)))
+		case promoteUint32:
+			return cmpOrdered(uint64(pl.(uint32)), uint64(pr.(uint32)))
+		case promoteUint64:
+			return cmpOrdered(pl.(uint64), pr.(uint64))
+		case promoteFloat64:
+			av, bv := pl.(float64), pr.(float64)
+			if av < bv {
+				return int64(-1)
+			}
+			if av > bv {
+				return int64(1)
+			}
+			return int64(0)
+		case promoteFloat32:
+			av, bv := float64(pl.(float32)), float64(pr.(float32))
+			if av < bv {
+				return int64(-1)
+			}
+			if av > bv {
+				return int64(1)
+			}
+			return int64(0)
 		}
 		return int64(0)
 	}
@@ -729,6 +776,20 @@ func compareForSort(a, b any) any {
 	}
 
 	return NewError(fmt.Sprintf("cannot sort: incompatible types %T and %T", a, b))
+}
+
+type cmpOrderable interface {
+	~int64 | ~uint64
+}
+
+func cmpOrdered[T cmpOrderable](a, b T) int64 {
+	if a < b {
+		return -1
+	}
+	if a > b {
+		return 1
+	}
+	return 0
 }
 
 func isSortable(v any) bool {

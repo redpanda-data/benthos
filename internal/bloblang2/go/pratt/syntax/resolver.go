@@ -256,8 +256,15 @@ func (r *resolver) resolveExpr(expr Expr) {
 			r.error(e.TokenPos, "undeclared variable $"+e.Name)
 		}
 	case *IdentExpr:
-		// Bare identifiers must resolve to a parameter or variable.
-		if !r.scope.isDeclared(e.Name) {
+		if e.Namespace != "" {
+			// Qualified reference (e.g., math::double) — only valid as
+			// a method argument to higher-order methods.
+			if !r.inMethodArg {
+				r.error(e.TokenPos, e.Namespace+"::"+e.Name+" is not a valid expression (call it with parentheses or pass to a method)")
+			}
+			r.resolveQualifiedIdent(e)
+		} else if !r.scope.isDeclared(e.Name) {
+			// Bare identifiers must resolve to a parameter or variable.
 			_, isFn := r.knownFunctions[e.Name]
 			if r.isKnownMap(e.Name) || isFn {
 				// Map/function name in expression position — only valid as
@@ -284,16 +291,13 @@ func (r *resolver) resolveExpr(expr Expr) {
 		for _, arg := range e.Args {
 			// Check map name references passed to higher-order methods.
 			if ident, ok := arg.Value.(*IdentExpr); ok {
-				if m := r.findMap(ident.Name); m != nil {
-					required := 0
-					for _, p := range m.Params {
-						if p.Default == nil && !p.Discard {
-							required++
-						}
+				if ident.Namespace != "" {
+					// Qualified reference: check arity in namespace.
+					if m := r.findNamespacedMap(ident.Namespace, ident.Name); m != nil {
+						r.checkMapRefArity(ident.TokenPos, ident.Namespace+"::"+ident.Name, m)
 					}
-					if required != 1 {
-						r.error(ident.TokenPos, fmt.Sprintf("arity mismatch: %s() requires %d arguments, but higher-order methods pass 1", ident.Name, required))
-					}
+				} else if m := r.findMap(ident.Name); m != nil {
+					r.checkMapRefArity(ident.TokenPos, ident.Name, m)
 				}
 			}
 			r.resolveExpr(arg.Value)
@@ -336,8 +340,22 @@ func (r *resolver) resolveExpr(expr Expr) {
 			if seg.Index != nil {
 				r.resolveExpr(seg.Index)
 			}
-			for _, arg := range seg.Args {
-				r.resolveExpr(arg.Value)
+			if len(seg.Args) > 0 {
+				saved := r.inMethodArg
+				r.inMethodArg = true
+				for _, arg := range seg.Args {
+					if ident, ok := arg.Value.(*IdentExpr); ok {
+						if ident.Namespace != "" {
+							if m := r.findNamespacedMap(ident.Namespace, ident.Name); m != nil {
+								r.checkMapRefArity(ident.TokenPos, ident.Namespace+"::"+ident.Name, m)
+							}
+						} else if m := r.findMap(ident.Name); m != nil {
+							r.checkMapRefArity(ident.TokenPos, ident.Name, m)
+						}
+					}
+					r.resolveExpr(arg.Value)
+				}
+				r.inMethodArg = saved
 			}
 		}
 	}
@@ -402,6 +420,54 @@ func (r *resolver) resolveCall(e *CallExpr) {
 
 	for _, arg := range e.Args {
 		r.resolveExpr(arg.Value)
+	}
+}
+
+// findNamespacedMap looks up a map by namespace and name.
+func (r *resolver) findNamespacedMap(namespace, name string) *MapDecl {
+	maps, ok := r.prog.Namespaces[namespace]
+	if !ok {
+		return nil
+	}
+	for _, m := range maps {
+		if m.Name == name {
+			return m
+		}
+	}
+	return nil
+}
+
+// checkMapRefArity verifies a map reference passed to a higher-order method
+// has exactly 1 required parameter.
+func (r *resolver) checkMapRefArity(pos Pos, displayName string, m *MapDecl) {
+	required := 0
+	for _, p := range m.Params {
+		if p.Default == nil && !p.Discard {
+			required++
+		}
+	}
+	if required != 1 {
+		r.error(pos, fmt.Sprintf("arity mismatch: %s() requires %d arguments, but higher-order methods pass 1", displayName, required))
+	}
+}
+
+// resolveQualifiedIdent checks that a qualified identifier (namespace::name)
+// refers to a valid namespace and map.
+func (r *resolver) resolveQualifiedIdent(e *IdentExpr) {
+	maps, nsExists := r.prog.Namespaces[e.Namespace]
+	if !nsExists {
+		r.error(e.TokenPos, fmt.Sprintf("unknown namespace %q", e.Namespace))
+		return
+	}
+	found := false
+	for _, m := range maps {
+		if m.Name == e.Name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		r.error(e.TokenPos, fmt.Sprintf("nonexistent map %s::%s", e.Namespace, e.Name))
 	}
 }
 

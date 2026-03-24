@@ -549,7 +549,11 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 
 	// Lambda methods: receive unevaluated AST args (for lambdas/map-refs).
 	if spec.LambdaFn != nil {
-		return spec.LambdaFn(receiver, e.Args)
+		args := e.Args
+		if e.Named && spec.Params != nil {
+			args = reorderNamedCallArgs(args, spec.Params)
+		}
+		return spec.LambdaFn(receiver, args)
 	}
 
 	// Evaluate arguments, resolving named args to positional if needed.
@@ -685,17 +689,23 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 	}
 	defer func() { interp.depth-- }()
 
-	args := interp.evalArgs(e.Args)
-	for _, a := range args {
-		if IsError(a) {
-			return a
-		}
-	}
-
-	// Bind parameters.
+	// Evaluate and bind parameters into an isolated scope.
 	mapScope := newScope(nil, scopeExpression) // isolated: no parent
-	if err := interp.bindParams(mapScope, m.Params, args, e.Args, e.Named); err != "" {
-		return NewError(err)
+	if e.Named {
+		// Named args: resolve to positional via shared helper, then bind.
+		if err := interp.bindNamedMapParams(mapScope, m, e); err != "" {
+			return NewError(err)
+		}
+	} else {
+		args := interp.evalArgs(e.Args)
+		for _, a := range args {
+			if IsError(a) {
+				return a
+			}
+		}
+		if err := interp.bindPositionalParams(mapScope, m.Params, args); err != "" {
+			return NewError(err)
+		}
 	}
 
 	// Evaluate the map body. If the map has its own namespace context
@@ -729,6 +739,11 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 }
 
 func (interp *Interpreter) evalIdent(e *syntax.IdentExpr) any {
+	// Qualified reference — only valid in higher-order method args
+	// (handled by extractLambdaOrMapRef). If we reach here, it's misused.
+	if e.Namespace != "" {
+		return NewError(e.Namespace + "::" + e.Name + " cannot be used as a value (pass to a higher-order method or call with parentheses)")
+	}
 	// Check scope (parameters, variables).
 	if v, ok := interp.scope.get(e.Name); ok {
 		return v
@@ -825,7 +840,7 @@ func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, bin
 		}
 		// Boolean case values are a runtime error in equality match.
 		if _, ok := patternVal.(bool); ok {
-			panic(runtimeError{message: "boolean case value in equality match (use 'as' for boolean conditions)"})
+			return false, NewError("boolean case value in equality match (use 'as' for boolean conditions)")
 		}
 		return valuesEqual(subject, patternVal), nil
 	}
@@ -844,7 +859,7 @@ func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, bin
 		}
 		b, ok := patternVal.(bool)
 		if !ok {
-			panic(runtimeError{message: fmt.Sprintf("boolean match case must evaluate to bool, got %T", patternVal)})
+			return false, NewError(fmt.Sprintf("boolean match case must evaluate to bool, got %T", patternVal))
 		}
 		return b, nil
 	}
@@ -854,7 +869,7 @@ func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, bin
 	}
 	b, ok := patternVal.(bool)
 	if !ok {
-		panic(runtimeError{message: fmt.Sprintf("boolean match case must evaluate to bool, got %T", patternVal)})
+		return false, NewError(fmt.Sprintf("boolean match case must evaluate to bool, got %T", patternVal))
 	}
 	return b, nil
 }
@@ -1006,7 +1021,11 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 				return NewError("cannot call method on deleted value")
 			}
 			if spec.LambdaFn != nil {
-				current = spec.LambdaFn(current, seg.Args)
+				lambdaArgs := seg.Args
+				if seg.Named && spec.Params != nil {
+					lambdaArgs = reorderNamedCallArgs(lambdaArgs, spec.Params)
+				}
+				current = spec.LambdaFn(current, lambdaArgs)
 			} else {
 				args := interp.evalArgs(seg.Args)
 				for _, a := range args {
@@ -1121,6 +1140,29 @@ func (interp *Interpreter) resolveNamedFuncArgs(e *syntax.CallExpr, spec Functio
 	return args
 }
 
+// reorderNamedCallArgs reorders named CallArgs to positional order based on
+// parameter metadata. Missing optional args are omitted (the method handles
+// missing trailing args via len(args) checks internally).
+func reorderNamedCallArgs(args []syntax.CallArg, params []MethodParam) []syntax.CallArg {
+	byName := make(map[string]syntax.CallArg, len(args))
+	for _, arg := range args {
+		byName[arg.Name] = arg
+	}
+	result := make([]syntax.CallArg, 0, len(params))
+	for _, p := range params {
+		if arg, ok := byName[p.Name]; ok {
+			result = append(result, arg)
+		} else if !p.HasDefault {
+			// Required param missing — append a placeholder that will trigger
+			// an error when the method tries to use it. But in practice, the
+			// resolver catches arity mismatches at compile time.
+			result = append(result, syntax.CallArg{})
+		}
+		// Optional param missing: omit — method handles via len(args).
+	}
+	return result
+}
+
 func (interp *Interpreter) evalArgs(args []syntax.CallArg) []any {
 	result := make([]any, len(args))
 	for i, a := range args {
@@ -1136,11 +1178,9 @@ func (interp *Interpreter) evalArgs(args []syntax.CallArg) []any {
 	return result
 }
 
-func (interp *Interpreter) bindParams(s *scope, params []syntax.Param, args []any, callArgs []syntax.CallArg, named bool) string {
-	if named {
-		return interp.bindNamedParams(s, params, callArgs)
-	}
-
+// bindPositionalParams binds evaluated positional args to map parameters,
+// handling discard params and AST-expression defaults.
+func (interp *Interpreter) bindPositionalParams(s *scope, params []syntax.Param, args []any) string {
 	argIdx := 0
 	for _, p := range params {
 		if p.Discard {
@@ -1161,28 +1201,34 @@ func (interp *Interpreter) bindParams(s *scope, params []syntax.Param, args []an
 	return ""
 }
 
-func (interp *Interpreter) bindNamedParams(s *scope, params []syntax.Param, callArgs []syntax.CallArg) string {
-	// Build a map of provided named arguments.
-	provided := make(map[string]any, len(callArgs))
-	for _, arg := range callArgs {
-		val := interp.evalExpr(arg.Value)
-		if IsError(val) {
-			return ErrorMessage(val)
-		}
-		provided[arg.Name] = val
-	}
-
-	// Bind each parameter.
-	for _, p := range params {
+// bindNamedMapParams resolves named call args to positional order using the
+// shared resolveNamedArgs helper, then binds them into the scope. This
+// evaluates each argument exactly once.
+func (interp *Interpreter) bindNamedMapParams(s *scope, m *syntax.MapDecl, e *syntax.CallExpr) string {
+	// Build namedArgParam descriptors, evaluating AST defaults.
+	params := make([]namedArgParam, 0, len(m.Params))
+	for _, p := range m.Params {
 		if p.Discard {
 			continue
 		}
-		if val, ok := provided[p.Name]; ok {
-			s.vars[p.Name] = DeepClone(val)
-		} else if p.Default != nil {
-			s.vars[p.Name] = interp.evalExpr(p.Default)
-		} else {
-			return fmt.Sprintf("missing named argument for parameter %q", p.Name)
+		nap := namedArgParam{Name: p.Name}
+		if p.Default != nil {
+			nap.HasDefault = true
+			nap.Default = interp.evalExpr(p.Default)
+		}
+		params = append(params, nap)
+	}
+
+	resolved := interp.resolveNamedArgs(e.Args, params, e.Name+"()")
+	if IsError(resolved) {
+		return ErrorMessage(resolved)
+	}
+	args := resolved.([]any)
+
+	// Bind into scope (positional order, discard params already excluded).
+	for i, p := range params {
+		if i < len(args) {
+			s.vars[p.Name] = DeepClone(args[i])
 		}
 	}
 	return ""
@@ -1378,13 +1424,19 @@ func toInt64(v any) (int64, bool) {
 		}
 		return int64(n), true
 	case float64:
-		if n != math.Trunc(n) {
+		if n != math.Trunc(n) || math.IsNaN(n) || math.IsInf(n, 0) {
+			return 0, false
+		}
+		if n > math.MaxInt64 || n < math.MinInt64 {
 			return 0, false
 		}
 		return int64(n), true
 	case float32:
 		f := float64(n)
-		if f != math.Trunc(f) {
+		if f != math.Trunc(f) || math.IsNaN(f) || math.IsInf(f, 0) {
+			return 0, false
+		}
+		if f > math.MaxInt64 || f < math.MinInt64 {
 			return 0, false
 		}
 		return int64(f), true

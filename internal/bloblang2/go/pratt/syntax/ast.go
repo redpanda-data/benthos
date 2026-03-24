@@ -345,8 +345,9 @@ func (v *VarExpr) exprNode()    {}
 // IdentExpr is a bare identifier in expression position. Resolved by the
 // name resolution pass to a parameter, map name, or stdlib function.
 type IdentExpr struct {
-	TokenPos Pos
-	Name     string
+	TokenPos  Pos
+	Namespace string // non-empty for qualified references (e.g., math::double)
+	Name      string
 }
 
 func (i *IdentExpr) nodePos() Pos { return i.TokenPos }

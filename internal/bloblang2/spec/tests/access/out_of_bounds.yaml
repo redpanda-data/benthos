@@ -184,6 +184,36 @@ tests:
       output.v = "caf\u00E9"[4]
     error: "out of bounds"
 
+  # --- Non-integer and extreme float indices ---
+
+  - name: "array index with NaN is error"
+    input: {"nan": {_type: "float64", value: "NaN"}}
+    mapping: |
+      output.v = [10, 20, 30][input.nan]
+    error: "whole number"
+
+  - name: "array index with Infinity is error"
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    mapping: |
+      output.v = [10, 20, 30][input.inf]
+    error: "index"
+
+  - name: "array index with large float exceeding int64 range is error"
+    input: {"big": {_type: "float64", value: "1e19"}}
+    mapping: |
+      output.v = [10, 20, 30][input.big]
+    error: "index"
+
+  - name: "array index with whole-number float 2.0 is accepted"
+    mapping: |
+      output.v = [10, 20, 30][2.0]
+    output: {"v": 30}
+
+  - name: "array index with fractional float 1.5 is error"
+    mapping: |
+      output.v = [10, 20, 30][1.5]
+    error: "whole number"
+
   - name: "multibyte bytes boundary differs from string"
     mapping: |
       $s = "caf\u00E9"
