@@ -28,6 +28,11 @@ tests:
       output.result = [1, 2].any(x -> x * 2)
     error: "bool"
 
+  - name: "any void return is error"
+    mapping: |
+      output.result = [1, 2].any(x -> if false { true })
+    error: "void"
+
   # --- all ---
 
   - name: "all returns true when all match"
@@ -55,6 +60,11 @@ tests:
       output.result = [1, 2].all(x -> x.string())
     error: "bool"
 
+  - name: "all void return is error"
+    mapping: |
+      output.result = [1, 2].all(x -> if false { true })
+    error: "void"
+
   # --- find ---
 
   - name: "find returns first match"
@@ -78,6 +88,11 @@ tests:
     mapping: |
       output.result = [10, 20, 30].find(x -> if x == 10 { true } else { throw("should not reach") })
     output: {"result": 10}
+
+  - name: "find void lambda return is error"
+    mapping: |
+      output.result = [1, 2, 3].find(x -> if false { true })
+    error: "void"
 
   - name: "find void result works with or"
     mapping: |
@@ -185,6 +200,16 @@ tests:
       output.result = [42].sum()
     output: {"result": 42}
 
+  - name: "sum single non-numeric element is error"
+    mapping: |
+      output.result = ["hello"].sum()
+    error: "numeric"
+
+  - name: "sum single bool element is error"
+    mapping: |
+      output.result = [true].sum()
+    error: "numeric"
+
   # --- min ---
 
   - name: "min of integers"
@@ -221,6 +246,18 @@ tests:
     mapping: |
       output.result = [3, 1.5, 2].min()
     output: {"result": 1.5}
+
+  - name: "min mixed numeric result is promoted type"
+    mapping: |
+      output.result = [3, 1.5, 2].min().type()
+    output: {"result": "float64"}
+
+  - name: "max mixed numeric returns promoted type"
+    mapping: |
+      $result = [1.5, 3, 2].max()
+      output.value = $result
+      output.type = $result.type()
+    output: {"value": 3.0, "type": "float64"}
 
   # --- max ---
 

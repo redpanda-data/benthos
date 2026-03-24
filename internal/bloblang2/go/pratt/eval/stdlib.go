@@ -212,11 +212,11 @@ func (interp *Interpreter) registerFunctions() {
 			{Name: "year"},
 			{Name: "month"},
 			{Name: "day"},
-			{Name: "hour", HasDefault: true},
-			{Name: "minute", HasDefault: true},
-			{Name: "second", HasDefault: true},
-			{Name: "nano", HasDefault: true},
-			{Name: "timezone", HasDefault: true},
+			{Name: "hour", HasDefault: true, Default: int64(0)},
+			{Name: "minute", HasDefault: true, Default: int64(0)},
+			{Name: "second", HasDefault: true, Default: int64(0)},
+			{Name: "nano", HasDefault: true, Default: int64(0)},
+			{Name: "timezone", HasDefault: true, Default: "UTC"},
 		},
 	})
 }
@@ -380,9 +380,9 @@ func methodString(receiver any, _ []any) any {
 	case uint64:
 		return strconv.FormatUint(v, 10)
 	case float32:
-		return formatFloat(float64(v))
+		return formatFloat(float64(v), 32)
 	case float64:
-		return formatFloat(v)
+		return formatFloat(v, 64)
 	case bool:
 		if v {
 			return "true"
@@ -439,7 +439,7 @@ func containsBytes(v any) bool {
 	return false
 }
 
-func formatFloat(f float64) string {
+func formatFloat(f float64, bitSize int) string {
 	if math.IsNaN(f) {
 		return "NaN"
 	}
@@ -452,7 +452,7 @@ func formatFloat(f float64) string {
 	if f == 0 && math.Signbit(f) {
 		return "0.0" // negative zero
 	}
-	s := strconv.FormatFloat(f, 'g', -1, 64)
+	s := strconv.FormatFloat(f, 'g', -1, bitSize)
 	// Ensure the string contains a decimal point or exponent.
 	if !strings.ContainsAny(s, ".eE") {
 		s += ".0"
@@ -1091,6 +1091,9 @@ func methodFlatten(receiver any, _ []any) any {
 			result = append(result, elem)
 		}
 	}
+	if result == nil {
+		result = []any{}
+	}
 	return result
 }
 
@@ -1138,6 +1141,9 @@ func methodSum(receiver any, _ []any) any {
 		return int64(0)
 	}
 	result := arr[0]
+	if !isNumeric(result) {
+		return NewError(fmt.Sprintf("sum() requires numeric elements, got %T", result))
+	}
 	for _, elem := range arr[1:] {
 		result = evalAdd(result, elem)
 		if IsError(result) {
@@ -1156,6 +1162,8 @@ func methodMin(receiver any, _ []any) any {
 		return NewError("min() requires non-empty array")
 	}
 	result := arr[0]
+	// Track the widest type seen for final promotion.
+	widest := arr[0]
 	for _, elem := range arr[1:] {
 		cmp := compareForSort(result, elem)
 		if IsError(cmp) {
@@ -1164,6 +1172,16 @@ func methodMin(receiver any, _ []any) any {
 		if cmp.(int64) > 0 {
 			result = elem
 		}
+		// Widen the type tracker so we know the common type at the end.
+		promoted, _, _, promErr := promoteChecked(widest, elem)
+		if promErr == "" {
+			widest = promoted
+		}
+	}
+	// Promote the result to the common type of all elements.
+	promoted, _, _, promErr := promoteChecked(result, widest)
+	if promErr == "" {
+		result = promoted
 	}
 	return result
 }
@@ -1177,6 +1195,7 @@ func methodMax(receiver any, _ []any) any {
 		return NewError("max() requires non-empty array")
 	}
 	result := arr[0]
+	widest := arr[0]
 	for _, elem := range arr[1:] {
 		cmp := compareForSort(result, elem)
 		if IsError(cmp) {
@@ -1185,6 +1204,14 @@ func methodMax(receiver any, _ []any) any {
 		if cmp.(int64) < 0 {
 			result = elem
 		}
+		promoted, _, _, promErr := promoteChecked(widest, elem)
+		if promErr == "" {
+			widest = promoted
+		}
+	}
+	promoted, _, _, promErr := promoteChecked(result, widest)
+	if promErr == "" {
+		result = promoted
 	}
 	return result
 }
@@ -1277,10 +1304,12 @@ func methodWithout(receiver any, args []any) any {
 		return NewError("without() argument must be array of strings")
 	}
 	exclude := make(map[string]bool, len(keys))
-	for _, k := range keys {
-		if s, ok := k.(string); ok {
-			exclude[s] = true
+	for i, k := range keys {
+		s, ok := k.(string)
+		if !ok {
+			return NewError(fmt.Sprintf("without() keys must be strings, element %d is %T", i, k))
 		}
+		exclude[s] = true
 	}
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
@@ -1364,6 +1393,12 @@ func methodTsUnixNano(receiver any, _ []any) any {
 }
 
 func methodTsFromUnix(receiver any, _ []any) any {
+	if !isNumeric(receiver) {
+		return NewError(fmt.Sprintf("ts_from_unix() requires numeric, got %T", receiver))
+	}
+	if v, ok := receiver.(uint64); ok && v > math.MaxInt64 {
+		return NewError("ts_from_unix(): uint64 value exceeds int64 range")
+	}
 	f := toFloat64(receiver)
 	sec := int64(f)
 	nsec := int64((f - float64(sec)) * 1e9)
@@ -1586,11 +1621,11 @@ func checkJSONSerializable(v any) string {
 	return ""
 }
 
-// sortedJSON returns a value suitable for json.Marshal with sorted object keys.
+// sortedJSON returns a value suitable for json.Marshal with sorted object keys
+// and timestamps pre-formatted to the spec's shortest-precision RFC 3339.
 func sortedJSON(v any) any {
 	switch val := v.(type) {
 	case map[string]any:
-		// json.Marshal sorts keys by default in Go, so this is fine.
 		sorted := make(map[string]any, len(val))
 		for k, v := range val {
 			sorted[k] = sortedJSON(v)
@@ -1602,6 +1637,8 @@ func sortedJSON(v any) any {
 			result[i] = sortedJSON(v)
 		}
 		return result
+	case time.Time:
+		return formatTimestamp(val)
 	default:
 		return v
 	}

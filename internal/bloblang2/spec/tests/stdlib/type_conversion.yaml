@@ -29,6 +29,16 @@ tests:
     input: {nz: {_type: "float64", value: "-0.0"}}
     output: "0.0"
 
+  - name: "string from float32"
+    mapping: |
+      output = 3.14.float32().string()
+    output: "3.14"
+
+  - name: "string from float32 whole number"
+    mapping: |
+      output = 5.0.float32().string()
+    output: "5.0"
+
   - name: "string from nan"
     mapping: |
       output = input.nan.string()

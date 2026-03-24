@@ -177,6 +177,21 @@ tests:
       output = timestamp(2024, 1, 15, 10, 30, 0).format_json()
     output: '"2024-01-15T10:30:00Z"'
 
+  - name: "format_json timestamp in object uses shortest precision"
+    mapping: |
+      output = {"time": timestamp(2024, 1, 15, 10, 30, 0)}.format_json()
+    output: '{"time":"2024-01-15T10:30:00Z"}'
+
+  - name: "format_json timestamp with fractional seconds in object"
+    mapping: |
+      output = {"time": timestamp(2024, 1, 15, 10, 30, 0, 500000000)}.format_json()
+    output: '{"time":"2024-01-15T10:30:00.5Z"}'
+
+  - name: "format_json timestamp in nested array"
+    mapping: |
+      output = [timestamp(2024, 6, 1)].format_json()
+    output: '["2024-06-01T00:00:00Z"]'
+
   # --- format_json: errors ---
 
   - name: "format_json bytes is error"

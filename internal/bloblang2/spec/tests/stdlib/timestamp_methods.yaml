@@ -166,6 +166,16 @@ tests:
       output = 1705314600.ts_from_unix().type()
     output: "timestamp"
 
+  - name: "ts_from_unix non-numeric receiver is error"
+    mapping: |
+      output = "not a number".ts_from_unix()
+    error: "numeric"
+
+  - name: "ts_from_unix bool receiver is error"
+    mapping: |
+      output = true.ts_from_unix()
+    error: "numeric"
+
   # --- ts_from_unix_milli ---
 
   - name: "ts_from_unix_milli whole seconds"

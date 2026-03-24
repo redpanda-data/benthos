@@ -212,3 +212,13 @@ tests:
     mapping: |
       output.result = {"a": 1, "b": 2}.without(["a", "z"])
     output: {"result": {"b": 2}}
+
+  - name: "without non-string key in array is error"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.without(["a", 42])
+    error: "string"
+
+  - name: "without null key in array is error"
+    mapping: |
+      output.result = {"a": 1}.without([null])
+    error: "string"
