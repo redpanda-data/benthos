@@ -1,0 +1,107 @@
+==================
+Single parameter lambda
+==================
+
+output = input.items.map(x -> x * 2)
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      method: (identifier)
+      (argument_list
+        (positional_arguments
+          (lambda_expression
+            parameters: (identifier)
+            body: (binary_expression
+              left: (identifier)
+              right: (integer))))))))
+
+==================
+Multi-parameter lambda
+==================
+
+output = input.items.fold((acc, x) -> acc + x)
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      method: (identifier)
+      (argument_list
+        (positional_arguments
+          (lambda_expression
+            parameters: (parameter_list
+              (parameter
+                (identifier))
+              (parameter
+                (identifier)))
+            body: (binary_expression
+              left: (identifier)
+              right: (identifier))))))))
+
+==================
+Discard lambda
+==================
+
+output = input.items.map(_ -> "x")
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      method: (identifier)
+      (argument_list
+        (positional_arguments
+          (lambda_expression
+            body: (string
+              (string_content))))))))
+
+==================
+Lambda with block body
+==================
+
+output = input.items.map(x -> {
+  $doubled = x * 2
+  $doubled + 1
+})
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      method: (identifier)
+      (argument_list
+        (positional_arguments
+          (lambda_expression
+            parameters: (identifier)
+            body: (lambda_block
+              (expr_body
+                (var_assignment
+                  (variable)
+                  (binary_expression
+                    left: (identifier)
+                    right: (integer)))
+                (binary_expression
+                  left: (variable)
+                  right: (integer))))))))))

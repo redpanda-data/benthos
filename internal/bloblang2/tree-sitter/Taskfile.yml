@@ -1,0 +1,34 @@
+version: "3"
+
+tasks:
+  generate:
+    desc: Generate the tree-sitter parser from grammar.js
+    cmds:
+      - npx tree-sitter generate
+
+  test:
+    desc: Run the tree-sitter corpus tests
+    deps: [generate]
+    cmds:
+      - npx tree-sitter test
+
+  build-wasm:
+    desc: Compile the grammar to WASM (requires Docker or emscripten)
+    deps: [generate]
+    cmds:
+      - npx tree-sitter build --wasm -o tree-sitter-bloblang2.wasm
+
+  sync-demo:
+    desc: Copy WASM and highlights.scm into the demo directory
+    deps: [build-wasm]
+    cmds:
+      - cp tree-sitter-bloblang2.wasm ../demo/tree-sitter-bloblang2.wasm
+      - cp queries/highlights.scm ../demo/highlights.scm
+
+  all:
+    desc: Full rebuild — generate, test, build WASM, sync to demo
+    cmds:
+      - task: generate
+      - task: test
+      - task: build-wasm
+      - task: sync-demo

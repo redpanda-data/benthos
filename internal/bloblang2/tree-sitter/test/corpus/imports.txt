@@ -1,0 +1,39 @@
+==================
+Import statement
+==================
+
+import "utils.blobl2" as utils
+
+---
+
+(source_file
+  (import_statement
+    (string
+      (string_content))
+    (identifier)))
+
+==================
+Qualified name call
+==================
+
+import "math.blobl2" as math
+output = math::double(input.x)
+
+---
+
+(source_file
+  (import_statement
+    (string
+      (string_content))
+    (identifier))
+  (assignment
+    (assign_target)
+    (call_expression
+      name: (qualified_name
+        namespace: (identifier)
+        name: (identifier))
+      (argument_list
+        (positional_arguments
+          (field_access
+            receiver: (input)
+            field: (identifier)))))))

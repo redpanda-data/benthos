@@ -1,0 +1,17 @@
+{
+  "metadata": {
+    "version": "0.1.0",
+    "links": {
+      "repository": "https://github.com/redpanda-data/benthos"
+    }
+  },
+  "grammars": [
+    {
+      "name": "bloblang2",
+      "path": ".",
+      "scope": "source.bloblang2",
+      "file-types": ["blobl2"],
+      "injection-regex": "bloblang2"
+    }
+  ]
+}
