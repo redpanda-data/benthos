@@ -1,0 +1,183 @@
+==================
+Method call
+==================
+
+output = input.name.uppercase()
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      method: (identifier))))
+
+==================
+Chained method calls
+==================
+
+output = input.name.trim().lowercase().replace_all(" ", "-")
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (method_call
+        receiver: (method_call
+          receiver: (field_access
+            receiver: (input)
+            field: (identifier))
+          method: (identifier))
+        method: (identifier))
+      method: (identifier)
+      (argument_list
+        (positional_arguments
+          (string
+            (string_content))
+          (string
+            (string_content)))))))
+
+==================
+Null-safe field access
+==================
+
+output = input.user?.name
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (null_safe_field_access
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      field: (identifier))))
+
+==================
+Null-safe method call
+==================
+
+output = input.name?.trim()
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (null_safe_method_call
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      method: (identifier))))
+
+==================
+Null-safe index
+==================
+
+output = input.items?[0]
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (null_safe_index
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      index: (integer))))
+
+==================
+Index access
+==================
+
+output = input.items[0]
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (index
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      index: (integer))))
+
+==================
+Named arguments
+==================
+
+output = input.name.replace_all(old: " ", new: "-")
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      method: (identifier)
+      (argument_list
+        (named_arguments
+          (named_argument
+            name: (identifier)
+            value: (string
+              (string_content)))
+          (named_argument
+            name: (identifier)
+            value: (string
+              (string_content))))))))
+
+==================
+Field access with keyword name
+==================
+
+output = input.map
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (field_access
+      receiver: (input)
+      field: (identifier))))
+
+==================
+Deleted function
+==================
+
+output = deleted()
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (call_expression)))
+
+==================
+Throw function
+==================
+
+output = throw("error message")
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (call_expression
+      (argument_list
+        (positional_arguments
+          (string
+            (string_content)))))))
