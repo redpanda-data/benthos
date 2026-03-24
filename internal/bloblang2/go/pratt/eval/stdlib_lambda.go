@@ -48,6 +48,9 @@ func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any
 		if IsError(val) {
 			return val
 		}
+		if IsVoid(val) {
+			return NewError("filter() lambda returned void")
+		}
 		b, ok := val.(bool)
 		if !ok {
 			return NewError(fmt.Sprintf("filter() lambda must return bool, got %T", val))
@@ -98,6 +101,9 @@ func (interp *Interpreter) methodSort(receiver any, args []syntax.CallArg) any {
 	}
 	if len(arr) == 0 {
 		return []any{}
+	}
+	if !isSortable(arr[0]) {
+		return NewError(fmt.Sprintf("sort(): %T is not a sortable type", arr[0]))
 	}
 
 	sorted := make([]any, len(arr))
@@ -183,6 +189,9 @@ func (interp *Interpreter) methodAny(receiver any, args []syntax.CallArg) any {
 		if IsError(val) {
 			return val
 		}
+		if IsVoid(val) {
+			return NewError("any() lambda returned void")
+		}
 		b, ok := val.(bool)
 		if !ok {
 			return NewError(fmt.Sprintf("any() lambda must return bool, got %T", val))
@@ -208,6 +217,9 @@ func (interp *Interpreter) methodAll(receiver any, args []syntax.CallArg) any {
 		if IsError(val) {
 			return val
 		}
+		if IsVoid(val) {
+			return NewError("all() lambda returned void")
+		}
 		b, ok := val.(bool)
 		if !ok {
 			return NewError(fmt.Sprintf("all() lambda must return bool, got %T", val))
@@ -232,6 +244,9 @@ func (interp *Interpreter) methodFind(receiver any, args []syntax.CallArg) any {
 		val := interp.callLambda(lambda, []any{elem})
 		if IsError(val) {
 			return val
+		}
+		if IsVoid(val) {
+			return NewError("find() lambda returned void")
 		}
 		b, ok := val.(bool)
 		if !ok {
@@ -529,6 +544,9 @@ func (interp *Interpreter) methodMapKeys(receiver any, args []syntax.CallArg) an
 		if IsError(newKey) {
 			return newKey
 		}
+		if IsVoid(newKey) {
+			return NewError("map_keys() lambda returned void")
+		}
 		if IsDeleted(newKey) {
 			continue
 		}
@@ -593,6 +611,9 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 		val := interp.callLambda(lambda, []any{k, v})
 		if IsError(val) {
 			return val
+		}
+		if IsVoid(val) {
+			return NewError("filter_entries() lambda returned void")
 		}
 		b, ok := val.(bool)
 		if !ok {
@@ -708,6 +729,15 @@ func compareForSort(a, b any) any {
 	}
 
 	return NewError(fmt.Sprintf("cannot sort: incompatible types %T and %T", a, b))
+}
+
+func isSortable(v any) bool {
+	switch v.(type) {
+	case int32, int64, uint32, uint64, float32, float64, string, time.Time:
+		return true
+	default:
+		return false
+	}
 }
 
 func isNaN(v any) bool {

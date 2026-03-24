@@ -36,7 +36,7 @@ tests:
   - name: "filter void return is error"
     mapping: |
       output.result = [1, 2, 3].filter(x -> if false { true })
-    error: "bool"
+    error: "void"
 
   - name: "filter does not modify original array"
     mapping: |
@@ -141,6 +141,21 @@ tests:
     mapping: |
       output.result = [null, null].sort()
     error: "sort"
+
+  - name: "sort single boolean is error"
+    mapping: |
+      output.result = [true].sort()
+    error: "sortable"
+
+  - name: "sort single null is error"
+    mapping: |
+      output.result = [null].sort()
+    error: "sortable"
+
+  - name: "sort single object is error"
+    mapping: |
+      output.result = [{"a": 1}].sort()
+    error: "sortable"
 
   - name: "sort NaN sorts after all values"
     input: {"nan": {_type: "float64", value: "NaN"}}
