@@ -101,3 +101,41 @@ tests:
       import "helpers.blobl" as h
       output.v = double(5)
     compile_error: "double"
+
+  # --- Qualified map references in higher-order methods ---
+
+  - name: "qualified map reference in .map()"
+    mapping: |
+      import "helpers.blobl" as h
+      output.v = [1, 2, 3].map(h::double)
+    output: {"v": [2, 4, 6]}
+
+  - name: "qualified map reference in .filter()"
+    files:
+      "predicates.blobl": |
+        map is_positive(x) { x > 0 }
+    mapping: |
+      import "predicates.blobl" as p
+      output.v = [-1, 2, -3, 4].filter(p::is_positive)
+    output: {"v": [2, 4]}
+
+  - name: "qualified map reference in .sort_by()"
+    files:
+      "keys.blobl": |
+        map name(item) { item.name }
+    mapping: |
+      import "keys.blobl" as k
+      $items = [{"name": "Charlie"}, {"name": "Alice"}, {"name": "Bob"}]
+      output.v = $items.sort_by(k::name).map(x -> x.name)
+    output: {"v": ["Alice", "Bob", "Charlie"]}
+
+  - name: "qualified reference to non-existent namespace is compile error"
+    mapping: |
+      output.v = [1, 2].map(bad::double)
+    compile_error: "namespace"
+
+  - name: "qualified reference to non-existent map is compile error"
+    mapping: |
+      import "helpers.blobl" as h
+      output.v = [1, 2].map(h::nonexistent)
+    compile_error: "nonexistent"

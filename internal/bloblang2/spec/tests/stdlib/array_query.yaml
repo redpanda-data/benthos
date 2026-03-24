@@ -247,6 +247,16 @@ tests:
       output.result = [3, 1.5, 2].min()
     output: {"result": 1.5}
 
+  - name: "min large int64 mixed with float is error"
+    mapping: |
+      output.result = [9007199254740993, 1.0].min()
+    error: "exact"
+
+  - name: "max large int64 mixed with float is error"
+    mapping: |
+      output.result = [1.0, 9007199254740993].max()
+    error: "exact"
+
   - name: "min mixed numeric result is promoted type"
     mapping: |
       output.result = [3, 1.5, 2].min().type()
@@ -323,3 +333,20 @@ tests:
     mapping: |
       output.result = [1, 2, 3, 4].fold(1, (product, x) -> product * x)
     output: {"result": 24}
+
+  # --- Named arguments for lambda methods ---
+
+  - name: "fold with named args reordered"
+    mapping: |
+      output.result = [1, 2, 3].fold(fn: (tally, x) -> tally + x, initial: 0)
+    output: {"result": 6}
+
+  - name: "filter with named fn arg"
+    mapping: |
+      output.result = [1, 2, 3, 4].filter(fn: x -> x > 2)
+    output: {"result": [3, 4]}
+
+  - name: "slice with named args reordered"
+    mapping: |
+      output.result = [10, 20, 30, 40, 50].slice(high: 3, low: 1)
+    output: {"result": [20, 30]}
