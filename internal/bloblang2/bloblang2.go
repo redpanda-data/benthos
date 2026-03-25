@@ -21,9 +21,15 @@ func (i *Interp) Compile(mapping string, files map[string]string) (spectest.Mapp
 	// Optimization pass: path collapse, constant folding, dead code elimination.
 	syntax.Optimize(prog)
 
-	// Name resolution pass: semantic checks.
+	// Name resolution pass: semantic checks + opcode annotation.
 	methods, functions := eval.StdlibNames()
-	resolveErrs := syntax.Resolve(prog, methods, functions)
+	methodOpcodes, functionOpcodes := eval.StdlibOpcodes()
+	resolveErrs := syntax.Resolve(prog, syntax.ResolveOptions{
+		Methods:         methods,
+		Functions:       functions,
+		MethodOpcodes:   methodOpcodes,
+		FunctionOpcodes: functionOpcodes,
+	})
 	if len(resolveErrs) > 0 {
 		return nil, &spectest.CompileError{Message: syntax.FormatErrors(resolveErrs)}
 	}

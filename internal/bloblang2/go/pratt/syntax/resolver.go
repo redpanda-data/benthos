@@ -20,6 +20,20 @@ type MethodInfo struct {
 	Total int
 }
 
+// ResolveOptions configures the semantic analysis pass.
+type ResolveOptions struct {
+	// Methods maps method names to their compile-time arity metadata.
+	Methods map[string]MethodInfo
+	// Functions maps function names to their compile-time arity metadata.
+	Functions map[string]FunctionInfo
+	// MethodOpcodes maps method names to opcode IDs for runtime dispatch.
+	// Nil to skip opcode annotation (e.g. LSP diagnostics-only mode).
+	MethodOpcodes map[string]uint16
+	// FunctionOpcodes maps function names to opcode IDs for runtime dispatch.
+	// Nil to skip opcode annotation.
+	FunctionOpcodes map[string]uint16
+}
+
 // Resolve performs semantic analysis on a parsed program, checking for:
 //   - Undeclared variable references
 //   - Block-scoped variable visibility
@@ -29,26 +43,30 @@ type MethodInfo struct {
 //   - Duplicate map names
 //   - Function arity mismatches
 //
-// knownMethods maps method names to their compile-time metadata.
-// knownFunctions maps function names to their compile-time metadata.
-func Resolve(prog *Program, knownMethods map[string]MethodInfo, knownFunctions map[string]FunctionInfo) []PosError {
+// When opcode maps are provided in opts, AST nodes are annotated with
+// compile-time opcode IDs for fast runtime dispatch.
+func Resolve(prog *Program, opts ResolveOptions) []PosError {
 	r := &resolver{
-		prog:           prog,
-		knownMethods:   knownMethods,
-		knownFunctions: knownFunctions,
+		prog:            prog,
+		knownMethods:    opts.Methods,
+		knownFunctions:  opts.Functions,
+		methodOpcodes:   opts.MethodOpcodes,
+		functionOpcodes: opts.FunctionOpcodes,
 	}
 	r.resolve()
 	return r.errors
 }
 
 type resolver struct {
-	prog           *Program
-	knownMethods   map[string]MethodInfo
-	knownFunctions map[string]FunctionInfo
-	errors         []PosError
-	scope          *resolveScope
-	inMap          bool // true when inside a map body
-	inMethodArg    bool // true when resolving a method argument
+	prog            *Program
+	knownMethods    map[string]MethodInfo
+	knownFunctions  map[string]FunctionInfo
+	methodOpcodes   map[string]uint16 // nil = skip annotation
+	functionOpcodes map[string]uint16 // nil = skip annotation
+	errors          []PosError
+	scope           *resolveScope
+	inMap           bool // true when inside a map body
+	inMethodArg     bool // true when resolving a method argument
 }
 
 type resolveScope struct {
@@ -298,6 +316,9 @@ func (r *resolver) resolveExpr(expr Expr) {
 		if mi, ok := r.knownMethods[e.Method]; ok {
 			r.checkMethodArity(e, mi)
 		}
+		if r.methodOpcodes != nil {
+			e.MethodOpcode = r.methodOpcodes[e.Method]
+		}
 		saved := r.inMethodArg
 		r.inMethodArg = true
 		for _, arg := range e.Args {
@@ -348,13 +369,17 @@ func (r *resolver) resolveExpr(expr Expr) {
 		if e.Root == PathRootVar && !r.scope.isDeclared(e.VarName) {
 			r.error(e.TokenPos, "undeclared variable $"+e.VarName)
 		}
-		for _, seg := range e.Segments {
+		for i := range e.Segments {
+			seg := &e.Segments[i]
 			if seg.Index != nil {
 				r.resolveExpr(seg.Index)
 			}
 			if seg.Kind == PathSegMethod {
 				if mi, ok := r.knownMethods[seg.Name]; ok {
 					r.checkMethodArityAt(seg.Pos, seg.Name, len(seg.Args), mi)
+				}
+				if r.methodOpcodes != nil {
+					seg.MethodOpcode = r.methodOpcodes[seg.Name]
 				}
 			}
 			if len(seg.Args) > 0 {
@@ -402,6 +427,9 @@ func (r *resolver) resolveCall(e *CallExpr) {
 			r.checkMapArity(e, m)
 		} else if fi, ok := r.knownFunctions[e.Name]; ok {
 			r.checkFunctionArity(e, fi)
+			if r.functionOpcodes != nil {
+				e.FunctionOpcode = r.functionOpcodes[e.Name]
+			}
 		} else {
 			r.error(e.TokenPos, fmt.Sprintf("unknown function or map %q", e.Name))
 		}
