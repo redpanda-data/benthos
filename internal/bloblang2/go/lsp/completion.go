@@ -15,7 +15,7 @@ type completionEngine struct {
 	methods   []completionItem
 }
 
-func newCompletionEngine(methods map[string]bool, functions map[string]syntax.FunctionInfo) *completionEngine {
+func newCompletionEngine(methods map[string]syntax.MethodInfo, functions map[string]syntax.FunctionInfo) *completionEngine {
 	e := &completionEngine{}
 
 	// Keywords.
@@ -46,7 +46,7 @@ func newCompletionEngine(methods map[string]bool, functions map[string]syntax.Fu
 			Label:      name,
 			Kind:       completionKindFunction,
 			Detail:     detail,
-			InsertText: name + "($0)",
+			InsertText: name + "()",
 		})
 	}
 
@@ -60,7 +60,7 @@ func newCompletionEngine(methods map[string]bool, functions map[string]syntax.Fu
 		e.methods = append(e.methods, completionItem{
 			Label:      name,
 			Kind:       completionKindMethod,
-			InsertText: name + "($0)",
+			InsertText: name + "()",
 		})
 	}
 
@@ -183,7 +183,7 @@ func (e *completionEngine) generalCompletions(prog *syntax.Program) []completion
 				Label:      m.Name,
 				Kind:       completionKindFunction,
 				Detail:     "map " + m.Name,
-				InsertText: m.Name + "($0)",
+				InsertText: m.Name + "()",
 			})
 		}
 	}

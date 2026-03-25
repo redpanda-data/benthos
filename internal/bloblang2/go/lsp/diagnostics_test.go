@@ -107,6 +107,23 @@ func TestDiagnose(t *testing.T) {
 			wantSubstr: "accepts at most",
 		},
 		{
+			name:       "method arity mismatch - missing required arg",
+			source:     `output = input.test.map()`,
+			wantCount:  1,
+			wantSubstr: "requires at least 1 arguments",
+		},
+		{
+			name:       "method arity mismatch - too many args",
+			source:     `output = input.test.encode("base64", "extra")`,
+			wantCount:  1,
+			wantSubstr: "accepts at most 1 arguments",
+		},
+		{
+			name:      "method with optional args is fine",
+			source:    `output = input.test.format_json()`,
+			wantCount: 0,
+		},
+		{
 			name:       "input inside map body",
 			source:     "map foo(x) {\n  input\n}\noutput = foo(1)",
 			wantCount:  1,

@@ -26,13 +26,26 @@ func (interp *Interpreter) RegisterStdlib() {
 	interp.registerMethods()
 }
 
-// MethodNames returns the names of all registered methods.
-func (interp *Interpreter) MethodNames() map[string]bool {
-	names := make(map[string]bool, len(interp.methods))
-	for name := range interp.methods {
-		names[name] = true
+// MethodInfos returns compile-time metadata for all registered methods,
+// keyed by name. Used by the resolver for arity checking.
+func (interp *Interpreter) MethodInfos() map[string]syntax.MethodInfo {
+	infos := make(map[string]syntax.MethodInfo, len(interp.methods))
+	for name, spec := range interp.methods {
+		if spec.Params == nil {
+			// No declared params — arity checked at runtime (or intrinsic).
+			infos[name] = syntax.MethodInfo{Required: 0, Total: -1}
+			continue
+		}
+		required, total := 0, 0
+		for _, p := range spec.Params {
+			total++
+			if !p.HasDefault {
+				required++
+			}
+		}
+		infos[name] = syntax.MethodInfo{Required: required, Total: total}
 	}
-	return names
+	return infos
 }
 
 // FunctionInfos returns compile-time metadata for all registered functions,
@@ -55,11 +68,11 @@ func (interp *Interpreter) FunctionInfos() map[string]syntax.FunctionInfo {
 // StdlibNames creates a temporary interpreter with stdlib registered and
 // returns the method and function info maps. Used by the resolver for
 // compile-time name validation and arity checking.
-func StdlibNames() (methods map[string]bool, functions map[string]syntax.FunctionInfo) {
+func StdlibNames() (methods map[string]syntax.MethodInfo, functions map[string]syntax.FunctionInfo) {
 	interp := New(nil)
 	interp.RegisterStdlib()
 	interp.RegisterLambdaMethods()
-	return interp.MethodNames(), interp.FunctionInfos()
+	return interp.MethodInfos(), interp.FunctionInfos()
 }
 
 func (interp *Interpreter) registerFunctions() {

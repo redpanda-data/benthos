@@ -11,6 +11,15 @@ type FunctionInfo struct {
 	Total int
 }
 
+// MethodInfo carries compile-time metadata about a stdlib method.
+type MethodInfo struct {
+	// Required is the number of required parameters.
+	Required int
+	// Total is the total number of parameters (required + optional).
+	// -1 means no arity checking (params not declared, validated at runtime).
+	Total int
+}
+
 // Resolve performs semantic analysis on a parsed program, checking for:
 //   - Undeclared variable references
 //   - Block-scoped variable visibility
@@ -20,9 +29,9 @@ type FunctionInfo struct {
 //   - Duplicate map names
 //   - Function arity mismatches
 //
-// knownMethods is the set of recognized method names.
+// knownMethods maps method names to their compile-time metadata.
 // knownFunctions maps function names to their compile-time metadata.
-func Resolve(prog *Program, knownMethods map[string]bool, knownFunctions map[string]FunctionInfo) []PosError {
+func Resolve(prog *Program, knownMethods map[string]MethodInfo, knownFunctions map[string]FunctionInfo) []PosError {
 	r := &resolver{
 		prog:           prog,
 		knownMethods:   knownMethods,
@@ -34,7 +43,7 @@ func Resolve(prog *Program, knownMethods map[string]bool, knownFunctions map[str
 
 type resolver struct {
 	prog           *Program
-	knownMethods   map[string]bool
+	knownMethods   map[string]MethodInfo
 	knownFunctions map[string]FunctionInfo
 	errors         []PosError
 	scope          *resolveScope
@@ -286,6 +295,9 @@ func (r *resolver) resolveExpr(expr Expr) {
 		r.resolveCall(e)
 	case *MethodCallExpr:
 		r.resolveExpr(e.Receiver)
+		if mi, ok := r.knownMethods[e.Method]; ok {
+			r.checkMethodArity(e, mi)
+		}
 		saved := r.inMethodArg
 		r.inMethodArg = true
 		for _, arg := range e.Args {
@@ -339,6 +351,11 @@ func (r *resolver) resolveExpr(expr Expr) {
 		for _, seg := range e.Segments {
 			if seg.Index != nil {
 				r.resolveExpr(seg.Index)
+			}
+			if seg.Kind == PathSegMethod {
+				if mi, ok := r.knownMethods[seg.Name]; ok {
+					r.checkMethodArityAt(seg.Pos, seg.Name, len(seg.Args), mi)
+				}
 			}
 			if len(seg.Args) > 0 {
 				saved := r.inMethodArg
@@ -541,6 +558,24 @@ func (r *resolver) checkFunctionArity(e *CallExpr, fi FunctionInfo) {
 	if nArgs > fi.Total {
 		r.error(e.TokenPos, fmt.Sprintf("%s() accepts at most %d arguments, got %d",
 			e.Name, fi.Total, nArgs))
+	}
+}
+
+func (r *resolver) checkMethodArity(e *MethodCallExpr, mi MethodInfo) {
+	r.checkMethodArityAt(e.MethodPos, e.Method, len(e.Args), mi)
+}
+
+func (r *resolver) checkMethodArityAt(pos Pos, name string, nArgs int, mi MethodInfo) {
+	if mi.Total < 0 {
+		return // no arity checking
+	}
+	if nArgs < mi.Required {
+		r.error(pos, fmt.Sprintf("%s() requires at least %d arguments, got %d",
+			name, mi.Required, nArgs))
+	}
+	if nArgs > mi.Total {
+		r.error(pos, fmt.Sprintf("%s() accepts at most %d arguments, got %d",
+			name, mi.Total, nArgs))
 	}
 }
 
