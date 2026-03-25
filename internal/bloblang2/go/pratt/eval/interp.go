@@ -30,9 +30,12 @@ type Interpreter struct {
 	scope *scope
 	depth int // recursion depth
 
-	// Methods and functions (pluggable for extensibility).
-	methods   map[string]MethodSpec
-	functions map[string]FunctionSpec
+	// Methods and functions. Static maps are shared across all interpreters
+	// (built once at init time). Lambda methods need a per-interpreter map
+	// because they close over the interpreter for callLambda dispatch.
+	staticMethods   map[string]MethodSpec
+	staticFunctions map[string]FunctionSpec
+	lambdaMethods   map[string]MethodSpec
 }
 
 // MethodFunc is a stdlib method implementation.
@@ -80,11 +83,12 @@ type FunctionParam struct {
 // New creates a new interpreter for the given program.
 func New(prog *syntax.Program) *Interpreter {
 	interp := &Interpreter{
-		prog:       prog,
-		maps:       make(map[string]*syntax.MapDecl),
-		namespaces: make(map[string]map[string]*syntax.MapDecl),
-		methods:    make(map[string]MethodSpec),
-		functions:  make(map[string]FunctionSpec),
+		prog:            prog,
+		maps:            make(map[string]*syntax.MapDecl),
+		namespaces:      make(map[string]map[string]*syntax.MapDecl),
+		staticMethods:   make(map[string]MethodSpec),
+		staticFunctions: make(map[string]FunctionSpec),
+		lambdaMethods:   make(map[string]MethodSpec, 16),
 	}
 
 	if prog != nil {
@@ -106,14 +110,44 @@ func New(prog *syntax.Program) *Interpreter {
 	return interp
 }
 
+// NewWithStdlib creates a new interpreter with the shared stdlib already
+// wired in. This is the fast path for repeated execution of compiled
+// mappings — the static method/function tables are shared (not copied)
+// across all interpreters and only the lambda methods (which close over
+// the interpreter) are allocated per-instance.
+func NewWithStdlib(prog *syntax.Program) *Interpreter {
+	interp := New(prog)
+	interp.staticMethods = sharedMethods
+	interp.staticFunctions = sharedFunctions
+	interp.RegisterLambdaMethods()
+	return interp
+}
+
 // RegisterMethod registers a stdlib method with its behavioral metadata.
 func (interp *Interpreter) RegisterMethod(name string, spec MethodSpec) {
-	interp.methods[name] = spec
+	interp.staticMethods[name] = spec
 }
 
 // RegisterFunction registers a stdlib function with its behavioral metadata.
 func (interp *Interpreter) RegisterFunction(name string, spec FunctionSpec) {
-	interp.functions[name] = spec
+	interp.staticFunctions[name] = spec
+}
+
+// RegisterLambdaMethod registers a method that needs the interpreter for
+// lambda/map-ref dispatch. These are stored separately from static methods
+// and checked first during dispatch.
+func (interp *Interpreter) RegisterLambdaMethod(name string, spec MethodSpec) {
+	interp.lambdaMethods[name] = spec
+}
+
+// lookupMethod resolves a method by name, checking lambda methods first
+// (per-interpreter) then static methods (shared).
+func (interp *Interpreter) lookupMethod(name string) (MethodSpec, bool) {
+	if spec, ok := interp.lambdaMethods[name]; ok {
+		return spec, true
+	}
+	spec, ok := interp.staticMethods[name]
+	return spec, ok
 }
 
 // Exec runs the program against the given input and metadata.
@@ -207,7 +241,11 @@ func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
 			}
 		}
 		if len(a.Target.Path) == 0 {
-			interp.scope.set(a.Target.VarName, DeepClone(value))
+			// No clone needed for simple assignment: the value is either a
+			// freshly allocated result or immutable input data. The
+			// path-assignment branch below clones before mutating, providing
+			// copy-on-write semantics.
+			interp.scope.set(a.Target.VarName, value)
 		} else {
 			existing, ok := interp.scope.get(a.Target.VarName)
 			if !ok {
@@ -316,9 +354,9 @@ func (interp *Interpreter) evalExpr(expr syntax.Expr) any {
 	case *syntax.InputMetaExpr:
 		return interp.inputMeta // immutable, no clone needed
 	case *syntax.OutputExpr:
-		return DeepClone(interp.output) // mutable, must snapshot
+		return DeepClone(interp.output) // mutable; must snapshot for COW semantics
 	case *syntax.OutputMetaExpr:
-		return DeepClone(interp.outputMeta) // mutable, must snapshot
+		return DeepClone(interp.outputMeta) // mutable; must snapshot for COW semantics
 	case *syntax.VarExpr:
 		v, ok := interp.scope.get(e.Name)
 		if !ok {
@@ -524,7 +562,7 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 	}
 
 	// Look up the method. We need the spec before the null check so we can read AcceptsNull.
-	spec, ok := interp.methods[e.Method]
+	spec, ok := interp.lookupMethod(e.Method)
 	if !ok {
 		// Unknown method — but if receiver is null, the null error is more helpful
 		// since unknown methods are normally caught at compile time.
@@ -617,12 +655,22 @@ func (interp *Interpreter) evalOr(e *syntax.MethodCallExpr) any {
 
 func (interp *Interpreter) callLambda(lambda *syntax.LambdaExpr, args []any) any {
 	lambdaScope := newScope(interp.scope, scopeExpression)
+	return interp.callLambdaWithScope(lambda, args, lambdaScope)
+}
+
+// callLambdaWithScope executes a lambda using a pre-allocated scope. The scope's
+// vars map is cleared and repopulated with the lambda parameters. This allows
+// iterator methods (map, filter, etc.) to reuse a single scope across iterations.
+func (interp *Interpreter) callLambdaWithScope(lambda *syntax.LambdaExpr, args []any, lambdaScope *scope) any {
+	// Clear any leftover vars from previous iteration.
+	clear(lambdaScope.vars)
+
 	for i, p := range lambda.Params {
 		if p.Discard {
 			continue
 		}
 		if i < len(args) {
-			lambdaScope.vars[p.Name] = DeepClone(args[i])
+			lambdaScope.vars[p.Name] = args[i]
 		} else if p.Default != nil {
 			lambdaScope.vars[p.Name] = interp.evalExpr(p.Default)
 		}
@@ -648,7 +696,7 @@ func (interp *Interpreter) evalCall(e *syntax.CallExpr) any {
 	}
 
 	// Check stdlib functions.
-	if spec, ok := interp.functions[e.Name]; ok {
+	if spec, ok := interp.staticFunctions[e.Name]; ok {
 		var args []any
 		if e.Named {
 			resolved := interp.resolveNamedFuncArgs(e, spec)
@@ -938,7 +986,7 @@ func (interp *Interpreter) evalExprBody(body *syntax.ExprBody) any {
 			}
 		}
 		if len(va.Path) == 0 {
-			interp.scope.set(va.Name, DeepClone(val))
+			interp.scope.set(va.Name, val)
 		} else {
 			existing, ok := interp.scope.get(va.Name)
 			if !ok {
@@ -1002,7 +1050,7 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 			if seg.NullSafe && current == nil {
 				return nil
 			}
-			spec, ok := interp.methods[seg.Name]
+			spec, ok := interp.lookupMethod(seg.Name)
 			if !ok {
 				return NewError(fmt.Sprintf("unknown method .%s()", seg.Name))
 			}
@@ -1096,7 +1144,7 @@ func (interp *Interpreter) resolveNamedArgs(callArgs []syntax.CallArg, params []
 // resolveNamedMethodArgs maps named arguments to positional using the method's
 // parameter metadata. Returns []any or an errorVal.
 func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any {
-	spec, specOK := interp.methods[e.Method]
+	spec, specOK := interp.lookupMethod(e.Method)
 	var params []namedArgParam
 	if specOK && spec.Params != nil {
 		params = make([]namedArgParam, len(spec.Params))
@@ -1190,7 +1238,7 @@ func (interp *Interpreter) bindPositionalParams(s *scope, params []syntax.Param,
 			continue
 		}
 		if argIdx < len(args) {
-			s.vars[p.Name] = DeepClone(args[argIdx])
+			s.vars[p.Name] = args[argIdx]
 			argIdx++
 		} else if p.Default != nil {
 			s.vars[p.Name] = interp.evalExpr(p.Default)
@@ -1228,7 +1276,7 @@ func (interp *Interpreter) bindNamedMapParams(s *scope, m *syntax.MapDecl, e *sy
 	// Bind into scope (positional order, discard params already excluded).
 	for i, p := range params {
 		if i < len(args) {
-			s.vars[p.Name] = DeepClone(args[i])
+			s.vars[p.Name] = args[i]
 		}
 	}
 	return ""
