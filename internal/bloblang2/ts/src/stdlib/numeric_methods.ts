@@ -15,18 +15,17 @@ import {
   isFloat32,
   isFloat64,
   typeName,
+  MIN_INT64,
+  MIN_INT32,
 } from "../value.js";
-
-const MIN_INT64 = -9223372036854775808n;
-const MIN_INT32 = -2147483648;
 
 function toInt64(v: Value): bigint | null {
   if (isInt64(v)) return v.value;
   if (isInt32(v)) return BigInt(v.value);
   if (isUint32(v)) return BigInt(v.value);
   if (isUint64(v)) return v.value;
-  if (isFloat64(v)) return BigInt(Math.trunc(v.value));
-  if (isFloat32(v)) return BigInt(Math.trunc(v.value));
+  if (isFloat64(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
+  if (isFloat32(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
   return null;
 }
 

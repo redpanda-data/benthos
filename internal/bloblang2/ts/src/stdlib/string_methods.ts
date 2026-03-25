@@ -58,8 +58,8 @@ function toInt64(v: Value): bigint | null {
   if (isInt32(v)) return BigInt(v.value);
   if (isUint32(v)) return BigInt(v.value);
   if (isUint64(v)) return v.value;
-  if (isFloat64(v)) return BigInt(Math.trunc(v.value));
-  if (isFloat32(v)) return BigInt(Math.trunc(v.value));
+  if (isFloat64(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
+  if (isFloat32(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
   return null;
 }
 
@@ -217,6 +217,7 @@ export function registerStringMethods(interp: Interpreter): void {
       const count = toInt64(args[0]!);
       if (count === null) return mkError("repeat() argument must be integer");
       if (count < 0n) return mkError("repeat() count must be non-negative");
+      if (count > 1_000_000n) return mkError("repeat() count too large");
       return mkString(s.repeat(Number(count)));
     }),
   );

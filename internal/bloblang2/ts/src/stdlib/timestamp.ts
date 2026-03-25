@@ -46,8 +46,8 @@ function toInt64(v: Value): bigint | null {
     if (v.value > MAX_INT64) return null;
     return v.value;
   }
-  if (isFloat64(v)) return BigInt(Math.trunc(v.value));
-  if (isFloat32(v)) return BigInt(Math.trunc(v.value));
+  if (isFloat64(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
+  if (isFloat32(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
   return null;
 }
 
