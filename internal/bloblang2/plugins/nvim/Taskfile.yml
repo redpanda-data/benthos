@@ -1,9 +1,9 @@
 version: "3"
 
 vars:
-  TS_SRC: "{{.ROOT_DIR}}/../../tree-sitter/src"
-  PARSER_OUT: "{{.ROOT_DIR}}/parser/bloblang2.so"
-  LSP_OUT: "{{.ROOT_DIR}}/bin/bloblang2-lsp"
+  TS_SRC: "{{.TASKFILE_DIR}}/../../tree-sitter/src"
+  PARSER_OUT: "{{.TASKFILE_DIR}}/parser/bloblang2.so"
+  LSP_OUT: "{{.TASKFILE_DIR}}/bin/bloblang2-lsp"
   # Use -dynamiclib on macOS, -shared on Linux.
   SHARED_FLAG:
     sh: |
@@ -35,12 +35,12 @@ tasks:
 
   lsp:
     desc: Build the bloblang2-lsp binary
-    dir: "{{.ROOT_DIR}}/../../../.."
+    dir: "{{.TASKFILE_DIR}}/../../../.."
     vars:
-      LSP_SRC: "{{.ROOT_DIR}}/../../go/lsp"
+      LSP_SRC: "{{.TASKFILE_DIR}}/../../go/lsp"
     cmds:
-      - mkdir -p {{.ROOT_DIR}}/bin
-      - go build -o {{.ROOT_DIR}}/bin/bloblang2-lsp ./internal/bloblang2/go/lsp/cmd/bloblang2-lsp
+      - mkdir -p {{.TASKFILE_DIR}}/bin
+      - go build -o {{.TASKFILE_DIR}}/bin/bloblang2-lsp ./internal/bloblang2/go/lsp/cmd/bloblang2-lsp
     sources:
       - "{{.LSP_SRC}}/*.go"
       - "{{.LSP_SRC}}/cmd/bloblang2-lsp/*.go"

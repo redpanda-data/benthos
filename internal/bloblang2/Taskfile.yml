@@ -1,0 +1,56 @@
+version: "3"
+
+includes:
+  tree-sitter:
+    taskfile: tree-sitter/Taskfile.yml
+    dir: tree-sitter
+  ts:
+    taskfile: ts/Taskfile.yml
+    dir: ts
+  nvim:
+    taskfile: plugins/nvim/Taskfile.yml
+    dir: plugins/nvim
+
+vars:
+  # Go tests must run from the benthos repo root for module resolution.
+  BENTHOS_ROOT: "{{.TASKFILE_DIR}}/../.."
+
+tasks:
+  test:
+    desc: Run all tests (Go, TypeScript, tree-sitter)
+    cmds:
+      - task: test:go
+      - task: ts:test
+      - task: tree-sitter:test
+
+  test:go:
+    desc: Run Go spec conformance and unit tests
+    dir: "{{.BENTHOS_ROOT}}"
+    cmds:
+      - go test ./internal/bloblang2/...
+
+  build:
+    desc: Build all artifacts
+    cmds:
+      - task: tree-sitter:all
+      - task: ts:bundle
+      - task: nvim:default
+
+  build:demo:
+    desc: Build everything the demo needs (tree-sitter WASM + TS bundle)
+    cmds:
+      - task: tree-sitter:sync-demo
+      - task: ts:bundle
+
+  demo:
+    desc: Run the demo web playground
+    deps: [build:demo]
+    dir: "{{.BENTHOS_ROOT}}"
+    cmds:
+      - go run ./internal/bloblang2/demo
+
+  clean:
+    desc: Remove all build artifacts
+    cmds:
+      - task: ts:clean
+      - task: nvim:clean
