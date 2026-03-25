@@ -139,7 +139,7 @@ export interface FunctionSpec {
 // Maximum recursion depth
 // ---------------------------------------------------------------------------
 
-const MAX_RECURSION_DEPTH = 10000;
+const MAX_RECURSION_DEPTH = 1024;
 
 // ---------------------------------------------------------------------------
 // Interpreter
@@ -259,6 +259,14 @@ export class Interpreter {
           outputMeta: mkObject(new Map()),
           deleted: false,
           error: e.message,
+        };
+      }
+      if (e instanceof RangeError && e.message.includes("call stack")) {
+        return {
+          output: NULL,
+          outputMeta: mkObject(new Map()),
+          deleted: false,
+          error: "maximum recursion depth exceeded",
         };
       }
       throw e; // re-throw unexpected errors
