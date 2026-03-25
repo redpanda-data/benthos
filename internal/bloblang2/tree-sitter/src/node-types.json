@@ -1860,11 +1860,26 @@
     }
   },
   {
+    "type": "match_block",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "expr_body",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "match_case",
     "named": true,
     "fields": {
       "body": {
-        "multiple": true,
+        "multiple": false,
         "required": true,
         "types": [
           {
@@ -1881,10 +1896,6 @@
           },
           {
             "type": "call_expression",
-            "named": true
-          },
-          {
-            "type": "expr_body",
             "named": true
           },
           {
@@ -1917,6 +1928,10 @@
           },
           {
             "type": "lambda_expression",
+            "named": true
+          },
+          {
+            "type": "match_block",
             "named": true
           },
           {
@@ -1974,14 +1989,6 @@
           {
             "type": "variable",
             "named": true
-          },
-          {
-            "type": "{",
-            "named": false
-          },
-          {
-            "type": "}",
-            "named": false
           }
         ]
       },

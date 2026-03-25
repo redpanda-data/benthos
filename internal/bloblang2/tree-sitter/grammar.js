@@ -377,11 +377,11 @@ module.exports = grammar({
       seq(
         field("pattern", choice($._expression, "_")),
         "=>",
-        field("body", choice(
-          $._expression,
-          seq("{", optional($._newline), $.expr_body, optional($._newline), "}"),
-        )),
+        field("body", choice($._expression, $.match_block)),
       ),
+
+    // Same disambiguation rationale as lambda_block — see comment there.
+    match_block: ($) => seq("{", $.expr_body, "}"),
 
     match_statement_cases: ($) => repeat1(seq($.match_statement_case, optional(","))),
 
@@ -406,9 +406,15 @@ module.exports = grammar({
     _lambda_params: ($) =>
       choice($.identifier, "_", seq("(", $.parameter_list, ")")),
 
-    // lambda_block := '{' NL? (var_assignment NL)* expression NL? '}'
-    lambda_block: ($) =>
-      seq("{", optional($._newline), $.expr_body, optional($._newline), "}"),
+    // lambda_block := '{' (var_assignment NL)* expression '}'
+    // Note: no optional(_newline) around expr_body — this is critical for
+    // disambiguation with object literals. When a lambda body starts with '{',
+    // the parser must try both lambda_block and object. If lambda_block consumed
+    // _newline after '{', the scanner would emit NEWLINE (since it's valid),
+    // which kills the object path (objects don't expect NEWLINE). By omitting
+    // _newline here, the scanner emits NL_SKIP (whitespace) and both paths
+    // survive until ':' (object) or '=' (block) disambiguates.
+    lambda_block: ($) => seq("{", $.expr_body, "}"),
 
     // --- Grouped expression ---
 
