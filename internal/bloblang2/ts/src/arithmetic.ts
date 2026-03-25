@@ -420,14 +420,11 @@ function checkedInt64Arith(a: bigint, b: bigint, op: string): Value {
       return mkInt64(a - b);
     }
     case "*": {
-      if (a !== 0n && b !== 0n) {
-        const result = a * b;
-        if (result / a !== b) {
-          return mkError("int64 overflow");
-        }
-        return mkInt64(result);
+      const result = a * b;
+      if (result > MAX_INT64 || result < MIN_INT64) {
+        return mkError("int64 overflow");
       }
-      return mkInt64(a * b);
+      return mkInt64(result);
     }
     default:
       return mkError("unsupported int64 operation " + op);
@@ -481,12 +478,9 @@ function checkedUint64Arith(a: bigint, b: bigint, op: string): Value {
       return mkUint64(a - b);
     }
     case "*": {
-      if (a !== 0n && b !== 0n) {
-        const result = a * b;
-        if (result / a !== b) return mkError("uint64 overflow");
-        return mkUint64(result);
-      }
-      return mkUint64(a * b);
+      const result = a * b;
+      if (result > MAX_UINT64) return mkError("uint64 overflow");
+      return mkUint64(result);
     }
     default:
       return mkError("unsupported uint64 operation " + op);
