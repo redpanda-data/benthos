@@ -27,6 +27,7 @@ type Program struct {
 	Maps       []*MapDecl            // map declarations (hoisted)
 	Imports    []*ImportStmt         // import statements
 	Namespaces map[string][]*MapDecl // imported maps keyed by namespace
+	MaxSlots   int                   // max variable stack slots needed (set by resolver)
 }
 
 func (p *Program) nodePos() Pos {
@@ -43,16 +44,18 @@ type MapDecl struct {
 	Params     []Param
 	Body       *ExprBody
 	Namespaces map[string][]*MapDecl // namespaces available to this map (from its file's imports)
+	MaxSlots   int                   // max variable stack slots needed for this map body (set by resolver)
 }
 
 func (m *MapDecl) nodePos() Pos { return m.TokenPos }
 
 // Param is a parameter in a map or lambda declaration.
 type Param struct {
-	Name    string // empty for discard (_)
-	Default Expr   // nil if no default
-	Discard bool   // true for _ params
-	Pos     Pos
+	Name      string // empty for discard (_)
+	Default   Expr   // nil if no default
+	Discard   bool   // true for _ params
+	Pos       Pos
+	SlotIndex int // resolver-assigned stack slot (-1 = unassigned)
 }
 
 // ImportStmt is an import declaration.
@@ -77,10 +80,11 @@ type ExprBody struct {
 
 // VarAssign is a variable assignment within an expression body.
 type VarAssign struct {
-	TokenPos Pos
-	Name     string        // variable name (without $)
-	Path     []PathSegment // optional path components ($var.field[0] = ...)
-	Value    Expr
+	TokenPos  Pos
+	Name      string        // variable name (without $)
+	Path      []PathSegment // optional path components ($var.field[0] = ...)
+	Value     Expr
+	SlotIndex int // resolver-assigned stack slot (-1 = unassigned)
 }
 
 func (v *VarAssign) nodePos() Pos { return v.TokenPos }
@@ -106,6 +110,7 @@ type AssignTarget struct {
 	VarName    string        // variable name (only for AssignVar root)
 	MetaAccess bool          // true for output@ targets
 	Path       []PathSegment // path components after root
+	SlotIndex  int           // resolver-assigned stack slot for AssignVar (-1 = unassigned)
 }
 
 // AssignTargetRoot is the root of an assignment target.
@@ -136,10 +141,11 @@ type IfBranch struct {
 
 // MatchStmt is a standalone match statement containing output assignments.
 type MatchStmt struct {
-	TokenPos Pos
-	Subject  Expr        // nil for boolean match without expression
-	Binding  string      // as-binding name (empty if no as)
-	Cases    []MatchCase // match cases
+	TokenPos    Pos
+	Subject     Expr        // nil for boolean match without expression
+	Binding     string      // as-binding name (empty if no as)
+	Cases       []MatchCase // match cases
+	BindingSlot int         // resolver-assigned stack slot for as-binding (-1 = unassigned)
 }
 
 func (m *MatchStmt) nodePos() Pos { return m.TokenPos }
@@ -174,10 +180,11 @@ type IfExprBranch struct {
 
 // MatchExpr is a match expression that returns a value.
 type MatchExpr struct {
-	TokenPos Pos
-	Subject  Expr        // nil for boolean match without expression
-	Binding  string      // as-binding name (empty if no as)
-	Cases    []MatchCase // cases with Expr or *ExprBody bodies
+	TokenPos    Pos
+	Subject     Expr        // nil for boolean match without expression
+	Binding     string      // as-binding name (empty if no as)
+	Cases       []MatchCase // cases with Expr or *ExprBody bodies
+	BindingSlot int         // resolver-assigned stack slot for as-binding (-1 = unassigned)
 }
 
 func (m *MatchExpr) nodePos() Pos { return m.TokenPos }
@@ -337,8 +344,9 @@ func (o *OutputMetaExpr) exprNode()    {}
 
 // VarExpr is a variable reference ($name) as an expression atom.
 type VarExpr struct {
-	TokenPos Pos
-	Name     string // without the $
+	TokenPos  Pos
+	Name      string // without the $
+	SlotIndex int    // resolver-assigned stack slot (-1 = unassigned)
 }
 
 func (v *VarExpr) nodePos() Pos { return v.TokenPos }
@@ -350,6 +358,7 @@ type IdentExpr struct {
 	TokenPos  Pos
 	Namespace string // non-empty for qualified references (e.g., math::double)
 	Name      string
+	SlotIndex int // resolver-assigned stack slot when identifier is a variable/parameter (-1 = not a variable)
 }
 
 func (i *IdentExpr) nodePos() Pos { return i.TokenPos }
@@ -379,10 +388,11 @@ const (
 // Produced by the post-parse optimization pass from chains like
 // FieldAccess(FieldAccess(InputExpr, "user"), "name") → PathExpr(input, ["user", "name"]).
 type PathExpr struct {
-	TokenPos Pos
-	Root     PathRoot
-	VarName  string // only set when Root == PathRootVar
-	Segments []PathSegment
+	TokenPos     Pos
+	Root         PathRoot
+	VarName      string // only set when Root == PathRootVar
+	Segments     []PathSegment
+	VarSlotIndex int // resolver-assigned stack slot for PathRootVar (-1 = unassigned)
 }
 
 func (p *PathExpr) nodePos() Pos { return p.TokenPos }
