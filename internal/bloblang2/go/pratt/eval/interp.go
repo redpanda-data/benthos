@@ -30,6 +30,14 @@ type Interpreter struct {
 	scope *scope
 	depth int // recursion depth
 
+	// Variable stack — replaces scope chain for variable access when
+	// resolver-assigned slot indices are available on AST nodes.
+	// Access pattern: stack[frameBase + slotIndex].
+	// frameBase is 0 for top-level, advanced per map call.
+	stack     []any
+	frameBase int
+	stackTop  int // next free stack region for frame allocation
+
 	// Methods and functions. Static maps are shared across all interpreters
 	// (built once at init time). Lambda methods need a per-interpreter map
 	// because they close over the interpreter for callLambda dispatch.
@@ -181,6 +189,36 @@ func (interp *Interpreter) lookupMethod(name string) (MethodSpec, bool) {
 	return spec, ok
 }
 
+// stackGet reads a variable from the stack at frameBase + slot.
+func (interp *Interpreter) stackGet(slot int) any {
+	return interp.stack[interp.frameBase+slot]
+}
+
+// stackSet writes a variable to the stack at frameBase + slot.
+func (interp *Interpreter) stackSet(slot int, value any) {
+	interp.stack[interp.frameBase+slot] = value
+}
+
+// stackIsDeclared checks whether a stack slot has been assigned (is not the
+// uninitialized sentinel). Used for void-skip-on-reassignment checks.
+func (interp *Interpreter) stackIsDeclared(slot int) bool {
+	_, uninit := interp.stack[interp.frameBase+slot].(uninitializedVal)
+	return !uninit
+}
+
+// ensureStack grows the stack if needed, filling new slots with uninitialized.
+func (interp *Interpreter) ensureStack(needed int) {
+	if needed <= len(interp.stack) {
+		return
+	}
+	grown := make([]any, needed*2)
+	copy(grown, interp.stack)
+	for i := len(interp.stack); i < len(grown); i++ {
+		grown[i] = uninitialized
+	}
+	interp.stack = grown
+}
+
 // Exec runs the program against the given input and metadata.
 func (interp *Interpreter) Exec(input any, metadata map[string]any) (output any, outputMeta map[string]any, deleted bool, err error) {
 	interp.input = input
@@ -190,6 +228,20 @@ func (interp *Interpreter) Exec(input any, metadata map[string]any) (output any,
 	interp.deleted = false
 	interp.scope = newScope(nil, scopeStatement)
 	interp.depth = 0
+	// Allocate variable stack only if the resolver assigned slot indices.
+	// MaxSlots > 0 indicates the resolver ran with slot assignment enabled.
+	if interp.prog.MaxSlots > 0 {
+		interp.frameBase = 0
+		interp.stackTop = interp.prog.MaxSlots
+		cap := interp.prog.MaxSlots * 4
+		if cap < 32 {
+			cap = 32
+		}
+		interp.stack = make([]any, cap)
+		for i := range interp.stack {
+			interp.stack[i] = uninitialized
+		}
+	}
 
 	for _, stmt := range interp.prog.Stmts {
 		interp.execStmt(stmt)
@@ -271,11 +323,15 @@ func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
 				panic(runtimeError{message: "cannot assign deleted() to a variable"})
 			}
 		}
-		if len(a.Target.Path) == 0 {
-			// No clone needed for simple assignment: the value is either a
-			// freshly allocated result or immutable input data. The
-			// path-assignment branch below clones before mutating, providing
-			// copy-on-write semantics.
+		if slot := a.Target.SlotIndex; slot > 0 {
+			if len(a.Target.Path) == 0 {
+				interp.stackSet(slot, value)
+			} else {
+				clone := DeepClone(interp.stackGet(slot))
+				interp.setPath(&clone, a.Target.Path, value)
+				interp.stackSet(slot, clone)
+			}
+		} else if len(a.Target.Path) == 0 {
 			interp.scope.set(a.Target.VarName, value)
 		} else {
 			existing, ok := interp.scope.get(a.Target.VarName)
@@ -340,7 +396,7 @@ func (interp *Interpreter) execMatchStmt(s *syntax.MatchStmt) {
 	}
 
 	for _, c := range s.Cases {
-		matched, errVal := interp.matchCaseMatches(c, subject, s.Binding, s.Subject != nil)
+		matched, errVal := interp.matchCaseMatches(c, subject, s.Binding, s.BindingSlot, s.Subject != nil)
 		if errVal != nil {
 			panic(runtimeError{message: ErrorMessage(errVal)})
 		}
@@ -351,7 +407,11 @@ func (interp *Interpreter) execMatchStmt(s *syntax.MatchStmt) {
 			}
 			childScope := newScope(interp.scope, scopeStatement)
 			if s.Binding != "" {
-				childScope.vars[s.Binding] = subject
+				if s.BindingSlot > 0 {
+					interp.stackSet(s.BindingSlot, subject)
+				} else {
+					childScope.vars[s.Binding] = subject
+				}
 			}
 			saved := interp.scope
 			interp.scope = childScope
@@ -389,6 +449,9 @@ func (interp *Interpreter) evalExpr(expr syntax.Expr) any {
 	case *syntax.OutputMetaExpr:
 		return DeepClone(interp.outputMeta) // mutable; must snapshot for COW semantics
 	case *syntax.VarExpr:
+		if e.SlotIndex > 0 {
+			return interp.stackGet(e.SlotIndex)
+		}
 		v, ok := interp.scope.get(e.Name)
 		if !ok {
 			panic(runtimeError{message: "undefined variable $" + e.Name})
@@ -701,7 +764,30 @@ func (interp *Interpreter) callLambda(lambda *syntax.LambdaExpr, args []any) any
 // vars map is cleared and repopulated with the lambda parameters. This allows
 // iterator methods (map, filter, etc.) to reuse a single scope across iterations.
 func (interp *Interpreter) callLambdaWithScope(lambda *syntax.LambdaExpr, args []any, lambdaScope *scope) any {
-	// Clear any leftover vars from previous iteration.
+	// Fast path: bind parameters via stack when slot indices are available.
+	// Check first non-discard param for slot assignment.
+	useStack := false
+	for _, p := range lambda.Params {
+		if !p.Discard {
+			useStack = p.SlotIndex > 0
+			break
+		}
+	}
+	if useStack {
+		for i, p := range lambda.Params {
+			if p.Discard {
+				continue
+			}
+			if i < len(args) {
+				interp.stackSet(p.SlotIndex, args[i])
+			} else if p.Default != nil {
+				interp.stackSet(p.SlotIndex, interp.evalExpr(p.Default))
+			}
+		}
+		return interp.evalExprBody(lambda.Body)
+	}
+
+	// Fallback: scope-based parameter binding.
 	clear(lambdaScope.vars)
 
 	for i, p := range lambda.Params {
@@ -785,22 +871,54 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 	}
 	defer func() { interp.depth-- }()
 
-	// Evaluate and bind parameters into an isolated scope.
+	// Push stack frame for the map's isolated scope.
+	savedFrameBase := interp.frameBase
+	savedStackTop := interp.stackTop
+	interp.frameBase = interp.stackTop
+	interp.stackTop = interp.frameBase + m.MaxSlots
+	if interp.stackTop <= interp.frameBase {
+		interp.stackTop = interp.frameBase + 1
+	}
+	interp.ensureStack(interp.stackTop)
+
+	// Check if params have stack slots (check first non-discard param).
+	useStack := false
+	for _, p := range m.Params {
+		if !p.Discard {
+			useStack = p.SlotIndex > 0
+			break
+		}
+	}
+
+	// Evaluate and bind parameters.
 	mapScope := newScope(nil, scopeExpression) // isolated: no parent
 	if e.Named {
-		// Named args: resolve to positional via shared helper, then bind.
 		if err := interp.bindNamedMapParams(mapScope, m, e); err != "" {
+			interp.frameBase = savedFrameBase
+			interp.stackTop = savedStackTop
 			return NewError(err)
 		}
 	} else {
 		args := interp.evalArgs(e.Args)
 		for _, a := range args {
 			if IsError(a) {
+				interp.frameBase = savedFrameBase
+				interp.stackTop = savedStackTop
 				return a
 			}
 		}
-		if err := interp.bindPositionalParams(mapScope, m.Params, args); err != "" {
-			return NewError(err)
+		if useStack {
+			if err := interp.bindPositionalParamsStack(m.Params, args); err != "" {
+				interp.frameBase = savedFrameBase
+				interp.stackTop = savedStackTop
+				return NewError(err)
+			}
+		} else {
+			if err := interp.bindPositionalParams(mapScope, m.Params, args); err != "" {
+				interp.frameBase = savedFrameBase
+				interp.stackTop = savedStackTop
+				return NewError(err)
+			}
 		}
 	}
 
@@ -830,6 +948,8 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 	interp.scope = savedScope
 	interp.namespaces = savedNamespaces
 	interp.maps = savedMaps
+	interp.frameBase = savedFrameBase
+	interp.stackTop = savedStackTop
 
 	return result
 }
@@ -840,7 +960,11 @@ func (interp *Interpreter) evalIdent(e *syntax.IdentExpr) any {
 	if e.Namespace != "" {
 		return NewError(e.Namespace + "::" + e.Name + " cannot be used as a value (pass to a higher-order method or call with parentheses)")
 	}
-	// Check scope (parameters, variables).
+	// Fast path: stack-based variable/parameter access.
+	if e.SlotIndex > 0 {
+		return interp.stackGet(e.SlotIndex)
+	}
+	// Fallback: scope-based lookup.
 	if v, ok := interp.scope.get(e.Name); ok {
 		return v
 	}
@@ -893,14 +1017,18 @@ func (interp *Interpreter) evalMatchExpr(e *syntax.MatchExpr) any {
 	}
 
 	for _, c := range e.Cases {
-		matched, errVal := interp.matchCaseMatches(c, subject, e.Binding, e.Subject != nil)
+		matched, errVal := interp.matchCaseMatches(c, subject, e.Binding, e.BindingSlot, e.Subject != nil)
 		if errVal != nil {
 			return errVal
 		}
 		if matched {
 			childScope := newScope(interp.scope, scopeExpression)
 			if e.Binding != "" {
-				childScope.vars[e.Binding] = subject
+				if e.BindingSlot > 0 {
+					interp.stackSet(e.BindingSlot, subject)
+				} else {
+					childScope.vars[e.Binding] = subject
+				}
 			}
 			saved := interp.scope
 			interp.scope = childScope
@@ -923,7 +1051,7 @@ func (interp *Interpreter) evalMatchExpr(e *syntax.MatchExpr) any {
 
 // matchCaseMatches returns (matched, errorValue). If errorValue is non-nil,
 // the case expression produced an error that should be propagated.
-func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, binding string, hasSubject bool) (bool, any) {
+func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, binding string, bindingSlot int, hasSubject bool) (bool, any) {
 	if c.Wildcard {
 		return true, nil
 	}
@@ -943,7 +1071,10 @@ func (interp *Interpreter) matchCaseMatches(c syntax.MatchCase, subject any, bin
 
 	// Boolean match (with or without 'as'): case must evaluate to bool.
 	if binding != "" {
-		// Evaluate pattern in a child scope with the binding.
+		// Evaluate pattern with the binding visible.
+		if bindingSlot > 0 {
+			interp.stackSet(bindingSlot, subject)
+		}
 		childScope := newScope(interp.scope, interp.scope.mode)
 		childScope.vars[binding] = subject
 		saved := interp.scope
@@ -1022,8 +1153,12 @@ func (interp *Interpreter) evalExprBody(body *syntax.ExprBody) any {
 		}
 		if IsVoid(val) {
 			// Void in variable declaration is an error.
-			// Void in reassignment (variable exists in any reachable scope) skips.
-			if _, exists := interp.scope.get(va.Name); exists {
+			// Void in reassignment (variable already exists) skips.
+			if slot := va.SlotIndex; slot > 0 {
+				if interp.stackIsDeclared(slot) {
+					continue
+				}
+			} else if _, exists := interp.scope.get(va.Name); exists {
 				continue
 			}
 			return NewError("void in variable declaration (use .or() to provide a default)")
@@ -1033,16 +1168,26 @@ func (interp *Interpreter) evalExprBody(body *syntax.ExprBody) any {
 				return NewError("cannot assign deleted() to a variable")
 			}
 		}
-		if len(va.Path) == 0 {
-			interp.scope.set(va.Name, val)
-		} else {
-			existing, ok := interp.scope.get(va.Name)
-			if !ok {
-				return NewError(fmt.Sprintf("variable $%s not declared", va.Name))
+		if slot := va.SlotIndex; slot > 0 {
+			if len(va.Path) == 0 {
+				interp.stackSet(slot, val)
+			} else {
+				clone := DeepClone(interp.stackGet(slot))
+				interp.setPath(&clone, va.Path, val)
+				interp.stackSet(slot, clone)
 			}
-			clone := DeepClone(existing)
-			interp.setPath(&clone, va.Path, val)
-			interp.scope.set(va.Name, clone)
+		} else {
+			if len(va.Path) == 0 {
+				interp.scope.set(va.Name, val)
+			} else {
+				existing, ok := interp.scope.get(va.Name)
+				if !ok {
+					return NewError(fmt.Sprintf("variable $%s not declared", va.Name))
+				}
+				clone := DeepClone(existing)
+				interp.setPath(&clone, va.Path, val)
+				interp.scope.set(va.Name, clone)
+			}
 		}
 	}
 	return interp.evalExpr(body.Result)
@@ -1060,6 +1205,10 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 	case syntax.PathRootOutputMeta:
 		root = DeepClone(interp.outputMeta)
 	case syntax.PathRootVar:
+		if e.VarSlotIndex > 0 {
+			root = interp.stackGet(e.VarSlotIndex)
+			break
+		}
 		v, ok := interp.scope.get(e.VarName)
 		if !ok {
 			return NewError("undefined variable $" + e.VarName)
@@ -1318,6 +1467,28 @@ func (interp *Interpreter) bindPositionalParams(s *scope, params []syntax.Param,
 	return ""
 }
 
+// bindPositionalParamsStack binds positional args directly to stack slots.
+func (interp *Interpreter) bindPositionalParamsStack(params []syntax.Param, args []any) string {
+	argIdx := 0
+	for _, p := range params {
+		if p.Discard {
+			if argIdx < len(args) {
+				argIdx++
+			}
+			continue
+		}
+		if argIdx < len(args) {
+			interp.stackSet(p.SlotIndex, args[argIdx])
+			argIdx++
+		} else if p.Default != nil {
+			interp.stackSet(p.SlotIndex, interp.evalExpr(p.Default))
+		} else {
+			return fmt.Sprintf("missing argument for parameter %q", p.Name)
+		}
+	}
+	return ""
+}
+
 // bindNamedMapParams resolves named call args to positional order using the
 // shared resolveNamedArgs helper, then binds them into the scope. This
 // evaluates each argument exactly once.
@@ -1342,11 +1513,21 @@ func (interp *Interpreter) bindNamedMapParams(s *scope, m *syntax.MapDecl, e *sy
 	}
 	args := resolved.([]any)
 
-	// Bind into scope (positional order, discard params already excluded).
-	for i, p := range params {
-		if i < len(args) {
-			s.vars[p.Name] = args[i]
+	// Bind into scope or stack (positional order, discard params already excluded).
+	// Build a non-discard param index to find slot indices.
+	paramIdx := 0
+	for _, mp := range m.Params {
+		if mp.Discard {
+			continue
 		}
+		if paramIdx < len(args) {
+			if mp.SlotIndex > 0 {
+				interp.stackSet(mp.SlotIndex, args[paramIdx])
+			} else {
+				s.vars[mp.Name] = args[paramIdx]
+			}
+		}
+		paramIdx++
 	}
 	return ""
 }

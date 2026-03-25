@@ -97,7 +97,9 @@ type resolveScope struct {
 }
 
 func newResolveScope(parent *resolveScope, mode resolveScopeMode) *resolveScope {
-	nextSlot := 0
+	// Slot 0 is reserved (Go zero-value for int fields on AST nodes means
+	// "unresolved"), so root scopes start allocating from slot 1.
+	nextSlot := 1
 	if parent != nil {
 		nextSlot = parent.nextSlot
 	}

@@ -4,10 +4,15 @@ package eval
 // These are distinct from normal Bloblang values (which use native Go types).
 
 type (
-	voidVal    struct{}
-	deletedVal struct{}
-	errorVal   struct{ message string }
+	voidVal          struct{}
+	deletedVal       struct{}
+	errorVal         struct{ message string }
+	uninitializedVal struct{} // stack slot not yet assigned
 )
+
+// uninitialized is the sentinel for stack slots that haven't been written.
+// Distinguishes "variable holds nil" from "variable not yet declared".
+var uninitialized = uninitializedVal{}
 
 // Void is the singleton void value. It represents the absence of a value,
 // produced by if-without-else when the condition is false, or by
