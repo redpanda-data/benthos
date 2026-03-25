@@ -1,0 +1,53 @@
+version: "3"
+
+vars:
+  TS_SRC: "{{.ROOT_DIR}}/../../tree-sitter/src"
+  PARSER_OUT: "{{.ROOT_DIR}}/parser/bloblang2.so"
+  LSP_OUT: "{{.ROOT_DIR}}/bin/bloblang2-lsp"
+  # Use -dynamiclib on macOS, -shared on Linux.
+  SHARED_FLAG:
+    sh: |
+      if [ "$(uname)" = "Darwin" ]; then
+        echo "-dynamiclib"
+      else
+        echo "-shared"
+      fi
+
+tasks:
+  default:
+    desc: Build tree-sitter parser and LSP binary
+    deps: [parser, lsp]
+
+  parser:
+    desc: Compile the tree-sitter parser into a shared library
+    cmds:
+      - mkdir -p parser
+      - >-
+        cc {{.SHARED_FLAG}} -fPIC -O2
+        -o {{.PARSER_OUT}}
+        {{.TS_SRC}}/parser.c {{.TS_SRC}}/scanner.c
+        -I{{.TS_SRC}}
+    sources:
+      - "{{.TS_SRC}}/parser.c"
+      - "{{.TS_SRC}}/scanner.c"
+    generates:
+      - "{{.PARSER_OUT}}"
+
+  lsp:
+    desc: Build the bloblang2-lsp binary
+    dir: "{{.ROOT_DIR}}/../../../.."
+    vars:
+      LSP_SRC: "{{.ROOT_DIR}}/../../go/lsp"
+    cmds:
+      - mkdir -p {{.ROOT_DIR}}/bin
+      - go build -o {{.ROOT_DIR}}/bin/bloblang2-lsp ./internal/bloblang2/go/lsp/cmd/bloblang2-lsp
+    sources:
+      - "{{.LSP_SRC}}/*.go"
+      - "{{.LSP_SRC}}/cmd/bloblang2-lsp/*.go"
+    generates:
+      - "{{.LSP_OUT}}"
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -f {{.PARSER_OUT}} {{.LSP_OUT}}
