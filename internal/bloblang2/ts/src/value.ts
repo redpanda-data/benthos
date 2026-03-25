@@ -243,7 +243,6 @@ export function deepClone(v: Value): Value {
 
 // --- JSON conversion ---
 
-const MAX_SAFE_INT64 = 9007199254740991n; // 2^53 - 1
 const MIN_SAFE_INT64 = -9007199254740991n;
 
 /** Convert a JSON-compatible JavaScript value to a Bloblang Value. */

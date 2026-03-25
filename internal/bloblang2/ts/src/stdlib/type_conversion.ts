@@ -179,8 +179,8 @@ function valueToInt64(v: Value): Value {
     }
     return mkInt64(BigInt(v.value));
   }
-  if (isFloat64(v)) return mkInt64(BigInt(Math.trunc(v.value)));
-  if (isFloat32(v)) return mkInt64(BigInt(Math.trunc(v.value)));
+  if (isFloat64(v)) return isFinite(v.value) ? mkInt64(BigInt(Math.trunc(v.value))) : mkError("cannot convert NaN/Infinity to int64");
+  if (isFloat32(v)) return isFinite(v.value) ? mkInt64(BigInt(Math.trunc(v.value))) : mkError("cannot convert NaN/Infinity to int64");
   if (isString(v)) {
     try {
       const n = BigInt(v.value);
@@ -341,12 +341,12 @@ export function registerTypeConversion(interp: Interpreter): void {
         const f = Number(receiver.value);
         if (receiver.value.trim() === "" || Number.isNaN(f)) {
           return mkError(
-            "cannot convert string to float64: " + receiver.value,
+            "cannot convert string to float32: " + receiver.value,
           );
         }
         return mkFloat32(f);
       }
-      return mkError(`cannot convert ${typeName(receiver)} to float64`);
+      return mkError(`cannot convert ${typeName(receiver)} to float32`);
     }),
   );
 
