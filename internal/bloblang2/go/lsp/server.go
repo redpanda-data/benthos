@@ -27,7 +27,7 @@ type Server struct {
 	completion *completionEngine
 
 	// Cached stdlib metadata.
-	stdlibMethods   map[string]bool
+	stdlibMethods   map[string]syntax.MethodInfo
 	stdlibFunctions map[string]syntax.FunctionInfo
 
 	// Debounce timers per URI.

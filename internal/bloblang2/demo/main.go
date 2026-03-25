@@ -36,7 +36,7 @@ var highlightsSCM []byte
 
 // Cached at startup since they don't change.
 var (
-	stdlibMethods   map[string]bool
+	stdlibMethods   map[string]syntax.MethodInfo
 	stdlibFunctions map[string]syntax.FunctionInfo
 )
 

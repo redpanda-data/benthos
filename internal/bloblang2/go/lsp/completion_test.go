@@ -63,8 +63,8 @@ func TestNewCompletionEngine(t *testing.T) {
 		if item.Kind != completionKindFunction {
 			t.Errorf("function %q has kind %d, want %d", item.Label, item.Kind, completionKindFunction)
 		}
-		if !strings.HasSuffix(item.InsertText, "($0)") {
-			t.Errorf("function %q insertText = %q, want suffix ($0)", item.Label, item.InsertText)
+		if !strings.HasSuffix(item.InsertText, "()") {
+			t.Errorf("function %q insertText = %q, want suffix ()", item.Label, item.InsertText)
 		}
 	}
 
