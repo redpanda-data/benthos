@@ -8,7 +8,9 @@ See [`spec/PROPOSAL.md`](spec/PROPOSAL.md) for the motivation and design rationa
 
 - **`spec/`** — Language specification (numbered markdown files) and YAML conformance test suite
 - **`go/`** — Go reference implementation (Pratt parser, tree-walking interpreter, spec test runner framework)
+- **`go/lsp/`** — Editor-agnostic LSP server for diagnostics and completions
 - **`tree-sitter/`** — Tree-sitter grammar for editor tooling (syntax highlighting, code folding)
+- **`plugins/nvim/`** — Neovim plugin (filetype detection, tree-sitter highlighting, LSP client)
 - **`demo/`** — Interactive web playground with live execution and syntax highlighting
 
 ## Spec (`spec/`)
@@ -33,6 +35,46 @@ func TestBloblangV2Spec(t *testing.T) {
     spectest.RunT(t, "spec/tests", &Interp{})
 }
 ```
+
+## LSP Server (`go/lsp/`)
+
+A minimal LSP server that wraps the Go compiler pipeline (Parse, Optimize, Resolve) to provide real-time editor feedback over JSON-RPC/stdio. Any editor that speaks LSP can use it.
+
+**Diagnostics** — parse errors, undeclared variables, unknown functions/methods, arity mismatches, scope violations, map isolation, duplicate map names.
+
+**Completions** — context-aware: methods after `.`, variables after `$`, keywords + stdlib functions + user-defined maps otherwise.
+
+Build the binary:
+
+```sh
+cd plugins/nvim
+task lsp
+# Binary at plugins/nvim/bin/bloblang2-lsp
+```
+
+Point any LSP client at `bloblang2-lsp` with stdio transport. No arguments needed.
+
+## Neovim Plugin (`plugins/nvim/`)
+
+A Neovim plugin providing filetype detection (`.blobl2`), tree-sitter syntax highlighting, and LSP client wiring for diagnostics and completions.
+
+**Setup** (vim-plug):
+
+```vim
+Plug '~/path/to/bloblang2/plugins/nvim'
+" After plug#end():
+lua require("bloblang2").setup()
+```
+
+**Build prerequisites** (run once, and after grammar changes):
+
+```sh
+cd plugins/nvim
+task parser   # Compile tree-sitter .so
+task lsp      # Build LSP binary
+```
+
+**Verify:** open a `.blobl2` file and run `:checkhealth bloblang2`.
 
 ## Tree-sitter Grammar (`tree-sitter/`)
 
