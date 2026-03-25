@@ -34,6 +34,12 @@ var treeSitterWASM []byte
 //go:embed highlights.scm
 var highlightsSCM []byte
 
+//go:embed bloblang2.mjs
+var bloblang2JS []byte
+
+//go:embed bloblang2.mjs.map
+var bloblang2JSMap []byte
+
 // Cached at startup since they don't change.
 var (
 	stdlibMethods   map[string]syntax.MethodInfo
@@ -273,6 +279,16 @@ func main() {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
 		_, _ = w.Write(highlightsSCM)
+	})
+	mux.HandleFunc("/bloblang2.mjs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		_, _ = w.Write(bloblang2JS)
+	})
+	mux.HandleFunc("/bloblang2.mjs.map", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.Header().Set("Cache-Control", "public, max-age=3600")
+		_, _ = w.Write(bloblang2JSMap)
 	})
 
 	server := &http.Server{

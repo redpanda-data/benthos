@@ -169,7 +169,10 @@
         <div class="panel" id="output-panel">
             <div class="panel-header">
                 <span class="label"><span class="dot" id="output-dot"></span> Output</span>
-                <span id="output-status" style="color:#585b70;font-size:10px"></span>
+                <span style="display:flex;align-items:center;gap:8px">
+                    <span id="output-status" style="color:#585b70;font-size:10px"></span>
+                    <button class="vim-toggle active" id="exec-mode-toggle">browser</button>
+                </span>
             </div>
             <div id="output-wrap">
                 <pre id="output"></pre>
@@ -210,7 +213,8 @@
             "@codemirror/lint": "https://esm.sh/@codemirror/lint@6.8.5?external=@codemirror/state,@codemirror/view",
             "@codemirror/lang-json": "https://esm.sh/@codemirror/lang-json@6.0.1?external=@codemirror/state,@codemirror/view,@codemirror/language",
             "@codemirror/theme-one-dark": "https://esm.sh/@codemirror/theme-one-dark@6.1.2?external=@codemirror/state,@codemirror/view,@codemirror/language",
-            "@replit/codemirror-vim": "https://esm.sh/@replit/codemirror-vim@6.2.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@codemirror/commands,@codemirror/search"
+            "@replit/codemirror-vim": "https://esm.sh/@replit/codemirror-vim@6.2.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@codemirror/commands,@codemirror/search",
+            "@bloblang/v2": "/bloblang2.mjs"
         }
     }
     </script>
@@ -225,6 +229,7 @@
         import {indentWithTab} from "@codemirror/commands";
         import {autocompletion} from "@codemirror/autocomplete";
         import {vim} from "@replit/codemirror-vim";
+        import {parse, optimize, resolve, Interpreter, fromJSON, toJSON, registerStdlib, stdlibNames} from "@bloblang/v2";
 
         // ==============================================================
         // 1. Tree-sitter — init before editor creation (top-level await)
@@ -485,6 +490,19 @@
         const outputStatus = document.getElementById("output-status");
 
         let debounceTimer, requestId = 0;
+        let useBrowserExec = true;
+
+        // Execution mode toggle.
+        const execModeBtn = document.getElementById("exec-mode-toggle");
+        execModeBtn.addEventListener("click", () => {
+            useBrowserExec = !useBrowserExec;
+            execModeBtn.textContent = useBrowserExec ? "browser" : "server";
+            execModeBtn.classList.toggle("active", useBrowserExec);
+            scheduleExecute();
+        });
+
+        // Stdlib metadata for the resolver (loaded once).
+        const {methods: stdMethods, functions: stdFunctions} = stdlibNames();
 
         function scheduleExecute() {
             clearTimeout(debounceTimer);
@@ -493,6 +511,68 @@
 
         async function execute() {
             const id = ++requestId;
+            if (useBrowserExec) {
+                executeBrowser(id);
+            } else {
+                await executeServer(id);
+            }
+        }
+
+        function executeBrowser(id) {
+            try {
+                const mappingSrc = mappingEditor.state.doc.toString();
+                const inputSrc = inputEditor.state.doc.toString();
+
+                // 1. Parse.
+                const {program, errors: parseErrors} = parse(mappingSrc, "", null);
+                if (parseErrors.length > 0) {
+                    if (id !== requestId) return;
+                    showParseErrors(parseErrors.map(e => ({line: e.pos.line, column: e.pos.column, message: e.msg})));
+                    return;
+                }
+
+                // 2. Optimize.
+                optimize(program);
+
+                // 3. Resolve.
+                const resolveErrors = resolve(program, stdMethods, stdFunctions);
+                if (resolveErrors.length > 0) {
+                    if (id !== requestId) return;
+                    showParseErrors(resolveErrors.map(e => ({line: e.pos.line, column: e.pos.column, message: e.msg})));
+                    return;
+                }
+
+                // 4. Parse input JSON.
+                let inputVal;
+                try {
+                    inputVal = fromJSON(JSON.parse(inputSrc));
+                } catch (e) {
+                    if (id !== requestId) return;
+                    showRuntimeError("Invalid input JSON: " + e.message);
+                    return;
+                }
+
+                // 5. Execute.
+                const interp = new Interpreter(program);
+                registerStdlib(interp);
+                const {output, error, deleted} = interp.run(inputVal, fromJSON({}));
+
+                if (id !== requestId) return;
+
+                if (error) {
+                    showRuntimeError(error);
+                } else if (deleted) {
+                    showResult("< message deleted >");
+                } else {
+                    showResult(JSON.stringify(toJSON(output), null, 2));
+                }
+            } catch (err) {
+                if (id !== requestId) return;
+                showRuntimeError("Browser execution failed: " + err.message);
+            }
+        }
+
+        async function executeServer(id) {
             try {
                 const res = await fetch("/execute", {
                     method: "POST",
