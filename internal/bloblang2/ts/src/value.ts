@@ -432,8 +432,13 @@ function isFloatKind(k: PromoteKind): boolean {
   return k === "float32" || k === "float64";
 }
 
-const MAX_SAFE_FLOAT64 = 9007199254740992n; // 2^53
-const MAX_INT64 = 9223372036854775807n;
+export const MAX_SAFE_FLOAT64 = 9007199254740992n; // 2^53
+export const MAX_INT64 = 9223372036854775807n;
+export const MIN_INT64 = -9223372036854775808n;
+export const MAX_INT32 = 2147483647;
+export const MIN_INT32 = -2147483648;
+export const MAX_UINT32 = 4294967295;
+export const MAX_UINT64 = 18446744073709551615n;
 
 /**
  * Promote two numeric values to a common type.
