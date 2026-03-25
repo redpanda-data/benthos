@@ -1,3 +1,7 @@
 # Built by: task sync-demo (in ../tree-sitter/)
 tree-sitter-bloblang2.wasm
 highlights.scm
+
+# Built by: npm run bundle (in ../ts/)
+bloblang2.mjs
+bloblang2.mjs.map

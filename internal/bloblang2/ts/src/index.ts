@@ -8,6 +8,7 @@ export type { MethodSpec, FunctionSpec, MethodFunc, LambdaMethodFunc, FunctionFu
 export type { FunctionInfo } from "./resolver.js";
 export type { Program, Expr, Stmt } from "./ast.js";
 export type { PosError, Pos } from "./token.js";
+export { registerStdlib, stdlibNames } from "./stdlib/index.js";
 export {
   type Value,
   fromJSON,
