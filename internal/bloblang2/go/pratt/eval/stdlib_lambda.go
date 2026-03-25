@@ -18,22 +18,22 @@ func (interp *Interpreter) RegisterLambdaMethods() {
 	}
 	fnParam := MethodParam{Name: "fn"}
 
-	interp.RegisterMethod("filter", lm(interp.methodFilter, fnParam))
-	interp.RegisterMethod("map", lm(interp.methodMap, fnParam))
-	interp.RegisterMethod("sort", MethodSpec{LambdaFn: interp.methodSort})
-	interp.RegisterMethod("sort_by", lm(interp.methodSortBy, fnParam))
-	interp.RegisterMethod("any", lm(interp.methodAny, fnParam))
-	interp.RegisterMethod("all", lm(interp.methodAll, fnParam))
-	interp.RegisterMethod("find", lm(interp.methodFind, fnParam))
-	interp.RegisterMethod("fold", lm(interp.methodFold, MethodParam{Name: "initial"}, fnParam))
-	interp.RegisterMethod("unique", lm(interp.methodUnique, MethodParam{Name: "fn", HasDefault: true}))
-	interp.RegisterMethod("without_index", lm(interp.methodWithoutIndex, MethodParam{Name: "index"}))
-	interp.RegisterMethod("index_of", lm(interp.methodIndexOf, MethodParam{Name: "target"}))
-	interp.RegisterMethod("slice", lm(interp.methodSlice, MethodParam{Name: "low"}, MethodParam{Name: "high", HasDefault: true}))
-	interp.RegisterMethod("map_values", lm(interp.methodMapValues, fnParam))
-	interp.RegisterMethod("map_keys", lm(interp.methodMapKeys, fnParam))
-	interp.RegisterMethod("map_entries", lm(interp.methodMapEntries, fnParam))
-	interp.RegisterMethod("filter_entries", lm(interp.methodFilterEntries, fnParam))
+	interp.RegisterLambdaMethod("filter", lm(interp.methodFilter, fnParam))
+	interp.RegisterLambdaMethod("map", lm(interp.methodMap, fnParam))
+	interp.RegisterLambdaMethod("sort", MethodSpec{LambdaFn: interp.methodSort})
+	interp.RegisterLambdaMethod("sort_by", lm(interp.methodSortBy, fnParam))
+	interp.RegisterLambdaMethod("any", lm(interp.methodAny, fnParam))
+	interp.RegisterLambdaMethod("all", lm(interp.methodAll, fnParam))
+	interp.RegisterLambdaMethod("find", lm(interp.methodFind, fnParam))
+	interp.RegisterLambdaMethod("fold", lm(interp.methodFold, MethodParam{Name: "initial"}, fnParam))
+	interp.RegisterLambdaMethod("unique", lm(interp.methodUnique, MethodParam{Name: "fn", HasDefault: true}))
+	interp.RegisterLambdaMethod("without_index", lm(interp.methodWithoutIndex, MethodParam{Name: "index"}))
+	interp.RegisterLambdaMethod("index_of", lm(interp.methodIndexOf, MethodParam{Name: "target"}))
+	interp.RegisterLambdaMethod("slice", lm(interp.methodSlice, MethodParam{Name: "low"}, MethodParam{Name: "high", HasDefault: true}))
+	interp.RegisterLambdaMethod("map_values", lm(interp.methodMapValues, fnParam))
+	interp.RegisterLambdaMethod("map_keys", lm(interp.methodMapKeys, fnParam))
+	interp.RegisterLambdaMethod("map_entries", lm(interp.methodMapEntries, fnParam))
+	interp.RegisterLambdaMethod("filter_entries", lm(interp.methodFilterEntries, fnParam))
 }
 
 func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any {
@@ -45,9 +45,10 @@ func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any
 	if lambda == nil {
 		return NewError("filter() requires a lambda argument")
 	}
+	s := newScope(interp.scope, scopeExpression)
 	var result []any
 	for _, elem := range arr {
-		val := interp.callLambda(lambda, []any{elem})
+		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
 		if IsError(val) {
 			return val
 		}
@@ -77,9 +78,10 @@ func (interp *Interpreter) methodMap(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("map() requires a lambda argument")
 	}
+	s := newScope(interp.scope, scopeExpression)
 	var result []any
 	for _, elem := range arr {
-		val := interp.callLambda(lambda, []any{elem})
+		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
 		if IsError(val) {
 			return val
 		}
@@ -141,9 +143,10 @@ func (interp *Interpreter) methodSortBy(receiver any, args []syntax.CallArg) any
 	}
 
 	// Extract keys.
+	s := newScope(interp.scope, scopeExpression)
 	keys := make([]any, len(arr))
 	for i, elem := range arr {
-		key := interp.callLambda(lambda, []any{elem})
+		key := interp.callLambdaWithScope(lambda, []any{elem}, s)
 		if IsError(key) {
 			return key
 		}
@@ -187,8 +190,9 @@ func (interp *Interpreter) methodAny(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("any() requires a lambda argument")
 	}
+	s := newScope(interp.scope, scopeExpression)
 	for _, elem := range arr {
-		val := interp.callLambda(lambda, []any{elem})
+		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
 		if IsError(val) {
 			return val
 		}
@@ -215,8 +219,9 @@ func (interp *Interpreter) methodAll(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("all() requires a lambda argument")
 	}
+	s := newScope(interp.scope, scopeExpression)
 	for _, elem := range arr {
-		val := interp.callLambda(lambda, []any{elem})
+		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
 		if IsError(val) {
 			return val
 		}
@@ -243,8 +248,9 @@ func (interp *Interpreter) methodFind(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("find() requires a lambda argument")
 	}
+	s := newScope(interp.scope, scopeExpression)
 	for _, elem := range arr {
-		val := interp.callLambda(lambda, []any{elem})
+		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
 		if IsError(val) {
 			return val
 		}
@@ -279,9 +285,10 @@ func (interp *Interpreter) methodFold(receiver any, args []syntax.CallArg) any {
 		return NewError("fold() second argument must be a lambda")
 	}
 
+	s := newScope(interp.scope, scopeExpression)
 	tally := initial
 	for _, elem := range arr {
-		tally = interp.callLambda(lambda, []any{tally, elem})
+		tally = interp.callLambdaWithScope(lambda, []any{tally, elem}, s)
 		if IsError(tally) {
 			return tally
 		}
@@ -322,11 +329,12 @@ func (interp *Interpreter) methodUnique(receiver any, args []syntax.CallArg) any
 		return false
 	}
 
+	s := newScope(interp.scope, scopeExpression)
 	var result []any
 	for _, elem := range arr {
 		var key any
 		if keyFn != nil {
-			key = interp.callLambda(keyFn, []any{elem})
+			key = interp.callLambdaWithScope(keyFn, []any{elem}, s)
 			if IsError(key) {
 				return key
 			}
@@ -515,9 +523,10 @@ func (interp *Interpreter) methodMapValues(receiver any, args []syntax.CallArg) 
 	if lambda == nil {
 		return NewError("map_values() requires a lambda argument")
 	}
+	s := newScope(interp.scope, scopeExpression)
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		val := interp.callLambda(lambda, []any{v})
+		val := interp.callLambdaWithScope(lambda, []any{v}, s)
 		if IsError(val) {
 			return val
 		}
@@ -541,9 +550,10 @@ func (interp *Interpreter) methodMapKeys(receiver any, args []syntax.CallArg) an
 	if lambda == nil {
 		return NewError("map_keys() requires a lambda argument")
 	}
+	s := newScope(interp.scope, scopeExpression)
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		newKey := interp.callLambda(lambda, []any{k})
+		newKey := interp.callLambdaWithScope(lambda, []any{k}, s)
 		if IsError(newKey) {
 			return newKey
 		}
@@ -571,9 +581,10 @@ func (interp *Interpreter) methodMapEntries(receiver any, args []syntax.CallArg)
 	if lambda == nil {
 		return NewError("map_entries() requires a lambda argument")
 	}
+	s := newScope(interp.scope, scopeExpression)
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		entry := interp.callLambda(lambda, []any{k, v})
+		entry := interp.callLambdaWithScope(lambda, []any{k, v}, s)
 		if IsError(entry) {
 			return entry
 		}
@@ -609,9 +620,10 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 	if lambda == nil {
 		return NewError("filter_entries() requires a lambda argument")
 	}
+	s := newScope(interp.scope, scopeExpression)
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		val := interp.callLambda(lambda, []any{k, v})
+		val := interp.callLambdaWithScope(lambda, []any{k, v}, s)
 		if IsError(val) {
 			return val
 		}

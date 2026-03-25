@@ -37,8 +37,6 @@ type compiledMapping struct {
 
 // Exec runs the compiled mapping against input and metadata.
 func (m *compiledMapping) Exec(input any, metadata map[string]any) (any, map[string]any, bool, error) {
-	interp := eval.New(m.prog)
-	interp.RegisterStdlib()
-	interp.RegisterLambdaMethods()
+	interp := eval.NewWithStdlib(m.prog)
 	return interp.Run(input, metadata)
 }
