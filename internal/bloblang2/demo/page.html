@@ -116,6 +116,25 @@
         }
         .cm-completionLabel { color: #89b4fa; }
         .cm-completionDetail { color: #6c7086; font-style: italic; margin-left: 8px; }
+
+        /* Vim toggle */
+        .vim-toggle {
+            background: none;
+            border: 1px solid #313244;
+            border-radius: 3px;
+            color: #585b70;
+            font-family: inherit;
+            font-size: 10px;
+            padding: 1px 6px;
+            cursor: pointer;
+            line-height: 1.4;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .vim-toggle:hover { color: #a6adc8; border-color: #45475a; }
+        .vim-toggle.active { color: #a6e3a1; border-color: #a6e3a1; }
+
+        /* vim-mode status bar */
+        .cm-vim-panel { background: #181825 !important; color: #a6adc8 !important; font-size: 11px; }
     </style>
 </head>
 <body>
@@ -123,7 +142,10 @@
         <div class="panel" id="input-panel">
             <div class="panel-header">
                 <span class="label"><span class="dot"></span> Input</span>
-                <span style="color:#585b70;font-size:10px">JSON</span>
+                <span style="display:flex;align-items:center;gap:8px">
+                    <button class="vim-toggle" id="input-vim-toggle">vim</button>
+                    <span style="color:#585b70;font-size:10px">JSON</span>
+                </span>
             </div>
             <div class="editor-wrap" id="input-editor"></div>
         </div>
@@ -139,7 +161,10 @@
         <div class="panel" id="mapping-panel">
             <div class="panel-header">
                 <span class="label"><span class="dot" id="mapping-dot"></span> Mapping</span>
-                <span style="color:#585b70;font-size:10px">Bloblang V2</span>
+                <span style="display:flex;align-items:center;gap:8px">
+                    <button class="vim-toggle" id="mapping-vim-toggle">vim</button>
+                    <span style="color:#585b70;font-size:10px">Bloblang V2</span>
+                </span>
             </div>
             <div class="editor-wrap" id="mapping-editor"></div>
         </div>
@@ -164,20 +189,22 @@
             "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete@6.18.6?external=@codemirror/state,@codemirror/view,@codemirror/language",
             "@codemirror/lint": "https://esm.sh/@codemirror/lint@6.8.5?external=@codemirror/state,@codemirror/view",
             "@codemirror/lang-json": "https://esm.sh/@codemirror/lang-json@6.0.1?external=@codemirror/state,@codemirror/view,@codemirror/language",
-            "@codemirror/theme-one-dark": "https://esm.sh/@codemirror/theme-one-dark@6.1.2?external=@codemirror/state,@codemirror/view,@codemirror/language"
+            "@codemirror/theme-one-dark": "https://esm.sh/@codemirror/theme-one-dark@6.1.2?external=@codemirror/state,@codemirror/view,@codemirror/language",
+            "@replit/codemirror-vim": "https://esm.sh/@replit/codemirror-vim@6.2.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@codemirror/commands,@codemirror/search"
         }
     }
     </script>
 
     <script type="module">
         import {EditorView, basicSetup} from "codemirror";
-        import {StateField, StateEffect, RangeSetBuilder} from "@codemirror/state";
+        import {StateField, StateEffect, RangeSetBuilder, Compartment} from "@codemirror/state";
         import {json} from "@codemirror/lang-json";
         import {oneDark} from "@codemirror/theme-one-dark";
         import {setDiagnostics} from "@codemirror/lint";
         import {keymap, Decoration, ViewPlugin} from "@codemirror/view";
         import {indentWithTab} from "@codemirror/commands";
         import {autocompletion} from "@codemirror/autocomplete";
+        import {vim} from "@replit/codemirror-vim";
 
         // ==============================================================
         // 1. Tree-sitter — init before editor creation (top-level await)
@@ -350,11 +377,15 @@
         // 5. Create editors
         // ==============================================================
 
+        const inputVimCompartment = new Compartment();
+        const mappingVimCompartment = new Compartment();
+
         const inputEditor = new EditorView({
             doc: JSON.stringify({message: "hello world"}, null, 2),
             extensions: [
                 basicSetup, json(), oneDark, bgTheme,
                 keymap.of([indentWithTab]),
+                inputVimCompartment.of([]),
                 EditorView.updateListener.of(v => { if (v.docChanged) scheduleExecute(); }),
             ],
             parent: document.getElementById("input-editor"),
@@ -365,6 +396,7 @@
             extensions: [
                 basicSetup, oneDark, bgTheme,
                 keymap.of([indentWithTab]),
+                mappingVimCompartment.of([]),
                 highlightField,
                 tsHighlighter,
                 autocompletion({override: [bloblangCompletions]}),
@@ -372,6 +404,24 @@
             ],
             parent: document.getElementById("mapping-editor"),
         });
+
+        // ==============================================================
+        // 5b. Vim mode toggles
+        // ==============================================================
+
+        function wireVimToggle(buttonId, editor, compartment) {
+            const btn = document.getElementById(buttonId);
+            let active = false;
+            btn.addEventListener("click", () => {
+                active = !active;
+                btn.classList.toggle("active", active);
+                editor.dispatch({effects: compartment.reconfigure(active ? vim() : [])});
+                editor.focus();
+            });
+        }
+
+        wireVimToggle("input-vim-toggle", inputEditor, inputVimCompartment);
+        wireVimToggle("mapping-vim-toggle", mappingEditor, mappingVimCompartment);
 
         // ==============================================================
         // 6. Execute mapping (server round-trip)
