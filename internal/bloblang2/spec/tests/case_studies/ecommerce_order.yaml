@@ -1,0 +1,158 @@
+description: >
+  E-commerce order normalization — flatten a Shopify-style order into a
+  warehouse-friendly format. Joins fulfillment tracking back to line items,
+  computes net prices from string-encoded decimals, converts units, formats
+  addresses, and detects billing/shipping mismatches.
+
+tests:
+  - name: "normalize Shopify order for warehouse ERP"
+    input:
+      order:
+        id: 5765806342
+        email: "jane@example.com"
+        created_at: "2024-01-15T10:30:00-05:00"
+        currency: "USD"
+        billing_address:
+          first_name: "John"
+          last_name: "Smith"
+          address1: "123 Fake Street"
+          city: "Faketown"
+          province_code: "ON"
+          country_code: "CA"
+          zip: "K2P 1L4"
+        shipping_address:
+          first_name: "Jane"
+          last_name: "Smith"
+          address1: "123 Fake Street"
+          city: "Faketown"
+          province_code: "ON"
+          country_code: "CA"
+          zip: "K2P 1L4"
+        line_items:
+          - id: 1001
+            title: "Red Leather Coat"
+            sku: "RLC-001"
+            quantity: 1
+            price: "129.99"
+            grams: 1700
+            tax_lines:
+              - {price: "7.80"}
+            discount_allocations:
+              - {amount: "13.00"}
+          - id: 1002
+            title: "Blue Suede Shoes"
+            sku: "BSS-001"
+            quantity: 1
+            price: "85.95"
+            grams: 750
+            tax_lines: []
+            discount_allocations: []
+          - id: 1003
+            title: "Raspberry Beret"
+            sku: "RB-001"
+            quantity: 2
+            price: "19.99"
+            grams: 320
+            tax_lines:
+              - {price: "2.40"}
+            discount_allocations: []
+        fulfillments:
+          - id: 1
+            tracking_numbers: ["1Z999AA10123456784"]
+            line_items:
+              - {id: 1001}
+              - {id: 1002}
+        discount_codes:
+          - {code: "FAKE30"}
+    mapping: |
+      map format_address(addr) {
+        addr.first_name + " " + addr.last_name + ", " +
+          addr.address1 + ", " + addr.city + " " +
+          addr.province_code + " " + addr.zip + ", " + addr.country_code
+      }
+
+      $order = input.order
+      $fulfillments = $order.fulfillments
+      $bill = $order.billing_address
+      $ship = $order.shipping_address
+
+      $items = $order.line_items.map(item -> {
+        $unit_price = item.price.float64()
+        $discount = item.discount_allocations
+          .map(d -> d.amount.float64()).sum().float64()
+        $tax = item.tax_lines
+          .map(t -> t.price.float64()).sum().float64()
+        $net = ($unit_price * item.quantity - $discount + $tax).round(2)
+        $weight_kg = (item.grams * item.quantity).float64() / 1000.0
+        $ful = $fulfillments.find(f ->
+          f.line_items.any(li -> li.id == item.id)
+        ).or(null)
+        {
+          "sku": item.sku,
+          "title": item.title,
+          "quantity": item.quantity,
+          "unit_price": $unit_price,
+          "discount": $discount,
+          "tax_total": $tax,
+          "net_price": $net,
+          "weight_kg": $weight_kg,
+          "fulfilled": $ful != null,
+          "tracking": $ful?.tracking_numbers?[0].or(null),
+        }
+      })
+
+      output.order_id = $order.id
+      output.order_date = $order.created_at.slice(0, 10)
+      output.customer_email = $order.email
+      output.currency = $order.currency
+      output.shipping_differs_from_billing =
+        $bill.first_name != $ship.first_name ||
+        $bill.last_name != $ship.last_name ||
+        $bill.address1 != $ship.address1 ||
+        $bill.city != $ship.city
+      output.ship_to = format_address($ship)
+      output.items = $items
+      output.unfulfilled_count = $items.filter(i -> !i.fulfilled).length()
+      output.total_weight_kg = $items.map(i -> i.weight_kg).sum().round(2)
+      output.discount_codes_used = $order.discount_codes.map(d -> d.code)
+    output:
+      order_id: 5765806342
+      order_date: "2024-01-15"
+      customer_email: "jane@example.com"
+      currency: "USD"
+      shipping_differs_from_billing: true
+      ship_to: "Jane Smith, 123 Fake Street, Faketown ON K2P 1L4, CA"
+      items:
+        - sku: "RLC-001"
+          title: "Red Leather Coat"
+          quantity: 1
+          unit_price: 129.99
+          discount: 13.0
+          tax_total: 7.8
+          net_price: 124.79
+          weight_kg: 1.7
+          fulfilled: true
+          tracking: "1Z999AA10123456784"
+        - sku: "BSS-001"
+          title: "Blue Suede Shoes"
+          quantity: 1
+          unit_price: 85.95
+          discount: 0.0
+          tax_total: 0.0
+          net_price: 85.95
+          weight_kg: 0.75
+          fulfilled: true
+          tracking: "1Z999AA10123456784"
+        - sku: "RB-001"
+          title: "Raspberry Beret"
+          quantity: 2
+          unit_price: 19.99
+          discount: 0.0
+          tax_total: 2.4
+          net_price: 42.38
+          weight_kg: 0.64
+          fulfilled: false
+          tracking: null
+      unfulfilled_count: 1
+      total_weight_kg: 3.09
+      discount_codes_used: ["FAKE30"]
