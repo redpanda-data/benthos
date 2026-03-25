@@ -186,7 +186,10 @@ func (ts *testServer) diagnose(uri string) {
 
 	syntax.Optimize(prog)
 
-	resolveErrs := syntax.Resolve(prog, ts.stdlibMethods, ts.stdlibFunctions)
+	resolveErrs := syntax.Resolve(prog, syntax.ResolveOptions{
+		Methods:   ts.stdlibMethods,
+		Functions: ts.stdlibFunctions,
+	})
 	for _, e := range resolveErrs {
 		diagnostics = append(diagnostics, posErrorToDiagnostic(e))
 	}

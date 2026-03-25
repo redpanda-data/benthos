@@ -206,11 +206,12 @@ func (u *UnaryExpr) exprNode()    {}
 
 // CallExpr is a function call (name(args) or namespace::name(args)).
 type CallExpr struct {
-	TokenPos  Pos
-	Name      string // function name
-	Namespace string // namespace (empty for unqualified calls)
-	Args      []CallArg
-	Named     bool // true if using named arguments
+	TokenPos       Pos
+	Name           string // function name
+	Namespace      string // namespace (empty for unqualified calls)
+	Args           []CallArg
+	Named          bool   // true if using named arguments
+	FunctionOpcode uint16 // resolver-assigned opcode for stdlib functions (0 = user map or unresolved)
 }
 
 func (c *CallExpr) nodePos() Pos { return c.TokenPos }
@@ -224,12 +225,13 @@ type CallArg struct {
 
 // MethodCallExpr is a method call on a receiver (receiver.method(args)).
 type MethodCallExpr struct {
-	Receiver  Expr
-	Method    string
-	MethodPos Pos
-	Args      []CallArg
-	Named     bool // true if using named arguments
-	NullSafe  bool // true for ?.method()
+	Receiver     Expr
+	Method       string
+	MethodPos    Pos
+	Args         []CallArg
+	Named        bool   // true if using named arguments
+	NullSafe     bool   // true for ?.method()
+	MethodOpcode uint16 // resolver-assigned opcode for stdlib methods (0 = intrinsic or unresolved)
 }
 
 func (m *MethodCallExpr) nodePos() Pos { return m.Receiver.nodePos() }
@@ -388,13 +390,14 @@ func (p *PathExpr) exprNode()    {}
 
 // PathSegment is a single segment in a path expression.
 type PathSegment struct {
-	Kind     PathSegmentKind
-	Name     string    // for FieldAccess and MethodCall
-	Index    Expr      // for Index
-	Args     []CallArg // for MethodCall
-	Named    bool      // for MethodCall: named arguments
-	NullSafe bool
-	Pos      Pos
+	Kind         PathSegmentKind
+	Name         string    // for FieldAccess and MethodCall
+	Index        Expr      // for Index
+	Args         []CallArg // for MethodCall
+	Named        bool      // for MethodCall: named arguments
+	NullSafe     bool
+	Pos          Pos
+	MethodOpcode uint16 // resolver-assigned opcode for method segments (0 = unresolved)
 }
 
 // PathSegmentKind is the type of a path segment.

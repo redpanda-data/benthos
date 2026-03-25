@@ -194,7 +194,7 @@ func jsonNormalize(t testing.TB, v any) string {
 	return string(out)
 }
 
-func compileV2T(t testing.TB, mapping string) *compiledMapping {
+func compileV2Impl(t testing.TB, mapping string) *compiledMapping {
 	t.Helper()
 	prog, errs := syntax.Parse(mapping, "", nil)
 	if len(errs) > 0 {
@@ -202,10 +202,20 @@ func compileV2T(t testing.TB, mapping string) *compiledMapping {
 	}
 	syntax.Optimize(prog)
 	methods, functions := eval.StdlibNames()
-	if resolveErrs := syntax.Resolve(prog, methods, functions); len(resolveErrs) > 0 {
+	methodOpcodes, functionOpcodes := eval.StdlibOpcodes()
+	if resolveErrs := syntax.Resolve(prog, syntax.ResolveOptions{
+		Methods:         methods,
+		Functions:       functions,
+		MethodOpcodes:   methodOpcodes,
+		FunctionOpcodes: functionOpcodes,
+	}); len(resolveErrs) > 0 {
 		t.Fatalf("v2 resolve errors: %s", syntax.FormatErrors(resolveErrs))
 	}
 	return &compiledMapping{prog: prog}
+}
+
+func compileV2T(t testing.TB, mapping string) *compiledMapping {
+	return compileV2Impl(t, mapping)
 }
 
 func compileV1T(t testing.TB, mapping string) *bloblang.Executor {
@@ -218,18 +228,7 @@ func compileV1T(t testing.TB, mapping string) *bloblang.Executor {
 }
 
 func compileV2(b *testing.B, mapping string) *compiledMapping {
-	b.Helper()
-
-	prog, errs := syntax.Parse(mapping, "", nil)
-	if len(errs) > 0 {
-		b.Fatalf("v2 parse errors: %s", syntax.FormatErrors(errs))
-	}
-	syntax.Optimize(prog)
-	methods, functions := eval.StdlibNames()
-	if resolveErrs := syntax.Resolve(prog, methods, functions); len(resolveErrs) > 0 {
-		b.Fatalf("v2 resolve errors: %s", syntax.FormatErrors(resolveErrs))
-	}
-	return &compiledMapping{prog: prog}
+	return compileV2Impl(b, mapping)
 }
 
 func BenchmarkV2StripeInvoice(b *testing.B) {

@@ -31,11 +31,37 @@ var (
 
 func initSharedStdlib() {
 	stdlibOnce.Do(func() {
+		// Initialize opcode mapping tables.
+		methodNameToOpcode = make(map[string]MethodOpcode, 100)
+		functionNameToOpcode = make(map[string]FunctionOpcode, 20)
+		lambdaOpcodeOffsets = make(map[string]uint16, 16)
+		methodTable = make([]MethodSpec, 1, 100)   // index 0 unused
+		functionTable = make([]FunctionSpec, 1, 20) // index 0 unused
+
+		// Register static methods and functions, building opcode tables.
 		interp := New(nil)
 		interp.registerFunctions()
 		interp.registerMethods()
 		sharedMethods = interp.staticMethods
 		sharedFunctions = interp.staticFunctions
+
+		// Assign opcode IDs to all registered methods and functions.
+		for name, spec := range sharedMethods {
+			registerMethodOpcode(name, spec)
+		}
+		for name, spec := range sharedFunctions {
+			registerFunctionOpcode(name, spec)
+		}
+
+		// Set lambda opcode base and register lambda method opcodes.
+		// Lambda methods are registered per-interpreter but their opcodes
+		// are global and stable.
+		lambdaOpcodeBase = nextMethodOpcode
+		tmpInterp := New(nil)
+		tmpInterp.RegisterLambdaMethods()
+		for name := range tmpInterp.lambdaMethods {
+			registerLambdaMethodOpcode(name)
+		}
 	})
 }
 
