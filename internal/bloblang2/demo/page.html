@@ -171,7 +171,10 @@
                 <span class="label"><span class="dot" id="output-dot"></span> Output</span>
                 <span style="display:flex;align-items:center;gap:8px">
                     <span id="output-status" style="color:#585b70;font-size:10px"></span>
-                    <button class="vim-toggle active" id="exec-mode-toggle">browser</button>
+                    <select class="case-study-select" id="exec-engine-select">
+                        <option value="ts-pratt">TS Pratt Parser</option>
+                        <option value="go-pratt">Go Pratt Parser</option>
+                    </select>
                 </span>
             </div>
             <div id="output-wrap">
@@ -490,18 +493,12 @@
         const outputStatus = document.getElementById("output-status");
 
         let debounceTimer, requestId = 0;
-        let useBrowserExec = true;
 
-        // Execution mode toggle.
-        const execModeBtn = document.getElementById("exec-mode-toggle");
-        execModeBtn.addEventListener("click", () => {
-            useBrowserExec = !useBrowserExec;
-            execModeBtn.textContent = useBrowserExec ? "browser" : "server";
-            execModeBtn.classList.toggle("active", useBrowserExec);
-            scheduleExecute();
-        });
+        // Execution engine selector.
+        const execEngineSelect = document.getElementById("exec-engine-select");
+        execEngineSelect.addEventListener("change", () => scheduleExecute());
 
-        // Stdlib metadata for the resolver (loaded once).
+        // Stdlib metadata for the TS resolver (loaded once).
         const {methods: stdMethods, functions: stdFunctions} = stdlibNames();
 
         function scheduleExecute() {
@@ -511,14 +508,20 @@
 
         async function execute() {
             const id = ++requestId;
-            if (useBrowserExec) {
-                executeBrowser(id);
-            } else {
-                await executeServer(id);
+            const engine = execEngineSelect.value;
+            switch (engine) {
+                case "ts-pratt":
+                    executeTsPratt(id);
+                    break;
+                case "go-pratt":
+                    await executeGoPratt(id);
+                    break;
+                default:
+                    showRuntimeError(`Unknown engine: ${engine}`);
             }
         }
 
-        function executeBrowser(id) {
+        function executeTsPratt(id) {
             try {
                 const mappingSrc = mappingEditor.state.doc.toString();
                 const inputSrc = inputEditor.state.doc.toString();
@@ -572,7 +575,7 @@
             }
         }
 
-        async function executeServer(id) {
+        async function executeGoPratt(id) {
             try {
                 const res = await fetch("/execute", {
                     method: "POST",
