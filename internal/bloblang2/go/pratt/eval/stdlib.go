@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -20,30 +21,57 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 )
 
+// sharedMethods and sharedFunctions hold the static (non-lambda) stdlib
+// entries. They are built once and shared read-only across all interpreters.
+var (
+	sharedMethods   map[string]MethodSpec
+	sharedFunctions map[string]FunctionSpec
+	stdlibOnce      sync.Once
+)
+
+func initSharedStdlib() {
+	stdlibOnce.Do(func() {
+		interp := New(nil)
+		interp.registerFunctions()
+		interp.registerMethods()
+		sharedMethods = interp.staticMethods
+		sharedFunctions = interp.staticFunctions
+	})
+}
+
+func init() {
+	initSharedStdlib()
+}
+
 // RegisterStdlib registers all standard library functions and methods.
 func (interp *Interpreter) RegisterStdlib() {
 	interp.registerFunctions()
 	interp.registerMethods()
 }
 
+func methodSpecToInfo(spec MethodSpec) syntax.MethodInfo {
+	if spec.Params == nil {
+		return syntax.MethodInfo{Required: 0, Total: -1}
+	}
+	required, total := 0, 0
+	for _, p := range spec.Params {
+		total++
+		if !p.HasDefault {
+			required++
+		}
+	}
+	return syntax.MethodInfo{Required: required, Total: total}
+}
+
 // MethodInfos returns compile-time metadata for all registered methods,
 // keyed by name. Used by the resolver for arity checking.
 func (interp *Interpreter) MethodInfos() map[string]syntax.MethodInfo {
-	infos := make(map[string]syntax.MethodInfo, len(interp.methods))
-	for name, spec := range interp.methods {
-		if spec.Params == nil {
-			// No declared params — arity checked at runtime (or intrinsic).
-			infos[name] = syntax.MethodInfo{Required: 0, Total: -1}
-			continue
-		}
-		required, total := 0, 0
-		for _, p := range spec.Params {
-			total++
-			if !p.HasDefault {
-				required++
-			}
-		}
-		infos[name] = syntax.MethodInfo{Required: required, Total: total}
+	infos := make(map[string]syntax.MethodInfo, len(interp.staticMethods)+len(interp.lambdaMethods))
+	for name, spec := range interp.staticMethods {
+		infos[name] = methodSpecToInfo(spec)
+	}
+	for name, spec := range interp.lambdaMethods {
+		infos[name] = methodSpecToInfo(spec)
 	}
 	return infos
 }
@@ -51,8 +79,8 @@ func (interp *Interpreter) MethodInfos() map[string]syntax.MethodInfo {
 // FunctionInfos returns compile-time metadata for all registered functions,
 // keyed by name. Used by the resolver for arity checking.
 func (interp *Interpreter) FunctionInfos() map[string]syntax.FunctionInfo {
-	infos := make(map[string]syntax.FunctionInfo, len(interp.functions))
-	for name, spec := range interp.functions {
+	infos := make(map[string]syntax.FunctionInfo, len(interp.staticFunctions))
+	for name, spec := range interp.staticFunctions {
 		required, total := 0, 0
 		for _, p := range spec.Params {
 			total++
@@ -69,9 +97,7 @@ func (interp *Interpreter) FunctionInfos() map[string]syntax.FunctionInfo {
 // returns the method and function info maps. Used by the resolver for
 // compile-time name validation and arity checking.
 func StdlibNames() (methods map[string]syntax.MethodInfo, functions map[string]syntax.FunctionInfo) {
-	interp := New(nil)
-	interp.RegisterStdlib()
-	interp.RegisterLambdaMethods()
+	interp := NewWithStdlib(nil)
 	return interp.MethodInfos(), interp.FunctionInfos()
 }
 
