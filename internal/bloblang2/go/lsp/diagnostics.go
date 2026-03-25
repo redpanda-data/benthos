@@ -27,7 +27,10 @@ func (s *Server) diagnose(uri string) {
 
 	syntax.Optimize(prog)
 
-	resolveErrs := syntax.Resolve(prog, s.stdlibMethods, s.stdlibFunctions)
+	resolveErrs := syntax.Resolve(prog, syntax.ResolveOptions{
+		Methods:   s.stdlibMethods,
+		Functions: s.stdlibFunctions,
+	})
 	for _, e := range resolveErrs {
 		diagnostics = append(diagnostics, posErrorToDiagnostic(e))
 	}

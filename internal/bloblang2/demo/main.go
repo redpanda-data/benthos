@@ -42,12 +42,15 @@ var bloblang2JSMap []byte
 
 // Cached at startup since they don't change.
 var (
-	stdlibMethods   map[string]syntax.MethodInfo
-	stdlibFunctions map[string]syntax.FunctionInfo
+	stdlibMethods        map[string]syntax.MethodInfo
+	stdlibFunctions      map[string]syntax.FunctionInfo
+	stdlibMethodOpcodes  map[string]uint16
+	stdlibFunctionOpcodes map[string]uint16
 )
 
 func init() {
 	stdlibMethods, stdlibFunctions = eval.StdlibNames()
+	stdlibMethodOpcodes, stdlibFunctionOpcodes = eval.StdlibOpcodes()
 }
 
 type executeRequest struct {
@@ -96,7 +99,12 @@ func handleExecute(w http.ResponseWriter, r *http.Request) {
 	syntax.Optimize(prog)
 
 	// 3. Resolve.
-	if resolveErrs := syntax.Resolve(prog, stdlibMethods, stdlibFunctions); len(resolveErrs) > 0 {
+	if resolveErrs := syntax.Resolve(prog, syntax.ResolveOptions{
+		Methods:         stdlibMethods,
+		Functions:       stdlibFunctions,
+		MethodOpcodes:   stdlibMethodOpcodes,
+		FunctionOpcodes: stdlibFunctionOpcodes,
+	}); len(resolveErrs) > 0 {
 		resp.ParseErrors = posErrorsFromSyntax(resolveErrs)
 		return
 	}

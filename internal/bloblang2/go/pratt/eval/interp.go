@@ -36,6 +36,10 @@ type Interpreter struct {
 	staticMethods   map[string]MethodSpec
 	staticFunctions map[string]FunctionSpec
 	lambdaMethods   map[string]MethodSpec
+
+	// lambdaTable is the opcode-indexed dispatch table for lambda methods.
+	// Indexed by (opcode - lambdaOpcodeBase).
+	lambdaTable []MethodSpec
 }
 
 // MethodFunc is a stdlib method implementation.
@@ -116,9 +120,29 @@ func New(prog *syntax.Program) *Interpreter {
 // across all interpreters and only the lambda methods (which close over
 // the interpreter) are allocated per-instance.
 func NewWithStdlib(prog *syntax.Program) *Interpreter {
-	interp := New(prog)
-	interp.staticMethods = sharedMethods
-	interp.staticFunctions = sharedFunctions
+	interp := &Interpreter{
+		prog:            prog,
+		maps:            make(map[string]*syntax.MapDecl),
+		namespaces:      make(map[string]map[string]*syntax.MapDecl),
+		staticMethods:   sharedMethods,
+		staticFunctions: sharedFunctions,
+		lambdaMethods:   make(map[string]MethodSpec, 16),
+		lambdaTable:     make([]MethodSpec, len(lambdaOpcodeOffsets)),
+	}
+
+	if prog != nil {
+		for _, m := range prog.Maps {
+			interp.maps[m.Name] = m
+		}
+		for ns, maps := range prog.Namespaces {
+			table := make(map[string]*syntax.MapDecl, len(maps))
+			for _, m := range maps {
+				table[m.Name] = m
+			}
+			interp.namespaces[ns] = table
+		}
+	}
+
 	interp.RegisterLambdaMethods()
 	return interp
 }
@@ -135,9 +159,16 @@ func (interp *Interpreter) RegisterFunction(name string, spec FunctionSpec) {
 
 // RegisterLambdaMethod registers a method that needs the interpreter for
 // lambda/map-ref dispatch. These are stored separately from static methods
-// and checked first during dispatch.
+// and checked first during dispatch. Also populates the opcode-indexed
+// lambdaTable for fast dispatch.
 func (interp *Interpreter) RegisterLambdaMethod(name string, spec MethodSpec) {
 	interp.lambdaMethods[name] = spec
+	if offset, ok := lambdaOpcodeOffsets[name]; ok {
+		for int(offset) >= len(interp.lambdaTable) {
+			interp.lambdaTable = append(interp.lambdaTable, MethodSpec{})
+		}
+		interp.lambdaTable[offset] = spec
+	}
 }
 
 // lookupMethod resolves a method by name, checking lambda methods first
@@ -561,15 +592,23 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 		return nil
 	}
 
-	// Look up the method. We need the spec before the null check so we can read AcceptsNull.
-	spec, ok := interp.lookupMethod(e.Method)
-	if !ok {
-		// Unknown method — but if receiver is null, the null error is more helpful
-		// since unknown methods are normally caught at compile time.
-		if receiver == nil {
-			return NewError(fmt.Sprintf(".%s() does not support null", e.Method))
+	// Look up the method via opcode (fast path) or name (fallback).
+	var spec MethodSpec
+	if opc := e.MethodOpcode; opc != 0 {
+		if opc >= lambdaOpcodeBase {
+			spec = interp.lambdaTable[opc-lambdaOpcodeBase]
+		} else {
+			spec = methodTable[opc]
 		}
-		return NewError(fmt.Sprintf("unknown method .%s()", e.Method))
+	} else {
+		var ok bool
+		spec, ok = interp.lookupMethod(e.Method)
+		if !ok {
+			if receiver == nil {
+				return NewError(fmt.Sprintf(".%s() does not support null", e.Method))
+			}
+			return NewError(fmt.Sprintf("unknown method .%s()", e.Method))
+		}
 	}
 
 	// Null check using spec metadata.
@@ -695,8 +734,17 @@ func (interp *Interpreter) evalCall(e *syntax.CallExpr) any {
 		return interp.callMap(m, e)
 	}
 
-	// Check stdlib functions.
-	if spec, ok := interp.staticFunctions[e.Name]; ok {
+	// Check stdlib functions via opcode (fast path) or name (fallback).
+	var spec FunctionSpec
+	var isStdlib bool
+	if opc := e.FunctionOpcode; opc != 0 {
+		spec = functionTable[opc]
+		isStdlib = true
+	} else if s, ok := interp.staticFunctions[e.Name]; ok {
+		spec = s
+		isStdlib = true
+	}
+	if isStdlib {
 		var args []any
 		if e.Named {
 			resolved := interp.resolveNamedFuncArgs(e, spec)
@@ -1050,9 +1098,19 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 			if seg.NullSafe && current == nil {
 				return nil
 			}
-			spec, ok := interp.lookupMethod(seg.Name)
-			if !ok {
-				return NewError(fmt.Sprintf("unknown method .%s()", seg.Name))
+			var spec MethodSpec
+			if opc := seg.MethodOpcode; opc != 0 {
+				if opc >= lambdaOpcodeBase {
+					spec = interp.lambdaTable[opc-lambdaOpcodeBase]
+				} else {
+					spec = methodTable[opc]
+				}
+			} else {
+				var ok bool
+				spec, ok = interp.lookupMethod(seg.Name)
+				if !ok {
+					return NewError(fmt.Sprintf("unknown method .%s()", seg.Name))
+				}
 			}
 			// Intrinsic methods (catch/or) cannot appear in path expressions
 			// because they require control over receiver evaluation.
@@ -1144,7 +1202,18 @@ func (interp *Interpreter) resolveNamedArgs(callArgs []syntax.CallArg, params []
 // resolveNamedMethodArgs maps named arguments to positional using the method's
 // parameter metadata. Returns []any or an errorVal.
 func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any {
-	spec, specOK := interp.lookupMethod(e.Method)
+	var spec MethodSpec
+	var specOK bool
+	if opc := e.MethodOpcode; opc != 0 {
+		if opc >= lambdaOpcodeBase {
+			spec = interp.lambdaTable[opc-lambdaOpcodeBase]
+		} else {
+			spec = methodTable[opc]
+		}
+		specOK = true
+	} else {
+		spec, specOK = interp.lookupMethod(e.Method)
+	}
 	var params []namedArgParam
 	if specOK && spec.Params != nil {
 		params = make([]namedArgParam, len(spec.Params))
