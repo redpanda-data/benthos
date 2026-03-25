@@ -67,29 +67,100 @@ type resolver struct {
 	scope           *resolveScope
 	inMap           bool // true when inside a map body
 	inMethodArg     bool // true when resolving a method argument
+	maxSlots        int  // high-water mark for the current scope tree (program or map)
 }
+
+// trackSlots updates the high-water mark for the current scope.
+func (r *resolver) trackSlots() {
+	if r.scope.nextSlot > r.maxSlots {
+		r.maxSlots = r.scope.nextSlot
+	}
+}
+
+// scopeMode determines how variable assignment interacts with outer scopes.
+type resolveScopeMode int
+
+const (
+	// resolveScopeStatement: assigning to an existing outer variable targets
+	// the ancestor's slot. New variables are block-scoped.
+	resolveScopeStatement resolveScopeMode = iota
+	// resolveScopeExpression: assignment always shadows (writes locally).
+	resolveScopeExpression
+)
 
 type resolveScope struct {
-	parent *resolveScope
-	vars   map[string]bool // declared variables
-	params map[string]bool // parameters (read-only)
+	parent   *resolveScope
+	vars     map[string]int // declared variables → slot index
+	params   map[string]int // parameters → slot index
+	nextSlot int            // next available slot in this scope tree
+	mode     resolveScopeMode
 }
 
-func newResolveScope(parent *resolveScope) *resolveScope {
+func newResolveScope(parent *resolveScope, mode resolveScopeMode) *resolveScope {
+	nextSlot := 0
+	if parent != nil {
+		nextSlot = parent.nextSlot
+	}
 	return &resolveScope{
-		parent: parent,
-		vars:   make(map[string]bool),
-		params: make(map[string]bool),
+		parent:   parent,
+		vars:     make(map[string]int),
+		params:   make(map[string]int),
+		nextSlot: nextSlot,
+		mode:     mode,
 	}
 }
 
 func (s *resolveScope) isDeclared(name string) bool {
 	for cur := s; cur != nil; cur = cur.parent {
-		if cur.vars[name] || cur.params[name] {
+		if _, ok := cur.vars[name]; ok {
+			return true
+		}
+		if _, ok := cur.params[name]; ok {
 			return true
 		}
 	}
 	return false
+}
+
+// lookupSlot finds the slot index for a variable/parameter by walking the scope chain.
+func (s *resolveScope) lookupSlot(name string) (int, bool) {
+	for cur := s; cur != nil; cur = cur.parent {
+		if slot, ok := cur.vars[name]; ok {
+			return slot, true
+		}
+		if slot, ok := cur.params[name]; ok {
+			return slot, true
+		}
+	}
+	return -1, false
+}
+
+// allocSlot assigns the next available slot index and returns it.
+func (s *resolveScope) allocSlot() int {
+	slot := s.nextSlot
+	s.nextSlot++
+	return slot
+}
+
+// declareVar declares a variable in this scope. In statement mode, if the
+// variable exists in an ancestor, returns the ancestor's slot. Otherwise
+// allocates a new slot.
+func (s *resolveScope) declareVar(name string) int {
+	if s.mode == resolveScopeStatement {
+		// Check ancestors for existing declaration (write-through).
+		for cur := s.parent; cur != nil; cur = cur.parent {
+			if slot, ok := cur.vars[name]; ok {
+				return slot
+			}
+		}
+	}
+	// Check if already declared in this scope.
+	if slot, ok := s.vars[name]; ok {
+		return slot
+	}
+	slot := s.allocSlot()
+	s.vars[name] = slot
+	return slot
 }
 
 func (r *resolver) error(pos Pos, msg string) {
@@ -107,9 +178,10 @@ func (r *resolver) resolve() {
 	}
 
 	// Build top-level scope.
-	r.scope = newResolveScope(nil)
+	r.scope = newResolveScope(nil, resolveScopeStatement)
+	r.maxSlots = 0
 
-	// Resolve map bodies (isolated).
+	// Resolve map bodies (isolated scope trees with independent slot spaces).
 	for _, m := range r.prog.Maps {
 		r.resolveMapDecl(m)
 	}
@@ -118,6 +190,8 @@ func (r *resolver) resolve() {
 	for _, stmt := range r.prog.Stmts {
 		r.resolveStmt(stmt)
 	}
+	r.trackSlots()
+	r.prog.MaxSlots = r.maxSlots
 }
 
 func (r *resolver) resolveMapDecl(m *MapDecl) {
@@ -126,19 +200,26 @@ func (r *resolver) resolveMapDecl(m *MapDecl) {
 
 	saved := r.scope
 	savedInMap := r.inMap
+	savedMaxSlots := r.maxSlots
 
 	r.inMap = true
-	mapScope := newResolveScope(nil) // isolated: no parent
-	for _, p := range m.Params {
+	r.maxSlots = 0
+	mapScope := newResolveScope(nil, resolveScopeExpression) // isolated: no parent
+	for i := range m.Params {
+		p := &m.Params[i]
 		if !p.Discard {
-			mapScope.params[p.Name] = true
+			p.SlotIndex = mapScope.allocSlot()
+			mapScope.params[p.Name] = p.SlotIndex
 		}
 	}
 	r.scope = mapScope
 	r.resolveExprBody(m.Body)
+	r.trackSlots()
+	m.MaxSlots = r.maxSlots
 
 	r.scope = saved
 	r.inMap = savedInMap
+	r.maxSlots = savedMaxSlots
 }
 
 func (r *resolver) validateParams(params []Param, _ Pos) {
@@ -187,30 +268,30 @@ func (r *resolver) resolveAssignment(a *Assignment) {
 
 	// Track variable declarations.
 	if a.Target.Root == AssignVar {
-		if !r.scope.isDeclared(a.Target.VarName) {
-			r.scope.vars[a.Target.VarName] = true
-		}
+		a.Target.SlotIndex = r.scope.declareVar(a.Target.VarName)
 	}
 }
 
 func (r *resolver) resolveIfStmt(s *IfStmt) {
 	for _, branch := range s.Branches {
 		r.resolveExpr(branch.Cond)
-		child := newResolveScope(r.scope)
+		child := newResolveScope(r.scope, resolveScopeStatement)
 		saved := r.scope
 		r.scope = child
 		for _, stmt := range branch.Body {
 			r.resolveStmt(stmt)
 		}
+		r.trackSlots()
 		r.scope = saved
 	}
 	if s.Else != nil {
-		child := newResolveScope(r.scope)
+		child := newResolveScope(r.scope, resolveScopeStatement)
 		saved := r.scope
 		r.scope = child
 		for _, stmt := range s.Else {
 			r.resolveStmt(stmt)
 		}
+		r.trackSlots()
 		r.scope = saved
 	}
 }
@@ -220,9 +301,11 @@ func (r *resolver) resolveMatchStmt(s *MatchStmt) {
 		r.resolveExpr(s.Subject)
 	}
 	for _, c := range s.Cases {
-		child := newResolveScope(r.scope)
+		child := newResolveScope(r.scope, resolveScopeStatement)
 		if s.Binding != "" {
-			child.params[s.Binding] = true
+			slot := child.allocSlot()
+			child.params[s.Binding] = slot
+			s.BindingSlot = slot
 		}
 		saved := r.scope
 		r.scope = child
@@ -235,6 +318,7 @@ func (r *resolver) resolveMatchStmt(s *MatchStmt) {
 				r.resolveStmt(stmt)
 			}
 		}
+		r.trackSlots()
 		r.scope = saved
 	}
 }
@@ -248,9 +332,7 @@ func (r *resolver) resolveExprBody(body *ExprBody) {
 			r.error(va.TokenPos, "lambda expressions cannot be stored as values")
 		}
 		r.resolveExpr(va.Value)
-		if !r.scope.isDeclared(va.Name) {
-			r.scope.vars[va.Name] = true
-		}
+		va.SlotIndex = r.scope.declareVar(va.Name)
 	}
 	r.resolveExpr(body.Result)
 }
@@ -281,6 +363,8 @@ func (r *resolver) resolveExpr(expr Expr) {
 	case *VarExpr:
 		if !r.scope.isDeclared(e.Name) {
 			r.error(e.TokenPos, "undeclared variable $"+e.Name)
+		} else if slot, ok := r.scope.lookupSlot(e.Name); ok {
+			e.SlotIndex = slot
 		}
 	case *IdentExpr:
 		if e.Namespace != "" {
@@ -290,13 +374,13 @@ func (r *resolver) resolveExpr(expr Expr) {
 				r.error(e.TokenPos, e.Namespace+"::"+e.Name+" is not a valid expression (call it with parentheses or pass to a method)")
 			}
 			r.resolveQualifiedIdent(e)
-		} else if !r.scope.isDeclared(e.Name) {
-			// Bare identifiers must resolve to a parameter or variable.
+		} else if slot, ok := r.scope.lookupSlot(e.Name); ok {
+			// Resolves to a variable or parameter — annotate with slot.
+			e.SlotIndex = slot
+		} else {
+			// Not a variable/parameter — check if it's a map or function name.
 			_, isFn := r.knownFunctions[e.Name]
 			if r.isKnownMap(e.Name) || isFn {
-				// Map/function name in expression position — only valid as
-				// method argument (higher-order). We check this in the
-				// method arg context; in all other positions it's an error.
 				if !r.inMethodArg {
 					r.error(e.TokenPos, e.Name+" is not a valid expression (call it with parentheses or pass to a method)")
 				}
@@ -366,8 +450,12 @@ func (r *resolver) resolveExpr(expr Expr) {
 				r.error(e.TokenPos, "cannot access output inside a map body")
 			}
 		}
-		if e.Root == PathRootVar && !r.scope.isDeclared(e.VarName) {
-			r.error(e.TokenPos, "undeclared variable $"+e.VarName)
+		if e.Root == PathRootVar {
+			if !r.scope.isDeclared(e.VarName) {
+				r.error(e.TokenPos, "undeclared variable $"+e.VarName)
+			} else if slot, ok := r.scope.lookupSlot(e.VarName); ok {
+				e.VarSlotIndex = slot
+			}
 		}
 		for i := range e.Segments {
 			seg := &e.Segments[i]
@@ -619,17 +707,19 @@ func (r *resolver) findMap(name string) *MapDecl {
 func (r *resolver) resolveIfExpr(e *IfExpr) {
 	for _, branch := range e.Branches {
 		r.resolveExpr(branch.Cond)
-		child := newResolveScope(r.scope)
+		child := newResolveScope(r.scope, resolveScopeExpression)
 		saved := r.scope
 		r.scope = child
 		r.resolveExprBody(branch.Body)
+		r.trackSlots()
 		r.scope = saved
 	}
 	if e.Else != nil {
-		child := newResolveScope(r.scope)
+		child := newResolveScope(r.scope, resolveScopeExpression)
 		saved := r.scope
 		r.scope = child
 		r.resolveExprBody(e.Else)
+		r.trackSlots()
 		r.scope = saved
 	}
 }
@@ -651,33 +741,42 @@ func (r *resolver) resolveMatchExpr(e *MatchExpr) {
 					}
 				}
 			}
-			child := newResolveScope(r.scope)
+			child := newResolveScope(r.scope, resolveScopeExpression)
 			if e.Binding != "" {
-				child.params[e.Binding] = true
+				slot := child.allocSlot()
+				child.params[e.Binding] = slot
+				e.BindingSlot = slot
 			}
 			saved := r.scope
 			r.scope = child
 			r.resolveExpr(c.Pattern)
+			r.trackSlots()
 			r.scope = saved
 		}
 		switch body := c.Body.(type) {
 		case Expr:
-			child := newResolveScope(r.scope)
+			child := newResolveScope(r.scope, resolveScopeExpression)
 			if e.Binding != "" {
-				child.params[e.Binding] = true
+				slot := child.allocSlot()
+				child.params[e.Binding] = slot
+				e.BindingSlot = slot
 			}
 			saved := r.scope
 			r.scope = child
 			r.resolveExpr(body)
+			r.trackSlots()
 			r.scope = saved
 		case *ExprBody:
-			child := newResolveScope(r.scope)
+			child := newResolveScope(r.scope, resolveScopeExpression)
 			if e.Binding != "" {
-				child.params[e.Binding] = true
+				slot := child.allocSlot()
+				child.params[e.Binding] = slot
+				e.BindingSlot = slot
 			}
 			saved := r.scope
 			r.scope = child
 			r.resolveExprBody(body)
+			r.trackSlots()
 			r.scope = saved
 		}
 	}
@@ -686,15 +785,17 @@ func (r *resolver) resolveMatchExpr(e *MatchExpr) {
 func (r *resolver) resolveLambda(e *LambdaExpr) {
 	r.validateParams(e.Params, e.TokenPos)
 
-	child := newResolveScope(r.scope)
-	for _, p := range e.Params {
-		if !p.Discard {
-			child.params[p.Name] = true
+	child := newResolveScope(r.scope, resolveScopeExpression)
+	for i := range e.Params {
+		if !e.Params[i].Discard {
+			e.Params[i].SlotIndex = child.allocSlot()
+			child.params[e.Params[i].Name] = e.Params[i].SlotIndex
 		}
 	}
 	saved := r.scope
 	r.scope = child
 	r.resolveExprBody(e.Body)
+	r.trackSlots()
 	r.scope = saved
 }
 
