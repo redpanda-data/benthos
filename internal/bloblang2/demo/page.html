@@ -295,7 +295,12 @@
                 for (const e of tr.effects) {
                     if (e.is(setHighlights)) return e.value;
                 }
-                return tr.docChanged ? Decoration.none : decos;
+                // Map existing decorations through document changes so they
+                // stay approximately correct until the async recompute fires.
+                // Without this, returning Decoration.none causes a visible
+                // flash of unhighlighted text on every keystroke.
+                if (tr.docChanged) return decos.map(tr.changes);
+                return decos;
             },
             provide: f => EditorView.decorations.from(f),
         });
