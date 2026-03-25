@@ -628,8 +628,6 @@ function arithError(left: Value, right: Value, op: string): Value {
   );
 }
 
-const MAX_SAFE_FLOAT64_NUM = Number(MAX_SAFE_FLOAT64);
-
 function checkedToFloat64(v: Value): number | null {
   switch (v.tag) {
     case "int64":
