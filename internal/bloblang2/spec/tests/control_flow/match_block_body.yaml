@@ -1,0 +1,223 @@
+description: >
+  Match expression block bodies — braced expression bodies with variable
+  assignments in match arms. Object literals require parentheses to
+  distinguish from block bodies.
+
+tests:
+  # --- Block body with assignments ---
+
+  - name: "block body with variable and final expression"
+    mapping: |
+      output.v = match "hello" {
+        "hello" => {
+          $greeting = "hi there"
+          $greeting
+        },
+        _ => "unknown",
+      }
+    output: {"v": "hi there"}
+
+  - name: "block body with multiple assignments"
+    mapping: |
+      output.v = match "format" {
+        "format" => {
+          $prefix = "["
+          $suffix = "]"
+          $prefix + "done" + $suffix
+        },
+        _ => "nope",
+      }
+    output: {"v": "[done]"}
+
+  - name: "block body with path assignment"
+    mapping: |
+      output.v = match "build" {
+        "build" => {
+          $result = {"action": "build"}
+          $result.status = "done"
+          $result
+        },
+        _ => ({}),
+      }
+    output: {"v": {"action": "build", "status": "done"}}
+
+  - name: "block body with dynamic key assignment"
+    mapping: |
+      output.v = match "set" {
+        "set" => {
+          $obj = {}
+          $key = "dynamic"
+          $obj[$key] = 42
+          $obj
+        },
+        _ => ({}),
+      }
+    output: {"v": {"dynamic": 42}}
+
+  # --- Object literals via parentheses ---
+
+  - name: "empty object via parentheses"
+    mapping: |
+      output.v = match "miss" {
+        "hit" => "found",
+        _ => ({}),
+      }
+    output: {"v": {}}
+
+  - name: "object literal via parentheses"
+    mapping: |
+      output.v = match "fallback" {
+        "match" => ({"status": "matched"}),
+        _ => ({"status": "default"}),
+      }
+    output: {"v": {"status": "default"}}
+
+  - name: "bare string result needs no parens"
+    mapping: |
+      output.v = match "a" {
+        "a" => "alpha",
+        _ => "other",
+      }
+    output: {"v": "alpha"}
+
+  - name: "bare expression result no block needed"
+    mapping: |
+      output.v = match 5 {
+        5 => 5 * 10,
+        _ => 0,
+      }
+    output: {"v": 50}
+
+  # --- Block body on wildcard arm ---
+
+  - name: "wildcard arm with block body"
+    mapping: |
+      output.v = match "xyz" {
+        "a" => "alpha",
+        _ => {
+          $fallback = "unknown"
+          $fallback + " value"
+        },
+      }
+    output: {"v": "unknown value"}
+
+  # --- Block body with outer variable capture ---
+
+  - name: "block body captures outer variable"
+    mapping: |
+      $multiplier = 10
+      output.v = match "scale" {
+        "scale" => {
+          $base = 5
+          $base * $multiplier
+        },
+        _ => 0,
+      }
+    output: {"v": 50}
+
+  # --- Block body with match-as binding ---
+
+  - name: "match-as block body uses bound variable"
+    mapping: |
+      output.v = match input.name as n {
+        n.length() > 5 => {
+          $short = n.slice(0, 5)
+          $short + "..."
+        },
+        _ => n,
+      }
+    input: {"name": "Alexander"}
+    output: {"v": "Alexa..."}
+
+  - name: "match-as block body short name passthrough"
+    mapping: |
+      output.v = match input.name as n {
+        n.length() > 5 => {
+          $short = n.slice(0, 5)
+          $short + "..."
+        },
+        _ => n,
+      }
+    input: {"name": "Bob"}
+    output: {"v": "Bob"}
+
+  # --- Block body returning deleted ---
+
+  - name: "block body returning deleted removes field"
+    mapping: |
+      output.keep = "yes"
+      output.maybe = match "remove" {
+        "remove" => {
+          $check = true
+          if $check { deleted() } else { "kept" }
+        },
+        _ => "default",
+      }
+    output: {"keep": "yes"}
+
+  # --- Block body with void from if-without-else ---
+
+  - name: "block body with void skips assignment"
+    mapping: |
+      output.v = "prior"
+      output.v = match "miss" {
+        "miss" => {
+          $x = 42
+          if false { $x }
+        },
+        _ => "fallback",
+      }
+    output: {"v": "prior"}
+
+  # --- Nested match with block bodies ---
+
+  - name: "nested match both with block bodies"
+    mapping: |
+      output.v = match input.type {
+        "user" => {
+          $role = match input.role {
+            "admin" => {
+              $level = "full"
+              $level + " access"
+            },
+            _ => "limited",
+          }
+          $role
+        },
+        _ => "unknown",
+      }
+    input: {"type": "user", "role": "admin"}
+    output: {"v": "full access"}
+
+  # --- Block body in boolean match ---
+
+  - name: "boolean match with block body"
+    mapping: |
+      output.v = match {
+        input.score > 90 => {
+          $grade = "A"
+          $grade + "+"
+        },
+        input.score > 80 => "B",
+        _ => "C",
+      }
+    input: {"score": 95}
+    output: {"v": "A+"}
+
+  # --- Multiple arms with block bodies ---
+
+  - name: "multiple arms all with block bodies"
+    mapping: |
+      output.v = match input.op {
+        "add" => {
+          $result = input.a + input.b
+          {"op": "add", "result": $result}
+        },
+        "mul" => {
+          $result = input.a * input.b
+          {"op": "mul", "result": $result}
+        },
+        _ => ({"op": "unknown", "result": 0}),
+      }
+    input: {"op": "mul", "a": 3, "b": 4}
+    output: {"v": {"op": "mul", "result": 12}}
