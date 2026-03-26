@@ -233,18 +233,19 @@ func (interp *Interpreter) Exec(input any, metadata map[string]any) (output any,
 	if interp.scope == nil {
 		interp.scope = newScope(nil, scopeStatement)
 	}
-	// Allocate variable stack only if the resolver assigned slot indices.
-	// MaxSlots > 0 indicates the resolver ran with slot assignment enabled.
+	// Allocate or reuse variable stack. MaxSlots > 0 means the resolver
+	// assigned slot indices.
 	if interp.prog.MaxSlots > 0 {
 		interp.frameBase = 0
 		interp.stackTop = interp.prog.MaxSlots
-		cap := interp.prog.MaxSlots * 4
-		if cap < 32 {
-			cap = 32
+		if interp.stack == nil {
+			cap := interp.prog.MaxSlots * 4
+			if cap < 32 {
+				cap = 32
+			}
+			interp.stack = make([]any, cap)
 		}
-		interp.stack = make([]any, cap)
-		// Only fill the initial frame with sentinels. The rest is filled
-		// lazily by ensureStack when map calls push new frames.
+		// Reset the initial frame with sentinels.
 		for i := 0; i < interp.prog.MaxSlots && i < len(interp.stack); i++ {
 			interp.stack[i] = uninitialized
 		}

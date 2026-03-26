@@ -375,10 +375,12 @@ func (r *resolver) resolveExpr(expr Expr) {
 		if r.inMap {
 			r.error(e.TokenPos, "cannot access output inside a map body")
 		}
+		r.prog.ReadsOutput = true
 	case *OutputMetaExpr:
 		if r.inMap {
 			r.error(e.TokenPos, "cannot access output inside a map body")
 		}
+		r.prog.ReadsOutput = true
 	case *VarExpr:
 		if !r.scope.isDeclared(e.Name) {
 			r.error(e.TokenPos, "undeclared variable $"+e.Name)
@@ -468,6 +470,9 @@ func (r *resolver) resolveExpr(expr Expr) {
 			case PathRootOutput, PathRootOutputMeta:
 				r.error(e.TokenPos, "cannot access output inside a map body")
 			}
+		}
+		if e.Root == PathRootOutput || e.Root == PathRootOutputMeta {
+			r.prog.ReadsOutput = true
 		}
 		if e.Root == PathRootVar {
 			if !r.scope.isDeclared(e.VarName) {
