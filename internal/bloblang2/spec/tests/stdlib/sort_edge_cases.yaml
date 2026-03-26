@@ -1,0 +1,153 @@
+description: >
+  Sort edge cases — stable sort, mixed numeric families error, NaN total
+  ordering, sort_by with complex keys, and sort with various types.
+
+tests:
+  # --- Basic stable sort ---
+
+  - name: "sort integers ascending"
+    mapping: |
+      output.v = [3, 1, 4, 1, 5, 9, 2, 6].sort()
+    output: {"v": [1, 1, 2, 3, 4, 5, 6, 9]}
+
+  - name: "sort already sorted"
+    mapping: |
+      output.v = [1, 2, 3].sort()
+    output: {"v": [1, 2, 3]}
+
+  - name: "sort reverse sorted"
+    mapping: |
+      output.v = [3, 2, 1].sort()
+    output: {"v": [1, 2, 3]}
+
+  - name: "sort single element"
+    mapping: |
+      output.v = [42].sort()
+    output: {"v": [42]}
+
+  - name: "sort empty array"
+    mapping: |
+      output.v = [].sort()
+    output: {"v": []}
+
+  - name: "sort strings lexicographic"
+    mapping: |
+      output.v = ["banana", "apple", "cherry", "date"].sort()
+    output: {"v": ["apple", "banana", "cherry", "date"]}
+
+  - name: "sort floats"
+    mapping: |
+      output.v = [3.14, 1.41, 2.72].sort()
+    output: {"v": [1.41, 2.72, 3.14]}
+
+  # --- Mixed numeric types within same family ---
+
+  - name: "sort mixed int32 and int64"
+    mapping: |
+      output.v = [3, 1.int32(), 2].sort()
+    output: {"v": [{_type: "int32", value: "1"}, 2, 3]}
+
+  # --- Mixed type families error ---
+
+  - name: "sort mixed strings and integers errors"
+    mapping: |
+      output.v = ["a", 1, "b"].sort()
+    error: "sort"
+
+  - name: "sort mixed booleans and integers errors"
+    mapping: |
+      output.v = [true, 1, false].sort()
+    error: "sort"
+
+  # --- NaN in sort (total ordering: after all numbers) ---
+
+  - name: "NaN sorts after positive infinity"
+    mapping: |
+      output.v = input.arr.sort()
+    input: {"arr": [{_type: "float64", value: "NaN"}, {_type: "float64", value: "Infinity"}, 1.0]}
+    output: {"v": [1.0, {_type: "float64", value: "Infinity"}, {_type: "float64", value: "NaN"}]}
+
+  - name: "negative infinity sorts before all"
+    mapping: |
+      output.v = input.arr.sort()
+    input: {"arr": [0.0, {_type: "float64", value: "-Infinity"}, 1.0]}
+    output: {"v": [{_type: "float64", value: "-Infinity"}, 0.0, 1.0]}
+
+  # --- sort_by ---
+
+  - name: "sort_by numeric field"
+    mapping: |
+      output.v = [
+        {"name": "Charlie", "age": 30},
+        {"name": "Alice", "age": 25},
+        {"name": "Bob", "age": 35},
+      ].sort_by(x -> x.age)
+    output:
+      v:
+        - name: "Alice"
+          age: 25
+        - name: "Charlie"
+          age: 30
+        - name: "Bob"
+          age: 35
+
+  - name: "sort_by string field"
+    mapping: |
+      output.v = [
+        {"name": "Charlie"},
+        {"name": "Alice"},
+        {"name": "Bob"},
+      ].sort_by(x -> x.name)
+    output:
+      v:
+        - name: "Alice"
+        - name: "Bob"
+        - name: "Charlie"
+
+  - name: "sort_by computed key"
+    mapping: |
+      output.v = ["banana", "fig", "apple", "kiwi"].sort_by(s -> s.length())
+    output: {"v": ["fig", "kiwi", "apple", "banana"]}
+
+  - name: "sort_by with block body and local variables"
+    mapping: |
+      output.v = [
+        {"first": "John", "last": "Doe"},
+        {"first": "Jane", "last": "Abc"},
+        {"first": "Bob", "last": "Xyz"},
+      ].sort_by(p -> {
+        $key = p.last + ", " + p.first
+        $key
+      })
+    output:
+      v:
+        - first: "Jane"
+          last: "Abc"
+        - first: "John"
+          last: "Doe"
+        - first: "Bob"
+          last: "Xyz"
+
+  - name: "sort_by with outer variable capture"
+    mapping: |
+      $field = "age"
+      output.v = [
+        {"name": "B", "age": 20},
+        {"name": "A", "age": 10},
+      ].sort_by(x -> x[$field])
+    output:
+      v:
+        - name: "A"
+          age: 10
+        - name: "B"
+          age: 20
+
+  # --- sort does not modify original ---
+
+  - name: "sort returns new array"
+    mapping: |
+      $arr = [3, 1, 2]
+      $sorted = $arr.sort()
+      output.original = $arr
+      output.sorted = $sorted
+    output: {"original": [3, 1, 2], "sorted": [1, 2, 3]}
