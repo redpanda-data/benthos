@@ -71,9 +71,9 @@ func (interp *Interpreter) evalBinaryOp(op syntax.TokenType, left, right any) an
 	case syntax.PERCENT:
 		return evalModulo(left, right)
 	case syntax.EQ:
-		return valuesEqual(left, right)
+		return evalEquality(left, right, false)
 	case syntax.NE:
-		return !valuesEqual(left, right)
+		return evalEquality(left, right, true)
 	case syntax.GT:
 		return evalCompare(left, right, ">")
 	case syntax.GE:
@@ -96,9 +96,13 @@ func valuesEqual(a, b any) bool {
 		return false
 	}
 
-	// Numeric equality with promotion.
+	// Numeric equality with promotion (non-error path for internal use).
 	if isNumeric(a) && isNumeric(b) {
-		return numericEqual(a, b)
+		r := numericEqualChecked(a, b, false)
+		if IsError(r) {
+			return false // promotion failed — treat as unequal for internal callers
+		}
+		return r.(bool)
 	}
 
 	// Timestamp equality.
@@ -171,71 +175,124 @@ func isNumeric(v any) bool {
 	}
 }
 
-func numericEqual(a, b any) bool {
+// evalEquality returns a bool (or an error if numeric promotion fails).
+// When negate is true the sense is inverted (!=).
+func evalEquality(a, b any, negate bool) any {
+	if a == nil && b == nil {
+		return !negate
+	}
+	if a == nil || b == nil {
+		return negate
+	}
+
+	// Numeric equality with checked promotion.
+	if isNumeric(a) && isNumeric(b) {
+		return numericEqualChecked(a, b, negate)
+	}
+
+	eq := valuesEqual(a, b)
+	if negate {
+		return !eq
+	}
+	return eq
+}
+
+// numericEqualChecked compares two numeric values, returning an error if
+// checked promotion fails (matching the behaviour of comparison operators).
+func numericEqualChecked(a, b any, negate bool) any {
 	// Same type: compare directly (no promotion, no precision loss).
 	switch av := a.(type) {
 	case int64:
 		if bv, ok := b.(int64); ok {
-			return av == bv
+			r := av == bv
+			if negate {
+				return !r
+			}
+			return r
 		}
 	case int32:
 		if bv, ok := b.(int32); ok {
-			return av == bv
+			r := av == bv
+			if negate {
+				return !r
+			}
+			return r
 		}
 	case uint32:
 		if bv, ok := b.(uint32); ok {
-			return av == bv
+			r := av == bv
+			if negate {
+				return !r
+			}
+			return r
 		}
 	case uint64:
 		if bv, ok := b.(uint64); ok {
-			return av == bv
+			r := av == bv
+			if negate {
+				return !r
+			}
+			return r
 		}
 	case float64:
 		if bv, ok := b.(float64); ok {
 			if math.IsNaN(av) || math.IsNaN(bv) {
-				return false
+				return negate // NaN != NaN is true, NaN == NaN is false
 			}
-			return av == bv
+			r := av == bv
+			if negate {
+				return !r
+			}
+			return r
 		}
 	case float32:
 		if bv, ok := b.(float32); ok {
 			if math.IsNaN(float64(av)) || math.IsNaN(float64(bv)) {
-				return false
+				return negate
 			}
-			return av == bv
+			r := av == bv
+			if negate {
+				return !r
+			}
+			return r
 		}
 	}
 
 	// Different numeric types: use checked promotion to a common type.
-	pl, pr, kind, _ := promoteChecked(a, b)
-	if kind == promoteError {
-		return false // promotion failed — values cannot be equal
+	pl, pr, kind, promErr := promoteChecked(a, b)
+	if promErr != "" {
+		return NewError(promErr)
 	}
 
+	var eq bool
 	switch kind {
 	case promoteInt64:
-		return pl.(int64) == pr.(int64)
+		eq = pl.(int64) == pr.(int64)
 	case promoteInt32:
-		return pl.(int32) == pr.(int32)
+		eq = pl.(int32) == pr.(int32)
 	case promoteUint32:
-		return pl.(uint32) == pr.(uint32)
+		eq = pl.(uint32) == pr.(uint32)
 	case promoteUint64:
-		return pl.(uint64) == pr.(uint64)
+		eq = pl.(uint64) == pr.(uint64)
 	case promoteFloat64:
 		af, bf := pl.(float64), pr.(float64)
 		if math.IsNaN(af) || math.IsNaN(bf) {
-			return false
+			return negate
 		}
-		return af == bf
+		eq = af == bf
 	case promoteFloat32:
 		af, bf := pl.(float32), pr.(float32)
 		if math.IsNaN(float64(af)) || math.IsNaN(float64(bf)) {
-			return false
+			return negate
 		}
-		return af == bf
+		eq = af == bf
 	default:
-		return false
+		return negate // different families: EQ=false, NE=true
 	}
+	if negate {
+		return !eq
+	}
+	return eq
 }
 
 func toFloat64(v any) float64 {
@@ -364,11 +421,17 @@ func evalModulo(left, right any) any {
 		if b == 0 {
 			return NewError("modulo by zero")
 		}
+		if a == math.MinInt64 && b == -1 {
+			return NewError("int64 overflow")
+		}
 		return a % b
 	case promoteInt32:
 		a, b := pl.(int32), pr.(int32)
 		if b == 0 {
 			return NewError("modulo by zero")
+		}
+		if a == math.MinInt32 && b == -1 {
+			return NewError("int32 overflow")
 		}
 		return a % b
 	case promoteUint32:

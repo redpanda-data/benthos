@@ -357,7 +357,17 @@ func (r *resolver) resolveExprBody(body *ExprBody) {
 				r.resolveExpr(seg.Index)
 			}
 		}
-		va.SlotIndex = r.scope.declareVar(va.Name)
+		if len(va.Path) > 0 {
+			// Path assignment (e.g., $acc[$key] = val) mutates an existing
+			// variable — look it up rather than declaring/shadowing.
+			if slot, ok := r.scope.lookupSlot(va.Name); ok {
+				va.SlotIndex = slot
+			} else {
+				r.error(va.TokenPos, "undeclared variable $"+va.Name)
+			}
+		} else {
+			va.SlotIndex = r.scope.declareVar(va.Name)
+		}
 	}
 	r.resolveExpr(body.Result)
 }
