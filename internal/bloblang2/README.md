@@ -149,30 +149,6 @@ Evaluation for predict-output compares JSON outputs directly. Evaluation for pre
 
 Run `task specagent -- <subcommand> --help` for all available flags (model selection, mode filtering, max turns, etc.).
 
-### Results
-
-The first run of specagent against the full verbose spec gave these results:
-
-+----------------+----------------------+----------------------+
-| Category       | predict_output       | predict_mapping      |
-+----------------+----------------------+----------------------+
-| access         | 100.0% (85/85)       |  98.8% (84/85)       |
-| case_studies   |  80.0% (8/10)        |  10.0% (1/10)        |
-| control_flow   |  99.3% (140/141)     |  87.9% (124/141)     |
-| edge_cases     | 100.0% (114/114)     |  85.1% (97/114)      |
-| error_handling |  97.5% (77/79)       |  98.7% (78/79)       |
-| input_output   |  89.0% (121/136)     | 100.0% (136/136)     |
-| lambdas        | 100.0% (93/93)       |  89.2% (83/93)       |
-| maps           |  97.5% (118/121)     |  90.9% (110/121)     |
-| operators      |  99.1% (223/225)     |  99.1% (223/225)     |
-| optimizations  | 100.0% (82/82)       |  90.2% (74/82)       |
-| stdlib         |  99.1% (640/646)     |  51.4% (332/646)     |
-| types          |  98.0% (296/302)     |  99.0% (299/302)     |
-| variables      |  99.2% (125/126)     |  97.6% (123/126)     |
-+----------------+----------------------+----------------------+
-| TOTAL          |  98.2% (2122/2160)   |  81.7% (1764/2160)   |
-+----------------+----------------------+----------------------+
-
 ## Building & Testing
 
 All build and test tasks are managed via [go-task](https://taskfile.dev) from the `bloblang2/` directory. Run `task --list` for the full list. Key tasks:
