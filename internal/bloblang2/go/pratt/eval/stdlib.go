@@ -24,9 +24,10 @@ import (
 // sharedMethods and sharedFunctions hold the static (non-lambda) stdlib
 // entries. They are built once and shared read-only across all interpreters.
 var (
-	sharedMethods   map[string]MethodSpec
-	sharedFunctions map[string]FunctionSpec
-	stdlibOnce      sync.Once
+	sharedMethods       map[string]MethodSpec
+	sharedFunctions     map[string]FunctionSpec
+	sharedLambdaSpecs   map[string]MethodSpec // lambda method specs (for MethodInfos)
+	stdlibOnce          sync.Once
 )
 
 func initSharedStdlib() {
@@ -59,7 +60,9 @@ func initSharedStdlib() {
 		lambdaOpcodeBase = nextMethodOpcode
 		tmpInterp := New(nil)
 		tmpInterp.RegisterLambdaMethods()
-		for name := range tmpInterp.lambdaMethods {
+		sharedLambdaSpecs = make(map[string]MethodSpec, len(tmpInterp.lambdaMethods))
+		for name, spec := range tmpInterp.lambdaMethods {
+			sharedLambdaSpecs[name] = spec
 			registerLambdaMethodOpcode(name)
 		}
 	})
@@ -119,12 +122,32 @@ func (interp *Interpreter) FunctionInfos() map[string]syntax.FunctionInfo {
 	return infos
 }
 
-// StdlibNames creates a temporary interpreter with stdlib registered and
-// returns the method and function info maps. Used by the resolver for
-// compile-time name validation and arity checking.
+// StdlibNames returns compile-time method and function metadata from the
+// global opcode tables. Used by the resolver for name validation and arity checking.
 func StdlibNames() (methods map[string]syntax.MethodInfo, functions map[string]syntax.FunctionInfo) {
-	interp := NewWithStdlib(nil)
-	return interp.MethodInfos(), interp.FunctionInfos()
+	methods = make(map[string]syntax.MethodInfo, len(methodNameToOpcode))
+	for name, opcode := range methodNameToOpcode {
+		var spec MethodSpec
+		if opcode >= lambdaOpcodeBase {
+			spec = sharedLambdaSpecs[name]
+		} else {
+			spec = methodTable[opcode]
+		}
+		methods[name] = methodSpecToInfo(spec)
+	}
+	functions = make(map[string]syntax.FunctionInfo, len(functionNameToOpcode))
+	for name, opcode := range functionNameToOpcode {
+		spec := functionTable[opcode]
+		required, total := 0, 0
+		for _, p := range spec.Params {
+			total++
+			if !p.HasDefault {
+				required++
+			}
+		}
+		functions[name] = syntax.FunctionInfo{Required: required, Total: total}
+	}
+	return
 }
 
 func (interp *Interpreter) registerFunctions() {
