@@ -45,11 +45,10 @@ func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any
 	if lambda == nil {
 		return NewError("filter() requires a lambda argument")
 	}
-	var s *scope
 	var argBuf [1]any
 	var result []any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambdaWithScope(lambda, argBuf[:], s)
+		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -79,11 +78,10 @@ func (interp *Interpreter) methodMap(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("map() requires a lambda argument")
 	}
-	var s *scope
 	var argBuf [1]any
 	var result []any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambdaWithScope(lambda, argBuf[:], s)
+		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -145,11 +143,10 @@ func (interp *Interpreter) methodSortBy(receiver any, args []syntax.CallArg) any
 	}
 
 	// Extract keys.
-	var s *scope
 	var argBuf [1]any
 	keys := make([]any, len(arr))
 	for i, elem := range arr {
-		argBuf[0] = elem; key := interp.callLambdaWithScope(lambda, argBuf[:], s)
+		argBuf[0] = elem; key := interp.callLambda(lambda, argBuf[:])
 		if IsError(key) {
 			return key
 		}
@@ -193,10 +190,9 @@ func (interp *Interpreter) methodAny(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("any() requires a lambda argument")
 	}
-	var s *scope
 	var argBuf [1]any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambdaWithScope(lambda, argBuf[:], s)
+		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -223,10 +219,9 @@ func (interp *Interpreter) methodAll(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("all() requires a lambda argument")
 	}
-	var s *scope
 	var argBuf [1]any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambdaWithScope(lambda, argBuf[:], s)
+		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -253,10 +248,9 @@ func (interp *Interpreter) methodFind(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("find() requires a lambda argument")
 	}
-	var s *scope
 	var argBuf [1]any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambdaWithScope(lambda, argBuf[:], s)
+		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -291,11 +285,10 @@ func (interp *Interpreter) methodFold(receiver any, args []syntax.CallArg) any {
 		return NewError("fold() second argument must be a lambda")
 	}
 
-	var s *scope
 	var argBuf2 [2]any
 	tally := initial
 	for _, elem := range arr {
-		argBuf2[0] = tally; argBuf2[1] = elem; tally = interp.callLambdaWithScope(lambda, argBuf2[:], s)
+		argBuf2[0] = tally; argBuf2[1] = elem; tally = interp.callLambda(lambda, argBuf2[:])
 		if IsError(tally) {
 			return tally
 		}
@@ -336,13 +329,12 @@ func (interp *Interpreter) methodUnique(receiver any, args []syntax.CallArg) any
 		return false
 	}
 
-	var s *scope
 	var argBuf [1]any
 	var result []any
 	for _, elem := range arr {
 		var key any
 		if keyFn != nil {
-			argBuf[0] = elem; key = interp.callLambdaWithScope(keyFn, argBuf[:], s)
+			argBuf[0] = elem; key = interp.callLambda(keyFn, argBuf[:])
 			if IsError(key) {
 				return key
 			}
@@ -531,11 +523,10 @@ func (interp *Interpreter) methodMapValues(receiver any, args []syntax.CallArg) 
 	if lambda == nil {
 		return NewError("map_values() requires a lambda argument")
 	}
-	var s *scope
 	var argBuf [1]any
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		argBuf[0] = v; val := interp.callLambdaWithScope(lambda, argBuf[:], s)
+		argBuf[0] = v; val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -559,11 +550,10 @@ func (interp *Interpreter) methodMapKeys(receiver any, args []syntax.CallArg) an
 	if lambda == nil {
 		return NewError("map_keys() requires a lambda argument")
 	}
-	var s *scope
 	var argBuf [1]any
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		argBuf[0] = k; newKey := interp.callLambdaWithScope(lambda, argBuf[:], s)
+		argBuf[0] = k; newKey := interp.callLambda(lambda, argBuf[:])
 		if IsError(newKey) {
 			return newKey
 		}
@@ -591,11 +581,10 @@ func (interp *Interpreter) methodMapEntries(receiver any, args []syntax.CallArg)
 	if lambda == nil {
 		return NewError("map_entries() requires a lambda argument")
 	}
-	var s *scope
 	var argBuf2 [2]any
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		argBuf2[0] = k; argBuf2[1] = v; entry := interp.callLambdaWithScope(lambda, argBuf2[:], s)
+		argBuf2[0] = k; argBuf2[1] = v; entry := interp.callLambda(lambda, argBuf2[:])
 		if IsError(entry) {
 			return entry
 		}
@@ -631,11 +620,10 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 	if lambda == nil {
 		return NewError("filter_entries() requires a lambda argument")
 	}
-	var s *scope
 	var argBuf2 [2]any
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		argBuf2[0] = k; argBuf2[1] = v; val := interp.callLambdaWithScope(lambda, argBuf2[:], s)
+		argBuf2[0] = k; argBuf2[1] = v; val := interp.callLambda(lambda, argBuf2[:])
 		if IsError(val) {
 			return val
 		}
