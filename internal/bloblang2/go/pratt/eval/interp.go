@@ -95,12 +95,9 @@ type FunctionParam struct {
 // New creates a new interpreter for the given program.
 func New(prog *syntax.Program) *Interpreter {
 	interp := &Interpreter{
-		prog:            prog,
-		maps:            make(map[string]*syntax.MapDecl),
-		namespaces:      make(map[string]map[string]*syntax.MapDecl),
-		staticMethods:   make(map[string]MethodSpec),
-		staticFunctions: make(map[string]FunctionSpec),
-		lambdaMethods:   make(map[string]MethodSpec, 16),
+		prog:       prog,
+		maps:       make(map[string]*syntax.MapDecl),
+		namespaces: make(map[string]map[string]*syntax.MapDecl),
 	}
 
 	if prog != nil {
@@ -154,11 +151,17 @@ func NewWithStdlib(prog *syntax.Program) *Interpreter {
 
 // RegisterMethod registers a stdlib method with its behavioral metadata.
 func (interp *Interpreter) RegisterMethod(name string, spec MethodSpec) {
+	if interp.staticMethods == nil {
+		interp.staticMethods = make(map[string]MethodSpec)
+	}
 	interp.staticMethods[name] = spec
 }
 
 // RegisterFunction registers a stdlib function with its behavioral metadata.
 func (interp *Interpreter) RegisterFunction(name string, spec FunctionSpec) {
+	if interp.staticFunctions == nil {
+		interp.staticFunctions = make(map[string]FunctionSpec)
+	}
 	interp.staticFunctions[name] = spec
 }
 
@@ -205,7 +208,10 @@ func (interp *Interpreter) stackIsDeclared(slot int) bool {
 	return !uninit
 }
 
-// ensureStack grows the stack if needed, filling new slots with uninitialized.
+// ensureStack ensures the stack can accommodate slots up to index `needed-1`,
+// filling the current frame region [frameBase, needed) with the uninitialized
+// sentinel. Slots beyond `needed` are left zero-initialized — callers MUST NOT
+// access slots beyond the value passed to ensureStack without calling it again.
 func (interp *Interpreter) ensureStack(needed int) {
 	if needed <= len(interp.stack) {
 		// Fill the new frame region with sentinels.
@@ -232,6 +238,8 @@ func (interp *Interpreter) Exec(input any, metadata map[string]any) (output any,
 	interp.depth = 0
 	if interp.scope == nil {
 		interp.scope = newScope(nil, scopeStatement)
+	} else {
+		clear(interp.scope.vars)
 	}
 	// Allocate or reuse variable stack. MaxSlots > 0 means the resolver
 	// assigned slot indices.
@@ -769,16 +777,11 @@ func (interp *Interpreter) evalOr(e *syntax.MethodCallExpr) any {
 	return interp.evalExpr(e.Args[0].Value)
 }
 
+// callLambda executes a lambda expression with the given arguments.
+// Uses stack-based parameter binding when slot indices are available
+// (fast path), otherwise falls back to scope-based binding.
 func (interp *Interpreter) callLambda(lambda *syntax.LambdaExpr, args []any) any {
-	return interp.callLambdaWithScope(lambda, args, nil)
-}
-
-// callLambdaWithScope executes a lambda using a pre-allocated scope. The scope's
-// vars map is cleared and repopulated with the lambda parameters. This allows
-// iterator methods (map, filter, etc.) to reuse a single scope across iterations.
-func (interp *Interpreter) callLambdaWithScope(lambda *syntax.LambdaExpr, args []any, lambdaScope *scope) any {
 	// Fast path: bind parameters via stack when slot indices are available.
-	// Check first non-discard param for slot assignment.
 	useStack := false
 	for _, p := range lambda.Params {
 		if !p.Discard {
@@ -801,11 +804,7 @@ func (interp *Interpreter) callLambdaWithScope(lambda *syntax.LambdaExpr, args [
 	}
 
 	// Fallback: scope-based parameter binding.
-	if lambdaScope == nil {
-		lambdaScope = newScope(interp.scope, scopeExpression)
-	}
-	clear(lambdaScope.vars)
-
+	lambdaScope := newScope(interp.scope, scopeExpression)
 	for i, p := range lambda.Params {
 		if p.Discard {
 			continue

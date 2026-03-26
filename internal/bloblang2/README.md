@@ -26,8 +26,8 @@ A Pratt-parser-based compiler and tree-walking interpreter in `go/pratt/`. The c
 
 1. **Parse** — `syntax.Parse()` produces an AST
 2. **Optimize** — `syntax.Optimize()` does path collapse, constant folding, dead code elimination
-3. **Resolve** — `syntax.Resolve()` performs semantic checks (name resolution, arity validation)
-4. **Execute** — `eval.New()` + `interp.Run()` tree-walks the AST
+3. **Resolve** — `syntax.Resolve()` performs semantic checks (name resolution, arity validation) and annotates AST nodes with opcode IDs and variable stack slot indices
+4. **Execute** — `eval.NewWithStdlib()` + `interp.Run()` tree-walks the AST using opcode dispatch and stack-based variable access
 
 The `go/spectest/` package provides a reusable test runner. Any implementation that satisfies the `spectest.Interpreter` interface can be validated against the full spec test suite. The top-level `bloblang2_test.go` does exactly this for the Go implementation:
 
@@ -95,6 +95,32 @@ A local web playground that lets you write Bloblang V2 mappings with tree-sitter
 ```sh
 task demo
 # Builds demo assets then opens http://localhost:4195 in your browser
+```
+
+## Performance
+
+The Go implementation is benchmarked against Bloblang V1 using two non-trivial case studies (Stripe invoice normalization and GitHub webhook processing). V2 is faster than V1 on both, with lower memory usage and fewer allocations:
+
+| | V2 | V1 | V2 vs V1 |
+|---|---|---|---|
+| Stripe (ns/op) | 8,483 | 9,620 | 12% faster |
+| Stripe (B/op) | 5,112 | 7,528 | 32% less memory |
+| Stripe (allocs/op) | 96 | 128 | 25% fewer |
+| GitHub (ns/op) | 11,283 | 13,568 | 17% faster |
+| GitHub (B/op) | 6,643 | 7,227 | 8% less memory |
+| GitHub (allocs/op) | 155 | 189 | 18% fewer |
+
+Key optimizations in the Go interpreter:
+
+- **Opcode dispatch** — stdlib methods and functions are assigned compile-time integer IDs by the resolver. The interpreter dispatches via slice index instead of map lookup.
+- **Variable stack** — the resolver assigns stack slot indices to all variables and parameters. The interpreter uses a flat `[]any` stack with frame-based indexing instead of a linked scope chain.
+- **Interpreter reuse** — compiled mappings reuse the interpreter and its stack across executions.
+- **Zero-alloc iterator args** — lambda arguments in iterator methods (map, filter, etc.) use stack-allocated buffers instead of heap-allocated slices.
+
+Run the benchmarks with `task test:go` or directly:
+
+```sh
+go test ./... -bench=. -benchtime=3s -run='^$'
 ```
 
 ## Building & Testing
