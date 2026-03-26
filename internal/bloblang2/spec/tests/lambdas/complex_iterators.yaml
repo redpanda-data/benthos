@@ -91,6 +91,18 @@ tests:
       )
     output: {"v": "a,b,c"}
 
+  - name: "fold builds object from array"
+    mapping: |
+      output.v = [
+        {"k": "a", "v": 1},
+        {"k": "b", "v": 2},
+      ].fold({}, (acc, item) -> {
+        $acc = acc
+        $acc[item.k] = item.v
+        $acc
+      })
+    output: {"v": {"a": 1, "b": 2}}
+
   - name: "fold with string accumulator"
     mapping: |
       output.v = ["hello", "world"].fold("", (acc, s) ->

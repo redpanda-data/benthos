@@ -351,6 +351,12 @@ func (r *resolver) resolveExprBody(body *ExprBody) {
 			r.error(va.TokenPos, "lambda expressions cannot be stored as values")
 		}
 		r.resolveExpr(va.Value)
+		// Resolve expressions inside path segments (e.g., $acc[item.k] = ...).
+		for _, seg := range va.Path {
+			if seg.Index != nil {
+				r.resolveExpr(seg.Index)
+			}
+		}
 		va.SlotIndex = r.scope.declareVar(va.Name)
 	}
 	r.resolveExpr(body.Result)
