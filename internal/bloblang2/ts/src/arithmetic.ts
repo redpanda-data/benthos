@@ -31,6 +31,7 @@ import {
   typeName,
   valuesEqual,
   promoteWithError,
+  promoteChecked,
   MAX_INT64,
   MIN_INT64,
   MAX_INT32,
@@ -113,9 +114,9 @@ export function evalBinaryOp(op: TokenType, left: Value, right: Value): Value {
     case TokenType.PERCENT:
       return evalModulo(left, right);
     case TokenType.EQ:
-      return mkBool(valuesEqual(left, right));
+      return evalEquality(left, right, false);
     case TokenType.NE:
-      return mkBool(!valuesEqual(left, right));
+      return evalEquality(left, right, true);
     case TokenType.GT:
       return evalCompare(left, right, ">");
     case TokenType.GE:
@@ -158,6 +159,67 @@ export function numericNegate(v: Value): Value {
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Equality with checked numeric promotion. Returns an error Value when
+ * cross-type numeric promotion fails (e.g., int64 > 2^53 vs float).
+ */
+function evalEquality(a: Value, b: Value, negate: boolean): Value {
+  if (isNull(a) && isNull(b)) return mkBool(!negate);
+  if (isNull(a) || isNull(b)) return mkBool(negate);
+
+  // Numeric equality with checked promotion.
+  if (isNumeric(a) && isNumeric(b)) {
+    // Same tag: direct compare (no promotion needed).
+    if (a.tag === b.tag) {
+      let eq: boolean;
+      switch (a.tag) {
+        case "float64":
+          eq = !isNaN(a.value) && !isNaN((b as { tag: "float64"; value: number }).value) && a.value === (b as { tag: "float64"; value: number }).value;
+          break;
+        case "float32":
+          eq = !isNaN(a.value) && !isNaN((b as { tag: "float32"; value: number }).value) && a.value === (b as { tag: "float32"; value: number }).value;
+          break;
+        default:
+          eq = (a as { value: unknown }).value === (b as { value: unknown }).value;
+      }
+      return mkBool(negate ? !eq : eq);
+    }
+
+    // Different numeric types: checked promotion (can error).
+    const result = promoteWithError(a, b);
+    if ("error" in result) return mkError(result.error);
+    const [pa, pb, kind] = result.promoted;
+
+    let eq: boolean;
+    switch (kind) {
+      case "int64":
+        eq = (pa as { value: bigint }).value === (pb as { value: bigint }).value;
+        break;
+      case "int32":
+      case "uint32":
+        eq = (pa as { value: number }).value === (pb as { value: number }).value;
+        break;
+      case "uint64":
+        eq = (pa as { value: bigint }).value === (pb as { value: bigint }).value;
+        break;
+      case "float64":
+      case "float32": {
+        const af = (pa as { value: number }).value;
+        const bf = (pb as { value: number }).value;
+        eq = !isNaN(af) && !isNaN(bf) && af === bf;
+        break;
+      }
+      default:
+        eq = false;
+    }
+    return mkBool(negate ? !eq : eq);
+  }
+
+  // Non-numeric: use existing valuesEqual (no promotion errors possible).
+  const eq = valuesEqual(a, b);
+  return mkBool(negate ? !eq : eq);
+}
 
 function evalAdd(left: Value, right: Value): Value {
   // String concatenation.
@@ -280,12 +342,14 @@ function evalModulo(left: Value, right: Value): Value {
       const a = (pl as { tag: "int64"; value: bigint }).value;
       const b = (pr as { tag: "int64"; value: bigint }).value;
       if (b === 0n) return mkError("modulo by zero");
+      if (a === MIN_INT64 && b === -1n) return mkError("int64 overflow");
       return mkInt64(a % b);
     }
     case "int32": {
       const a = (pl as { tag: "int32"; value: number }).value;
       const b = (pr as { tag: "int32"; value: number }).value;
       if (b === 0) return mkError("modulo by zero");
+      if (a === MIN_INT32 && b === -1) return mkError("int32 overflow");
       return mkInt32(a % b);
     }
     case "uint32": {
@@ -455,7 +519,7 @@ function checkedUint32Arith(a: number, b: number, op: string): Value {
     case "*": {
       if (a !== 0 && b !== 0) {
         const result = a * b;
-        if (Math.trunc(result / a) !== b) {
+        if (result > MAX_UINT32) {
           return mkError("uint32 overflow");
         }
         return mkUint32(result);

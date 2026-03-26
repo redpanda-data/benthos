@@ -308,8 +308,13 @@ export function registerFunctions(interp: Interpreter): void {
           // The local time in the tz is utcDate + offset. We want the UTC time
           // such that utc + offset = desired local time. So utc = local - offset.
           date = new Date(utcDate.getTime() - offsetMs);
+          const tzOffsetMinutes = Math.round(offsetMs / 60000);
 
           void isoStr; // suppress unused warning
+
+          const ms = BigInt(date.getTime());
+          const nanos = ms * 1000000n + nano;
+          return mkTimestamp(nanos, tzOffsetMinutes);
         } catch {
           return mkError("timestamp(): unknown timezone " + tz);
         }

@@ -180,7 +180,7 @@ function sortedJSONValue(v: Value): unknown {
   if (isFloat32(v)) return v.value;
   if (isFloat64(v)) return v.value;
   if (isString(v)) return v.value;
-  if (isTimestamp(v)) return strftimeFormat(v.value, DEFAULT_TIMESTAMP_FORMAT);
+  if (isTimestamp(v)) return strftimeFormat(v.value, DEFAULT_TIMESTAMP_FORMAT, v.offsetMinutes);
   if (isArray(v)) return v.value.map(sortedJSONValue);
   if (isObject(v)) {
     // Sort keys for deterministic output.
