@@ -1,0 +1,145 @@
+description: >
+  Variable scope boundary semantics — variables crossing if/match/lambda
+  boundaries, statement-mode write-through, and expression-mode shadowing.
+
+tests:
+  # --- Statement-mode write-through ---
+
+  - name: "if-statement branch modifies outer variable"
+    mapping: |
+      $x = 1
+      if true {
+        $x = 99
+      }
+      output.v = $x
+    output: {"v": 99}
+
+  - name: "if-statement false branch does not execute"
+    mapping: |
+      $x = 1
+      if false {
+        $x = 99
+      }
+      output.v = $x
+    output: {"v": 1}
+
+  - name: "nested if-statements both modify outer"
+    mapping: |
+      $x = 0
+      if true {
+        $x = 1
+        if true {
+          $x = 2
+        }
+      }
+      output.v = $x
+    output: {"v": 2}
+
+  - name: "match-statement arm modifies outer variable"
+    mapping: |
+      $x = 0
+      match "a" {
+        "a" => {
+          $x = 42
+        }
+      }
+      output.v = $x
+    output: {"v": 42}
+
+  # --- Block-scoped variables ---
+
+  - name: "variable declared in if-branch not visible outside"
+    mapping: |
+      if true {
+        $inner = 10
+      }
+      output.v = $inner
+    compile_error: "undeclared"
+
+  - name: "variable declared in match-arm not visible outside"
+    mapping: |
+      match "a" {
+        "a" => {
+          $inner = 10
+        }
+      }
+      output.v = $inner
+    compile_error: "undeclared"
+
+  # --- Expression-mode shadowing ---
+
+  - name: "if-expression shadows outer variable"
+    mapping: |
+      $x = "outer"
+      $result = if true {
+        $x = "shadow"
+        $x
+      }
+      output.outer = $x
+      output.result = $result
+    output:
+      outer: "outer"
+      result: "shadow"
+
+  - name: "match-expression shadows outer variable"
+    mapping: |
+      $x = "outer"
+      $result = match "a" {
+        "a" => {
+          $x = "shadow"
+          $x
+        }
+      }
+      output.outer = $x
+      output.result = $result
+    output:
+      outer: "outer"
+      result: "shadow"
+
+  # --- Combined patterns ---
+
+  - name: "pre-declare then write in both branches"
+    mapping: |
+      $result = ""
+      if input.flag {
+        $result = "yes"
+      } else {
+        $result = "no"
+      }
+      output.v = $result
+    input: {"flag": true}
+    output: {"v": "yes"}
+
+  - name: "pre-declare then write in both branches (false)"
+    mapping: |
+      $result = ""
+      if input.flag {
+        $result = "yes"
+      } else {
+        $result = "no"
+      }
+      output.v = $result
+    input: {"flag": false}
+    output: {"v": "no"}
+
+  - name: "outer variable and block-scoped variable coexist"
+    mapping: |
+      $x = "outer"
+      if true {
+        $x = "modified"
+        $y = "local"
+        output.local = $y
+      }
+      output.outer = $x
+    output:
+      outer: "modified"
+      local: "local"
+
+  - name: "lambda reads outer variable modified by if-statement"
+    mapping: |
+      $factor = 1
+      if true {
+        $factor = 10
+      }
+      output.v = [1, 2, 3].map(x -> x * $factor)
+    output: {"v": [10, 20, 30]}

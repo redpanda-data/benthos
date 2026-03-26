@@ -1,0 +1,120 @@
+description: >
+  Complex iterator patterns — nested iterator chains, lambdas with control
+  flow, and iterators operating on map call results.
+
+tests:
+  # --- Nested iterator chains ---
+
+  - name: "map then filter chain"
+    mapping: |
+      output.v = [1, 2, 3, 4, 5]
+        .map(x -> x * x)
+        .filter(x -> x > 5)
+    output: {"v": [9, 16, 25]}
+
+  - name: "filter then map then sort"
+    mapping: |
+      output.v = [5, 1, 4, 2, 3]
+        .filter(x -> x > 2)
+        .map(x -> x * 10)
+        .sort()
+    output: {"v": [30, 40, 50]}
+
+  - name: "nested map produces 2D array"
+    mapping: |
+      output.v = [1, 2].map(x -> [10, 20].map(y -> x + y))
+    output: {"v": [[11, 21], [12, 22]]}
+
+  - name: "flat map via map + flatten"
+    mapping: |
+      output.v = [[1, 2], [3, 4]].map(arr -> arr.map(x -> x * 10)).flatten()
+    output: {"v": [10, 20, 30, 40]}
+
+  # --- Lambda with control flow ---
+
+  - name: "map with if expression in lambda"
+    mapping: |
+      output.v = [1, 2, 3, 4].map(x ->
+        if x > 2 { "big" } else { "small" }
+      )
+    output: {"v": ["small", "small", "big", "big"]}
+
+  - name: "filter with match expression in lambda"
+    mapping: |
+      output.v = ["apple", "banana", "avocado", "cherry"].filter(s ->
+        match s.slice(0, 1) {
+          "a" => true,
+          _ => false,
+        }
+      )
+    output: {"v": ["apple", "avocado"]}
+
+  - name: "map with block body and local variables"
+    mapping: |
+      output.v = [1, 2, 3].map(x -> {
+        $doubled = x * 2
+        $label = "item_" + $doubled.string()
+        {"value": $doubled, "label": $label}
+      })
+    output:
+      v:
+        - value: 2
+          label: "item_2"
+        - value: 4
+          label: "item_4"
+        - value: 6
+          label: "item_6"
+
+  # --- Iterators on map call results ---
+
+  - name: "map call result piped to iterator"
+    mapping: |
+      map get_items(data) { data.items }
+      output.v = get_items(input).map(x -> x * 2)
+    input: {"items": [1, 2, 3]}
+    output: {"v": [2, 4, 6]}
+
+  - name: "chained map calls with iterators"
+    mapping: |
+      map extract(data) { data.values }
+      map sum(arr) { arr.fold(0, (acc, x) -> acc + x) }
+      output.v = sum(extract(input))
+    input: {"values": [10, 20, 30]}
+    output: {"v": 60}
+
+  # --- Fold with complex accumulator ---
+
+  - name: "fold concatenates strings"
+    mapping: |
+      output.v = ["a", "b", "c"].fold("", (acc, s) ->
+        if acc == "" { s } else { acc + "," + s }
+      )
+    output: {"v": "a,b,c"}
+
+  - name: "fold with string accumulator"
+    mapping: |
+      output.v = ["hello", "world"].fold("", (acc, s) ->
+        if acc == "" { s } else { acc + " " + s }
+      )
+    output: {"v": "hello world"}
+
+  # --- any/all with complex predicates ---
+
+  - name: "any with method chain in predicate"
+    mapping: |
+      $items = [
+        {"name": "Alice", "age": 25},
+        {"name": "Bob", "age": 17},
+      ]
+      output.has_minor = $items.any(p -> p.age < 18)
+    output: {"has_minor": true}
+
+  - name: "all with outer variable in predicate"
+    mapping: |
+      $min_age = 18
+      $items = [
+        {"name": "Alice", "age": 25},
+        {"name": "Bob", "age": 30},
+      ]
+      output.all_adult = $items.all(p -> p.age >= $min_age)
+    output: {"all_adult": true}
