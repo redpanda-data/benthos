@@ -135,7 +135,7 @@ function valueToString(v: Value): Value {
   if (isFloat64(v)) return mkString(formatFloat(v.value));
   if (isBool(v)) return mkString(v.value ? "true" : "false");
   if (isTimestamp(v)) {
-    return mkString(formatTimestampValue(v.value));
+    return mkString(formatTimestampValue(v.value, v.offsetMinutes));
   }
   if (isBytes(v)) {
     // Check valid UTF-8 — in JS, TextDecoder with fatal option.
@@ -165,8 +165,8 @@ function valueToString(v: Value): Value {
   return mkError(`cannot convert ${typeName(v)} to string`);
 }
 
-function formatTimestampValue(nanos: bigint): string {
-  return strftimeFormat(nanos, DEFAULT_TIMESTAMP_FORMAT);
+function formatTimestampValue(nanos: bigint, offsetMinutes: number = 0): string {
+  return strftimeFormat(nanos, DEFAULT_TIMESTAMP_FORMAT, offsetMinutes);
 }
 
 function valueToInt64(v: Value): Value {

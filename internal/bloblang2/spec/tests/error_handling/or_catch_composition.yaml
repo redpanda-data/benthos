@@ -1,0 +1,103 @@
+description: >
+  Composing .or() and .catch() — order matters, short-circuit semantics,
+  null-safe operator interactions, and complex rescue chains.
+
+tests:
+  # --- .catch() first, .or() second ---
+
+  - name: "catch handles error, or not needed"
+    mapping: |
+      output.v = throw("x").catch(err -> "caught").or("default")
+    output: {"v": "caught"}
+
+  - name: "catch returns null, or rescues null"
+    mapping: |
+      output.v = throw("x").catch(err -> null).or("default")
+    output: {"v": "default"}
+
+  - name: "catch returns value, or passes through"
+    mapping: |
+      output.v = throw("x").catch(err -> 42).or(0)
+    output: {"v": 42}
+
+  # --- .or() first, .catch() second ---
+
+  - name: "or does not handle error, catch does"
+    mapping: |
+      output.v = (5 / 0).or("ignored").catch(err -> "caught")
+    output: {"v": "caught"}
+
+  - name: "or rescues null, catch not needed"
+    mapping: |
+      output.v = null.or("default").catch(err -> "error")
+    output: {"v": "default"}
+
+  # --- .or() default can itself error, caught by .catch() ---
+
+  - name: "or default errors, caught by subsequent catch"
+    mapping: |
+      output.v = null.or(5 / 0).catch(err -> "safe")
+    output: {"v": "safe"}
+
+  # --- Chained rescue patterns ---
+
+  - name: "null-safe then or for missing nested field"
+    input: {"user": null}
+    mapping: |
+      output.v = input.user?.name.or("anonymous")
+    output: {"v": "anonymous"}
+
+  - name: "null-safe on present value then or not triggered"
+    input: {"user": {"name": "Alice"}}
+    mapping: |
+      output.v = input.user?.name.or("anonymous")
+    output: {"v": "Alice"}
+
+  - name: "null-safe chain to null then catch for method error"
+    mapping: |
+      $v = null
+      output.v = $v?.trim().or("empty")
+    output: {"v": "empty"}
+
+  # --- .or() with deleted ---
+
+  - name: "or rescues deleted from conditional"
+    mapping: |
+      output.v = (if false { deleted() } else { deleted() }).or("rescued")
+    output: {"v": "rescued"}
+
+  # --- Error in or argument is only evaluated when needed ---
+
+  - name: "or short-circuits — error in argument not evaluated"
+    mapping: |
+      output.v = "present".or(throw("boom"))
+    output: {"v": "present"}
+
+  - name: "or evaluates argument on null — error propagates"
+    mapping: |
+      output.v = null.or(throw("boom"))
+    error: "boom"
+
+  # --- Triple chain: or, catch, or ---
+
+  - name: "triple rescue chain"
+    mapping: |
+      output.v = null.or(5 / 0).catch(err -> null).or("final")
+    output: {"v": "final"}
+
+  # --- not_null with catch ---
+
+  - name: "not_null error caught by catch"
+    mapping: |
+      output.v = null.not_null().catch(err -> "was null")
+    output: {"v": "was null"}
+
+  - name: "not_null passes through non-null"
+    mapping: |
+      output.v = "hello".not_null()
+    output: {"v": "hello"}
+
+  - name: "not_null error message contains context"
+    mapping: |
+      output.v = null.not_null().catch(err -> err.what)
+    output: {"v": "unexpected null value"}

@@ -73,8 +73,10 @@ export interface ObjectValue {
 }
 export interface TimestampValue {
   tag: "timestamp";
-  /** Nanoseconds since Unix epoch. */
+  /** Nanoseconds since Unix epoch (always UTC). */
   value: bigint;
+  /** Original timezone offset in minutes (0 = UTC). Used by ts_format %z. */
+  offsetMinutes: number;
 }
 export interface VoidValue {
   tag: "void";
@@ -141,8 +143,8 @@ export function mkObject(v: Map<string, Value>): ObjectValue {
   return { tag: "object", value: v };
 }
 
-export function mkTimestamp(nanos: bigint): TimestampValue {
-  return { tag: "timestamp", value: nanos };
+export function mkTimestamp(nanos: bigint, offsetMinutes: number = 0): TimestampValue {
+  return { tag: "timestamp", value: nanos, offsetMinutes };
 }
 
 export function mkError(msg: string): ErrorValue {

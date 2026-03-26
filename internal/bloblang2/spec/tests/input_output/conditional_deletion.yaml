@@ -1,0 +1,197 @@
+description: >
+  Conditional deletion — using if/match to conditionally delete fields,
+  array elements, and metadata keys. Also tests deletion in iterator
+  lambdas and the interaction between deleted() and void in assignments.
+
+tests:
+  # --- Conditional field deletion via if ---
+
+  - name: "if-true deletes field, if-false preserves via void"
+    mapping: |
+      output.a = "keep"
+      output.b = "drop"
+      output.b = if true { deleted() }
+    output: {"a": "keep"}
+
+  - name: "if-false produces void — field preserved"
+    mapping: |
+      output.a = "keep"
+      output.a = if false { deleted() }
+    output: {"a": "keep"}
+
+  - name: "if-else deletes one field based on condition"
+    input: {"remove_b": true}
+    mapping: |
+      output.a = 1
+      output.b = 2
+      output.b = if input.remove_b { deleted() } else { output.b }
+    output: {"a": 1}
+
+  - name: "if-else keeps field when condition false"
+    input: {"remove_b": false}
+    mapping: |
+      output.a = 1
+      output.b = 2
+      output.b = if input.remove_b { deleted() } else { output.b }
+    output: {"a": 1, "b": 2}
+
+  # --- Conditional field deletion via match ---
+
+  - name: "match deletes field on matching case"
+    mapping: |
+      output.a = "keep"
+      output.b = "conditional"
+      output.b = match "remove" {
+        "remove" => deleted(),
+        _ => output.b,
+      }
+    output: {"a": "keep"}
+
+  - name: "match preserves field on non-matching case"
+    mapping: |
+      output.a = "keep"
+      output.b = "conditional"
+      output.b = match "keep" {
+        "remove" => deleted(),
+        _ => output.b,
+      }
+    output: {"a": "keep", "b": "conditional"}
+
+  - name: "match without wildcard — void preserves field"
+    mapping: |
+      output.status = "active"
+      output.status = match "nope" {
+        "remove" => deleted(),
+      }
+    output: {"status": "active"}
+
+  # --- Conditional deletion in array literals ---
+
+  - name: "if-expression conditionally omits array element"
+    mapping: |
+      $include = false
+      output.v = [1, if $include { 2 } else { deleted() }, 3]
+    output: {"v": [1, 3]}
+
+  - name: "if-expression includes array element when true"
+    mapping: |
+      $include = true
+      output.v = [1, if $include { 2 } else { deleted() }, 3]
+    output: {"v": [1, 2, 3]}
+
+  - name: "match conditionally omits array element"
+    mapping: |
+      $mode = "sparse"
+      output.v = [
+        1,
+        match $mode { "full" => 2, _ => deleted() },
+        3,
+      ]
+    output: {"v": [1, 3]}
+
+  # --- Conditional deletion in object literals ---
+
+  - name: "if-expression conditionally omits object field"
+    mapping: |
+      $include_debug = false
+      output.v = {
+        "name": "Alice",
+        "debug": if $include_debug { "trace-123" } else { deleted() },
+      }
+    output: {"v": {"name": "Alice"}}
+
+  - name: "if-expression includes object field when true"
+    mapping: |
+      $include_debug = true
+      output.v = {
+        "name": "Alice",
+        "debug": if $include_debug { "trace-123" } else { deleted() },
+      }
+    output: {"v": {"name": "Alice", "debug": "trace-123"}}
+
+  # --- Deletion in .map() iterator ---
+
+  - name: "map lambda returning deleted omits element"
+    mapping: |
+      output.v = [1, 2, 3, 4, 5].map(x ->
+        if x % 2 == 0 { deleted() } else { x }
+      )
+    output: {"v": [1, 3, 5]}
+
+  - name: "map lambda deleting all elements produces empty array"
+    mapping: |
+      output.v = [1, 2, 3].map(x -> deleted())
+    output: {"v": []}
+
+  - name: "map lambda conditionally transforms or deletes"
+    mapping: |
+      output.v = [10, -5, 20, -3, 15].map(x ->
+        if x > 0 { x * 2 } else { deleted() }
+      )
+    output: {"v": [20, 40, 30]}
+
+  # --- Array element deletion with negative indices ---
+
+  - name: "delete last array element with negative index"
+    mapping: |
+      $arr = [10, 20, 30, 40]
+      $arr[-1] = deleted()
+      output.v = $arr
+    output: {"v": [10, 20, 30]}
+
+  - name: "delete second-to-last array element"
+    mapping: |
+      $arr = [10, 20, 30, 40]
+      $arr[-2] = deleted()
+      output.v = $arr
+    output: {"v": [10, 20, 40]}
+
+  - name: "delete first element via negative index"
+    mapping: |
+      $arr = ["a", "b", "c"]
+      $arr[-3] = deleted()
+      output.v = $arr
+    output: {"v": ["b", "c"]}
+
+  # --- Deletion of nested variable fields ---
+
+  - name: "delete deeply nested variable field"
+    mapping: |
+      $data = {"a": {"b": {"c": 1, "d": 2}}}
+      $data.a.b.c = deleted()
+      output.v = $data
+    output: {"v": {"a": {"b": {"d": 2}}}}
+
+  - name: "delete all fields of nested object"
+    mapping: |
+      $data = {"inner": {"x": 1, "y": 2}}
+      $data.inner.x = deleted()
+      $data.inner.y = deleted()
+      output.v = $data
+    output: {"v": {"inner": {}}}
+
+  # --- Conditional metadata deletion ---
+
+  - name: "conditionally delete metadata key"
+    input: {}
+    input_metadata: {"source": "kafka", "debug": "true"}
+    mapping: |
+      output@ = input@
+      $remove_debug = true
+      if $remove_debug {
+        output@.debug = deleted()
+      }
+    output: {}
+    output_metadata: {"source": "kafka"}
+
+  - name: "conditionally keep metadata key"
+    input: {}
+    input_metadata: {"source": "kafka", "debug": "true"}
+    mapping: |
+      output@ = input@
+      $remove_debug = false
+      if $remove_debug {
+        output@.debug = deleted()
+      }
+    output: {}
+    output_metadata: {"source": "kafka", "debug": "true"}

@@ -85,10 +85,12 @@ function padN(n: number, width: number): string {
  * Format a timestamp (bigint nanos since epoch) with a strftime format.
  * Supported directives: %Y, %m, %d, %H, %M, %S, %f, %z, %Z, %%.
  */
-export function strftimeFormat(nanos: bigint, format: string): string {
-  const { date, subMilliNanos } = nanosToDateParts(nanos);
+export function strftimeFormat(nanos: bigint, format: string, offsetMinutes: number = 0): string {
+  // Apply offset to get local time for display.
+  const displayNanos = nanos + BigInt(offsetMinutes) * 60n * NANOS_PER_SECOND;
+  const { date, subMilliNanos } = nanosToDateParts(displayNanos);
   const totalNanos = Number(
-    (nanos % NANOS_PER_SECOND + NANOS_PER_SECOND) % NANOS_PER_SECOND,
+    (displayNanos % NANOS_PER_SECOND + NANOS_PER_SECOND) % NANOS_PER_SECOND,
   );
 
   let result = "";
@@ -129,13 +131,27 @@ export function strftimeFormat(nanos: bigint, format: string): string {
           break;
         }
         case "z": {
-          // For timestamps stored as UTC bigint nanos, offset is always UTC.
-          // We emit 'Z' for UTC.
-          result += "Z";
+          if (offsetMinutes === 0) {
+            result += "Z";
+          } else {
+            const sign = offsetMinutes >= 0 ? "+" : "-";
+            const absOff = Math.abs(offsetMinutes);
+            const h = Math.floor(absOff / 60);
+            const m = absOff % 60;
+            result += sign + padN(h, 2) + ":" + padN(m, 2);
+          }
           break;
         }
         case "Z": {
-          result += "UTC";
+          if (offsetMinutes === 0) {
+            result += "UTC";
+          } else {
+            const sign = offsetMinutes >= 0 ? "+" : "-";
+            const absOff = Math.abs(offsetMinutes);
+            const h = Math.floor(absOff / 60);
+            const m = absOff % 60;
+            result += sign + padN(h, 2) + ":" + padN(m, 2);
+          }
           break;
         }
         case "%":
@@ -161,7 +177,7 @@ export function strftimeFormat(nanos: bigint, format: string): string {
  * Parse a string with a strftime format into bigint nanos.
  * Supported directives: %Y, %m, %d, %H, %M, %S, %f, %z, %%.
  */
-export function strftimeParse(input: string, format: string): bigint | string {
+export function strftimeParse(input: string, format: string): { nanos: bigint; offsetMinutes: number } | string {
   let pos = 0;
   let year = 0,
     month = 1,
@@ -290,7 +306,8 @@ export function strftimeParse(input: string, format: string): bigint | string {
   const d = Date.UTC(year, month - 1, day, hour, minute, second);
   // Adjust for timezone offset.
   const adjustedMs = d - tzOffsetMinutes * 60 * 1000;
-  return BigInt(adjustedMs) * NANOS_PER_MILLI + BigInt(fracNanos);
+  const nanos = BigInt(adjustedMs) * NANOS_PER_MILLI + BigInt(fracNanos);
+  return { nanos, offsetMinutes: hasTz ? tzOffsetMinutes : 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -422,7 +439,7 @@ export function registerTimestamp(interp: Interpreter): void {
       if (typeof result === "string") {
         return mkError("ts_parse() failed: " + result);
       }
-      return mkTimestamp(result);
+      return mkTimestamp(result.nanos, result.offsetMinutes);
     },
     lambdaFn: null,
     intrinsic: false,
@@ -446,7 +463,7 @@ export function registerTimestamp(interp: Interpreter): void {
       if (args.length > 0 && isString(args[0]!)) {
         format = args[0]!.value;
       }
-      return mkString(strftimeFormat(receiver.value, format));
+      return mkString(strftimeFormat(receiver.value, format, receiver.offsetMinutes));
     },
     lambdaFn: null,
     intrinsic: false,
@@ -473,7 +490,7 @@ export function registerTimestamp(interp: Interpreter): void {
       if (nanos === null) {
         return mkError("ts_add() argument must be integer nanoseconds");
       }
-      return mkTimestamp(receiver.value + nanos);
+      return mkTimestamp(receiver.value + nanos, receiver.offsetMinutes);
     },
     lambdaFn: null,
     intrinsic: false,
