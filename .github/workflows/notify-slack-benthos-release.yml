@@ -1,7 +1,8 @@
 # .github/workflows/notify-slack-release.yml
 #
-# Posts the changelog from a GitHub Release to a Slack channel
-# using the official Slack GitHub Action with an incoming webhook.
+# Posts the changelog to Slack when a version tag is pushed.
+# Since redpanda-data/benthos uses tags (not GitHub Releases),
+# we trigger on tag push and extract notes from CHANGELOG.md.
 #
 # Prerequisites:
 #   1. Create a Slack app with Incoming Webhooks enabled
@@ -10,50 +11,81 @@
 name: Post Release Changelog to Slack
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*"
 
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
-    # skip pre-releases
-    if: "!github.event.release.prerelease"
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract changelog for this tag
+        id: changelog
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          # Strip 'v' prefix — CHANGELOG headers use "## 4.69.0 - 2026-03-19" not "## v4.69.0"
+          VERSION="${TAG#v}"
+
+          # Strategy 1: Extract from CHANGELOG.md
+          # Grabs everything between this version header and the next version header.
+          if [ -f CHANGELOG.md ]; then
+            NOTES=$(sed -n "/^## ${VERSION}/,/^## /{/^## ${VERSION}/d;/^## /d;p;}" CHANGELOG.md | head -c 2800)
+          fi
+
+          # Strategy 2: Fall back to git log if CHANGELOG.md doesn't exist
+          # or doesn't have an entry for this tag
+          if [ -z "$NOTES" ]; then
+            PREV_TAG=$(git tag --sort=-version:refname | grep -A1 "^${TAG}$" | tail -1)
+            if [ -n "$PREV_TAG" ] && [ "$PREV_TAG" != "$TAG" ]; then
+              NOTES=$(git log --pretty=format:"• %s (%an)" "${PREV_TAG}..${TAG}" | head -c 2800)
+            else
+              NOTES="No changelog entry found for ${TAG}."
+            fi
+          fi
+
+          # Convert markdown headers (### Foo) to Slack bold (*Foo*)
+          NOTES=$(echo "$NOTES" | sed 's/^### \(.*\)$/*\1*/g')
+
+          # Write multiline output safely
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: Post changelog to Slack
         uses: slackapi/slack-github-action@v2.1.1
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload: |
-            text: "New Benthos release: ${{ github.event.release.tag_name }}"
+            text: "New Benthos release: ${{ github.ref_name }}"
+            unfurl_links: false
+            unfurl_media: false
             blocks:
               - type: "header"
                 text:
                   type: "plain_text"
-                  text: ":green_alert: Benthos ${{ github.event.release.tag_name }}"
+                  text: ":green_alert: Benthos ${{ github.ref_name }}"
                   emoji: true
-              - type: "section"
-                fields:
-                  - type: "mrkdwn"
-                    text: "*Release:*\n<${{ github.event.release.html_url }}|${{ github.event.release.tag_name }}>"
-                  - type: "mrkdwn"
-                    text: "*Author:*\n${{ github.event.release.author.login }}"
-              - type: "divider"
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "${{ github.event.release.body }}"
+                  text: "${{ steps.changelog.outputs.notes }}"
               - type: "actions"
                 elements:
                   - type: "button"
                     text:
                       type: "plain_text"
-                      text: ":github: View Release"
+                      text: ":github: View Tag"
                       emoji: true
-                    url: "${{ github.event.release.html_url }}"
+                    url: "${{ github.server_url }}/${{ github.repository }}/releases/tag/${{ github.ref_name }}"
                   - type: "button"
                     text:
                       type: "plain_text"
                       text: ":page_facing_up: Full Changelog"
                       emoji: true
-                    url: "${{ github.server_url }}/${{ github.repository }}/compare/${{ github.event.release.tag_name }}"
+                    url: "${{ github.server_url }}/${{ github.repository }}/blob/main/CHANGELOG.md"
