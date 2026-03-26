@@ -1,6 +1,15 @@
+// Tests in this file use run() which calls Parse → New → Run, bypassing
+// Optimize and Resolve. This means AST nodes have no opcode IDs or stack
+// slot indices — all execution goes through the scope-chain and map-lookup
+// fallback paths.
+//
+// The optimized paths (opcode dispatch, variable stack) are exercised by
+// the spec conformance suite in bloblang2_test.go, which uses the full
+// compilation pipeline: Parse → Optimize → Resolve → NewWithStdlib → Run.
 package eval
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
@@ -402,5 +411,84 @@ func TestInterp_CopyOnWrite(t *testing.T) {
 	}
 	if m["copy"] != int64(99) {
 		t.Fatalf("expected copy 99, got %v", m["copy"])
+	}
+}
+
+// -----------------------------------------------------------------------
+// Stack path vs scope path equivalence
+// -----------------------------------------------------------------------
+
+// TestScopeAndStackPathsAgree runs the same program through both the
+// unresolved (scope-based) and resolved (stack-based) paths and verifies
+// they produce identical output.
+func TestScopeAndStackPathsAgree(t *testing.T) {
+	cases := []struct {
+		name    string
+		src     string
+		input   any
+	}{
+		{
+			name:  "variables and lambdas",
+			src:   "$x = 10\n$y = 20\noutput.sum = $x + $y\noutput.mapped = [1, 2, 3].map(n -> n * $x)",
+			input: nil,
+		},
+		{
+			name:  "map call with params",
+			src:   "map add(a, b) {\n  a + b\n}\noutput.v = add(3, 7)",
+			input: nil,
+		},
+		{
+			name:  "nested field access",
+			src:   "$data = input\noutput.name = $data.user.name",
+			input: map[string]any{"user": map[string]any{"name": "Alice"}},
+		},
+		{
+			name:  "if expression with vars",
+			src:   "$x = 5\noutput.v = if $x > 3 { \"big\" } else { \"small\" }",
+			input: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, errs := syntax.Parse(tc.src, "", nil)
+			if len(errs) > 0 {
+				t.Fatalf("parse errors:\n%s", syntax.FormatErrors(errs))
+			}
+
+			// Scope path: no optimize, no resolve.
+			// Use a deep copy of the program since Optimize mutates in place.
+			scopeProg, _ := syntax.Parse(tc.src, "", nil)
+			scopeInterp := New(scopeProg)
+			scopeInterp.RegisterStdlib()
+			scopeInterp.lambdaMethods = make(map[string]MethodSpec, 16)
+			scopeInterp.RegisterLambdaMethods()
+			scopeOut, scopeMeta, scopeDel, scopeErr := scopeInterp.Run(tc.input, map[string]any{})
+
+			// Stack path: optimize + resolve with opcodes and slots.
+			syntax.Optimize(prog)
+			methods, functions := StdlibNames()
+			methodOpc, funcOpc := StdlibOpcodes()
+			syntax.Resolve(prog, syntax.ResolveOptions{
+				Methods: methods, Functions: functions,
+				MethodOpcodes: methodOpc, FunctionOpcodes: funcOpc,
+			})
+			stackInterp := NewWithStdlib(prog)
+			stackOut, stackMeta, stackDel, stackErr := stackInterp.Run(tc.input, map[string]any{})
+
+			// Compare.
+			if (scopeErr == nil) != (stackErr == nil) {
+				t.Fatalf("error mismatch: scope=%v stack=%v", scopeErr, stackErr)
+			}
+			if scopeDel != stackDel {
+				t.Fatalf("deleted mismatch: scope=%v stack=%v", scopeDel, stackDel)
+			}
+			if !reflect.DeepEqual(scopeOut, stackOut) {
+				t.Fatalf("output mismatch:\n  scope: %v\n  stack: %v", scopeOut, stackOut)
+			}
+			if !reflect.DeepEqual(scopeMeta, stackMeta) {
+				t.Fatalf("metadata mismatch:\n  scope: %v\n  stack: %v", scopeMeta, stackMeta)
+			}
+		})
 	}
 }

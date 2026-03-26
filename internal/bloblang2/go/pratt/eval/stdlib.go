@@ -59,6 +59,7 @@ func initSharedStdlib() {
 		// are global and stable.
 		lambdaOpcodeBase = nextMethodOpcode
 		tmpInterp := New(nil)
+		tmpInterp.lambdaMethods = make(map[string]MethodSpec, 16)
 		tmpInterp.RegisterLambdaMethods()
 		sharedLambdaSpecs = make(map[string]MethodSpec, len(tmpInterp.lambdaMethods))
 		for name, spec := range tmpInterp.lambdaMethods {
