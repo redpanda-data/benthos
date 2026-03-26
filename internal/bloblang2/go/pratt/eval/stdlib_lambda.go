@@ -45,7 +45,7 @@ func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any
 	if lambda == nil {
 		return NewError("filter() requires a lambda argument")
 	}
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	var result []any
 	for _, elem := range arr {
 		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
@@ -78,7 +78,7 @@ func (interp *Interpreter) methodMap(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("map() requires a lambda argument")
 	}
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	var result []any
 	for _, elem := range arr {
 		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
@@ -143,7 +143,7 @@ func (interp *Interpreter) methodSortBy(receiver any, args []syntax.CallArg) any
 	}
 
 	// Extract keys.
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	keys := make([]any, len(arr))
 	for i, elem := range arr {
 		key := interp.callLambdaWithScope(lambda, []any{elem}, s)
@@ -190,7 +190,7 @@ func (interp *Interpreter) methodAny(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("any() requires a lambda argument")
 	}
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	for _, elem := range arr {
 		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
 		if IsError(val) {
@@ -219,7 +219,7 @@ func (interp *Interpreter) methodAll(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("all() requires a lambda argument")
 	}
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	for _, elem := range arr {
 		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
 		if IsError(val) {
@@ -248,7 +248,7 @@ func (interp *Interpreter) methodFind(receiver any, args []syntax.CallArg) any {
 	if lambda == nil {
 		return NewError("find() requires a lambda argument")
 	}
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	for _, elem := range arr {
 		val := interp.callLambdaWithScope(lambda, []any{elem}, s)
 		if IsError(val) {
@@ -285,7 +285,7 @@ func (interp *Interpreter) methodFold(receiver any, args []syntax.CallArg) any {
 		return NewError("fold() second argument must be a lambda")
 	}
 
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	tally := initial
 	for _, elem := range arr {
 		tally = interp.callLambdaWithScope(lambda, []any{tally, elem}, s)
@@ -329,7 +329,7 @@ func (interp *Interpreter) methodUnique(receiver any, args []syntax.CallArg) any
 		return false
 	}
 
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	var result []any
 	for _, elem := range arr {
 		var key any
@@ -523,7 +523,7 @@ func (interp *Interpreter) methodMapValues(receiver any, args []syntax.CallArg) 
 	if lambda == nil {
 		return NewError("map_values() requires a lambda argument")
 	}
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
 		val := interp.callLambdaWithScope(lambda, []any{v}, s)
@@ -550,7 +550,7 @@ func (interp *Interpreter) methodMapKeys(receiver any, args []syntax.CallArg) an
 	if lambda == nil {
 		return NewError("map_keys() requires a lambda argument")
 	}
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
 		newKey := interp.callLambdaWithScope(lambda, []any{k}, s)
@@ -581,7 +581,7 @@ func (interp *Interpreter) methodMapEntries(receiver any, args []syntax.CallArg)
 	if lambda == nil {
 		return NewError("map_entries() requires a lambda argument")
 	}
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
 		entry := interp.callLambdaWithScope(lambda, []any{k, v}, s)
@@ -620,7 +620,7 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 	if lambda == nil {
 		return NewError("filter_entries() requires a lambda argument")
 	}
-	s := newScope(interp.scope, scopeExpression)
+	var s *scope
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
 		val := interp.callLambdaWithScope(lambda, []any{k, v}, s)

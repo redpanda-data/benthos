@@ -129,13 +129,10 @@ func New(prog *syntax.Program) *Interpreter {
 // the interpreter) are allocated per-instance.
 func NewWithStdlib(prog *syntax.Program) *Interpreter {
 	interp := &Interpreter{
-		prog:            prog,
-		maps:            make(map[string]*syntax.MapDecl),
-		namespaces:      make(map[string]map[string]*syntax.MapDecl),
-		staticMethods:   sharedMethods,
-		staticFunctions: sharedFunctions,
-		lambdaMethods:   make(map[string]MethodSpec, 16),
-		lambdaTable:     make([]MethodSpec, len(lambdaOpcodeOffsets)),
+		prog:        prog,
+		maps:        make(map[string]*syntax.MapDecl),
+		namespaces:  make(map[string]map[string]*syntax.MapDecl),
+		lambdaTable: make([]MethodSpec, len(lambdaOpcodeOffsets)),
 	}
 
 	if prog != nil {
@@ -170,7 +167,9 @@ func (interp *Interpreter) RegisterFunction(name string, spec FunctionSpec) {
 // and checked first during dispatch. Also populates the opcode-indexed
 // lambdaTable for fast dispatch.
 func (interp *Interpreter) RegisterLambdaMethod(name string, spec MethodSpec) {
-	interp.lambdaMethods[name] = spec
+	if interp.lambdaMethods != nil {
+		interp.lambdaMethods[name] = spec
+	}
 	if offset, ok := lambdaOpcodeOffsets[name]; ok {
 		for int(offset) >= len(interp.lambdaTable) {
 			interp.lambdaTable = append(interp.lambdaTable, MethodSpec{})
@@ -230,8 +229,10 @@ func (interp *Interpreter) Exec(input any, metadata map[string]any) (output any,
 	interp.output = make(map[string]any)
 	interp.outputMeta = make(map[string]any)
 	interp.deleted = false
-	interp.scope = newScope(nil, scopeStatement)
 	interp.depth = 0
+	if interp.scope == nil {
+		interp.scope = newScope(nil, scopeStatement)
+	}
 	// Allocate variable stack only if the resolver assigned slot indices.
 	// MaxSlots > 0 indicates the resolver ran with slot assignment enabled.
 	if interp.prog.MaxSlots > 0 {
@@ -768,8 +769,7 @@ func (interp *Interpreter) evalOr(e *syntax.MethodCallExpr) any {
 }
 
 func (interp *Interpreter) callLambda(lambda *syntax.LambdaExpr, args []any) any {
-	lambdaScope := newScope(interp.scope, scopeExpression)
-	return interp.callLambdaWithScope(lambda, args, lambdaScope)
+	return interp.callLambdaWithScope(lambda, args, nil)
 }
 
 // callLambdaWithScope executes a lambda using a pre-allocated scope. The scope's
@@ -800,6 +800,9 @@ func (interp *Interpreter) callLambdaWithScope(lambda *syntax.LambdaExpr, args [
 	}
 
 	// Fallback: scope-based parameter binding.
+	if lambdaScope == nil {
+		lambdaScope = newScope(interp.scope, scopeExpression)
+	}
 	clear(lambdaScope.vars)
 
 	for i, p := range lambda.Params {
@@ -911,8 +914,11 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 		}
 	}
 
-	// Bind parameters.
-	mapScope := newScope(nil, scopeExpression) // isolated: no parent
+	// Bind parameters. Only create a scope when needed (no stack slots).
+	var mapScope *scope
+	if !useStack {
+		mapScope = newScope(nil, scopeExpression)
+	}
 	if e.Named {
 		// For named args, re-order the pre-evaluated args.
 		if err := interp.bindNamedMapParamsFromArgs(mapScope, m, e, args); err != "" {
@@ -943,7 +949,9 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 	savedNamespaces := interp.namespaces
 	savedMaps := interp.maps
 
-	interp.scope = mapScope
+	if mapScope != nil {
+		interp.scope = mapScope
+	}
 	if m.Namespaces != nil {
 		// Build namespace tables for this map's context.
 		nsTable := make(map[string]map[string]*syntax.MapDecl, len(m.Namespaces))
