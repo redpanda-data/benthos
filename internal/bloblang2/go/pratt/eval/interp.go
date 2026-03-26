@@ -209,11 +209,15 @@ func (interp *Interpreter) stackIsDeclared(slot int) bool {
 // ensureStack grows the stack if needed, filling new slots with uninitialized.
 func (interp *Interpreter) ensureStack(needed int) {
 	if needed <= len(interp.stack) {
+		// Fill the new frame region with sentinels.
+		for i := interp.frameBase; i < needed; i++ {
+			interp.stack[i] = uninitialized
+		}
 		return
 	}
 	grown := make([]any, needed*2)
 	copy(grown, interp.stack)
-	for i := len(interp.stack); i < len(grown); i++ {
+	for i := len(interp.stack); i < needed; i++ {
 		grown[i] = uninitialized
 	}
 	interp.stack = grown
@@ -238,7 +242,9 @@ func (interp *Interpreter) Exec(input any, metadata map[string]any) (output any,
 			cap = 32
 		}
 		interp.stack = make([]any, cap)
-		for i := range interp.stack {
+		// Only fill the initial frame with sentinels. The rest is filled
+		// lazily by ensureStack when map calls push new frames.
+		for i := 0; i < interp.prog.MaxSlots && i < len(interp.stack); i++ {
 			interp.stack[i] = uninitialized
 		}
 	}
@@ -281,7 +287,13 @@ func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
 		// For variable targets: declaration with void is an error,
 		// reassignment with void skips the assignment.
 		if a.Target.Root == syntax.AssignVar && len(a.Target.Path) == 0 {
-			if _, exists := interp.scope.get(a.Target.VarName); !exists {
+			isDeclared := false
+			if slot := a.Target.SlotIndex; slot > 0 {
+				isDeclared = interp.stackIsDeclared(slot)
+			} else {
+				_, isDeclared = interp.scope.get(a.Target.VarName)
+			}
+			if !isDeclared {
 				panic(runtimeError{message: "void in variable declaration (use .or() to provide a default)"})
 			}
 		}
@@ -871,6 +883,15 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 	}
 	defer func() { interp.depth-- }()
 
+	// Evaluate arguments BEFORE pushing the frame, so that argument
+	// expressions read from the caller's frame (not the callee's).
+	args := interp.evalArgs(e.Args)
+	for _, a := range args {
+		if IsError(a) {
+			return a
+		}
+	}
+
 	// Push stack frame for the map's isolated scope.
 	savedFrameBase := interp.frameBase
 	savedStackTop := interp.stackTop
@@ -890,23 +911,16 @@ func (interp *Interpreter) callMap(m *syntax.MapDecl, e *syntax.CallExpr) any {
 		}
 	}
 
-	// Evaluate and bind parameters.
+	// Bind parameters.
 	mapScope := newScope(nil, scopeExpression) // isolated: no parent
 	if e.Named {
-		if err := interp.bindNamedMapParams(mapScope, m, e); err != "" {
+		// For named args, re-order the pre-evaluated args.
+		if err := interp.bindNamedMapParamsFromArgs(mapScope, m, e, args); err != "" {
 			interp.frameBase = savedFrameBase
 			interp.stackTop = savedStackTop
 			return NewError(err)
 		}
 	} else {
-		args := interp.evalArgs(e.Args)
-		for _, a := range args {
-			if IsError(a) {
-				interp.frameBase = savedFrameBase
-				interp.stackTop = savedStackTop
-				return a
-			}
-		}
 		if useStack {
 			if err := interp.bindPositionalParamsStack(m.Params, args); err != "" {
 				interp.frameBase = savedFrameBase
@@ -1492,6 +1506,38 @@ func (interp *Interpreter) bindPositionalParamsStack(params []syntax.Param, args
 // bindNamedMapParams resolves named call args to positional order using the
 // shared resolveNamedArgs helper, then binds them into the scope. This
 // evaluates each argument exactly once.
+// bindNamedMapParamsFromArgs binds pre-evaluated named arguments to map params.
+func (interp *Interpreter) bindNamedMapParamsFromArgs(s *scope, m *syntax.MapDecl, e *syntax.CallExpr, evaledArgs []any) string {
+	// Build name→value map from pre-evaluated args.
+	named := make(map[string]any, len(evaledArgs))
+	for i, arg := range e.Args {
+		if i < len(evaledArgs) {
+			named[arg.Name] = evaledArgs[i]
+		}
+	}
+
+	// Bind each non-discard param from named args or defaults.
+	for _, mp := range m.Params {
+		if mp.Discard {
+			continue
+		}
+		var val any
+		if v, ok := named[mp.Name]; ok {
+			val = v
+		} else if mp.Default != nil {
+			val = interp.evalExpr(mp.Default)
+		} else {
+			return fmt.Sprintf("%s(): missing required argument %q", e.Name, mp.Name)
+		}
+		if mp.SlotIndex > 0 {
+			interp.stackSet(mp.SlotIndex, val)
+		} else {
+			s.vars[mp.Name] = val
+		}
+	}
+	return ""
+}
+
 func (interp *Interpreter) bindNamedMapParams(s *scope, m *syntax.MapDecl, e *syntax.CallExpr) string {
 	// Build namedArgParam descriptors, evaluating AST defaults.
 	params := make([]namedArgParam, 0, len(m.Params))

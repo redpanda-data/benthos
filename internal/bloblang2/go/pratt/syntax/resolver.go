@@ -71,9 +71,17 @@ type resolver struct {
 }
 
 // trackSlots updates the high-water mark for the current scope.
+// trackSlots updates the high-water mark for the current scope and
+// propagates the child scope's slot usage back to the parent to prevent
+// slot collisions between child expressions and subsequent parent allocations.
 func (r *resolver) trackSlots() {
 	if r.scope.nextSlot > r.maxSlots {
 		r.maxSlots = r.scope.nextSlot
+	}
+	// Propagate child's nextSlot to parent so parent doesn't reuse
+	// slots that were allocated inside the child scope.
+	if r.scope.parent != nil && r.scope.nextSlot > r.scope.parent.nextSlot {
+		r.scope.parent.nextSlot = r.scope.nextSlot
 	}
 }
 
@@ -268,6 +276,13 @@ func (r *resolver) resolveAssignment(a *Assignment) {
 
 	r.resolveExpr(a.Value)
 
+	// Resolve expressions inside assignment target path segments (e.g., output[$key]).
+	for _, seg := range a.Target.Path {
+		if seg.Index != nil {
+			r.resolveExpr(seg.Index)
+		}
+	}
+
 	// Track variable declarations.
 	if a.Target.Root == AssignVar {
 		a.Target.SlotIndex = r.scope.declareVar(a.Target.VarName)
@@ -302,12 +317,14 @@ func (r *resolver) resolveMatchStmt(s *MatchStmt) {
 	if s.Subject != nil {
 		r.resolveExpr(s.Subject)
 	}
+	// Allocate binding slot once so all cases share it.
+	if s.Binding != "" {
+		s.BindingSlot = r.scope.allocSlot()
+	}
 	for _, c := range s.Cases {
 		child := newResolveScope(r.scope, resolveScopeStatement)
 		if s.Binding != "" {
-			slot := child.allocSlot()
-			child.params[s.Binding] = slot
-			s.BindingSlot = slot
+			child.params[s.Binding] = s.BindingSlot
 		}
 		saved := r.scope
 		r.scope = child
@@ -731,6 +748,12 @@ func (r *resolver) resolveMatchExpr(e *MatchExpr) {
 		r.resolveExpr(e.Subject)
 	}
 
+	// Allocate the as-binding slot ONCE in the parent scope so all cases
+	// share the same slot.
+	if e.Binding != "" {
+		e.BindingSlot = r.scope.allocSlot()
+	}
+
 	// Check for boolean literal cases in equality match (no 'as', has subject).
 	isEqualityMatch := e.Subject != nil && e.Binding == ""
 
@@ -745,9 +768,7 @@ func (r *resolver) resolveMatchExpr(e *MatchExpr) {
 			}
 			child := newResolveScope(r.scope, resolveScopeExpression)
 			if e.Binding != "" {
-				slot := child.allocSlot()
-				child.params[e.Binding] = slot
-				e.BindingSlot = slot
+				child.params[e.Binding] = e.BindingSlot
 			}
 			saved := r.scope
 			r.scope = child
@@ -759,9 +780,7 @@ func (r *resolver) resolveMatchExpr(e *MatchExpr) {
 		case Expr:
 			child := newResolveScope(r.scope, resolveScopeExpression)
 			if e.Binding != "" {
-				slot := child.allocSlot()
-				child.params[e.Binding] = slot
-				e.BindingSlot = slot
+				child.params[e.Binding] = e.BindingSlot
 			}
 			saved := r.scope
 			r.scope = child
@@ -771,9 +790,7 @@ func (r *resolver) resolveMatchExpr(e *MatchExpr) {
 		case *ExprBody:
 			child := newResolveScope(r.scope, resolveScopeExpression)
 			if e.Binding != "" {
-				slot := child.allocSlot()
-				child.params[e.Binding] = slot
-				e.BindingSlot = slot
+				child.params[e.Binding] = e.BindingSlot
 			}
 			saved := r.scope
 			r.scope = child
