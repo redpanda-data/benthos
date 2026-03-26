@@ -211,7 +211,10 @@ func compileV2Impl(t testing.TB, mapping string) *compiledMapping {
 	}); len(resolveErrs) > 0 {
 		t.Fatalf("v2 resolve errors: %s", syntax.FormatErrors(resolveErrs))
 	}
-	return &compiledMapping{prog: prog}
+	return &compiledMapping{
+		prog:   prog,
+		interp: eval.NewWithStdlib(prog),
+	}
 }
 
 func compileV2T(t testing.TB, mapping string) *compiledMapping {

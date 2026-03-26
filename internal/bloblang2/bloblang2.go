@@ -34,15 +34,18 @@ func (i *Interp) Compile(mapping string, files map[string]string) (spectest.Mapp
 		return nil, &spectest.CompileError{Message: syntax.FormatErrors(resolveErrs)}
 	}
 
-	return &compiledMapping{prog: prog}, nil
+	return &compiledMapping{
+		prog:   prog,
+		interp: eval.NewWithStdlib(prog),
+	}, nil
 }
 
 type compiledMapping struct {
-	prog *syntax.Program
+	prog   *syntax.Program
+	interp *eval.Interpreter
 }
 
 // Exec runs the compiled mapping against input and metadata.
 func (m *compiledMapping) Exec(input any, metadata map[string]any) (any, map[string]any, bool, error) {
-	interp := eval.NewWithStdlib(m.prog)
-	return interp.Run(input, metadata)
+	return m.interp.Run(input, metadata)
 }

@@ -27,7 +27,8 @@ type Program struct {
 	Maps       []*MapDecl            // map declarations (hoisted)
 	Imports    []*ImportStmt         // import statements
 	Namespaces map[string][]*MapDecl // imported maps keyed by namespace
-	MaxSlots   int                   // max variable stack slots needed (set by resolver)
+	MaxSlots    int  // max variable stack slots needed (set by resolver)
+	ReadsOutput bool // true if any expression reads output/output@ (set by resolver)
 }
 
 func (p *Program) nodePos() Pos {
