@@ -423,9 +423,9 @@ func TestInterp_CopyOnWrite(t *testing.T) {
 // they produce identical output.
 func TestScopeAndStackPathsAgree(t *testing.T) {
 	cases := []struct {
-		name    string
-		src     string
-		input   any
+		name  string
+		src   string
+		input any
 	}{
 		{
 			name:  "variables and lambdas",

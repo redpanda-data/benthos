@@ -42,9 +42,9 @@ var bloblang2JSMap []byte
 
 // Cached at startup since they don't change.
 var (
-	stdlibMethods        map[string]syntax.MethodInfo
-	stdlibFunctions      map[string]syntax.FunctionInfo
-	stdlibMethodOpcodes  map[string]uint16
+	stdlibMethods         map[string]syntax.MethodInfo
+	stdlibFunctions       map[string]syntax.FunctionInfo
+	stdlibMethodOpcodes   map[string]uint16
 	stdlibFunctionOpcodes map[string]uint16
 )
 
