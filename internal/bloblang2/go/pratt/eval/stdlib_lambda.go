@@ -48,7 +48,8 @@ func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any
 	var argBuf [1]any
 	var result []any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
+		argBuf[0] = elem
+		val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -81,7 +82,8 @@ func (interp *Interpreter) methodMap(receiver any, args []syntax.CallArg) any {
 	var argBuf [1]any
 	var result []any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
+		argBuf[0] = elem
+		val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -146,7 +148,8 @@ func (interp *Interpreter) methodSortBy(receiver any, args []syntax.CallArg) any
 	var argBuf [1]any
 	keys := make([]any, len(arr))
 	for i, elem := range arr {
-		argBuf[0] = elem; key := interp.callLambda(lambda, argBuf[:])
+		argBuf[0] = elem
+		key := interp.callLambda(lambda, argBuf[:])
 		if IsError(key) {
 			return key
 		}
@@ -192,7 +195,8 @@ func (interp *Interpreter) methodAny(receiver any, args []syntax.CallArg) any {
 	}
 	var argBuf [1]any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
+		argBuf[0] = elem
+		val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -221,7 +225,8 @@ func (interp *Interpreter) methodAll(receiver any, args []syntax.CallArg) any {
 	}
 	var argBuf [1]any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
+		argBuf[0] = elem
+		val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -250,7 +255,8 @@ func (interp *Interpreter) methodFind(receiver any, args []syntax.CallArg) any {
 	}
 	var argBuf [1]any
 	for _, elem := range arr {
-		argBuf[0] = elem; val := interp.callLambda(lambda, argBuf[:])
+		argBuf[0] = elem
+		val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -288,7 +294,9 @@ func (interp *Interpreter) methodFold(receiver any, args []syntax.CallArg) any {
 	var argBuf2 [2]any
 	tally := initial
 	for _, elem := range arr {
-		argBuf2[0] = tally; argBuf2[1] = elem; tally = interp.callLambda(lambda, argBuf2[:])
+		argBuf2[0] = tally
+		argBuf2[1] = elem
+		tally = interp.callLambda(lambda, argBuf2[:])
 		if IsError(tally) {
 			return tally
 		}
@@ -334,7 +342,8 @@ func (interp *Interpreter) methodUnique(receiver any, args []syntax.CallArg) any
 	for _, elem := range arr {
 		var key any
 		if keyFn != nil {
-			argBuf[0] = elem; key = interp.callLambda(keyFn, argBuf[:])
+			argBuf[0] = elem
+			key = interp.callLambda(keyFn, argBuf[:])
 			if IsError(key) {
 				return key
 			}
@@ -526,7 +535,8 @@ func (interp *Interpreter) methodMapValues(receiver any, args []syntax.CallArg) 
 	var argBuf [1]any
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		argBuf[0] = v; val := interp.callLambda(lambda, argBuf[:])
+		argBuf[0] = v
+		val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
 			return val
 		}
@@ -553,7 +563,8 @@ func (interp *Interpreter) methodMapKeys(receiver any, args []syntax.CallArg) an
 	var argBuf [1]any
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		argBuf[0] = k; newKey := interp.callLambda(lambda, argBuf[:])
+		argBuf[0] = k
+		newKey := interp.callLambda(lambda, argBuf[:])
 		if IsError(newKey) {
 			return newKey
 		}
@@ -584,7 +595,9 @@ func (interp *Interpreter) methodMapEntries(receiver any, args []syntax.CallArg)
 	var argBuf2 [2]any
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		argBuf2[0] = k; argBuf2[1] = v; entry := interp.callLambda(lambda, argBuf2[:])
+		argBuf2[0] = k
+		argBuf2[1] = v
+		entry := interp.callLambda(lambda, argBuf2[:])
 		if IsError(entry) {
 			return entry
 		}
@@ -623,7 +636,9 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 	var argBuf2 [2]any
 	result := make(map[string]any, len(obj))
 	for k, v := range obj {
-		argBuf2[0] = k; argBuf2[1] = v; val := interp.callLambda(lambda, argBuf2[:])
+		argBuf2[0] = k
+		argBuf2[1] = v
+		val := interp.callLambda(lambda, argBuf2[:])
 		if IsError(val) {
 			return val
 		}
