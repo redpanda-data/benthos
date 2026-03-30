@@ -49,30 +49,6 @@ tasks:
     cmds:
       - go run ./internal/bloblang2/demo
 
-  specagent:
-    desc: "Run specagent (pass subcommand via CLI_ARGS, e.g. task specagent -- prepare --output /tmp/sa)"
-    dir: "{{.BENTHOS_ROOT}}"
-    cmds:
-      - go run ./internal/bloblang2/specagent {{.CLI_ARGS}}
-
-  specagent:prepare:
-    desc: Generate clean rooms for spec agent testing
-    dir: "{{.BENTHOS_ROOT}}"
-    cmds:
-      - go run ./internal/bloblang2/specagent prepare --spec internal/bloblang2/spec --tests internal/bloblang2/spec/tests {{.CLI_ARGS}}
-
-  specagent:run:
-    desc: Run agent in clean rooms
-    dir: "{{.BENTHOS_ROOT}}"
-    cmds:
-      - go run ./internal/bloblang2/specagent run {{.CLI_ARGS}}
-
-  specagent:evaluate:
-    desc: Evaluate agent results
-    dir: "{{.BENTHOS_ROOT}}"
-    cmds:
-      - go run ./internal/bloblang2/specagent evaluate {{.CLI_ARGS}}
-
   clean:
     desc: Remove all build artifacts
     cmds:

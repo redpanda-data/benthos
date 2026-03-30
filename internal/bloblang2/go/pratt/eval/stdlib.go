@@ -24,10 +24,10 @@ import (
 // sharedMethods and sharedFunctions hold the static (non-lambda) stdlib
 // entries. They are built once and shared read-only across all interpreters.
 var (
-	sharedMethods       map[string]MethodSpec
-	sharedFunctions     map[string]FunctionSpec
-	sharedLambdaSpecs   map[string]MethodSpec // lambda method specs (for MethodInfos)
-	stdlibOnce          sync.Once
+	sharedMethods     map[string]MethodSpec
+	sharedFunctions   map[string]FunctionSpec
+	sharedLambdaSpecs map[string]MethodSpec // lambda method specs (for MethodInfos)
+	stdlibOnce        sync.Once
 )
 
 func initSharedStdlib() {
@@ -36,7 +36,7 @@ func initSharedStdlib() {
 		methodNameToOpcode = make(map[string]MethodOpcode, 100)
 		functionNameToOpcode = make(map[string]FunctionOpcode, 20)
 		lambdaOpcodeOffsets = make(map[string]uint16, 16)
-		methodTable = make([]MethodSpec, 1, 100)   // index 0 unused
+		methodTable = make([]MethodSpec, 1, 100)    // index 0 unused
 		functionTable = make([]FunctionSpec, 1, 20) // index 0 unused
 
 		// Register static methods and functions, building opcode tables.

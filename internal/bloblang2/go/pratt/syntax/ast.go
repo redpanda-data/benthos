@@ -23,12 +23,12 @@ type Stmt interface {
 
 // Program is the root AST node for a complete mapping.
 type Program struct {
-	Stmts      []Stmt                // top-level statements (assignments, if/match stmts)
-	Maps       []*MapDecl            // map declarations (hoisted)
-	Imports    []*ImportStmt         // import statements
-	Namespaces map[string][]*MapDecl // imported maps keyed by namespace
-	MaxSlots    int  // max variable stack slots needed (set by resolver)
-	ReadsOutput bool // true if any expression reads output/output@ (set by resolver)
+	Stmts       []Stmt                // top-level statements (assignments, if/match stmts)
+	Maps        []*MapDecl            // map declarations (hoisted)
+	Imports     []*ImportStmt         // import statements
+	Namespaces  map[string][]*MapDecl // imported maps keyed by namespace
+	MaxSlots    int                   // max variable stack slots needed (set by resolver)
+	ReadsOutput bool                  // true if any expression reads output/output@ (set by resolver)
 }
 
 func (p *Program) nodePos() Pos {
