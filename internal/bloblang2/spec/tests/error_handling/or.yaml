@@ -48,6 +48,32 @@ tests:
       output.result = deleted().or(0)
     output: {"result": 0}
 
+  # --- Directly on input/output/variable (no intermediate field access) ---
+
+  - name: "or on input directly"
+    input: null
+    mapping: |
+      output = input.or("fallback")
+    output: "fallback"
+
+  - name: "or on input directly when present"
+    input: "hello"
+    mapping: |
+      output = input.or("fallback")
+    output: "hello"
+
+  - name: "or on variable directly"
+    mapping: |
+      $v = null
+      output = $v.or("default")
+    output: "default"
+
+  - name: "or on variable directly when present"
+    mapping: |
+      $v = "value"
+      output = $v.or("default")
+    output: "value"
+
   # --- Non-null/void/deleted: returns value unchanged ---
 
   - name: "or returns string unchanged"
