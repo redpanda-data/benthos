@@ -128,6 +128,19 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 				continue
 			}
 
+			// JSON round-trip all values so types are normalized to
+			// JSON-native forms (e.g. int64 → float64). This ensures
+			// consistent comparisons regardless of whether the actual
+			// value came from JSON unmarshal or from the interpreter.
+			normInput, normInputMeta, err := jsonRoundTripInput(encodedInput, encodedInputMeta)
+			if err != nil {
+				continue
+			}
+			normOutput, normOutputMeta, err := jsonRoundTripInput(encodedOutput, encodedOutputMeta)
+			if err != nil {
+				continue
+			}
+
 			id := fmt.Sprintf("%s/%s_%03d", category, baseName, i)
 			tests = append(tests, eligibleTest{
 				manifestEntry: manifestEntry{
@@ -136,13 +149,13 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 					Name:            tc.Name,
 					NoMetadataCheck: tc.NoMetadataCheck,
 					Expected: envelope{
-						Value:    encodedOutput,
-						Metadata: encodedOutputMeta,
+						Value:    normOutput,
+						Metadata: normOutputMeta,
 					},
 				},
 				Mapping:   tc.Mapping,
-				Input:     encodedInput,
-				InputMeta: encodedInputMeta,
+				Input:     normInput,
+				InputMeta: normInputMeta,
 			})
 		}
 	}
@@ -167,6 +180,30 @@ func loadSpecDocs(specDir string) (map[string][]byte, error) {
 		files[filepath.Join("spec", d.Name())] = data
 	}
 	return files, nil
+}
+
+// jsonRoundTripInput marshals value and metadata to JSON and back so that
+// number types are normalized (int64 → float64, etc.), matching what a mapping
+// would receive from a real JSON document.
+func jsonRoundTripInput(value any, meta map[string]any) (any, map[string]any, error) {
+	data, err := json.Marshal(envelope{Value: value, Metadata: meta})
+	if err != nil {
+		return nil, nil, err
+	}
+	var env envelope
+	if err := json.Unmarshal(data, &env); err != nil {
+		return nil, nil, err
+	}
+	if env.Metadata == nil {
+		env.Metadata = map[string]any{}
+	}
+	return env.Value, env.Metadata, nil
+}
+
+// indentLines prefixes each line of s (after the first) with prefix,
+// suitable for indenting multi-line strings in log output.
+func indentLines(s, prefix string) string {
+	return strings.ReplaceAll(s, "\n", "\n"+prefix)
 }
 
 func marshalEnvelope(e envelope) ([]byte, error) {

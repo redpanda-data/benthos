@@ -16,12 +16,14 @@ func TestClaudeCodeArgs(t *testing.T) {
 	tests := []struct {
 		name   string
 		cc     ClaudeCode
+		dir    string
 		prompt string
 		want   []string
 	}{
 		{
-			name:   "defaults",
+			name:   "defaults with files",
 			cc:     ClaudeCode{},
+			dir:    "/tmp/work",
 			prompt: "do stuff",
 			want: []string{
 				"-p", "do stuff",
@@ -31,8 +33,20 @@ func TestClaudeCodeArgs(t *testing.T) {
 			},
 		},
 		{
+			name:   "defaults no files",
+			cc:     ClaudeCode{},
+			dir:    "",
+			prompt: "do stuff",
+			want: []string{
+				"-p", "do stuff",
+				"--dangerously-skip-permissions",
+				"--max-turns", "500",
+			},
+		},
+		{
 			name:   "with model",
 			cc:     ClaudeCode{Model: "sonnet"},
+			dir:    "/tmp/work",
 			prompt: "test",
 			want: []string{
 				"--model", "sonnet",
@@ -49,6 +63,7 @@ func TestClaudeCodeArgs(t *testing.T) {
 				AllowedTools: []string{"Read", "Grep"},
 				ExtraArgs:    []string{"--verbose"},
 			},
+			dir:    "/tmp/work",
 			prompt: "go",
 			want: []string{
 				"-p", "go",
@@ -58,11 +73,25 @@ func TestClaudeCodeArgs(t *testing.T) {
 				"--verbose",
 			},
 		},
+		{
+			name: "explicit tools override no-files default",
+			cc: ClaudeCode{
+				AllowedTools: []string{"WebSearch"},
+			},
+			dir:    "",
+			prompt: "search",
+			want: []string{
+				"-p", "search",
+				"--dangerously-skip-permissions",
+				"--max-turns", "500",
+				"--allowedTools", "WebSearch",
+			},
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := tc.cc.Args(tc.prompt)
+			got := tc.cc.Args(tc.dir, tc.prompt)
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("args mismatch:\n  got:  %v\n  want: %v", got, tc.want)
 			}
@@ -406,12 +435,15 @@ func TestOllamaRunNoToolCalls(t *testing.T) {
 
 	o := &Ollama{BaseURL: srv.URL, Model: "test"}
 	var buf strings.Builder
-	err := o.Run(context.Background(), t.TempDir(), "do nothing", &buf)
+	result, err := o.Run(context.Background(), t.TempDir(), "do nothing", &buf)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(buf.String(), "done") {
 		t.Errorf("output missing model response: %q", buf.String())
+	}
+	if result.Response != "done" {
+		t.Errorf("response: got %q, want %q", result.Response, "done")
 	}
 }
 
@@ -445,7 +477,7 @@ func TestOllamaRunWithToolCalls(t *testing.T) {
 
 	o := &Ollama{BaseURL: srv.URL, Model: "test"}
 	var buf strings.Builder
-	err := o.Run(context.Background(), dir, "read the file", &buf)
+	result, err := o.Run(context.Background(), dir, "read the file", &buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -454,6 +486,9 @@ func TestOllamaRunWithToolCalls(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "hello") {
 		t.Errorf("output missing tool result: %q", buf.String())
+	}
+	if result.Response != "all done" {
+		t.Errorf("response: got %q, want %q", result.Response, "all done")
 	}
 }
 
@@ -477,7 +512,7 @@ func TestOllamaRunMaxTurns(t *testing.T) {
 
 	o := &Ollama{BaseURL: srv.URL, Model: "test", MaxTurns: 3}
 	var buf strings.Builder
-	err := o.Run(context.Background(), t.TempDir(), "loop forever", &buf)
+	_, err := o.Run(context.Background(), t.TempDir(), "loop forever", &buf)
 	if err == nil || !strings.Contains(err.Error(), "exceeded 3 turns") {
 		t.Errorf("expected max turns error, got: %v", err)
 	}
