@@ -69,7 +69,7 @@ func registerFunctionOpcode(name string, spec FunctionSpec) {
 func registerLambdaMethodOpcode(name string) {
 	offset := uint16(len(lambdaOpcodeOffsets))
 	lambdaOpcodeOffsets[name] = offset
-	methodNameToOpcode[name] = lambdaOpcodeBase + MethodOpcode(offset)
+	methodNameToOpcode[name] = lambdaOpcodeBase + offset
 }
 
 // StdlibOpcodes returns the name-to-opcode mappings for methods and functions.
