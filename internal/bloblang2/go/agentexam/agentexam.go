@@ -1,9 +1,11 @@
 // Package agentexam provides a framework for running and scoring agent
-// "exams" — isolated evaluations where an AI agent works inside a temporary
-// clean room directory, and its output is scored by a user-supplied function.
+// "exams" — isolated evaluations where an AI agent receives a prompt and its
+// output is scored by a user-supplied function. Exams may optionally use a
+// temporary clean room directory for file-based interaction (see Exam.UseFiles).
 package agentexam
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -23,24 +25,46 @@ type Exam struct {
 	// Name identifies this exam (used in result reporting and temp dir naming).
 	Name string
 
+	// UseFiles enables file-based operation: a temporary clean room directory
+	// is created, Files are written into it, and the directory path is passed
+	// to the agent. When false (the default), no directory is created and
+	// the agent receives an empty dir string.
+	UseFiles bool
+
 	// Files to place in the clean room before the agent runs. Keys are
 	// relative paths (e.g., "tests/math/add_000.input.json"). Values are
-	// the file contents.
+	// the file contents. Only used when UseFiles is true.
 	Files map[string][]byte
 
 	// Prompt is the text passed to the agent.
 	Prompt string
 
 	// Score is called after the agent finishes. It receives the parent
-	// context, a Room for accessing clean room files, and the output
-	// writer for logging (useful when nesting exams). Returns results.
+	// context, a Room for accessing clean room files and agent output, and
+	// the output writer for logging (useful when nesting exams). Returns
+	// results.
 	Score func(ctx context.Context, room *Room, output io.Writer) ([]Result, error)
 }
 
-// Room provides read access to the clean room directory after an agent has
-// finished working in it.
+// Room provides access to exam results after an agent has finished. When
+// UseFiles is true, it provides read access to the clean room directory.
+// It always provides the captured agent output and clean response.
 type Room struct {
-	dir string
+	dir         string
+	agentOutput string
+	response    string
+}
+
+// AgentOutput returns the full verbose output produced by the agent during
+// its run, including logging prefixes and tool-call traces.
+func (r *Room) AgentOutput() string {
+	return r.agentOutput
+}
+
+// Response returns the agent's clean response text, free of logging
+// prefixes and tool-call framing.
+func (r *Room) Response() string {
+	return r.response
 }
 
 // GetFile returns the contents of a file at the given relative path within
@@ -125,10 +149,11 @@ type Options struct {
 
 	// WorkDir overrides the temporary directory location. If empty, a
 	// deterministic path under os.TempDir() is used, derived from the
-	// exam name.
+	// exam name. Only applies when Exam.UseFiles is true.
 	WorkDir string
 
 	// KeepDir prevents cleanup of the work directory after the run.
+	// Only applies when Exam.UseFiles is true.
 	KeepDir bool
 
 	// Output receives agent output (conversation text, tool calls, etc.)
@@ -136,25 +161,28 @@ type Options struct {
 	Output io.Writer
 }
 
-// Run executes a single exam: creates the clean room, runs the agent, and
-// scores the results.
+// Run executes a single exam: optionally creates the clean room, runs the
+// agent, and scores the results.
 func Run(ctx context.Context, exam *Exam, opts *Options) ([]Result, error) {
 	if opts.Agent == nil {
 		return nil, errors.New("agentexam: Options.Agent is required")
 	}
 
-	dir := opts.WorkDir
-	if dir == "" {
-		dir = stableWorkDir(exam.Name)
-	}
+	var dir string
+	if exam.UseFiles {
+		dir = opts.WorkDir
+		if dir == "" {
+			dir = stableWorkDir(exam.Name)
+		}
 
-	// Remove any stale data from a previous run, then create a fresh dir.
-	_ = os.RemoveAll(dir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return nil, fmt.Errorf("agentexam: creating work dir: %w", err)
-	}
-	if err := writeFiles(dir, exam.Files); err != nil {
-		return nil, fmt.Errorf("agentexam: writing clean room: %w", err)
+		// Remove any stale data from a previous run, then create a fresh dir.
+		_ = os.RemoveAll(dir)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("agentexam: creating work dir: %w", err)
+		}
+		if err := writeFiles(dir, exam.Files); err != nil {
+			return nil, fmt.Errorf("agentexam: writing clean room: %w", err)
+		}
 	}
 
 	runCtx := ctx
@@ -171,28 +199,40 @@ func Run(ctx context.Context, exam *Exam, opts *Options) ([]Result, error) {
 
 	fmt.Fprintf(output, "=== exam: %s ===\n", exam.Name)
 	fmt.Fprintf(output, "  agent:     %s\n", opts.Agent)
-	fmt.Fprintf(output, "  files:     %d\n", len(exam.Files))
-	fmt.Fprintf(output, "  work dir:  %s\n", dir)
+	if exam.UseFiles {
+		fmt.Fprintf(output, "  files:     %d\n", len(exam.Files))
+		fmt.Fprintf(output, "  work dir:  %s\n", dir)
+	}
 	if opts.Timeout > 0 {
 		fmt.Fprintf(output, "  timeout:   %s\n", opts.Timeout)
 	}
 	fmt.Fprintln(output)
 
-	if err := opts.Agent.Run(runCtx, dir, exam.Prompt, output); err != nil {
+	// Capture agent output while still streaming to the configured writer.
+	var agentBuf bytes.Buffer
+	agentOutput := io.MultiWriter(output, &agentBuf)
+
+	result, err := opts.Agent.Run(runCtx, dir, exam.Prompt, agentOutput)
+	if err != nil {
 		return nil, fmt.Errorf("agentexam: agent run: %w", err)
+	}
+
+	var response string
+	if result != nil {
+		response = result.Response
 	}
 
 	fmt.Fprintf(output, "\n=== scoring: %s ===\n\n", exam.Name)
 
 	// Score.
-	room := &Room{dir: dir}
+	room := &Room{dir: dir, agentOutput: agentBuf.String(), response: response}
 	results, err := exam.Score(ctx, room, output)
 	if err != nil {
 		return nil, fmt.Errorf("agentexam: scoring: %w", err)
 	}
 
 	// Cleanup unless told to keep it.
-	if !opts.KeepDir {
+	if exam.UseFiles && !opts.KeepDir {
 		_ = os.RemoveAll(dir)
 	}
 

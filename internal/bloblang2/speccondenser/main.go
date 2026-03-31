@@ -1,90 +1,63 @@
 // speccondenser condenses a Bloblang V2 specification and measures the
-// quality of the condensed version by running read/write exams against it.
-//
-// Modes:
-//   - condense (default): agent condenses the spec, sub-exams score it
-//   - write:  directly test predict-mapping against the original spec
-//   - read:   directly test predict-output against the original spec
-//   - both:   run write + read directly against the original spec
+// quality of the condensed version by running prompt-based read/write exams
+// against it using configurable pools of agents.
 //
 // Usage:
 //
-//	speccondenser [flags] <spec-dir>
+//	speccondenser <config.yaml>
 package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"time"
+	"strings"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/agentexam"
-	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/agentexam/agents"
 )
 
 func main() {
-	fs := flag.NewFlagSet("speccondenser", flag.ExitOnError)
-	testsDir := fs.String("tests", "", "path to spec tests directory (default: <spec-dir>/tests)")
-	categories := fs.String("categories", "", "comma-separated list of categories to include")
-	mode := fs.String("mode", "condense", "exam mode: condense, write, read, or both")
-	agentType := fs.String("agent", "ollama", "agent type: ollama or claude")
-	model := fs.String("model", "", "model name (ollama: default qwen3.5:latest, claude: default from CLI)")
-	baseURL := fs.String("ollama-url", "http://localhost:11434", "Ollama API base URL")
-	maxTurns := fs.Int("max-turns", 200, "max tool-calling turns (ollama) or max turns (claude)")
-	timeout := fs.Duration("timeout", 60*time.Minute, "timeout per exam")
-	keepDir := fs.Bool("keep-dir", false, "keep the clean room directory after the run")
-	verbose := fs.Bool("verbose", false, "print agent output and individual results to stdout")
-	artifactDir := fs.String("artifact-dir", ".", "directory where artifact folders are written")
-	subRuns := fs.Int("sub-runs", 1, "number of times to run each sub-exam in condense mode (results averaged)")
-	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: speccondenser [flags] <spec-dir>\n\nModes:\n")
-		fmt.Fprintf(os.Stderr, "  condense  Agent condenses the spec, sub-exams score it (default)\n")
-		fmt.Fprintf(os.Stderr, "  write     Agent writes mappings given input + expected output\n")
-		fmt.Fprintf(os.Stderr, "  read      Agent predicts output given mapping + input\n")
-		fmt.Fprintf(os.Stderr, "  both      Run write + read directly against original spec\n\n")
-		fmt.Fprintf(os.Stderr, "Flags:\n")
-		fs.PrintDefaults()
-	}
-	if err := fs.Parse(os.Args[1:]); err != nil {
+	if len(os.Args) < 2 {
+		fmt.Fprintln(os.Stderr, "usage: speccondenser <config.yaml>\n       speccondenser example-config")
 		os.Exit(1)
 	}
-	if fs.NArg() < 1 {
-		fmt.Fprintln(os.Stderr, "error: spec directory is required")
-		fs.Usage()
-		os.Exit(1)
-	}
-	specDir := fs.Arg(0)
 
-	if *testsDir == "" {
-		candidate := filepath.Join(specDir, "tests")
+	if os.Args[1] == "example-config" {
+		fmt.Print(exampleConfig)
+		return
+	}
+
+	configPath := os.Args[1]
+
+	cfg, err := loadConfig(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Resolve tests dir.
+	testsDir := cfg.TestsDir
+	if testsDir == "" {
+		candidate := filepath.Join(cfg.SpecDir, "tests")
 		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-			*testsDir = candidate
+			testsDir = candidate
 		} else {
-			fmt.Fprintln(os.Stderr, "error: --tests is required (no tests/ subdirectory found)")
+			fmt.Fprintln(os.Stderr, "error: tests_dir is required (no tests/ subdirectory found in spec_dir)")
 			os.Exit(1)
 		}
 	}
 
-	// Validate mode.
-	switch *mode {
-	case "condense", "write", "read", "both":
-	default:
-		fmt.Fprintf(os.Stderr, "error: unknown mode %q (use condense, write, read, or both)\n", *mode)
-		os.Exit(1)
-	}
-
-	// Load spec docs.
-	specFiles, err := loadSpecDocs(specDir)
+	// Load spec and tests.
+	specFiles, err := loadSpecDocs(cfg.SpecDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading spec: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Load tests (needed for all modes except... well, all modes need them).
-	tests, err := loadEligibleTests(*testsDir, parseCategories(*categories))
+	cats := parseCategories(strings.Join(cfg.Categories, ","))
+	tests, err := loadEligibleTests(testsDir, cats)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading tests: %v\n", err)
 		os.Exit(1)
@@ -95,101 +68,140 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "loaded %d eligible tests\n", len(tests))
 
-	var agent agentexam.Agent
-	agentLabel := *model
-	switch *agentType {
-	case "ollama":
-		ollamaModel := *model
-		if ollamaModel == "" {
-			ollamaModel = "qwen3.5:latest"
-		}
-		agentLabel = ollamaModel
-		agent = &agents.Ollama{
-			BaseURL:  *baseURL,
-			Model:    ollamaModel,
-			MaxTurns: *maxTurns,
-		}
-	case "claude":
-		cc := &agents.ClaudeCode{
-			Model:    *model,
-			MaxTurns: *maxTurns,
-		}
-		if agentLabel == "" {
-			agentLabel = "claude"
-		}
-		agent = cc
-	default:
-		fmt.Fprintf(os.Stderr, "error: unknown agent type %q (use ollama or claude)\n", *agentType)
-		os.Exit(1)
-	}
-
 	output := io.Discard
-	if *verbose {
-		output = os.Stdout
+	if cfg.Verbose {
+		if cfg.VerboseFile != "" {
+			f, err := os.Create(cfg.VerboseFile)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error creating verbose file: %v\n", err)
+				os.Exit(1)
+			}
+			defer f.Close()
+			output = io.MultiWriter(os.Stdout, f)
+		} else {
+			output = os.Stdout
+		}
 	}
 
-	opts := &agentexam.Options{
-		Agent:   agent,
-		Timeout: *timeout,
-		KeepDir: *keepDir,
-		Output:  output,
+	// Phase 1: Get the condensed spec — either from a file or by running
+	// the condense agent.
+	var condensedSpec string
+	if cfg.Condense.SpecFile != "" {
+		data, err := os.ReadFile(cfg.Condense.SpecFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading spec file: %v\n", err)
+			os.Exit(1)
+		}
+		condensedSpec = string(data)
+		fmt.Fprintf(os.Stderr, "using pre-condensed spec: %s (%d bytes)\n", cfg.Condense.SpecFile, len(condensedSpec))
+	} else {
+		condenseAgent, err := buildAgent(cfg.Condense.Agent)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error building condense agent: %v\n", err)
+			os.Exit(1)
+		}
+
+		exam, err := buildCondenseExam(specFiles, &condensedSpec)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+
+		opts := &agentexam.Options{
+			Agent:   condenseAgent,
+			Timeout: cfg.Condense.Timeout,
+			KeepDir: cfg.KeepDir,
+			Output:  output,
+		}
+
+		results, err := agentexam.Run(context.Background(), exam, opts)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error running condense exam: %v\n", err)
+			os.Exit(1)
+		}
+		if len(results) == 0 || results[0].Score < 1 {
+			fmt.Fprintln(os.Stderr, "error: condense exam failed — agent did not produce condensed_spec.md")
+			os.Exit(1)
+		}
+
+		fmt.Fprintf(os.Stderr, "condensed spec: %d bytes\n", len(condensedSpec))
 	}
 
-	// Build exams based on mode.
-	var exams []*agentexam.Exam
-
-	switch *mode {
-	case "condense":
-		exam, buildErr := buildCondenseExam(specFiles, condenseConfig{
-			tests:       tests,
-			model:       agentLabel,
-			agent:       agent,
-			timeout:     *opts,
-			artifactDir: *artifactDir,
-			subRuns:     *subRuns,
-		})
-		if buildErr != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
-			os.Exit(1)
-		}
-		exams = append(exams, exam)
-
-	case "write":
-		exam, buildErr := buildWriteExam(specFiles, tests, agentLabel)
-		if buildErr != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
-			os.Exit(1)
-		}
-		exams = append(exams, exam)
-
-	case "read":
-		exam, buildErr := buildReadExam(specFiles, tests, agentLabel)
-		if buildErr != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
-			os.Exit(1)
-		}
-		exams = append(exams, exam)
-
-	case "both":
-		writeExam, buildErr := buildWriteExam(specFiles, tests, agentLabel)
-		if buildErr != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
-			os.Exit(1)
-		}
-		readExam, buildErr := buildReadExam(specFiles, tests, agentLabel)
-		if buildErr != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
-			os.Exit(1)
-		}
-		exams = append(exams, writeExam, readExam)
-	}
-
-	allResults, err := agentexam.RunAll(context.Background(), exams, opts)
+	// Phase 2: Score the condensed spec with each pool.
+	poolResults, err := scoreCondensedSpec(context.Background(), condensedSpec, tests, cfg.Scoring.Pools, output)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error scoring: %v\n", err)
 		os.Exit(1)
 	}
 
+	// Print results.
 	fmt.Println()
-	agentexam.PrintComparisonTable(os.Stdout, allResults)
+	agentexam.PrintComparisonTable(os.Stdout, aggregatePoolResults(poolResults))
+
+	// Write artifact.
+	if err := writeArtifact(cfg.ArtifactDir, condensedSpec, poolResults); err != nil {
+		fmt.Fprintf(os.Stderr, "error writing artifact: %v\n", err)
+		os.Exit(1)
+	}
 }
+
+const exampleConfig = `# speccondenser configuration
+#
+# Usage: speccondenser config.yaml
+
+# Path to the directory containing spec .md files.
+spec_dir: ./spec
+
+# Path to the directory containing test .yaml files.
+# Defaults to <spec_dir>/tests if omitted.
+# tests_dir: ./spec/tests
+
+# Optional list of test categories to include. Omit to include all.
+# categories:
+#   - expressions
+#   - stdlib
+
+# Where to write result artifacts.
+artifact_dir: .
+
+# Print agent output and individual results to stdout.
+verbose: false
+
+# When verbose is enabled, also write agent output to this file.
+# verbose_file: output.log
+
+# Keep the condense phase clean room directory after the run.
+keep_dir: false
+
+# Outer phase: a single agent condenses the full spec into a compact form.
+# To skip condensing and use a pre-made spec file, set spec_file instead.
+condense:
+  # spec_file: ./condensed_spec.md
+  agent:
+    type: ollama          # ollama | claude | opencode
+    model: qwen3.5:latest
+    # base_url: http://localhost:11434  # ollama only
+    # max_turns: 200                    # ollama / claude
+    # command: claude                   # claude / opencode executable override
+  timeout: 60m
+
+# Inner phase: pools of agents score the condensed spec via read/write exams.
+# Each test is a separate prompt-based agent call (no file tools).
+scoring:
+  pools:
+    - name: qwen3.5
+      agent:
+        type: ollama
+        model: qwen3.5:latest
+        base_url: http://localhost:11434
+        max_turns: 200
+      runs: 1       # number of times to run the full test suite
+      timeout: 10m  # per-test timeout
+
+    # - name: claude-opus
+    #   agent:
+    #     type: claude
+    #     model: claude-opus-4-20250514
+    #   runs: 3
+    #   timeout: 10m
+`

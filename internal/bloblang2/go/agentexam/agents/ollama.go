@@ -13,11 +13,14 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/agentexam"
 )
 
-// Ollama runs an Ollama model with a tool-calling loop. It provides the model
-// with filesystem tools (read_file, write_file, list_files, grep) scoped to
-// the clean room directory.
+// Ollama runs an Ollama model with a tool-calling loop. When dir is non-empty
+// it provides the model with filesystem tools (read_file, write_file,
+// list_files, grep) scoped to the working directory. When dir is empty,
+// no tools are provided and the default system prompt omits file instructions.
 type Ollama struct {
 	// BaseURL is the Ollama API base URL. Default: "http://localhost:11434".
 	BaseURL string
@@ -35,7 +38,9 @@ type Ollama struct {
 }
 
 // Run implements agentexam.Agent by calling the Ollama chat API in a loop.
-func (o *Ollama) Run(ctx context.Context, dir string, prompt string, output io.Writer) error {
+// When dir is empty, file tools are not provided and the system prompt omits
+// file-related instructions.
+func (o *Ollama) Run(ctx context.Context, dir string, prompt string, output io.Writer) (*agentexam.RunResult, error) {
 	baseURL := o.BaseURL
 	if baseURL == "" {
 		baseURL = "http://localhost:11434"
@@ -44,9 +49,16 @@ func (o *Ollama) Run(ctx context.Context, dir string, prompt string, output io.W
 	if maxTurns == 0 {
 		maxTurns = 200
 	}
+
+	useFiles := dir != ""
+
 	systemPrompt := o.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = "You are a coding agent that completes tasks by calling tools. You MUST call tools to accomplish your task. Read files with read_file, write files with write_file, list files with list_files, and search with grep. Keep calling tools until the task is fully complete. Only stop calling tools when you have finished all work."
+		if useFiles {
+			systemPrompt = "You are a coding agent that completes tasks by calling tools. You MUST call tools to accomplish your task. Read files with read_file, write files with write_file, list files with list_files, and search with grep. Keep calling tools until the task is fully complete. Only stop calling tools when you have finished all work."
+		} else {
+			systemPrompt = "You are a helpful assistant. Answer the user's prompt directly."
+		}
 	}
 
 	messages := []ollamaMessage{
@@ -54,12 +66,17 @@ func (o *Ollama) Run(ctx context.Context, dir string, prompt string, output io.W
 		{Role: "user", Content: prompt},
 	}
 
-	tools := ollamaToolDefs()
+	var tools []ollamaTool
+	if useFiles {
+		tools = ollamaToolDefs()
+	}
+
+	var response strings.Builder
 
 	for turn := 0; turn < maxTurns; turn++ {
 		resp, err := ollamaChat(ctx, baseURL, o.Model, messages, tools)
 		if err != nil {
-			return fmt.Errorf("ollama chat (turn %d): %w", turn, err)
+			return nil, fmt.Errorf("ollama chat (turn %d): %w", turn, err)
 		}
 
 		messages = append(messages, resp.Message)
@@ -67,10 +84,14 @@ func (o *Ollama) Run(ctx context.Context, dir string, prompt string, output io.W
 		// Write model's text output.
 		if resp.Message.Content != "" {
 			fmt.Fprintf(output, "[ollama turn %d] %s\n", turn, resp.Message.Content)
+			if response.Len() > 0 {
+				response.WriteByte('\n')
+			}
+			response.WriteString(resp.Message.Content)
 		}
 
 		if len(resp.Message.ToolCalls) == 0 {
-			return nil
+			return &agentexam.RunResult{Response: response.String()}, nil
 		}
 
 		for _, tc := range resp.Message.ToolCalls {
@@ -84,7 +105,7 @@ func (o *Ollama) Run(ctx context.Context, dir string, prompt string, output io.W
 		}
 	}
 
-	return fmt.Errorf("ollama agent exceeded %d turns", maxTurns)
+	return nil, fmt.Errorf("ollama agent exceeded %d turns", maxTurns)
 }
 
 // String implements fmt.Stringer.

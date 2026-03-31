@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/agentexam"
 )
 
 // ClaudeCode invokes the Claude Code CLI as a subprocess.
@@ -23,8 +26,10 @@ type ClaudeCode struct {
 	// MaxTurns limits agent iterations. Default: 500.
 	MaxTurns int
 
-	// AllowedTools restricts which tools the agent can use.
-	// Default: []string{"Read", "Write", "Glob", "Grep"}.
+	// AllowedTools restricts which tools the agent can use. When dir is
+	// non-empty the default is []string{"Read", "Write", "Glob", "Grep"};
+	// when dir is empty (no-file mode) no tools are included by default.
+	// Setting this field explicitly always takes precedence.
 	AllowedTools []string
 
 	// ExtraArgs are appended to the command line after all other flags.
@@ -49,9 +54,12 @@ func (c *ClaudeCode) maxTurns() int {
 	return 500
 }
 
-func (c *ClaudeCode) allowedTools() []string {
+func (c *ClaudeCode) allowedTools(useFiles bool) []string {
 	if len(c.AllowedTools) != 0 {
 		return c.AllowedTools
+	}
+	if !useFiles {
+		return nil
 	}
 	return []string{"Read", "Write", "Glob", "Grep"}
 }
@@ -64,13 +72,17 @@ func (c *ClaudeCode) waitDelay() time.Duration {
 }
 
 // Args returns the command-line arguments that would be passed to the CLI,
-// without actually running it. Useful for testing.
-func (c *ClaudeCode) Args(prompt string) []string {
+// without actually running it. Useful for testing. When dir is non-empty,
+// default tools include file-based tools (Read, Write, Glob, Grep); when
+// dir is empty, no default tools are included.
+func (c *ClaudeCode) Args(dir, prompt string) []string {
 	args := []string{
 		"-p", prompt,
 		"--dangerously-skip-permissions",
 		"--max-turns", strconv.Itoa(c.maxTurns()),
-		"--allowedTools", strings.Join(c.allowedTools(), ","),
+	}
+	if tools := c.allowedTools(dir != ""); len(tools) > 0 {
+		args = append(args, "--allowedTools", strings.Join(tools, ","))
 	}
 	if c.Model != "" {
 		args = append([]string{"--model", c.Model}, args...)
@@ -80,12 +92,19 @@ func (c *ClaudeCode) Args(prompt string) []string {
 }
 
 // Run implements agentexam.Agent by spawning the Claude Code CLI.
-func (c *ClaudeCode) Run(ctx context.Context, dir string, prompt string, output io.Writer) error {
-	cmdArgs := c.Args(prompt)
+func (c *ClaudeCode) Run(ctx context.Context, dir string, prompt string, output io.Writer) (*agentexam.RunResult, error) {
+	cmdArgs := c.Args(dir, prompt)
+
+	// Capture the subprocess stdout separately for the clean response,
+	// while still streaming everything to the verbose output writer.
+	var responseBuf bytes.Buffer
+	stdoutWriter := io.MultiWriter(output, &responseBuf)
 
 	cmd := exec.CommandContext(ctx, c.command(), cmdArgs...)
-	cmd.Dir = dir
-	cmd.Stdout = output
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Stdout = stdoutWriter
 	cmd.Stderr = output
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
@@ -94,9 +113,12 @@ func (c *ClaudeCode) Run(ctx context.Context, dir string, prompt string, output 
 
 	err := cmd.Run()
 	if ctx.Err() == context.DeadlineExceeded {
-		return errors.New("agent timed out")
+		return nil, errors.New("agent timed out")
 	}
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &agentexam.RunResult{Response: responseBuf.String()}, nil
 }
 
 // String implements fmt.Stringer.
