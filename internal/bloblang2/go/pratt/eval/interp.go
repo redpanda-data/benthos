@@ -247,11 +247,11 @@ func (interp *Interpreter) Exec(input any, metadata map[string]any) (output any,
 		interp.frameBase = 0
 		interp.stackTop = interp.prog.MaxSlots
 		if interp.stack == nil {
-			cap := interp.prog.MaxSlots * 4
-			if cap < 32 {
-				cap = 32
+			stackCap := interp.prog.MaxSlots * 4
+			if stackCap < 32 {
+				stackCap = 32
 			}
-			interp.stack = make([]any, cap)
+			interp.stack = make([]any, stackCap)
 		}
 		// Reset the initial frame with sentinels.
 		for i := 0; i < interp.prog.MaxSlots && i < len(interp.stack); i++ {
@@ -297,7 +297,7 @@ func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
 		// For variable targets: declaration with void is an error,
 		// reassignment with void skips the assignment.
 		if a.Target.Root == syntax.AssignVar && len(a.Target.Path) == 0 {
-			isDeclared := false
+			var isDeclared bool
 			if slot := a.Target.SlotIndex; slot > 0 {
 				isDeclared = interp.stackIsDeclared(slot)
 			} else {
@@ -1511,9 +1511,6 @@ func (interp *Interpreter) bindPositionalParamsStack(params []syntax.Param, args
 	return ""
 }
 
-// bindNamedMapParams resolves named call args to positional order using the
-// shared resolveNamedArgs helper, then binds them into the scope. This
-// evaluates each argument exactly once.
 // bindNamedMapParamsFromArgs binds pre-evaluated named arguments to map params.
 func (interp *Interpreter) bindNamedMapParamsFromArgs(s *scope, m *syntax.MapDecl, e *syntax.CallExpr, evaledArgs []any) string {
 	// Build name→value map from pre-evaluated args.
@@ -1542,46 +1539,6 @@ func (interp *Interpreter) bindNamedMapParamsFromArgs(s *scope, m *syntax.MapDec
 		} else {
 			s.vars[mp.Name] = val
 		}
-	}
-	return ""
-}
-
-func (interp *Interpreter) bindNamedMapParams(s *scope, m *syntax.MapDecl, e *syntax.CallExpr) string {
-	// Build namedArgParam descriptors, evaluating AST defaults.
-	params := make([]namedArgParam, 0, len(m.Params))
-	for _, p := range m.Params {
-		if p.Discard {
-			continue
-		}
-		nap := namedArgParam{Name: p.Name}
-		if p.Default != nil {
-			nap.HasDefault = true
-			nap.Default = interp.evalExpr(p.Default)
-		}
-		params = append(params, nap)
-	}
-
-	resolved := interp.resolveNamedArgs(e.Args, params, e.Name+"()")
-	if IsError(resolved) {
-		return ErrorMessage(resolved)
-	}
-	args := resolved.([]any)
-
-	// Bind into scope or stack (positional order, discard params already excluded).
-	// Build a non-discard param index to find slot indices.
-	paramIdx := 0
-	for _, mp := range m.Params {
-		if mp.Discard {
-			continue
-		}
-		if paramIdx < len(args) {
-			if mp.SlotIndex > 0 {
-				interp.stackSet(mp.SlotIndex, args[paramIdx])
-			} else {
-				s.vars[mp.Name] = args[paramIdx]
-			}
-		}
-		paramIdx++
 	}
 	return ""
 }
