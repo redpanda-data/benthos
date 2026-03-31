@@ -12,7 +12,7 @@ import (
 
 // buildWriteExam builds the predict-mapping exam: the agent receives input and
 // expected output, and must write a Bloblang V2 mapping that produces it.
-func buildWriteExam(specDir string, tests []eligibleTest, model string) (*agentexam.Exam, error) {
+func buildWriteExam(specFiles map[string][]byte, tests []eligibleTest, model string) (*agentexam.Exam, error) {
 	files := map[string][]byte{}
 
 	var entries []manifestEntry
@@ -31,10 +31,6 @@ func buildWriteExam(specDir string, tests []eligibleTest, model string) (*agente
 		entries = append(entries, t.manifestEntry)
 	}
 
-	specFiles, err := loadSpecDocs(specDir)
-	if err != nil {
-		return nil, fmt.Errorf("loading spec docs: %w", err)
-	}
 	for k, v := range specFiles {
 		files[k] = v
 	}

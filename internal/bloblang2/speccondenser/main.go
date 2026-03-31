@@ -1,8 +1,11 @@
-// speccondenser runs Bloblang V2 spec exams against a local Ollama model.
+// speccondenser condenses a Bloblang V2 specification and measures the
+// quality of the condensed version by running read/write exams against it.
 //
-// Two exam modes:
-//   - write (predict-mapping): given input + expected output, write a mapping
-//   - read  (predict-output):  given mapping + input, predict the output
+// Modes:
+//   - condense (default): agent condenses the spec, sub-exams score it
+//   - write:  directly test predict-mapping against the original spec
+//   - read:   directly test predict-output against the original spec
+//   - both:   run write + read directly against the original spec
 //
 // Usage:
 //
@@ -26,18 +29,22 @@ func main() {
 	fs := flag.NewFlagSet("speccondenser", flag.ExitOnError)
 	testsDir := fs.String("tests", "", "path to spec tests directory (default: <spec-dir>/tests)")
 	categories := fs.String("categories", "", "comma-separated list of categories to include")
-	mode := fs.String("mode", "both", "exam mode: write, read, or both")
-	model := fs.String("model", "qwen3-coder:30b-16k", "Ollama model name")
+	mode := fs.String("mode", "condense", "exam mode: condense, write, read, or both")
+	agentType := fs.String("agent", "ollama", "agent type: ollama or claude")
+	model := fs.String("model", "", "model name (ollama: default qwen3.5:latest, claude: default from CLI)")
 	baseURL := fs.String("ollama-url", "http://localhost:11434", "Ollama API base URL")
-	maxTurns := fs.Int("max-turns", 200, "max tool-calling turns for the agent")
+	maxTurns := fs.Int("max-turns", 200, "max tool-calling turns (ollama) or max turns (claude)")
 	timeout := fs.Duration("timeout", 60*time.Minute, "timeout per exam")
 	keepDir := fs.Bool("keep-dir", false, "keep the clean room directory after the run")
 	verbose := fs.Bool("verbose", false, "print agent output and individual results to stdout")
+	artifactDir := fs.String("artifact-dir", ".", "directory where artifact folders are written")
+	subRuns := fs.Int("sub-runs", 1, "number of times to run each sub-exam in condense mode (results averaged)")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: speccondenser [flags] <spec-dir>\n\nModes:\n")
-		fmt.Fprintf(os.Stderr, "  write  Agent writes mappings given input + expected output\n")
-		fmt.Fprintf(os.Stderr, "  read   Agent predicts output given mapping + input\n")
-		fmt.Fprintf(os.Stderr, "  both   Run both exams sequentially (default)\n\n")
+		fmt.Fprintf(os.Stderr, "  condense  Agent condenses the spec, sub-exams score it (default)\n")
+		fmt.Fprintf(os.Stderr, "  write     Agent writes mappings given input + expected output\n")
+		fmt.Fprintf(os.Stderr, "  read      Agent predicts output given mapping + input\n")
+		fmt.Fprintf(os.Stderr, "  both      Run write + read directly against original spec\n\n")
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		fs.PrintDefaults()
 	}
@@ -61,21 +68,22 @@ func main() {
 		}
 	}
 
-	// Validate mode before doing any work.
-	runWrite, runRead := false, false
+	// Validate mode.
 	switch *mode {
-	case "write":
-		runWrite = true
-	case "read":
-		runRead = true
-	case "both":
-		runWrite, runRead = true, true
+	case "condense", "write", "read", "both":
 	default:
-		fmt.Fprintf(os.Stderr, "error: unknown mode %q (use write, read, or both)\n", *mode)
+		fmt.Fprintf(os.Stderr, "error: unknown mode %q (use condense, write, read, or both)\n", *mode)
 		os.Exit(1)
 	}
 
-	// Load tests once.
+	// Load spec docs.
+	specFiles, err := loadSpecDocs(specDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error loading spec: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Load tests (needed for all modes except... well, all modes need them).
 	tests, err := loadEligibleTests(*testsDir, parseCategories(*categories))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading tests: %v\n", err)
@@ -87,29 +95,32 @@ func main() {
 	}
 	fmt.Fprintf(os.Stderr, "loaded %d eligible tests\n", len(tests))
 
-	// Build exams.
-	var exams []*agentexam.Exam
-	if runWrite {
-		exam, err := buildWriteExam(specDir, tests, *model)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+	var agent agentexam.Agent
+	agentLabel := *model
+	switch *agentType {
+	case "ollama":
+		ollamaModel := *model
+		if ollamaModel == "" {
+			ollamaModel = "qwen3.5:latest"
 		}
-		exams = append(exams, exam)
-	}
-	if runRead {
-		exam, err := buildReadExam(specDir, tests, *model)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+		agentLabel = ollamaModel
+		agent = &agents.Ollama{
+			BaseURL:  *baseURL,
+			Model:    ollamaModel,
+			MaxTurns: *maxTurns,
 		}
-		exams = append(exams, exam)
-	}
-
-	agent := &agents.Ollama{
-		BaseURL:  *baseURL,
-		Model:    *model,
-		MaxTurns: *maxTurns,
+	case "claude":
+		cc := &agents.ClaudeCode{
+			Model:    *model,
+			MaxTurns: *maxTurns,
+		}
+		if agentLabel == "" {
+			agentLabel = "claude"
+		}
+		agent = cc
+	default:
+		fmt.Fprintf(os.Stderr, "error: unknown agent type %q (use ollama or claude)\n", *agentType)
+		os.Exit(1)
 	}
 
 	output := io.Discard
@@ -117,12 +128,63 @@ func main() {
 		output = os.Stdout
 	}
 
-	allResults, err := agentexam.RunAll(context.Background(), exams, &agentexam.Options{
+	opts := &agentexam.Options{
 		Agent:   agent,
 		Timeout: *timeout,
 		KeepDir: *keepDir,
 		Output:  output,
-	})
+	}
+
+	// Build exams based on mode.
+	var exams []*agentexam.Exam
+
+	switch *mode {
+	case "condense":
+		exam, buildErr := buildCondenseExam(specFiles, condenseConfig{
+			tests:       tests,
+			model:       agentLabel,
+			agent:       agent,
+			timeout:     *opts,
+			artifactDir: *artifactDir,
+			subRuns:     *subRuns,
+		})
+		if buildErr != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
+			os.Exit(1)
+		}
+		exams = append(exams, exam)
+
+	case "write":
+		exam, buildErr := buildWriteExam(specFiles, tests, agentLabel)
+		if buildErr != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
+			os.Exit(1)
+		}
+		exams = append(exams, exam)
+
+	case "read":
+		exam, buildErr := buildReadExam(specFiles, tests, agentLabel)
+		if buildErr != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
+			os.Exit(1)
+		}
+		exams = append(exams, exam)
+
+	case "both":
+		writeExam, buildErr := buildWriteExam(specFiles, tests, agentLabel)
+		if buildErr != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
+			os.Exit(1)
+		}
+		readExam, buildErr := buildReadExam(specFiles, tests, agentLabel)
+		if buildErr != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", buildErr)
+			os.Exit(1)
+		}
+		exams = append(exams, writeExam, readExam)
+	}
+
+	allResults, err := agentexam.RunAll(context.Background(), exams, opts)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)

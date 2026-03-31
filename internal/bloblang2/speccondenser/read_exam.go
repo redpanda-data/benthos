@@ -11,7 +11,7 @@ import (
 
 // buildReadExam builds the predict-output exam: the agent receives a mapping
 // and input, and must predict the output the mapping produces.
-func buildReadExam(specDir string, tests []eligibleTest, model string) (*agentexam.Exam, error) {
+func buildReadExam(specFiles map[string][]byte, tests []eligibleTest, model string) (*agentexam.Exam, error) {
 	files := map[string][]byte{}
 
 	var entries []manifestEntry
@@ -26,10 +26,6 @@ func buildReadExam(specDir string, tests []eligibleTest, model string) (*agentex
 		entries = append(entries, t.manifestEntry)
 	}
 
-	specFiles, err := loadSpecDocs(specDir)
-	if err != nil {
-		return nil, fmt.Errorf("loading spec docs: %w", err)
-	}
 	for k, v := range specFiles {
 		files[k] = v
 	}

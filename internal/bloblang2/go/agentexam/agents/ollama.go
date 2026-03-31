@@ -46,7 +46,7 @@ func (o *Ollama) Run(ctx context.Context, dir string, prompt string, output io.W
 	}
 	systemPrompt := o.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = "You are a helpful coding agent. Use the provided tools to read and write files in your working directory to complete the task. When you are done, stop calling tools."
+		systemPrompt = "You are a coding agent that completes tasks by calling tools. You MUST call tools to accomplish your task. Read files with read_file, write files with write_file, list files with list_files, and search with grep. Keep calling tools until the task is fully complete. Only stop calling tools when you have finished all work."
 	}
 
 	messages := []ollamaMessage{
