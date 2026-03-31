@@ -206,6 +206,74 @@ func TestClaudeCodeString(t *testing.T) {
 	}
 }
 
+func TestOpenCodeArgs(t *testing.T) {
+	tests := []struct {
+		name   string
+		oc     OpenCode
+		prompt string
+		want   []string
+	}{
+		{
+			name:   "defaults",
+			oc:     OpenCode{},
+			prompt: "do stuff",
+			want: []string{
+				"run",
+				"-p", "do stuff",
+			},
+		},
+		{
+			name:   "with model",
+			oc:     OpenCode{Model: "anthropic/claude-sonnet-4-20250514"},
+			prompt: "test",
+			want: []string{
+				"--model", "anthropic/claude-sonnet-4-20250514",
+				"run",
+				"-p", "test",
+			},
+		},
+		{
+			name:   "extra args",
+			oc:     OpenCode{ExtraArgs: []string{"--print-logs"}},
+			prompt: "go",
+			want: []string{
+				"run",
+				"--print-logs",
+				"-p", "go",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.oc.Args(tc.prompt)
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("args mismatch:\n  got:  %v\n  want: %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestOpenCodeString(t *testing.T) {
+	tests := []struct {
+		name string
+		oc   OpenCode
+		want string
+	}{
+		{name: "defaults", oc: OpenCode{}, want: "OpenCode(opencode)"},
+		{name: "custom command", oc: OpenCode{Command: "my-oc"}, want: "OpenCode(my-oc)"},
+		{name: "with model", oc: OpenCode{Model: "anthropic/opus"}, want: "OpenCode(opencode, model=anthropic/opus)"},
+		{name: "custom both", oc: OpenCode{Command: "oc", Model: "openai/gpt-4"}, want: "OpenCode(oc, model=openai/gpt-4)"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.oc.String(); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestOllamaString(t *testing.T) {
 	o := Ollama{Model: "llama3.1"}
 	want := "Ollama(http://localhost:11434, model=llama3.1)"
