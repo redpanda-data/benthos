@@ -219,6 +219,12 @@ function tryCollapsePath(expr: Expr): Expr {
         current = current.receiver;
         continue;
       case "method_call":
+        // Intrinsic methods (catch, or) require special dispatch in the
+        // interpreter (short-circuit evaluation, error interception) and
+        // cannot be collapsed into PathExpr segments.
+        if (current.method === "catch" || current.method === "or") {
+          return expr;
+        }
         segments.push({
           segKind: "method",
           name: current.method,

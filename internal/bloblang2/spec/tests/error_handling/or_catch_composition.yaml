@@ -59,6 +59,26 @@ tests:
       output.v = $v?.trim().or("empty")
     output: {"v": "empty"}
 
+  # --- Directly on input/variable with chaining ---
+
+  - name: "or on input then method chain"
+    input: null
+    mapping: |
+      output.v = input.or("hello").uppercase()
+    output: {"v": "HELLO"}
+
+  - name: "catch on input then or"
+    input: null
+    mapping: |
+      output.v = input.not_null().catch(err -> null).or("rescued")
+    output: {"v": "rescued"}
+
+  - name: "or on variable then catch"
+    mapping: |
+      $v = null
+      output.v = $v.or(5 / 0).catch(err -> "safe")
+    output: {"v": "safe"}
+
   # --- .or() with deleted ---
 
   - name: "or rescues deleted from conditional"

@@ -270,6 +270,12 @@ func (o *optimizer) tryCollapsePath(expr Expr) Expr {
 			continue
 
 		case *MethodCallExpr:
+			// Intrinsic methods (catch, or) require special dispatch in the
+			// interpreter (short-circuit evaluation, error interception) and
+			// cannot be collapsed into PathExpr segments.
+			if e.Method == "catch" || e.Method == "or" {
+				return expr
+			}
 			segments = append(segments, PathSegment{
 				Kind:     PathSegMethod,
 				Name:     e.Method,

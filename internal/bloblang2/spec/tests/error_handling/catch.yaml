@@ -41,6 +41,26 @@ tests:
       output.result = throw("oops").catch(err -> "error: " + err.what)
     output: {"result": "error: oops"}
 
+  # --- Directly on input/output/variable (no intermediate field access) ---
+
+  - name: "catch on input directly when error"
+    input: null
+    mapping: |
+      output = input.not_null().catch(err -> "was null")
+    output: "was null"
+
+  - name: "catch on variable directly when no error"
+    mapping: |
+      $v = "hello"
+      output = $v.catch(err -> "caught")
+    output: "hello"
+
+  - name: "catch on input directly when no error"
+    input: "hello"
+    mapping: |
+      output = input.catch(err -> "fallback")
+    output: "hello"
+
   # --- No-error passthrough ---
 
   - name: "catch returns value unchanged when no error"
