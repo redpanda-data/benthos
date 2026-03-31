@@ -1,6 +1,7 @@
 package agents
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -8,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"time"
+
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/agentexam"
 )
 
 // OpenCode invokes the OpenCode CLI as a subprocess.
@@ -56,12 +59,17 @@ func (o *OpenCode) Args(prompt string) []string {
 }
 
 // Run implements agentexam.Agent by spawning the OpenCode CLI.
-func (o *OpenCode) Run(ctx context.Context, dir string, prompt string, output io.Writer) error {
+func (o *OpenCode) Run(ctx context.Context, dir string, prompt string, output io.Writer) (*agentexam.RunResult, error) {
 	cmdArgs := o.Args(prompt)
 
+	var responseBuf bytes.Buffer
+	stdoutWriter := io.MultiWriter(output, &responseBuf)
+
 	cmd := exec.CommandContext(ctx, o.command(), cmdArgs...)
-	cmd.Dir = dir
-	cmd.Stdout = output
+	if dir != "" {
+		cmd.Dir = dir
+	}
+	cmd.Stdout = stdoutWriter
 	cmd.Stderr = output
 	cmd.Cancel = func() error {
 		return cmd.Process.Signal(os.Interrupt)
@@ -70,9 +78,12 @@ func (o *OpenCode) Run(ctx context.Context, dir string, prompt string, output io
 
 	err := cmd.Run()
 	if ctx.Err() == context.DeadlineExceeded {
-		return errors.New("agent timed out")
+		return nil, errors.New("agent timed out")
 	}
-	return err
+	if err != nil {
+		return nil, err
+	}
+	return &agentexam.RunResult{Response: responseBuf.String()}, nil
 }
 
 // String implements fmt.Stringer.

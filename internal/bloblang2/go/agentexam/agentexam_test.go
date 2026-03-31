@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -16,20 +17,24 @@ import (
 
 func TestRunRoundTrip(t *testing.T) {
 	mockAgent := &AgentFunc{
-		Fn: func(_ context.Context, dir, _ string, _ io.Writer) error {
+		Fn: func(_ context.Context, dir, _ string, _ io.Writer) (*RunResult, error) {
 			data, err := os.ReadFile(filepath.Join(dir, "input.json"))
 			if err != nil {
-				return err
+				return nil, err
 			}
-			return os.WriteFile(filepath.Join(dir, "output.json"), data, 0o644)
+			if err := os.WriteFile(filepath.Join(dir, "output.json"), data, 0o644); err != nil {
+				return nil, err
+			}
+			return &RunResult{Response: string(data)}, nil
 		},
 		Label: "mock-copier",
 	}
 
 	exam := &Exam{
-		Name:   "test-roundtrip",
-		Files:  map[string][]byte{"input.json": []byte(`{"value":42}`)},
-		Prompt: "Copy input.json to output.json",
+		Name:     "test-roundtrip",
+		UseFiles: true,
+		Files:    map[string][]byte{"input.json": []byte(`{"value":42}`)},
+		Prompt:   "Copy input.json to output.json",
 		Score: func(_ context.Context, room *Room, _ io.Writer) ([]Result, error) {
 			got, ok := room.GetFile("output.json")
 			if !ok {
@@ -62,7 +67,7 @@ func TestRunRoundTrip(t *testing.T) {
 
 func nopAgent() *AgentFunc {
 	return &AgentFunc{
-		Fn:    func(_ context.Context, _, _ string, _ io.Writer) error { return nil },
+		Fn:    func(_ context.Context, _, _ string, _ io.Writer) (*RunResult, error) { return &RunResult{}, nil },
 		Label: "nop",
 	}
 }
@@ -70,13 +75,13 @@ func nopAgent() *AgentFunc {
 func TestRunAllMultipleExams(t *testing.T) {
 	exams := []*Exam{
 		{
-			Name: "exam-a", Files: map[string][]byte{}, Prompt: "a",
+			Name: "exam-a", Prompt: "a",
 			Score: func(context.Context, *Room, io.Writer) ([]Result, error) {
 				return []Result{{ID: "a1", Score: 1}}, nil
 			},
 		},
 		{
-			Name: "exam-b", Files: map[string][]byte{}, Prompt: "b",
+			Name: "exam-b", Prompt: "b",
 			Score: func(context.Context, *Room, io.Writer) ([]Result, error) {
 				return []Result{
 					{ID: "b1", Score: 1},
@@ -236,7 +241,7 @@ func TestWriteFilesCreatesSubdirs(t *testing.T) {
 
 func TestRunNilAgent(t *testing.T) {
 	exam := &Exam{
-		Name: "nil-agent", Files: map[string][]byte{}, Prompt: "x",
+		Name: "nil-agent", Prompt: "x",
 		Score: func(context.Context, *Room, io.Writer) ([]Result, error) { return nil, nil },
 	}
 	_, err := Run(context.Background(), exam, &Options{})
@@ -247,7 +252,7 @@ func TestRunNilAgent(t *testing.T) {
 
 func TestTHelper(t *testing.T) {
 	exam := &Exam{
-		Name: "t-helper", Files: map[string][]byte{}, Prompt: "x",
+		Name: "t-helper", Prompt: "x",
 		Score: func(context.Context, *Room, io.Writer) ([]Result, error) {
 			return []Result{
 				{ID: "pass-item", Name: "should pass", Score: 1},
@@ -339,9 +344,10 @@ func TestRoomDir(t *testing.T) {
 func TestDebugBanner(t *testing.T) {
 	var buf bytes.Buffer
 	exam := &Exam{
-		Name:   "banner-test",
-		Files:  map[string][]byte{"a.txt": []byte("a"), "b.txt": []byte("b")},
-		Prompt: "do nothing",
+		Name:     "banner-test",
+		UseFiles: true,
+		Files:    map[string][]byte{"a.txt": []byte("a"), "b.txt": []byte("b")},
+		Prompt:   "do nothing",
 		Score: func(context.Context, *Room, io.Writer) ([]Result, error) {
 			return nil, nil
 		},
@@ -370,15 +376,15 @@ func TestDebugBanner(t *testing.T) {
 
 func TestRunWithTimeout(t *testing.T) {
 	slowAgent := &AgentFunc{
-		Fn: func(ctx context.Context, _, _ string, _ io.Writer) error {
+		Fn: func(ctx context.Context, _, _ string, _ io.Writer) (*RunResult, error) {
 			<-ctx.Done()
-			return ctx.Err()
+			return nil, ctx.Err()
 		},
 		Label: "slow",
 	}
 
 	exam := &Exam{
-		Name: "timeout-test", Files: map[string][]byte{}, Prompt: "x",
+		Name: "timeout-test", Prompt: "x",
 		Score: func(context.Context, *Room, io.Writer) ([]Result, error) {
 			return nil, nil
 		},
@@ -395,12 +401,12 @@ func TestRunWithTimeout(t *testing.T) {
 
 func TestRunAgentError(t *testing.T) {
 	failAgent := &AgentFunc{
-		Fn:    func(context.Context, string, string, io.Writer) error { return errors.New("boom") },
+		Fn:    func(context.Context, string, string, io.Writer) (*RunResult, error) { return nil, errors.New("boom") },
 		Label: "fail",
 	}
 
 	exam := &Exam{
-		Name: "fail-test", Files: map[string][]byte{}, Prompt: "x",
+		Name: "fail-test", Prompt: "x",
 		Score: func(context.Context, *Room, io.Writer) ([]Result, error) {
 			return nil, nil
 		},
@@ -415,7 +421,7 @@ func TestRunAgentError(t *testing.T) {
 func TestRunKeepDir(t *testing.T) {
 	dir := t.TempDir()
 	exam := &Exam{
-		Name: "keepdir-test", Files: map[string][]byte{"a.txt": []byte("a")}, Prompt: "x",
+		Name: "keepdir-test", UseFiles: true, Files: map[string][]byte{"a.txt": []byte("a")}, Prompt: "x",
 		Score: func(context.Context, *Room, io.Writer) ([]Result, error) {
 			return []Result{{ID: "ok", Score: 1}}, nil
 		},
@@ -452,8 +458,8 @@ func TestRunCleansDirBetweenRuns(t *testing.T) {
 
 	makeExam := func(files map[string][]byte) *Exam {
 		return &Exam{
-			Name: "stale-test", Files: files, Prompt: "x",
-			Score: func(_ context.Context, room *Room, _ io.Writer) ([]Result, error) {
+			Name: "stale-test", UseFiles: true, Files: files, Prompt: "x",
+			Score: func(_ context.Context, _ *Room, _ io.Writer) ([]Result, error) {
 				return []Result{{ID: "ok", Score: 1}}, nil
 			},
 		}
@@ -488,13 +494,13 @@ func TestRunCleansDirBetweenRuns(t *testing.T) {
 func TestRunAllPartialError(t *testing.T) {
 	exams := []*Exam{
 		{
-			Name: "pass", Files: map[string][]byte{}, Prompt: "x",
+			Name: "pass", Prompt: "x",
 			Score: func(context.Context, *Room, io.Writer) ([]Result, error) {
 				return []Result{{ID: "p1", Score: 1}}, nil
 			},
 		},
 		{
-			Name: "fail", Files: map[string][]byte{}, Prompt: "x",
+			Name: "fail", Prompt: "x",
 			Score: func(context.Context, *Room, io.Writer) ([]Result, error) {
 				return nil, errors.New("scoring failed")
 			},
@@ -565,6 +571,67 @@ func TestRoomGetFileJSON(t *testing.T) {
 		t.Error("expected error for bad JSON")
 	} else if !strings.Contains(err.Error(), "decoding") {
 		t.Errorf("expected decoding error, got: %v", err)
+	}
+}
+
+func TestRunNoFiles(t *testing.T) {
+	agent := &AgentFunc{
+		Fn: func(_ context.Context, dir, _ string, _ io.Writer) (*RunResult, error) {
+			if dir != "" {
+				return nil, fmt.Errorf("expected empty dir for non-file exam, got %q", dir)
+			}
+			return &RunResult{Response: "ok"}, nil
+		},
+		Label: "no-files",
+	}
+
+	exam := &Exam{
+		Name: "no-files-test", Prompt: "just answer",
+		Score: func(_ context.Context, room *Room, _ io.Writer) ([]Result, error) {
+			if room.Dir() != "" {
+				return nil, errors.New("expected empty dir in room")
+			}
+			return []Result{{ID: "ok", Score: 1}}, nil
+		},
+	}
+
+	results, err := Run(context.Background(), exam, &Options{Agent: agent})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 || results[0].Score != 1 {
+		t.Errorf("unexpected results: %v", results)
+	}
+}
+
+func TestAgentOutputCaptured(t *testing.T) {
+	agent := &AgentFunc{
+		Fn: func(_ context.Context, _, _ string, output io.Writer) (*RunResult, error) {
+			fmt.Fprint(output, "hello from agent")
+			return &RunResult{Response: "the answer"}, nil
+		},
+		Label: "chatty",
+	}
+
+	exam := &Exam{
+		Name: "output-test", Prompt: "say hello",
+		Score: func(_ context.Context, room *Room, _ io.Writer) ([]Result, error) {
+			if !strings.Contains(room.AgentOutput(), "hello from agent") {
+				return nil, fmt.Errorf("agent output not captured: %q", room.AgentOutput())
+			}
+			if room.Response() != "the answer" {
+				return nil, fmt.Errorf("response not captured: %q", room.Response())
+			}
+			return []Result{{ID: "ok", Score: 1}}, nil
+		},
+	}
+
+	results, err := Run(context.Background(), exam, &Options{Agent: agent})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 || results[0].Score != 1 {
+		t.Errorf("unexpected results: %v", results)
 	}
 }
 

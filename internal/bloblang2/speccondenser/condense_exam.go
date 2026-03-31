@@ -8,7 +8,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
+	bloblang2 "github.com/redpanda-data/benthos/v4/internal/bloblang2"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/agentexam"
 )
 
@@ -25,92 +28,252 @@ type categoryScores struct {
 	WriteScore float64 `json:"write_score"`
 }
 
-// condenseConfig holds everything the condense exam's scorer needs.
-type condenseConfig struct {
-	tests       []eligibleTest
-	model       string
-	agent       agentexam.Agent
-	timeout     agentexam.Options
-	artifactDir string
-	subRuns     int // number of times to run each sub-exam (results averaged)
-}
-
 // buildCondenseExam builds the top-level exam: the agent reads the full spec
-// and produces a condensed version. The scorer then runs read/write sub-exams
-// against the condensed spec to measure how much information was preserved.
-func buildCondenseExam(specFiles map[string][]byte, cfg condenseConfig) (*agentexam.Exam, error) {
-	// The clean room contains only the spec files. The agent must produce
-	// a single condensed file.
+// and produces a condensed version. The condensed spec text is captured into
+// the provided pointer during scoring.
+func buildCondenseExam(specFiles map[string][]byte, condensedOut *string) (*agentexam.Exam, error) {
 	files := make(map[string][]byte, len(specFiles))
 	for k, v := range specFiles {
 		files[k] = v
 	}
 
 	return &agentexam.Exam{
-		Name:   "condense-" + cfg.model,
-		Files:  files,
-		Prompt: condensePrompt,
-		Score: func(ctx context.Context, room *agentexam.Room, output io.Writer) ([]agentexam.Result, error) {
-			return scoreCondense(ctx, room, output, cfg)
+		Name:     "condense",
+		UseFiles: true,
+		Files:    files,
+		Prompt:   condensePrompt,
+		Score: func(_ context.Context, room *agentexam.Room, _ io.Writer) ([]agentexam.Result, error) {
+			spec, ok := room.GetFile("condensed_spec.md")
+			if !ok {
+				return nil, errors.New("agent did not produce condensed_spec.md")
+			}
+			*condensedOut = spec
+			return []agentexam.Result{{
+				ID:    "condense",
+				Name:  "condensed spec produced",
+				Score: 1,
+			}}, nil
 		},
 	}, nil
 }
 
-func scoreCondense(ctx context.Context, room *agentexam.Room, output io.Writer, cfg condenseConfig) ([]agentexam.Result, error) {
-	// Extract the condensed spec.
-	condensed, ok := room.GetFile("condensed_spec.md")
-	if !ok {
-		return nil, errors.New("agent did not produce condensed_spec.md")
-	}
+// poolResult holds aggregated results for a single scoring pool.
+type poolResult struct {
+	Name         string
+	ReadResults  []agentexam.Result
+	WriteResults []agentexam.Result
+}
 
-	condensedSpec := map[string][]byte{
-		"spec/condensed_spec.md": []byte(condensed),
-	}
+// scoreCondensedSpec runs prompt-based read and write sub-exams against the
+// condensed spec across all configured scoring pools.
+func scoreCondensedSpec(
+	ctx context.Context,
+	condensedSpec string,
+	tests []eligibleTest,
+	pools []PoolConfig,
+	output io.Writer,
+) ([]poolResult, error) {
+	var results []poolResult
 
-	subRuns := cfg.subRuns
-	if subRuns < 1 {
-		subRuns = 1
-	}
-
-	fmt.Fprintf(output, "=== condensed spec produced, running %d sub-exam iteration(s) ===\n", subRuns)
-
-	subOpts := &agentexam.Options{
-		Agent:   cfg.agent,
-		Timeout: cfg.timeout.Timeout,
-		Output:  output,
-	}
-
-	var allReadResults, allWriteResults []agentexam.Result
-
-	for i := range subRuns {
-		if subRuns > 1 {
-			fmt.Fprintf(output, "\n--- sub-exam iteration %d/%d ---\n", i+1, subRuns)
-		}
-
-		readExam, err := buildReadExam(condensedSpec, cfg.tests, cfg.model)
+	for _, poolCfg := range pools {
+		agent, err := buildAgent(poolCfg.Agent)
 		if err != nil {
-			return nil, fmt.Errorf("building read sub-exam: %w", err)
+			return nil, fmt.Errorf("pool %q: building agent: %w", poolCfg.Name, err)
 		}
-		readResults, err := agentexam.Run(ctx, readExam, subOpts)
-		if err != nil {
-			return nil, fmt.Errorf("running read sub-exam (iteration %d): %w", i+1, err)
-		}
-		allReadResults = append(allReadResults, readResults...)
 
-		writeExam, err := buildWriteExam(condensedSpec, cfg.tests, cfg.model)
-		if err != nil {
-			return nil, fmt.Errorf("building write sub-exam: %w", err)
+		fmt.Fprintf(output, "\n=== scoring pool: %s (%d run(s)) ===\n", poolCfg.Name, poolCfg.Runs)
+
+		pr := poolResult{Name: poolCfg.Name}
+
+		for run := range poolCfg.Runs {
+			if poolCfg.Runs > 1 {
+				fmt.Fprintf(output, "\n--- %s run %d/%d ---\n", poolCfg.Name, run+1, poolCfg.Runs)
+			}
+
+			for _, test := range tests {
+				readResult := runReadTest(ctx, agent, condensedSpec, test, poolCfg.Timeout, output)
+				agentexam.LogResult(output, readResult)
+				pr.ReadResults = append(pr.ReadResults, readResult)
+
+				writeResult := runWriteTest(ctx, agent, condensedSpec, test, poolCfg.Timeout, output)
+				agentexam.LogResult(output, writeResult)
+				pr.WriteResults = append(pr.WriteResults, writeResult)
+			}
 		}
-		writeResults, err := agentexam.Run(ctx, writeExam, subOpts)
-		if err != nil {
-			return nil, fmt.Errorf("running write sub-exam (iteration %d): %w", i+1, err)
-		}
-		allWriteResults = append(allWriteResults, writeResults...)
+
+		results = append(results, pr)
 	}
 
-	// Aggregate across all iterations.
-	readSummary := agentexam.Summarize(allReadResults)
-	writeSummary := agentexam.Summarize(allWriteResults)
+	return results, nil
+}
+
+func runReadTest(ctx context.Context, agent agentexam.Agent, spec string, test eligibleTest, timeout time.Duration, output io.Writer) agentexam.Result {
+	r := agentexam.Result{
+		ID:    test.ID,
+		Group: test.Category,
+		Name:  test.Name + " (read)",
+	}
+
+	inputData, _ := marshalEnvelope(envelope{Value: test.Input, Metadata: test.InputMeta})
+	expectedData, _ := marshalEnvelope(test.Expected)
+
+	fmt.Fprintf(output, "\n--- [read] %s — %s ---\n", test.ID, test.Name)
+	fmt.Fprintf(output, "  mapping:\n    %s\n", indentLines(test.Mapping, "    "))
+	fmt.Fprintf(output, "  input:\n    %s", indentLines(string(inputData), "    "))
+	fmt.Fprintf(output, "  expected:\n    %s", indentLines(string(expectedData), "    "))
+
+	prompt, err := buildReadPrompt(spec, test)
+	if err != nil {
+		r.Error = fmt.Sprintf("building prompt: %v", err)
+		return r
+	}
+
+	runCtx := ctx
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		runCtx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	result, err := agent.Run(runCtx, "", prompt, output)
+	if err != nil {
+		r.Error = fmt.Sprintf("agent error: %v", err)
+		return r
+	}
+
+	response := result.Response
+	fmt.Fprintf(output, "  response: %s\n", strings.TrimSpace(response))
+
+	outputEnv, err := extractJSON(response)
+	if err != nil {
+		r.Error = fmt.Sprintf("extracting output: %v", err)
+		return r
+	}
+
+	actualValue := outputEnv["value"]
+	actualMeta, _ := outputEnv["metadata"].(map[string]any)
+	if actualMeta == nil {
+		actualMeta = map[string]any{}
+	}
+
+	if ok, diff := naturalJSONEqual(test.Expected.Value, actualValue); !ok {
+		r.Error = "output mismatch: " + diff
+		return r
+	}
+
+	if !test.NoMetadataCheck {
+		expectedMeta := test.Expected.Metadata
+		if expectedMeta == nil {
+			expectedMeta = map[string]any{}
+		}
+		if ok, diff := naturalJSONEqual(any(expectedMeta), any(actualMeta)); !ok {
+			r.Error = "metadata mismatch: " + diff
+			return r
+		}
+	}
+
+	r.Score = 1
+	return r
+}
+
+func runWriteTest(ctx context.Context, agent agentexam.Agent, spec string, test eligibleTest, timeout time.Duration, output io.Writer) agentexam.Result {
+	r := agentexam.Result{
+		ID:    test.ID,
+		Group: test.Category,
+		Name:  test.Name + " (write)",
+	}
+
+	inputData, _ := marshalEnvelope(envelope{Value: test.Input, Metadata: test.InputMeta})
+	expectedData, _ := marshalEnvelope(test.Expected)
+
+	fmt.Fprintf(output, "\n--- [write] %s — %s ---\n", test.ID, test.Name)
+	fmt.Fprintf(output, "  input:\n    %s", indentLines(string(inputData), "    "))
+	fmt.Fprintf(output, "  expected:\n    %s", indentLines(string(expectedData), "    "))
+
+	prompt, err := buildWritePrompt(spec, test)
+	if err != nil {
+		r.Error = fmt.Sprintf("building prompt: %v", err)
+		return r
+	}
+
+	runCtx := ctx
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		runCtx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	result, err := agent.Run(runCtx, "", prompt, output)
+	if err != nil {
+		r.Error = fmt.Sprintf("agent error: %v", err)
+		return r
+	}
+
+	response := result.Response
+	fmt.Fprintf(output, "  response: %s\n", strings.TrimSpace(response))
+
+	mappingSrc := extractMapping(response)
+	if mappingSrc == "" {
+		r.Error = "agent produced empty mapping"
+		return r
+	}
+
+	interp := &bloblang2.Interp{}
+	mapping, compileErr := interp.Compile(mappingSrc, nil)
+	if compileErr != nil {
+		r.Error = fmt.Sprintf("compile error: %v", compileErr)
+		return r
+	}
+
+	outVal, outMeta, deleted, execErr := mapping.Exec(test.Input, test.InputMeta)
+	if execErr != nil {
+		r.Error = fmt.Sprintf("runtime error: %v", execErr)
+		return r
+	}
+	if deleted {
+		r.Error = "mapping deleted the message"
+		return r
+	}
+	if outMeta == nil {
+		outMeta = map[string]any{}
+	}
+
+	coercedOutput := coerceToNaturalJSON(outVal)
+	coercedMeta := coerceToNaturalJSON(outMeta)
+
+	if ok, diff := naturalJSONEqual(test.Expected.Value, coercedOutput); !ok {
+		r.Error = "output mismatch: " + diff
+		return r
+	}
+
+	if !test.NoMetadataCheck {
+		expectedMeta := test.Expected.Metadata
+		if expectedMeta == nil {
+			expectedMeta = map[string]any{}
+		}
+		if ok, diff := naturalJSONEqual(any(expectedMeta), coercedMeta); !ok {
+			r.Error = "metadata mismatch: " + diff
+			return r
+		}
+	}
+
+	r.Score = 1
+	return r
+}
+
+// aggregatePoolResults builds the comparison table data and per-pool artifacts.
+func aggregatePoolResults(poolResults []poolResult) map[string][]agentexam.Result {
+	out := make(map[string][]agentexam.Result, len(poolResults)*2)
+	for _, pr := range poolResults {
+		out[pr.Name+"/read"] = pr.ReadResults
+		out[pr.Name+"/write"] = pr.WriteResults
+	}
+	return out
+}
+
+func buildPoolArtifact(pr poolResult) artifact {
+	readSummary := agentexam.Summarize(pr.ReadResults)
+	writeSummary := agentexam.Summarize(pr.WriteResults)
 
 	var readPct, writePct float64
 	if readSummary.Total > 0 {
@@ -119,32 +282,13 @@ func scoreCondense(ctx context.Context, room *agentexam.Room, output io.Writer, 
 	if writeSummary.Total > 0 {
 		writePct = writeSummary.TotalScore / float64(writeSummary.Total)
 	}
-	overallPct := (readPct + writePct) / 2
 
-	fmt.Fprintf(output, "\n=== condense results (%d iteration(s)) ===\n", subRuns)
-	fmt.Fprintf(output, "  read:    %.1f%% (%d tests)\n", readPct*100, readSummary.Total)
-	fmt.Fprintf(output, "  write:   %.1f%% (%d tests)\n", writePct*100, writeSummary.Total)
-	fmt.Fprintf(output, "  overall: %.1f%%\n", overallPct*100)
-
-	// Build per-category breakdown.
-	catScores := buildCategoryScores(allReadResults, allWriteResults)
-
-	// Write artifact.
-	if err := writeArtifact(cfg.artifactDir, condensed, artifact{
-		OverallScore: overallPct,
+	return artifact{
+		OverallScore: (readPct + writePct) / 2,
 		ReadScore:    readPct,
 		WriteScore:   writePct,
-		Categories:   catScores,
-	}); err != nil {
-		return nil, fmt.Errorf("writing artifact: %w", err)
+		Categories:   buildCategoryScores(pr.ReadResults, pr.WriteResults),
 	}
-
-	// Return a single result representing the condensed spec quality.
-	return []agentexam.Result{{
-		ID:    "condense",
-		Name:  "condensed spec quality",
-		Score: overallPct,
-	}}, nil
 }
 
 func buildCategoryScores(readResults, writeResults []agentexam.Result) map[string]categoryScores {
@@ -175,7 +319,6 @@ func buildCategoryScores(readResults, writeResults []agentexam.Result) map[strin
 		writeCats[r.Group] = a
 	}
 
-	// Merge all category names.
 	allCats := map[string]struct{}{}
 	for k := range readCats {
 		allCats[k] = struct{}{}
@@ -198,7 +341,7 @@ func buildCategoryScores(readResults, writeResults []agentexam.Result) map[strin
 	return out
 }
 
-func writeArtifact(baseDir, condensedSpec string, art artifact) error {
+func writeArtifact(baseDir, condensedSpec string, pools []poolResult) error {
 	id, err := generateUUID()
 	if err != nil {
 		return fmt.Errorf("generating UUID: %w", err)
@@ -213,7 +356,12 @@ func writeArtifact(baseDir, condensedSpec string, art artifact) error {
 		return err
 	}
 
-	data, err := json.MarshalIndent(art, "", "  ")
+	combined := make(map[string]artifact, len(pools))
+	for _, pr := range pools {
+		combined[pr.Name] = buildPoolArtifact(pr)
+	}
+
+	data, err := json.MarshalIndent(combined, "", "  ")
 	if err != nil {
 		return err
 	}
@@ -229,20 +377,12 @@ const condensePrompt = `# Task: Condense a Programming Language Specification
 
 You have access to the complete Bloblang V2 specification in the spec/ directory.
 
-## Available Tools
-
-You have four tools:
-- list_files: list files in the working directory (use pattern "" for all files)
-- read_file: read a file by relative path
-- write_file: write content to a file by relative path
-- grep: search for text across files
-
 ## Instructions
 
-1. Use list_files to find all files in the spec/ directory.
-2. Use read_file to read each spec file thoroughly.
+1. Use your available tools to list and read all files in the spec/ directory.
+2. Read each spec file thoroughly.
 3. After reading all files, compose a single condensed specification that preserves ALL semantic detail.
-4. Use write_file to save the result as condensed_spec.md.
+4. Write the result to a file called condensed_spec.md in the working directory root (not inside spec/).
 
 ## Condensation Rules
 
@@ -255,5 +395,5 @@ You have four tools:
 
 ## IMPORTANT
 
-You MUST use the write_file tool to create condensed_spec.md before you finish. Do not stop until you have written the file.
+You MUST write the file condensed_spec.md before you finish. Do not stop until you have written the file.
 `
