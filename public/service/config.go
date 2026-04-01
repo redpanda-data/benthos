@@ -336,7 +336,7 @@ func (c *ConfigSpec) ParseYAML(yamlStr string, env *Environment) (*ParsedConfig,
 func NewConfigSpec() *ConfigSpec {
 	return &ConfigSpec{
 		component: docs.ComponentSpec{
-			Status: docs.StatusExperimental,
+			Status: docs.StatusStable,
 			Plugin: true,
 			Config: docs.FieldComponent(),
 		},
@@ -344,7 +344,7 @@ func NewConfigSpec() *ConfigSpec {
 }
 
 // Stable sets a documentation label on the component indicating that its
-// configuration spec is stable. Plugins are considered experimental by default.
+// configuration spec is stable. Plugins are considered stable by default.
 func (c *ConfigSpec) Stable() *ConfigSpec {
 	c.component.Status = docs.StatusStable
 	return c
@@ -353,14 +353,14 @@ func (c *ConfigSpec) Stable() *ConfigSpec {
 // Beta sets a documentation label on the component indicating that its
 // configuration spec is ready for beta testing, meaning backwards incompatible
 // changes will not be made unless a fundamental problem is found. Plugins are
-// considered experimental by default.
+// considered stable by default.
 func (c *ConfigSpec) Beta() *ConfigSpec {
 	c.component.Status = docs.StatusBeta
 	return c
 }
 
 // Deprecated sets a documentation label on the component indicating that it is
-// now deprecated. Plugins are considered experimental by default.
+// now deprecated. Plugins are considered stable by default.
 func (c *ConfigSpec) Deprecated() *ConfigSpec {
 	c.component.Status = docs.StatusDeprecated
 	return c
