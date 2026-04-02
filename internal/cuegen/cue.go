@@ -105,9 +105,8 @@ func doFieldSpec(spec docs.FieldSpec) (*ast.Field, error) {
 
 func doScalarField(spec docs.FieldSpec) (*ast.Field, error) {
 	label := ast.NewIdent(spec.Name)
-	optionalMark := token.Blank.Pos()
 
-	var optional token.Pos
+	var optional bool
 	var val ast.Expr
 
 	switch spec.Type {
@@ -144,32 +143,35 @@ func doScalarField(spec docs.FieldSpec) (*ast.Field, error) {
 		// The following set of cases have unresolvable structure cycles.
 		// We need to mark them as optional to break the cycle...
 		// https://cuelang.org/docs/references/spec/#structural-cycles
-		val, optional = identInputDisjunction, optionalMark
+		val, optional = identInputDisjunction, true
 	case docs.FieldTypeBuffer:
-		val, optional = identBufferDisjunction, optionalMark
+		val, optional = identBufferDisjunction, true
 	case docs.FieldTypeCache:
-		val, optional = identCacheDisjunction, optionalMark
+		val, optional = identCacheDisjunction, true
 	case docs.FieldTypeProcessor:
-		val, optional = identProcessorDisjunction, optionalMark
+		val, optional = identProcessorDisjunction, true
 	case docs.FieldTypeRateLimit:
-		val, optional = identRateLimitDisjunction, optionalMark
+		val, optional = identRateLimitDisjunction, true
 	case docs.FieldTypeOutput:
-		val, optional = identOutputDisjunction, optionalMark
+		val, optional = identOutputDisjunction, true
 	case docs.FieldTypeMetrics:
-		val, optional = identMetricDisjunction, optionalMark
+		val, optional = identMetricDisjunction, true
 	case docs.FieldTypeTracer:
-		val, optional = identTracerDisjunction, optionalMark
+		val, optional = identTracerDisjunction, true
 	case docs.FieldTypeScanner:
-		val, optional = identScannerDisjunction, optionalMark
+		val, optional = identScannerDisjunction, true
 	default:
 		return nil, fmt.Errorf("unrecognised field type: %s", spec.Type)
 	}
 
-	return &ast.Field{
-		Label:    label,
-		Value:    val,
-		Optional: optional,
-	}, nil
+	f := &ast.Field{
+		Label: label,
+		Value: val,
+	}
+	if optional {
+		f.Constraint = token.OPTION
+	}
+	return f, nil
 }
 
 func interpolateIdent(ident *ast.Ident) ast.Label {
