@@ -81,7 +81,7 @@ func applyMethod(target Function, args *ParsedParams) (Function, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"array", "",
+		"array", "Converts a value to an array",
 	).InCategory(
 		MethodCategoryCoercion,
 		"Return an array containing the target value. If the value is already an array it is unchanged.",
@@ -107,7 +107,7 @@ var _ = registerSimpleMethod(
 //------------------------------------------------------------------------------
 
 var _ = registerMethod(
-	NewMethodSpec("bool", "").InCategory(
+	NewMethodSpec("bool", "Converts a value to a boolean with optional fallback").InCategory(
 		MethodCategoryCoercion,
 		"Attempt to parse a value into a boolean. An optional argument can be provided, in which case if the value cannot be parsed the argument will be returned instead. If the value is a number then any non-zero value will resolve to `true`, if the value is a string then any of the following values are considered valid: `1, t, T, TRUE, true, True, 0, f, F, FALSE`.",
 		NewExampleSpec("",
@@ -409,7 +409,7 @@ func notMethodCtor(target Function, _ *ParsedParams) (Function, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"not_null", "",
+		"not_null", "Ensures a value is not null",
 	).InCategory(
 		MethodCategoryCoercion,
 		"Ensures that the given value is not `null`, and if so returns it, otherwise an error is returned.",
@@ -435,7 +435,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerMethod(
 	NewMethodSpec(
-		"number", "",
+		"number", "Converts a value to a number with optional fallback",
 	).InCategory(
 		MethodCategoryCoercion,
 		"Attempt to parse a value into a number. An optional argument can be provided, in which case if the value cannot be parsed into a number the argument will be returned instead.",
@@ -475,7 +475,7 @@ func numberCoerceMethod(target Function, args *ParsedParams) (Function, error) {
 
 var _ = registerMethod(
 	NewMethodSpec(
-		"timestamp", "",
+		"timestamp", "Converts a value to a timestamp with optional fallback",
 	).InCategory(
 		MethodCategoryCoercion,
 		"Attempt to parse a value into a timestamp. An optional argument can be provided, in which case if the value cannot be parsed into a timestamp the argument will be returned instead.",
@@ -539,7 +539,7 @@ func orMethod(fn Function, args *ParsedParams) (Function, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"type", "",
+		"type", "Returns the type of a value as a string",
 	).InCategory(
 		MethodCategoryCoercion,
 		"Returns the type of a value as a string, providing one of the following values: `string`, `bytes`, `number`, `bool`, `timestamp`, `array`, `object` or `null`.",

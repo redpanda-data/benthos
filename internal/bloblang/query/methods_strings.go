@@ -44,7 +44,7 @@ import (
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"bytes", "",
+		"bytes", "Marshals a value into a byte array",
 	).InCategory(
 		MethodCategoryCoercion,
 		"Marshal a value into a byte array. If the value is already a byte array it is unchanged.",
@@ -65,7 +65,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"capitalize", "",
+		"capitalize", "Converts a string to title case with Unicode letter mapping",
 	).InCategory(
 		MethodCategoryStrings,
 		"Converts the first letter of each word in a string to uppercase (title case). Useful for formatting names, titles, and headings.",
@@ -97,7 +97,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"encode", "",
+		"encode", "Encodes a string or byte array according to a chosen scheme",
 	).InCategory(
 		MethodCategoryEncoding,
 		"Encodes a string or byte array target according to a chosen scheme and returns a string result. Available schemes are: `base64`, `base64url` https://rfc-editor.org/rfc/rfc4648.html[(RFC 4648 with padding characters)], `base64rawurl` https://rfc-editor.org/rfc/rfc4648.html[(RFC 4648 without padding characters)], `hex`, `ascii85`.",
@@ -203,7 +203,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"decode", "",
+		"decode", "Decodes an encoded string according to a chosen scheme",
 	).InCategory(
 		MethodCategoryEncoding,
 		"Decodes an encoded string target according to a chosen scheme and returns the result as a byte array. When mapping the result to a JSON field the value should be cast to a string using the method `string`, or encoded using the method `encode`, otherwise it will be base64 encoded by default.\n\nAvailable schemes are: `base64`, `base64url` https://rfc-editor.org/rfc/rfc4648.html[(RFC 4648 with padding characters)], `base64rawurl` https://rfc-editor.org/rfc/rfc4648.html[(RFC 4648 without padding characters)], `hex`, `ascii85`.",
@@ -289,7 +289,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"encrypt_aes", "",
+		"encrypt_aes", "Encrypts a string or byte array using AES encryption",
 	).InCategory(
 		MethodCategoryEncoding,
 		"Encrypts a string or byte array target according to a chosen AES encryption method and returns a string result. The algorithms require a key and an initialization vector / nonce. Available schemes are: `ctr`, `gcm`, `ofb`, `cbc`.",
@@ -396,7 +396,7 @@ root.encrypted = this.value.encrypt_aes("ctr", $key, $vector).encode("hex")`,
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"decrypt_aes", "",
+		"decrypt_aes", "Decrypts an AES-encrypted string or byte array",
 	).InCategory(
 		MethodCategoryEncoding,
 		"Decrypts an encrypted string or byte array target according to a chosen AES encryption method and returns the result as a byte array. The algorithms require a key and an initialization vector / nonce. Available schemes are: `ctr`, `gcm`, `ofb`, `cbc`.",
@@ -504,7 +504,7 @@ root.decrypted = this.value.decode("hex").decrypt_aes("ctr", $key, $vector).stri
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"escape_html", "",
+		"escape_html", "Escapes HTML special characters",
 	).InCategory(
 		MethodCategoryStrings,
 		"Escapes special HTML characters (`<`, `>`, `&`, `'`, `\"`) to make a string safe for HTML output. Use when embedding untrusted text in HTML to prevent XSS vulnerabilities.",
@@ -530,7 +530,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"index_of", "",
+		"index_of", "Returns the index of the first occurrence of a substring",
 	).InCategory(
 		MethodCategoryStrings,
 		"Finds the position of a substring within a string. Returns the zero-based index of the first occurrence, or -1 if not found. Useful for searching and string manipulation.",
@@ -566,7 +566,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"unescape_html", "",
+		"unescape_html", "Converts HTML entities back to their original characters",
 	).InCategory(
 		MethodCategoryStrings,
 		"Converts HTML entities back to their original characters. Handles named entities (`&amp;`, `&lt;`), decimal (`&#225;`), and hexadecimal (`&xE1;`) formats. Use for processing HTML content or decoding HTML-escaped data.",
@@ -592,7 +592,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"escape_url_query", "",
+		"escape_url_query", "Escapes a string for use in URL query parameters",
 	).InCategory(
 		MethodCategoryStrings,
 		"Encodes a string for safe use in URL query parameters. Converts spaces to `+` and special characters to percent-encoded values. Use when building URLs with dynamic query parameters.",
@@ -618,7 +618,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"unescape_url_query", "",
+		"unescape_url_query", "Unescapes URL query parameter encoding",
 	).InCategory(
 		MethodCategoryStrings,
 		"Decodes URL query parameter encoding, converting `+` to spaces and percent-encoded characters to their original values. Use for parsing URL query parameters.",
@@ -644,7 +644,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"escape_url_path", "",
+		"escape_url_path", "Escapes a string for use in URL paths",
 	).InCategory(
 		MethodCategoryStrings,
 		"Encodes a string for safe use in URL path segments using percent-encoding. Unlike `escape_url_query`, spaces are encoded as `%20` instead of `+`. Use when building URL paths with dynamic segments.",
@@ -670,7 +670,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"unescape_url_path", "",
+		"unescape_url_path", "Unescapes URL path encoding",
 	).InCategory(
 		MethodCategoryStrings,
 		"Decodes URL path percent-encoding, converting `%20` to spaces and other percent-encoded characters to their original values. Use for parsing URL path segments.",
@@ -696,7 +696,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"filepath_join", "",
+		"filepath_join", "Joins filepath components into a single path",
 	).InCategory(
 		MethodCategoryStrings,
 		"Combines an array of path components into a single OS-specific file path using the correct separator (`/` on Unix, `\\` on Windows). Use for constructing file paths from components.",
@@ -727,7 +727,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"filepath_split", "",
+		"filepath_split", "Splits a filepath into directory and filename components",
 	).InCategory(
 		MethodCategoryStrings,
 		"Separates a file path into directory and filename components, returning a two-element array `[directory, filename]`. Use for extracting the filename or directory from a full path.",
@@ -751,7 +751,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"format", "",
+		"format", "Formats a value using a specified format string",
 	).InCategory(
 		MethodCategoryStrings,
 		"Formats a string using Go's printf-style formatting with the string as the format template. Supports all Go format verbs (`%s`, `%d`, `%v`, etc.). Use for building formatted strings from dynamic values.",
@@ -777,7 +777,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"has_prefix", "",
+		"has_prefix", "Tests if a string starts with a specified prefix",
 	).InCategory(
 		MethodCategoryStrings,
 		"Tests if a string starts with a specified prefix. Returns `true` if the string begins with the prefix, `false` otherwise. Use for conditional logic based on string patterns.",
@@ -810,7 +810,7 @@ root.t2 = this.v2.has_prefix("foo")`,
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"has_suffix", "",
+		"has_suffix", "Tests if a string ends with a specified suffix",
 	).InCategory(
 		MethodCategoryStrings,
 		"Tests if a string ends with a specified suffix. Returns `true` if the string ends with the suffix, `false` otherwise. Use for filtering or routing based on file extensions or string patterns.",
@@ -843,7 +843,7 @@ root.t2 = this.v2.has_suffix("foo")`,
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"hash", "",
+		"hash", "Hashes a string or byte array using a specified algorithm",
 	).InCategory(
 		MethodCategoryEncoding,
 		`
@@ -1001,7 +1001,7 @@ root.h2 = this.value.hash(algorithm: "crc32", polynomial: "Koopman").encode("hex
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"uuid_v5", "",
+		"uuid_v5", "Generates a version 5 UUID from a namespace and name",
 	).InCategory(
 		MethodCategoryEncoding,
 		`
@@ -1058,7 +1058,7 @@ Returns UUID version 5 for the given string.`,
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"join", "",
+		"join", "Joins an array of strings with an optional delimiter",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Concatenates an array of strings into a single string with an optional delimiter between elements. Use for building CSV strings, URLs, or combining text fragments.",
@@ -1107,7 +1107,7 @@ root.joined_numbers = this.numbers.map_each(this.string()).join(",")`,
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"uppercase", "",
+		"uppercase", "Converts all letters in a string to uppercase",
 	).InCategory(
 		MethodCategoryStrings,
 		"Converts all letters in a string to uppercase. Use for case-insensitive comparisons or formatting output.",
@@ -1140,7 +1140,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"lowercase", "",
+		"lowercase", "Converts all letters in a string to lowercase",
 	).InCategory(
 		MethodCategoryStrings,
 		"Converts all letters in a string to lowercase. Use for case-insensitive comparisons, normalization, or formatting output.",
@@ -1173,7 +1173,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"parse_csv", "",
+		"parse_csv", "Parses CSV data into an array",
 	).InCategory(
 		MethodCategoryParsing,
 		"Attempts to parse a string into an array of objects by following the CSV format described in RFC 4180.",
@@ -1283,7 +1283,7 @@ func parseCSVMethod(args *ParsedParams) (simpleMethod, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"parse_logfmt", "",
+		"parse_logfmt", "Parses logfmt formatted data into an object",
 	).InCategory(
 		MethodCategoryParsing,
 		"Attempts to parse a logfmt encoded string into an object. A logfmt string contains key=value pairs separated by spaces, where values can optionally be quoted.",
@@ -1381,7 +1381,7 @@ func parseLogfmt(s string) (any, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"parse_json", "",
+		"parse_json", "Parses a JSON string into a structured value",
 	).Param(
 		ParamBool("use_number", "An optional flag that when set makes parsing numbers as json.Number instead of the default float64.").Optional(),
 	).InCategory(
@@ -1428,7 +1428,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"parse_yaml", "",
+		"parse_yaml", "Parses a YAML string into a structured value",
 	).InCategory(
 		MethodCategoryParsing,
 		"Attempts to parse a string as a single YAML document and returns the result.",
@@ -1460,7 +1460,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"format_yaml", "",
+		"format_yaml", "Formats a value as a YAML string",
 	).InCategory(
 		MethodCategoryParsing,
 		"Serializes a target value into a YAML byte array.",
@@ -1485,7 +1485,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"format_json", "",
+		"format_json", "Formats a value as a JSON string",
 	).InCategory(
 		MethodCategoryParsing,
 		"Serializes a target value into a pretty-printed JSON byte array (with 4 space indentation by default).",
@@ -1637,7 +1637,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"reverse", "",
+		"reverse", "Reverses the order of characters in a string",
 	).InCategory(
 		MethodCategoryStrings,
 		"Reverses the order of characters in a string. Unicode-aware for proper handling of multi-byte characters. Use for creating palindrome checks or reversing text data.",
@@ -1678,7 +1678,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"quote", "",
+		"quote", "Wraps a string in double quotes and escapes special characters",
 	).InCategory(
 		MethodCategoryStrings,
 		"Wraps a string in double quotes and escapes special characters (newlines, tabs, etc.) using Go escape sequences. Use for generating string literals or preparing strings for JSON-like formats.",
@@ -1704,7 +1704,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"unquote", "",
+		"unquote", "Removes surrounding quotes and interprets escape sequences",
 	).InCategory(
 		MethodCategoryStrings,
 		"Removes surrounding quotes and interprets escape sequences (`\\n`, `\\t`, etc.) to their literal characters. Use for parsing quoted string literals.",
@@ -1739,7 +1739,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"replace_all", "",
+		"replace_all", "Replaces all occurrences of a substring with another",
 	).InCategory(
 		MethodCategoryStrings,
 		"Replaces all occurrences of a substring with another string. Use for text transformation, cleaning data, or normalizing strings.",
@@ -1792,7 +1792,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"replace_all_many", "",
+		"replace_all_many", "Performs multiple find-and-replace operations in sequence",
 	).InCategory(
 		MethodCategoryStrings,
 		"Performs multiple find-and-replace operations in sequence using an array of `[old, new]` pairs. More efficient than chaining multiple `replace_all` calls. Use for bulk text transformations.",
@@ -1856,7 +1856,7 @@ func replaceAllManyImpl(args *ParsedParams) (simpleMethod, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"re_find_all", "",
+		"re_find_all", "Finds all matches of a regular expression in a string",
 	).InCategory(
 		MethodCategoryRegexp,
 		"Finds all matches of a regular expression in a string and returns them as an array. Use for extracting multiple patterns or validating repeating structures.",
@@ -1904,7 +1904,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"re_find_all_submatch", "",
+		"re_find_all_submatch", "Finds all regex matches with capture groups",
 	).InCategory(
 		MethodCategoryRegexp,
 		"Finds all regex matches and their capture groups, returning an array of arrays where each inner array contains the full match and captured subgroups. Use for extracting structured data with capture groups.",
@@ -1960,7 +1960,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"re_find_object", "",
+		"re_find_object", "Finds the first regex match as an object with named groups",
 	).InCategory(
 		MethodCategoryRegexp,
 		"Finds the first regex match and returns an object with named capture groups as keys (or numeric indices for unnamed groups). The key \"0\" contains the full match. Use for parsing structured text into fields.",
@@ -2017,7 +2017,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"re_find_all_object", "",
+		"re_find_all_object", "Finds all regex matches as objects with named groups",
 	).InCategory(
 		MethodCategoryRegexp,
 		"Finds all regex matches and returns an array of objects with named capture groups as keys. Each object represents one match with its captured groups. Use for parsing multiple structured records from text.",
@@ -2084,7 +2084,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"re_match", "",
+		"re_match", "Tests if a string matches a regular expression",
 	).InCategory(
 		MethodCategoryRegexp,
 		"Tests if a regular expression matches anywhere in a string, returning `true` or `false`. Use for validation or conditional routing based on patterns.",
@@ -2133,7 +2133,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"re_replace_all", "",
+		"re_replace_all", "Replaces all regex matches with a replacement string",
 	).InCategory(
 		MethodCategoryRegexp,
 		"Replaces all regex matches with a replacement string that can reference capture groups using `$1`, `$2`, etc. Use for pattern-based transformations or data reformatting.",
@@ -2185,7 +2185,7 @@ func reReplaceAllImpl(args *ParsedParams) (simpleMethod, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"split", "",
+		"split", "Splits a string into an array of substrings",
 	).InCategory(
 		MethodCategoryStrings,
 		"Splits a string into an array of substrings using a delimiter. Use for parsing CSV-like data, splitting paths, or breaking text into tokens.",
@@ -2298,7 +2298,7 @@ func byteSplit(s []byte, sep []byte) []any {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"string", "",
+		"string", "Converts a value to a string representation",
 	).InCategory(
 		MethodCategoryCoercion,
 		"Converts any value to its string representation. Numbers, booleans, and objects are converted to strings; existing strings are unchanged. Use for type coercion or creating string representations.",
@@ -2324,7 +2324,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"trim", "",
+		"trim", "Removes leading and trailing characters from a string",
 	).InCategory(
 		MethodCategoryStrings,
 		"Removes leading and trailing characters from a string. Without arguments, removes whitespace. With a cutset argument, removes any characters in the cutset. Use for cleaning user input or normalizing strings.",
@@ -2360,7 +2360,7 @@ root.description = this.description.trim()`,
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"trim_prefix", "",
+		"trim_prefix", "Removes a specified prefix from the beginning of a string",
 	).InCategory(
 		MethodCategoryStrings,
 		"Removes a specified prefix from the beginning of a string if present. If the string doesn't start with the prefix, returns the string unchanged. Use for stripping known prefixes from identifiers or paths.",
@@ -2392,7 +2392,7 @@ root.description = this.description.trim_prefix("foobar_")`,
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"trim_suffix", "",
+		"trim_suffix", "Removes a specified suffix from the end of a string",
 	).InCategory(
 		MethodCategoryStrings,
 		"Removes a specified suffix from the end of a string if present. If the string doesn't end with the suffix, returns the string unchanged. Use for stripping file extensions or known suffixes.",
@@ -2426,7 +2426,7 @@ root.description = this.description.trim_suffix("_foobar")`,
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"repeat", "",
+		"repeat", "Creates a string by repeating the input a specified number of times",
 	).InCategory(
 		MethodCategoryStrings,
 		"Creates a new string by repeating the input string a specified number of times. Use for generating padding, separators, or test data.",
