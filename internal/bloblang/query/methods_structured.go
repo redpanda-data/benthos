@@ -163,7 +163,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"collapse", "",
+		"collapse", "Flattens a nested structure into a flat object with dot-notation keys",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Flattens a nested structure into a single-level object with dot-notation keys representing the full path to each value. Empty arrays and objects are excluded by default.",
@@ -198,7 +198,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"contains", "",
+		"contains", "Tests if an array or object contains a value",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Checks whether an array contains an element matching the argument, or an object contains a value matching the argument, and returns a boolean result. Numerical comparisons are made irrespective of the representation type (float versus integer).",
@@ -335,7 +335,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"explode", "",
+		"explode", "Expands a nested field into multiple documents",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Expands a nested array or object field into multiple documents, distributing elements while preserving the surrounding structure. Useful for denormalizing data.",
@@ -397,7 +397,7 @@ When exploding an object, the output keys match the nested object's keys, with v
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"filter", "",
+		"filter", "Filters array or object elements based on a condition",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Returns a new array or object containing only elements that satisfy the provided condition. Elements for which the query returns true are kept, all others are removed.",
@@ -925,7 +925,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"length", "",
+		"length", "Returns the length of an array, object, or string",
 	).InCategory(
 		MethodCategoryStrings, "Returns the character count of a string.",
 		NewExampleSpec("",
@@ -967,7 +967,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"map_each", "",
+		"map_each", "Applies a mapping to each element of an array or object",
 	).InCategory(
 		MethodCategoryObjectAndArray, "Applies a mapping query to each element of an array or each value in an object. Returns a new collection with the transformed values.",
 		NewExampleSpec(`##### On arrays
@@ -1049,7 +1049,7 @@ Transforms each object value using a query. The query receives an object with 'k
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"map_each_key", "",
+		"map_each_key", "Transforms object keys using a mapping query",
 	).InCategory(
 		MethodCategoryObjectAndArray, `Transforms object keys using a query. The query receives each key as a string and must return a new string key. Use this to rename or transform keys while preserving values.`,
 		NewExampleSpec(``,
@@ -1216,7 +1216,7 @@ func assigner(destination, source any) any {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"not_empty", "",
+		"not_empty", "Ensures a value is not empty",
 	).InCategory(
 		MethodCategoryCoercion,
 		"Ensures that the given string, array or object value is not empty, and if so returns it, otherwise an error is returned.",
@@ -1268,7 +1268,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerMethod(
 	NewMethodSpec(
-		"sort", "",
+		"sort", "Sorts array elements in ascending order",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Sorts an array in ascending order. Works with strings and numbers. For custom sorting logic, provide a comparison query that receives 'left' and 'right' elements.",
@@ -1374,7 +1374,7 @@ func sortMethod(target Function, args *ParsedParams) (Function, error) {
 
 var _ = registerMethod(
 	NewMethodSpec(
-		"sort_by", "",
+		"sort_by", "Sorts array elements by a specified field or expression",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Sorts an array by a value extracted from each element using a query. The extracted values determine sort order and must all be strings or numbers.",
@@ -1464,7 +1464,7 @@ func sortByMethod(target Function, args *ParsedParams) (Function, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"slice", "",
+		"slice", "Extracts a portion of an array or string",
 	).InCategory(
 		MethodCategoryStrings,
 		"Extract a slice from a string by specifying two indices, a low and high bound, which selects a half-open range that includes the first character, but excludes the last one. If the second index is omitted then it defaults to the length of the input sequence.",
@@ -1567,7 +1567,7 @@ func sliceMethod(args *ParsedParams) (simpleMethod, error) {
 
 var _ = registerMethod(
 	NewMethodSpec(
-		"sum", "",
+		"sum", "Returns the sum of numeric values in an array",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Calculates the sum of all numeric values in an array. Non-numeric values cause an error.",
@@ -1617,7 +1617,7 @@ func sumMethod(target Function, _ *ParsedParams) (Function, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"unique", "",
+		"unique", "Returns an array with duplicate elements removed",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Removes duplicate values from an array, keeping the first occurrence of each unique value. Strings and numbers are treated as distinct types (\"5\" differs from 5).",
@@ -1724,7 +1724,7 @@ func uniqueMethod(args *ParsedParams) (simpleMethod, error) {
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"values", "",
+		"values", "Returns an array of all values from an object",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"Extracts all values from an object and returns them as an array. Order is not guaranteed unless the result is sorted.",
@@ -1757,7 +1757,7 @@ var _ = registerSimpleMethod(
 
 var _ = registerSimpleMethod(
 	NewMethodSpec(
-		"without", "",
+		"without", "Returns an object with specified keys removed",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		`Removes specified fields from an object using dot-notation paths. Returns a new object with the fields removed. Non-existent paths are safely ignored.`,
