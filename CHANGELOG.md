@@ -3,6 +3,16 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.70.0 - 2026-04-02
+
+### Added
+
+- docs: Add top-level descriptions to Bloblang methods (@jakescahill)
+
+### Changed
+
+- API: Switch plugins from Experimental to Stable by default (@prakhargarg105)
+
 ## 4.69.0 - 2026-03-19
 
 ### Added
