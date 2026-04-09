@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,16 +38,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Resolve tests dir.
+	// Resolve tests dir. If not configured, extract the embedded curated
+	// exam suite to a temp directory and use that.
 	testsDir := cfg.TestsDir
+	var cleanupTestsDir func()
 	if testsDir == "" {
-		candidate := filepath.Join(cfg.SpecDir, "tests")
-		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
-			testsDir = candidate
-		} else {
-			fmt.Fprintln(os.Stderr, "error: tests_dir is required (no tests/ subdirectory found in spec_dir)")
+		dir, cleanup, err := extractEmbeddedExam()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error extracting embedded exam: %v\n", err)
 			os.Exit(1)
 		}
+		testsDir = dir
+		cleanupTestsDir = cleanup
+		fmt.Fprintf(os.Stderr, "using embedded exam suite\n")
+	}
+	if cleanupTestsDir != nil {
+		defer cleanupTestsDir()
 	}
 
 	// Load spec and tests.
@@ -155,6 +162,35 @@ func main() {
 	}
 }
 
+// extractEmbeddedExam writes the embedded exam YAML files to a temp directory
+// and returns the path along with a cleanup function.
+func extractEmbeddedExam() (dir string, cleanup func(), err error) {
+	dir, err = os.MkdirTemp("", "blobl-exam-*")
+	if err != nil {
+		return "", nil, fmt.Errorf("creating temp dir: %w", err)
+	}
+	cleanup = func() { os.RemoveAll(dir) }
+
+	err = fs.WalkDir(examFS, "exam", func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		data, readErr := examFS.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		return os.WriteFile(filepath.Join(dir, d.Name()), data, 0o644)
+	})
+	if err != nil {
+		cleanup()
+		return "", nil, fmt.Errorf("extracting exam files: %w", err)
+	}
+	return dir, cleanup, nil
+}
+
 const exampleConfig = `# speccondenser configuration
 #
 # Usage: speccondenser config.yaml
@@ -163,7 +199,7 @@ const exampleConfig = `# speccondenser configuration
 spec_dir: ./spec
 
 # Path to the directory containing test .yaml files.
-# Defaults to <spec_dir>/tests if omitted.
+# Defaults to the embedded curated exam suite if omitted.
 # tests_dir: ./spec/tests
 
 # Optional list of test categories to include. Omit to include all.

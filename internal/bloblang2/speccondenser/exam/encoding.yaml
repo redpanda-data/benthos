@@ -1,0 +1,58 @@
+description: "Encoding and parsing — parse_json, format_json, base64 encode/decode, hex"
+
+tests:
+  - name: "parse_json object"
+    mapping: |
+      output = `{"name":"Alice","age":30}`.parse_json()
+    output: {"name": "Alice", "age": 30}
+
+  - name: "parse_json array"
+    mapping: |
+      output = `[1,2,3]`.parse_json()
+    output: [1, 2, 3]
+
+  - name: "format_json object with sorted keys"
+    mapping: |
+      output = {"b": 2, "a": 1}.format_json()
+    output: '{"a":1,"b":2}'
+
+  - name: "format_json integer"
+    mapping: |
+      output = 42.format_json()
+    output: "42"
+
+  - name: "format then parse round-trip"
+    mapping: |
+      $obj = {"name": "Alice", "scores": [10, 20, 30]}
+      output = $obj.format_json().parse_json()
+    output: {"name": "Alice", "scores": [10, 20, 30]}
+
+  - name: "base64 encode string"
+    mapping: |
+      output = "hello world".encode("base64")
+    output: "aGVsbG8gd29ybGQ="
+
+  - name: "base64 decode to string"
+    mapping: |
+      output = "aGVsbG8gd29ybGQ=".decode("base64").string()
+    output: "hello world"
+
+  - name: "base64 encode-decode round-trip"
+    mapping: |
+      output = "Bloblang is great!".encode("base64").decode("base64").string()
+    output: "Bloblang is great!"
+
+  - name: "hex encode string"
+    mapping: |
+      output = "hello".encode("hex")
+    output: "68656c6c6f"
+
+  - name: "hex decode to string"
+    mapping: |
+      output = "68656c6c6f".decode("hex").string()
+    output: "hello"
+
+  - name: "format_json with indent"
+    mapping: |
+      output = {"a": 1}.format_json(indent: "  ")
+    output: "{\n  \"a\": 1\n}"

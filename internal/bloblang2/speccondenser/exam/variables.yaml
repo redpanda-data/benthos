@@ -1,0 +1,72 @@
+description: "Variable declaration, reassignment, path assignment, and auto-creation"
+
+tests:
+  - name: "declare and use variables"
+    input: {"name": "Alice"}
+    mapping: |
+      $greeting = "Hello"
+      $name = input.name
+      output.v = $greeting + ", " + $name
+    output: {"v": "Hello, Alice"}
+
+  - name: "reassign variable using its own value"
+    mapping: |
+      $x = 1
+      $x = $x + 1
+      $x = $x + 1
+      output.v = $x
+    output: {"v": 3}
+
+  - name: "variable accumulation"
+    mapping: |
+      $sum = 0
+      $sum = $sum + 10
+      $sum = $sum + 20
+      $sum = $sum + 30
+      output.v = $sum
+    output: {"v": 60}
+
+  - name: "reassign variable to different type"
+    mapping: |
+      $x = 42
+      $x = "now a string"
+      output.v = $x
+    output: {"v": "now a string"}
+
+  - name: "path assignment on object variable"
+    mapping: |
+      $obj = {"name": "Alice"}
+      $obj.name = "Bob"
+      $obj.age = 30
+      output.v = $obj
+    output: {"v": {"name": "Bob", "age": 30}}
+
+  - name: "auto-creation of intermediate objects"
+    mapping: |
+      $record = {}
+      $record.user.name = "Alice"
+      $record.user.age = 30
+      output.v = $record
+    output: {"v": {"user": {"name": "Alice", "age": 30}}}
+
+  - name: "deeply nested auto-creation"
+    mapping: |
+      $obj = {}
+      $obj.a.b.c = 42
+      output.v = $obj
+    output: {"v": {"a": {"b": {"c": 42}}}}
+
+  - name: "array index assignment and gap filling"
+    mapping: |
+      $arr = [10, 20, 30]
+      $arr[1] = 99
+      $arr[5] = 50
+      output.v = $arr
+    output: {"v": [10, 99, 30, null, null, 50]}
+
+  - name: "void skips variable reassignment"
+    mapping: |
+      $x = "original"
+      $x = if false { "override" }
+      output.v = $x
+    output: {"v": "original"}

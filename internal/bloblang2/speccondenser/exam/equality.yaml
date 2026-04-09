@@ -1,0 +1,71 @@
+description: "Equality operators: ==, !="
+
+tests:
+  - name: "equality with same type"
+    mapping: |
+      output.result = input.a == input.b
+    cases:
+      - name: "equal integers"
+        input: {"a": 5, "b": 5}
+        output: {"result": true}
+      - name: "unequal integers"
+        input: {"a": 5, "b": 6}
+        output: {"result": false}
+      - name: "equal strings"
+        input: {"a": "hello", "b": "hello"}
+        output: {"result": true}
+      - name: "unequal strings"
+        input: {"a": "hello", "b": "world"}
+        output: {"result": false}
+
+  - name: "equality with numeric promotion"
+    mapping: |
+      output.result = input.a == input.b
+    cases:
+      - name: "int equals float when numerically equal"
+        input: {"a": 5, "b": 5.0}
+        output: {"result": true}
+      - name: "int not equal to float when different"
+        input: {"a": 5, "b": 5.5}
+        output: {"result": false}
+
+  - name: "cross-family equality is always false"
+    mapping: |
+      output.result = input.a == input.b
+    cases:
+      - name: "int vs string"
+        input: {"a": 5, "b": "5"}
+        output: {"result": false}
+      - name: "bool vs int"
+        input: {"a": true, "b": 1}
+        output: {"result": false}
+      - name: "null vs zero"
+        input: {"a": null, "b": 0}
+        output: {"result": false}
+
+  - name: "inequality operator"
+    mapping: |
+      output.result = input.a != input.b
+    cases:
+      - name: "different values"
+        input: {"a": 5, "b": 6}
+        output: {"result": true}
+      - name: "same values"
+        input: {"a": 5, "b": 5}
+        output: {"result": false}
+      - name: "cross-family always true"
+        input: {"a": 5, "b": "5"}
+        output: {"result": true}
+
+  - name: "null equality"
+    mapping: |
+      output.eq = null == null
+      output.neq = null != null
+    output: {"eq": true, "neq": false}
+
+  - name: "collection equality"
+    mapping: |
+      output.arr = [1, 2, 3] == [1, 2, 3]
+      output.arr_order = [1, 2, 3] == [3, 2, 1]
+      output.obj = {"a": 1, "b": 2} == {"b": 2, "a": 1}
+    output: {"arr": true, "arr_order": false, "obj": true}

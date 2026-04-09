@@ -1,0 +1,70 @@
+description: "Array transformation methods: map, filter, sort, sort_by, unique, flatten"
+
+tests:
+  - name: "map transforms each element"
+    mapping: |
+      output.result = input.items.map(x -> x * 2)
+    cases:
+      - name: "double values"
+        input: {"items": [1, 2, 3]}
+        output: {"result": [2, 4, 6]}
+      - name: "empty array"
+        input: {"items": []}
+        output: {"result": []}
+
+  - name: "map with type change"
+    mapping: |
+      output.result = [1, 2, 3].map(x -> x.string())
+    output: {"result": ["1", "2", "3"]}
+
+  - name: "filter keeps matching elements"
+    mapping: |
+      output.result = input.items.filter(x -> x > 3)
+    cases:
+      - name: "some match"
+        input: {"items": [1, 2, 3, 4, 5]}
+        output: {"result": [4, 5]}
+      - name: "none match"
+        input: {"items": [1, 2, 3]}
+        output: {"result": []}
+      - name: "all match"
+        input: {"items": [10, 20, 30]}
+        output: {"result": [10, 20, 30]}
+
+  - name: "filter strings by prefix"
+    mapping: |
+      output.result = ["apple", "banana", "avocado"].filter(s -> s.has_prefix("a"))
+    output: {"result": ["apple", "avocado"]}
+
+  - name: "sort ascending"
+    mapping: |
+      output.ints = [3, 1, 4, 1, 5].sort()
+      output.strings = ["banana", "apple", "cherry"].sort()
+    output: {"ints": [1, 1, 3, 4, 5], "strings": ["apple", "banana", "cherry"]}
+
+  - name: "sort_by with key function"
+    mapping: |
+      $items = [{"name": "Charlie"}, {"name": "Alice"}, {"name": "Bob"}]
+      output.result = $items.sort_by(x -> x.name)
+    output: {"result": [{"name": "Alice"}, {"name": "Bob"}, {"name": "Charlie"}]}
+
+  - name: "unique removes duplicates preserving order"
+    mapping: |
+      output.result = [3, 1, 2, 1, 3].unique()
+    output: {"result": [3, 1, 2]}
+
+  - name: "unique with key function"
+    mapping: |
+      $items = [{"id": 1, "v": "a"}, {"id": 2, "v": "b"}, {"id": 1, "v": "c"}]
+      output.result = $items.unique(x -> x.id)
+    output: {"result": [{"id": 1, "v": "a"}, {"id": 2, "v": "b"}]}
+
+  - name: "flatten nested arrays one level"
+    mapping: |
+      output.result = [[1, 2], [3, 4], [5]].flatten()
+    output: {"result": [1, 2, 3, 4, 5]}
+
+  - name: "flatten only one level deep"
+    mapping: |
+      output.result = [[[1, 2]], [[3]]].flatten()
+    output: {"result": [[1, 2], [3]]}
