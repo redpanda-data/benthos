@@ -1,0 +1,78 @@
+description: "User-defined maps: zero/multi-param, defaults, named args, isolation"
+
+tests:
+  - name: "zero parameter map"
+    mapping: |
+      map headers() {
+        {"content_type": "json", "version": "1.0"}
+      }
+      output.h = headers()
+    output: {"h": {"content_type": "json", "version": "1.0"}}
+
+  - name: "single parameter map"
+    mapping: |
+      map double(x) {
+        x * 2
+      }
+      output.v = double(5)
+    output: {"v": 10}
+
+  - name: "multi-parameter map with body variables"
+    mapping: |
+      map total(subtotal, tax_rate) {
+        $tax = subtotal * tax_rate
+        subtotal + $tax
+      }
+      output.v = total(100, 0.1)
+    output: {"v": 110.0}
+
+  - name: "map with default parameters"
+    mapping: |
+      map greet(name, greeting = "Hello") {
+        greeting + ", " + name
+      }
+      output.a = greet("Alice")
+      output.b = greet("Bob", "Hi")
+    output: {"a": "Hello, Alice", "b": "Hi, Bob"}
+
+  - name: "multi-default parameters skip middle with named args"
+    mapping: |
+      map fmt(amount, currency = "USD", decimals = 2) {
+        currency + " " + amount.round(decimals).string()
+      }
+      output.a = fmt(99.99)
+      output.b = fmt(amount: 99.99, decimals: 0)
+    output: {"a": "USD 99.99", "b": "USD 100.0"}
+
+  - name: "named arguments in any order"
+    mapping: |
+      map sub(a, b) { a - b }
+      output.v = sub(b: 3, a: 10)
+    output: {"v": 7}
+
+  - name: "map isolation — pass data as parameter"
+    input: {"items": [1, 2, 3], "multiplier": 10}
+    mapping: |
+      map scale(items, multiplier) {
+        items.map(x -> x * multiplier)
+      }
+      output.v = scale(input.items, input.multiplier)
+    output: {"v": [10, 20, 30]}
+
+  - name: "map called before declaration (hoisting)"
+    mapping: |
+      output.v = double(21)
+      map double(x) {
+        x * 2
+      }
+    output: {"v": 42}
+
+  - name: "local variables inside map work"
+    mapping: |
+      map transform(a, b) {
+        $sum = a + b
+        $product = a * b
+        {"sum": $sum, "product": $product}
+      }
+      output = transform(3, 4)
+    output: {"sum": 7, "product": 12}

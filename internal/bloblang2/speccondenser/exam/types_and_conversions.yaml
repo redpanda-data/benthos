@@ -1,0 +1,87 @@
+description: "Type literals, .type() introspection, and conversion methods"
+
+tests:
+  - name: "type introspection on different input types"
+    mapping: |
+      output.t = input.v.type()
+    cases:
+      - name: "string"
+        input: {"v": "hello"}
+        output: {"t": "string"}
+      - name: "integer"
+        input: {"v": 42}
+        output: {"t": "int64"}
+      - name: "float"
+        input: {"v": 3.14}
+        output: {"t": "float64"}
+      - name: "boolean"
+        input: {"v": true}
+        output: {"t": "bool"}
+      - name: "null"
+        input: {"v": null}
+        output: {"t": "null"}
+      - name: "array"
+        input: {"v": [1, 2]}
+        output: {"t": "array"}
+      - name: "object"
+        input: {"v": {"a": 1}}
+        output: {"t": "object"}
+
+  - name: "convert to string"
+    mapping: |
+      output.result = input.v.string()
+    cases:
+      - name: "int to string"
+        input: {"v": 42}
+        output: {"result": "42"}
+      - name: "float to string"
+        input: {"v": 3.14}
+        output: {"result": "3.14"}
+      - name: "bool to string"
+        input: {"v": true}
+        output: {"result": "true"}
+      - name: "null to string"
+        input: {"v": null}
+        output: {"result": "null"}
+
+  - name: "convert to int64"
+    mapping: |
+      output.result = input.v.int64()
+    cases:
+      - name: "from float truncates"
+        input: {"v": 9.99}
+        output: {"result": 9}
+      - name: "from string"
+        input: {"v": "500"}
+        output: {"result": 500}
+      - name: "identity"
+        input: {"v": 42}
+        output: {"result": 42}
+
+  - name: "convert to float64"
+    mapping: |
+      output.result = input.v.float64()
+    cases:
+      - name: "from integer"
+        input: {"v": 42}
+        output: {"result": 42.0}
+      - name: "from string"
+        input: {"v": "3.14"}
+        output: {"result": 3.14}
+
+  - name: "convert to bool"
+    mapping: |
+      output.result = input.v.bool()
+    cases:
+      - name: "string true"
+        input: {"v": "true"}
+        output: {"result": true}
+      - name: "string false"
+        input: {"v": "false"}
+        output: {"result": false}
+      - name: "int zero is false"
+        input: {"v": 0}
+        output: {"result": false}
+      - name: "int nonzero is true"
+        input: {"v": 1}
+        output: {"result": true}

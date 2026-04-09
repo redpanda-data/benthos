@@ -1,0 +1,63 @@
+description: "Void behavior — if-without-else, non-exhaustive match, and variable reassignment"
+
+tests:
+  - name: "void from if-without-else preserves prior output value"
+    mapping: |
+      output.status = "pending"
+      output.status = if false { "override" }
+    output: {"status": "pending"}
+
+  - name: "void from if-without-else leaves field absent when no prior"
+    mapping: |
+      output.x = if false { "hello" }
+    output: {}
+
+  - name: "void from non-exhaustive match preserves prior value"
+    mapping: |
+      output.sound = "chirp"
+      output.sound = match "bird" {
+        "cat" => "meow",
+        "dog" => "woof",
+      }
+    output: {"sound": "chirp"}
+
+  - name: "void from non-exhaustive match-as preserves prior value"
+    mapping: |
+      output.label = "small"
+      output.label = match 5 as v {
+        v > 100 => "big",
+      }
+    output: {"label": "small"}
+
+  - name: "void skips variable reassignment"
+    mapping: |
+      $x = "original"
+      $x = match "nope" {
+        "a" => "found",
+      }
+      output.result = $x
+    output: {"result": "original"}
+
+  - name: "void skips variable reassignment from if-without-else"
+    mapping: |
+      $val = 42
+      $val = if false { 99 }
+      output.result = $val
+    output: {"result": 42}
+
+  - name: "void rescued by or"
+    mapping: |
+      output.result = (if false { "hello" }).or("rescued")
+    output: {"result": "rescued"}
+
+  - name: "void passes through catch unchanged"
+    mapping: |
+      output.x = "prior"
+      output.x = (if false { 1 }).catch(err -> 99)
+    output: {"x": "prior"}
+
+  - name: "if true produces value, not void"
+    mapping: |
+      output.status = "old"
+      output.status = if true { "new" }
+    output: {"status": "new"}

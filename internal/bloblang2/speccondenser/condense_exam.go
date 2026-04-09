@@ -87,6 +87,8 @@ func scoreCondensedSpec(
 	pools []PoolConfig,
 	output io.Writer,
 ) ([]poolResult, error) {
+	writeGroups := groupWriteTests(tests)
+
 	var results []poolResult
 
 	for _, poolCfg := range pools {
@@ -104,6 +106,7 @@ func scoreCondensedSpec(
 				fmt.Fprintf(output, "\n--- %s run %d/%d ---\n", poolCfg.Name, run+1, poolCfg.Runs)
 			}
 
+			// Read tests: individual per case.
 			for _, test := range tests {
 				readResult, readFT := runReadTest(ctx, agent, condensedSpec, test, poolCfg.Timeout, output)
 				agentexam.LogResult(output, readResult)
@@ -113,15 +116,18 @@ func scoreCondensedSpec(
 					readFT.Run = run + 1
 					pr.FailedTranscripts = append(pr.FailedTranscripts, *readFT)
 				}
+			}
 
-				writeResult, writeFT := runWriteTest(ctx, agent, condensedSpec, test, poolCfg.Timeout, output)
+			// Write tests: grouped by parent test.
+			for _, group := range writeGroups {
+				writeResult, writeFTs := runGroupWriteTest(ctx, agent, condensedSpec, group, poolCfg.Timeout, output)
 				agentexam.LogResult(output, writeResult)
 				pr.WriteResults = append(pr.WriteResults, writeResult)
-				if writeFT != nil {
-					writeFT.Pool = poolCfg.Name
-					writeFT.Run = run + 1
-					pr.FailedTranscripts = append(pr.FailedTranscripts, *writeFT)
+				for i := range writeFTs {
+					writeFTs[i].Pool = poolCfg.Name
+					writeFTs[i].Run = run + 1
 				}
+				pr.FailedTranscripts = append(pr.FailedTranscripts, writeFTs...)
 			}
 		}
 
@@ -207,33 +213,29 @@ func runReadTest(ctx context.Context, agent agentexam.Agent, spec string, test e
 	return r, nil
 }
 
-func runWriteTest(ctx context.Context, agent agentexam.Agent, spec string, test eligibleTest, timeout time.Duration, output io.Writer) (agentexam.Result, *failedTranscript) {
+func runGroupWriteTest(ctx context.Context, agent agentexam.Agent, spec string, group writeTestGroup, timeout time.Duration, output io.Writer) (agentexam.Result, []failedTranscript) {
 	r := agentexam.Result{
-		ID:    test.ID,
-		Group: test.Category,
-		Name:  test.Name + " (write)",
+		ID:    group.Key,
+		Group: group.Category,
+		Name:  group.Name + " (write)",
 	}
 
-	inputJSON, _ := json.Marshal(test.Input)
-	expectedJSON, _ := json.Marshal(test.Expected.Value)
-
-	fmt.Fprintf(output, "\n--- [write] %s — %s ---\n", test.ID, test.Name)
-	fmt.Fprintf(output, "  input:    %s\n", inputJSON)
-	fmt.Fprintf(output, "  expected: %s\n", expectedJSON)
+	fmt.Fprintf(output, "\n--- [write] %s — %s (%d case(s)) ---\n",
+		group.Key, group.Name, len(group.Cases))
 
 	var prompt, response string
 
-	fail := func() (agentexam.Result, *failedTranscript) {
-		return r, &failedTranscript{
-			TestID: test.ID, TestName: test.Name, Kind: "write",
-			Prompt: prompt, Response: response, Error: r.Error,
-		}
+	failAll := func(errMsg string) (agentexam.Result, []failedTranscript) {
+		r.Error = errMsg
+		return r, []failedTranscript{{
+			TestID: group.Key, TestName: group.Name, Kind: "write",
+			Prompt: prompt, Response: response, Error: errMsg,
+		}}
 	}
 
-	prompt, err := buildWritePrompt(spec, test)
+	prompt, err := buildGroupWritePrompt(spec, group)
 	if err != nil {
-		r.Error = fmt.Sprintf("building prompt: %v", err)
-		return fail()
+		return failAll(fmt.Sprintf("building prompt: %v", err))
 	}
 
 	runCtx := ctx
@@ -245,8 +247,7 @@ func runWriteTest(ctx context.Context, agent agentexam.Agent, spec string, test 
 
 	result, err := agent.Run(runCtx, "", prompt, output)
 	if err != nil {
-		r.Error = fmt.Sprintf("agent error: %v", err)
-		return fail()
+		return failAll(fmt.Sprintf("agent error: %v", err))
 	}
 
 	response = result.Response
@@ -254,50 +255,83 @@ func runWriteTest(ctx context.Context, agent agentexam.Agent, spec string, test 
 
 	mappingSrc := extractMapping(response)
 	if mappingSrc == "" {
-		r.Error = "agent produced empty mapping"
-		return fail()
+		return failAll("agent produced empty mapping")
 	}
 
 	interp := &bloblang2.Interp{}
 	mapping, compileErr := interp.Compile(mappingSrc, nil)
 	if compileErr != nil {
-		r.Error = fmt.Sprintf("compile error: %v", compileErr)
-		return fail()
+		return failAll(fmt.Sprintf("compile error: %v", compileErr))
 	}
 
-	outVal, outMeta, deleted, execErr := mapping.Exec(test.Input, test.InputMeta)
-	if execErr != nil {
-		r.Error = fmt.Sprintf("runtime error: %v", execErr)
-		return fail()
-	}
-	if deleted {
-		r.Error = "mapping deleted the message"
-		return fail()
-	}
-	if outMeta == nil {
-		outMeta = map[string]any{}
-	}
+	// Execute against each case, accumulate partial score.
+	passed := 0
+	var caseErrors []string
+	var failedTxns []failedTranscript
 
-	coercedOutput := coerceToNaturalJSON(outVal)
-	coercedMeta := coerceToNaturalJSON(outMeta)
+	for i, c := range group.Cases {
+		outVal, outMeta, deleted, execErr := mapping.Exec(c.Input, c.InputMeta)
 
-	if ok, diff := naturalJSONEqual(test.Expected.Value, coercedOutput); !ok {
-		r.Error = "output mismatch: " + diff
-		return fail()
-	}
-
-	if !test.NoMetadataCheck {
-		expectedMeta := test.Expected.Metadata
-		if expectedMeta == nil {
-			expectedMeta = map[string]any{}
+		caseFail := func(reason string) {
+			msg := fmt.Sprintf("case %d (%s): %s", i+1, c.Name, reason)
+			caseErrors = append(caseErrors, msg)
+			failedTxns = append(failedTxns, failedTranscript{
+				TestID:   c.ID,
+				TestName: c.Name,
+				Kind:     "write",
+				Prompt:   prompt,
+				Response: response,
+				Error:    reason,
+			})
 		}
-		if ok, diff := naturalJSONEqual(any(expectedMeta), coercedMeta); !ok {
-			r.Error = "metadata mismatch: " + diff
-			return fail()
+
+		if execErr != nil {
+			caseFail(fmt.Sprintf("runtime error: %v", execErr))
+			continue
 		}
+		if deleted {
+			caseFail("mapping deleted the message")
+			continue
+		}
+		if outMeta == nil {
+			outMeta = map[string]any{}
+		}
+
+		coercedOutput := coerceToNaturalJSON(outVal)
+		coercedMeta := coerceToNaturalJSON(outMeta)
+
+		if ok, diff := naturalJSONEqual(c.Expected.Value, coercedOutput); !ok {
+			caseFail("output mismatch: " + diff)
+			continue
+		}
+
+		if !c.NoMetadataCheck {
+			expectedMeta := c.Expected.Metadata
+			if expectedMeta == nil {
+				expectedMeta = map[string]any{}
+			}
+			if ok, diff := naturalJSONEqual(any(expectedMeta), coercedMeta); !ok {
+				caseFail("metadata mismatch: " + diff)
+				continue
+			}
+		}
+
+		passed++
 	}
 
-	r.Score = 1
+	r.Score = float64(passed) / float64(len(group.Cases))
+
+	if len(caseErrors) > 0 {
+		r.Error = fmt.Sprintf("%d/%d cases failed:\n  %s",
+			len(group.Cases)-passed, len(group.Cases),
+			strings.Join(caseErrors, "\n  "))
+	}
+
+	fmt.Fprintf(output, "  score: %d/%d cases passed\n", passed, len(group.Cases))
+
+	if len(failedTxns) > 0 {
+		return r, failedTxns
+	}
 	return r, nil
 }
 

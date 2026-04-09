@@ -134,6 +134,71 @@ Do not include any explanation, commentary, or code fences.
 	return b.String(), nil
 }
 
+func buildGroupWritePrompt(spec string, group writeTestGroup) (string, error) {
+	// Single-case groups use the same layout as the original buildWritePrompt.
+	if len(group.Cases) == 1 {
+		return buildWritePrompt(spec, group.Cases[0])
+	}
+
+	var b strings.Builder
+	b.WriteString("Here is a mapping language specification:\n\n<spec>\n")
+	b.WriteString(spec)
+	b.WriteString("\n</spec>\n\n")
+	b.WriteString(fmt.Sprintf("Write a SINGLE mapping that transforms each input into its expected output.\nThe mapping must handle ALL %d cases below.\n", len(group.Cases)))
+
+	for i, c := range group.Cases {
+		inputValue, err := marshalValue(c.Input)
+		if err != nil {
+			return "", fmt.Errorf("case %d: marshaling input: %w", i, err)
+		}
+		expectedValue, err := marshalValue(c.Expected.Value)
+		if err != nil {
+			return "", fmt.Errorf("case %d: marshaling expected output: %w", i, err)
+		}
+
+		caseName := c.Name
+		if j := strings.Index(caseName, "/"); j >= 0 {
+			caseName = caseName[j+1:]
+		}
+
+		b.WriteString(fmt.Sprintf("\n### Case %d: %s\n\n<input>\n", i+1, caseName))
+		b.Write(inputValue)
+		b.WriteString("</input>\n")
+
+		if len(c.InputMeta) > 0 {
+			inputMeta, err := marshalValue(c.InputMeta)
+			if err != nil {
+				return "", fmt.Errorf("case %d: marshaling input metadata: %w", i, err)
+			}
+			b.WriteString("\n<input_metadata>\n")
+			b.Write(inputMeta)
+			b.WriteString("</input_metadata>\n")
+		}
+
+		b.WriteString("\n<expected_output>\n")
+		b.Write(expectedValue)
+		b.WriteString("</expected_output>\n")
+
+		if len(c.Expected.Metadata) > 0 {
+			expectedMeta, err := marshalValue(c.Expected.Metadata)
+			if err != nil {
+				return "", fmt.Errorf("case %d: marshaling expected metadata: %w", i, err)
+			}
+			b.WriteString("\n<expected_output_metadata>\n")
+			b.Write(expectedMeta)
+			b.WriteString("</expected_output_metadata>\n")
+		}
+	}
+
+	b.WriteString(`
+The mapping operates on the document directly — "output" IS the document, not a wrapper around it.
+For example, if the input is null and the expected output is false, the correct mapping is simply: output = false
+Respond with ONLY the mapping code. **IMPORTANT** Do not respond with anything other than the mapping!
+Do not include any explanation, commentary, or code fences.
+`)
+	return b.String(), nil
+}
+
 // extractValue parses an arbitrary JSON value from the agent's response,
 // stripping markdown code fences and surrounding text.
 func extractValue(raw string) (any, error) {

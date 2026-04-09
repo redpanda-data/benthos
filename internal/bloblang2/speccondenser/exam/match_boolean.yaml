@@ -1,0 +1,94 @@
+description: "Match boolean form with and without 'as' binding"
+
+tests:
+  - name: "match-as score tier classification"
+    mapping: |
+      output.tier = match input.score as s {
+        s >= 90 => "gold",
+        s >= 50 => "silver",
+        _ => "bronze",
+      }
+    cases:
+      - name: "gold"
+        input: {"score": 95}
+        output: {"tier": "gold"}
+      - name: "silver"
+        input: {"score": 75}
+        output: {"tier": "silver"}
+      - name: "bronze"
+        input: {"score": 10}
+        output: {"tier": "bronze"}
+
+  - name: "match-as binding used in result expression"
+    input: {"value": 42}
+    mapping: |
+      output.result = match input.value as v {
+        v > 0 => v * 2,
+        _ => 0,
+      }
+    output: {"result": 84}
+
+  - name: "match-as with braced body and local variables"
+    input: {"price": 120}
+    mapping: |
+      output.label = match input.price as p {
+        p >= 100 => {
+          $discount = p * 0.1
+          "expensive (save " + $discount.string() + ")"
+        },
+        _ => "affordable",
+      }
+    output: {"label": "expensive (save 12.0)"}
+
+  - name: "match-as with computed expression"
+    input: {"a": 10, "b": 20}
+    mapping: |
+      output.result = match (input.a + input.b) as total {
+        total >= 50 => "high",
+        total >= 20 => "medium",
+        _ => "low",
+      }
+    output: {"result": "medium"}
+
+  - name: "boolean match without as — grade classification"
+    mapping: |
+      output.grade = match {
+        input.score >= 90 => "A",
+        input.score >= 80 => "B",
+        input.score >= 70 => "C",
+        _ => "F",
+      }
+    cases:
+      - name: "A"
+        input: {"score": 95}
+        output: {"grade": "A"}
+      - name: "B"
+        input: {"score": 85}
+        output: {"grade": "B"}
+      - name: "C"
+        input: {"score": 75}
+        output: {"grade": "C"}
+      - name: "F"
+        input: {"score": 30}
+        output: {"grade": "F"}
+
+  - name: "boolean match with compound conditions"
+    input: {"age": 25, "member": true}
+    mapping: |
+      output.discount = match {
+        input.age < 18 => "youth",
+        input.age >= 65 => "senior",
+        input.member && input.age >= 21 => "member",
+        _ => "none",
+      }
+    output: {"discount": "member"}
+
+  - name: "boolean match using variables in conditions"
+    mapping: |
+      $threshold = 50
+      $value = 75
+      output.result = match {
+        $value >= $threshold => "above",
+        _ => "below",
+      }
+    output: {"result": "above"}

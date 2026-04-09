@@ -1,0 +1,77 @@
+description: "Operator precedence — arithmetic, comparison, logical, method calls"
+
+tests:
+  - name: "arithmetic before comparison"
+    mapping: |
+      output = 2 + 3 > 4
+    output: true
+
+  - name: "multiply before add"
+    mapping: |
+      output = 2 + 3 * 4
+    output: 14
+
+  - name: "parentheses override precedence"
+    mapping: |
+      output = (2 + 3) * 4
+    output: 20
+
+  - name: "and binds tighter than or"
+    mapping: |
+      output = true || false && false
+    output: true
+
+  - name: "and binds tighter than or — reversed"
+    mapping: |
+      output = false && false || true
+    output: true
+
+  - name: "parentheses override logical precedence"
+    mapping: |
+      output = (true || false) && false
+    output: false
+
+  - name: "method calls before arithmetic"
+    mapping: |
+      output = "hello".length() + 1
+    cases:
+      - name: "length plus one"
+        input: {}
+        output: 6
+
+  - name: "method calls before comparison"
+    input: {"text": "hello world"}
+    mapping: |
+      output = input.text.length() > 5
+    output: true
+
+  - name: "field access before arithmetic"
+    input: {"a": 2, "b": 3, "c": 4}
+    mapping: |
+      output = input.a + input.b * input.c
+    output: 14
+
+  - name: "unary minus before multiply"
+    mapping: |
+      output = -3 * 2
+    output: -6
+
+  - name: "unary not before and"
+    mapping: |
+      output = !false && true
+    output: true
+
+  - name: "full precedence chain"
+    mapping: |
+      output = 2 + 3 * 4 > 10 == true && !false
+    output: true
+
+  - name: "subtraction is left-associative"
+    mapping: |
+      output = 10 - 5 - 2
+    output: 3
+
+  - name: "division is left-associative"
+    mapping: |
+      output = 20 / 4 / 2
+    output: 2.5

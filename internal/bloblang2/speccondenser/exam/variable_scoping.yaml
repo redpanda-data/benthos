@@ -1,0 +1,101 @@
+description: "Variable scoping: statement write-through, expression shadowing, pre-declare pattern"
+
+tests:
+  - name: "if-statement modifies outer variable (statement context)"
+    mapping: |
+      $x = 10
+      if input.flag {
+        $x = 99
+      }
+      output.v = $x
+    cases:
+      - name: "true modifies outer"
+        input: {"flag": true}
+        output: {"v": 99}
+      - name: "false leaves unchanged"
+        input: {"flag": false}
+        output: {"v": 10}
+
+  - name: "if-expression shadows outer variable (expression context)"
+    mapping: |
+      $x = "outer"
+      output.inner = if input.flag {
+        $x = "shadow"
+        $x
+      }
+      output.outer = $x
+    cases:
+      - name: "true — inner shadows, outer unchanged"
+        input: {"flag": true}
+        output: {"inner": "shadow", "outer": "outer"}
+      - name: "false — void skips, outer unchanged"
+        input: {"flag": false}
+        output: {"outer": "outer"}
+
+  - name: "shadow does not leak between sibling expressions"
+    input: {"flag": true}
+    mapping: |
+      $x = "original"
+      output.first = if input.flag {
+        $x = "first"
+        $x
+      }
+      output.second = if input.flag {
+        $x
+      }
+      output.outer = $x
+    output: {"first": "first", "second": "original", "outer": "original"}
+
+  - name: "pre-declare pattern with if-else statement"
+    mapping: |
+      $result = ""
+      if input.flag {
+        $result = "yes"
+      } else {
+        $result = "no"
+      }
+      output.v = $result
+    cases:
+      - name: "true branch"
+        input: {"flag": true}
+        output: {"v": "yes"}
+      - name: "false branch"
+        input: {"flag": false}
+        output: {"v": "no"}
+
+  - name: "match-statement modifies outer variable"
+    mapping: |
+      $result = "none"
+      match input.kind {
+        "a" => {
+          $result = "found-a"
+        },
+        "b" => {
+          $result = "found-b"
+        },
+      }
+      output.v = $result
+    cases:
+      - name: "matches a"
+        input: {"kind": "a"}
+        output: {"v": "found-a"}
+      - name: "matches b"
+        input: {"kind": "b"}
+        output: {"v": "found-b"}
+      - name: "no match leaves unchanged"
+        input: {"kind": "c"}
+        output: {"v": "none"}
+
+  - name: "match-expression shadows outer variable"
+    input: {"kind": "a"}
+    mapping: |
+      $val = "outer"
+      output.result = match input.kind {
+        "a" => {
+          $val = "inner-a"
+          $val
+        },
+        _ => "default",
+      }
+      output.outer = $val
+    output: {"result": "inner-a", "outer": "outer"}
