@@ -3,35 +3,23 @@ description: "Match with 'as' binding — binding in conditions and results, blo
 tests:
   # --- Basic match with as ---
 
-  - name: "match as binds value and uses in condition"
-    input: {"score": 85}
+  - name: "match as score tier classification"
     mapping: |
       output.tier = match input.score as s {
         s >= 100 => "gold",
         s >= 50 => "silver",
         _ => "bronze",
       }
-    output: {"tier": "silver"}
-
-  - name: "match as selects first matching condition"
-    input: {"score": 150}
-    mapping: |
-      output.tier = match input.score as s {
-        s >= 100 => "gold",
-        s >= 50 => "silver",
-        _ => "bronze",
-      }
-    output: {"tier": "gold"}
-
-  - name: "match as falls to wildcard"
-    input: {"score": 10}
-    mapping: |
-      output.tier = match input.score as s {
-        s >= 100 => "gold",
-        s >= 50 => "silver",
-        _ => "bronze",
-      }
-    output: {"tier": "bronze"}
+    cases:
+      - name: "middle tier"
+        input: {"score": 85}
+        output: {"tier": "silver"}
+      - name: "top tier"
+        input: {"score": 150}
+        output: {"tier": "gold"}
+      - name: "falls to wildcard"
+        input: {"score": 10}
+        output: {"tier": "bronze"}
 
   # --- Binding used in result expression ---
 

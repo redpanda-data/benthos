@@ -84,6 +84,34 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 		for i := range tf.Tests {
 			tc := &tf.Tests[i]
 
+			// Multi-case tests: expand each eligible case into a
+			// separate eligibleTest sharing the same mapping.
+			if len(tc.Cases) > 0 {
+				if len(tf.Files) > 0 || len(tc.Files) > 0 {
+					continue
+				}
+				for j := range tc.Cases {
+					c := &tc.Cases[j]
+					if !c.HasOutput || c.NoOutputCheck {
+						continue
+					}
+					if c.Error != "" || c.HasError || c.Deleted {
+						continue
+					}
+
+					et := buildEligibleTest(
+						c.Input, c.InputMetadata, c.Output, c.OutputMetadata,
+						c.NoMetadataCheck, tc.Mapping, category,
+						fmt.Sprintf("%s/%s_%03d_%03d", category, baseName, i, j),
+						tc.Name+"/"+c.Name,
+					)
+					if et != nil {
+						tests = append(tests, *et)
+					}
+				}
+				continue
+			}
+
 			if !tc.HasOutput || tc.NoOutputCheck {
 				continue
 			}
@@ -94,73 +122,85 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 				continue
 			}
 
-			input, err := spectest.DecodeValue(tc.Input)
-			if err != nil {
-				continue
+			et := buildEligibleTest(
+				tc.Input, tc.InputMetadata, tc.Output, tc.OutputMetadata,
+				tc.NoMetadataCheck, tc.Mapping, category,
+				fmt.Sprintf("%s/%s_%03d", category, baseName, i),
+				tc.Name,
+			)
+			if et != nil {
+				tests = append(tests, *et)
 			}
-			inputMeta, err := decodeMetaMap(tc.InputMetadata)
-			if err != nil {
-				continue
-			}
-			output, err := spectest.DecodeValue(tc.Output)
-			if err != nil {
-				continue
-			}
-			outputMeta, err := decodeMetaMap(tc.OutputMetadata)
-			if err != nil {
-				continue
-			}
-
-			encodedInput, ok := encodeNaturalJSON(input)
-			if !ok {
-				continue
-			}
-			encodedInputMeta, ok := encodeNaturalMeta(inputMeta)
-			if !ok {
-				continue
-			}
-			encodedOutput, ok := encodeNaturalJSON(output)
-			if !ok {
-				continue
-			}
-			encodedOutputMeta, ok := encodeNaturalMeta(outputMeta)
-			if !ok {
-				continue
-			}
-
-			// JSON round-trip all values so types are normalized to
-			// JSON-native forms (e.g. int64 → float64). This ensures
-			// consistent comparisons regardless of whether the actual
-			// value came from JSON unmarshal or from the interpreter.
-			normInput, normInputMeta, err := jsonRoundTripInput(encodedInput, encodedInputMeta)
-			if err != nil {
-				continue
-			}
-			normOutput, normOutputMeta, err := jsonRoundTripInput(encodedOutput, encodedOutputMeta)
-			if err != nil {
-				continue
-			}
-
-			id := fmt.Sprintf("%s/%s_%03d", category, baseName, i)
-			tests = append(tests, eligibleTest{
-				manifestEntry: manifestEntry{
-					ID:              id,
-					Category:        category,
-					Name:            tc.Name,
-					NoMetadataCheck: tc.NoMetadataCheck,
-					Expected: envelope{
-						Value:    normOutput,
-						Metadata: normOutputMeta,
-					},
-				},
-				Mapping:   tc.Mapping,
-				Input:     normInput,
-				InputMeta: normInputMeta,
-			})
 		}
 	}
 
 	return tests, nil
+}
+
+// buildEligibleTest decodes and normalizes the given test fields into an
+// eligibleTest. Returns nil if any step fails (non-JSON-encodable types, etc.).
+func buildEligibleTest(
+	rawInput, rawInputMeta, rawOutput, rawOutputMeta any,
+	noMetadataCheck bool, mapping, category, id, name string,
+) *eligibleTest {
+	input, err := spectest.DecodeValue(rawInput)
+	if err != nil {
+		return nil
+	}
+	inputMeta, err := decodeMetaMap(rawInputMeta)
+	if err != nil {
+		return nil
+	}
+	output, err := spectest.DecodeValue(rawOutput)
+	if err != nil {
+		return nil
+	}
+	outputMeta, err := decodeMetaMap(rawOutputMeta)
+	if err != nil {
+		return nil
+	}
+
+	encodedInput, ok := encodeNaturalJSON(input)
+	if !ok {
+		return nil
+	}
+	encodedInputMeta, ok := encodeNaturalMeta(inputMeta)
+	if !ok {
+		return nil
+	}
+	encodedOutput, ok := encodeNaturalJSON(output)
+	if !ok {
+		return nil
+	}
+	encodedOutputMeta, ok := encodeNaturalMeta(outputMeta)
+	if !ok {
+		return nil
+	}
+
+	normInput, normInputMeta, err := jsonRoundTripInput(encodedInput, encodedInputMeta)
+	if err != nil {
+		return nil
+	}
+	normOutput, normOutputMeta, err := jsonRoundTripInput(encodedOutput, encodedOutputMeta)
+	if err != nil {
+		return nil
+	}
+
+	return &eligibleTest{
+		manifestEntry: manifestEntry{
+			ID:              id,
+			Category:        category,
+			Name:            name,
+			NoMetadataCheck: noMetadataCheck,
+			Expected: envelope{
+				Value:    normOutput,
+				Metadata: normOutputMeta,
+			},
+		},
+		Mapping:   mapping,
+		Input:     normInput,
+		InputMeta: normInputMeta,
+	}
 }
 
 func loadSpecDocs(specDir string) (map[string][]byte, error) {
