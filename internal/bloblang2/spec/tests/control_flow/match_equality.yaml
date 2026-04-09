@@ -3,35 +3,23 @@ description: "Match equality form — expression evaluated once, == comparison, 
 tests:
   # --- Basic equality match ---
 
-  - name: "match equality selects matching case"
-    input: {"animal": "cat"}
+  - name: "match equality on animal sound"
     mapping: |
       output.sound = match input.animal {
         "cat" => "meow",
         "dog" => "woof",
         _ => "unknown",
       }
-    output: {"sound": "meow"}
-
-  - name: "match equality selects second case"
-    input: {"animal": "dog"}
-    mapping: |
-      output.sound = match input.animal {
-        "cat" => "meow",
-        "dog" => "woof",
-        _ => "unknown",
-      }
-    output: {"sound": "woof"}
-
-  - name: "match equality falls to wildcard"
-    input: {"animal": "bird"}
-    mapping: |
-      output.sound = match input.animal {
-        "cat" => "meow",
-        "dog" => "woof",
-        _ => "unknown",
-      }
-    output: {"sound": "unknown"}
+    cases:
+      - name: "selects first case"
+        input: {"animal": "cat"}
+        output: {"sound": "meow"}
+      - name: "selects second case"
+        input: {"animal": "dog"}
+        output: {"sound": "woof"}
+      - name: "falls to wildcard"
+        input: {"animal": "bird"}
+        output: {"sound": "unknown"}
 
   # --- First match wins ---
 

@@ -29,29 +29,22 @@ tests:
 
   # --- Chained ?. ---
 
-  - name: "chained null-safe all present"
-    input: {"user": {"address": {"city": "London"}}}
+  - name: "chained null-safe field access"
     mapping: |
       output.v = input.user?.address?.city
-    output: {"v": "London"}
-
-  - name: "chained null-safe middle is null"
-    input: {"user": {"address": null}}
-    mapping: |
-      output.v = input.user?.address?.city
-    output: {"v": null}
-
-  - name: "chained null-safe first is null"
-    input: {"user": null}
-    mapping: |
-      output.v = input.user?.address?.city
-    output: {"v": null}
-
-  - name: "chained null-safe first missing"
-    input: {}
-    mapping: |
-      output.v = input.user?.address?.city
-    output: {"v": null}
+    cases:
+      - name: "all present"
+        input: {"user": {"address": {"city": "London"}}}
+        output: {"v": "London"}
+      - name: "middle is null"
+        input: {"user": {"address": null}}
+        output: {"v": null}
+      - name: "first is null"
+        input: {"user": null}
+        output: {"v": null}
+      - name: "first missing"
+        input: {}
+        output: {"v": null}
 
   # --- ?[ on null ---
 

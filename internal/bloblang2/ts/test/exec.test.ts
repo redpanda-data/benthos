@@ -200,6 +200,18 @@ interface SpecFile {
   tests: SpecTest[];
 }
 
+interface SpecCase {
+  name: string;
+  input?: unknown;
+  input_metadata?: Record<string, unknown>;
+  output?: unknown;
+  output_metadata?: Record<string, unknown>;
+  output_type?: string;
+  no_output_check?: boolean;
+  deleted?: boolean;
+  error?: string;
+}
+
 interface SpecTest {
   name: string;
   mapping?: string;
@@ -214,6 +226,7 @@ interface SpecTest {
   compile_error?: string;
   runtime_error?: string;
   files?: Record<string, string>;
+  cases?: SpecCase[];
 }
 
 function collectYamlFiles(dir: string): string[] {
@@ -403,6 +416,80 @@ describe("spec compatibility — execute", () => {
           const resolveErrors = resolve(program, methods, functions);
           expect(resolveErrors.length).toBeGreaterThan(0);
         });
+        continue;
+      }
+
+      // Multi-case test: compile once, run each case.
+      if (tc.cases && tc.cases.length > 0) {
+        const { program, errors: parseErrors } = parse(tc.mapping!, "", filesMap);
+        if (parseErrors.length > 0) {
+          it(`exec: ${testName}/${tc.cases[0].name}`, () => {
+            const msgs = parseErrors.map(e => `${e.pos.line}:${e.pos.column}: ${e.msg}`);
+            expect.fail(`Parse errors:\n${msgs.join("\n")}`);
+          });
+          continue;
+        }
+        optimize(program);
+        const resolveErrors = resolve(program, methods, functions);
+        if (resolveErrors.length > 0) {
+          it(`exec: ${testName}/${tc.cases[0].name}`, () => {
+            const msgs = resolveErrors.map(e => `${e.pos.line}:${e.pos.column}: ${e.msg}`);
+            expect.fail(`Resolve errors:\n${msgs.join("\n")}`);
+          });
+          continue;
+        }
+
+        for (const c of tc.cases) {
+          const caseName = `${testName}/${c.name}`;
+
+          if (c.error !== undefined) {
+            it(`runtime error: ${caseName}`, () => {
+              const interp = new Interpreter(program);
+              registerStdlib(interp);
+              const input = c.input !== undefined ? specFromJSON(c.input) : NULL;
+              const meta = buildMeta(c.input_metadata);
+              const { error } = interp.run(input, meta);
+              if (error === null) {
+                expect.fail(`Expected runtime error containing "${c.error}" but execution succeeded`);
+              }
+            });
+            continue;
+          }
+
+          if (c.deleted) {
+            it(`exec: ${caseName}`, () => {
+              const interp = new Interpreter(program);
+              registerStdlib(interp);
+              const input = c.input !== undefined ? specFromJSON(c.input) : NULL;
+              const { deleted, error } = interp.run(input, buildMeta(c.input_metadata));
+              if (error) expect.fail(`Runtime error: ${error}`);
+              expect(deleted).toBe(true);
+            });
+            continue;
+          }
+
+          it(`exec: ${caseName}`, () => {
+            const interp = new Interpreter(program);
+            registerStdlib(interp);
+            const input = c.input !== undefined ? specFromJSON(c.input) : NULL;
+            const meta = buildMeta(c.input_metadata);
+            const { output, error, deleted } = interp.run(input, meta);
+
+            if (error) expect.fail(`Runtime error: ${error}`);
+            if (c.no_output_check) return;
+            if (deleted) {
+              expect(c.output).toBeUndefined();
+              return;
+            }
+
+            const actual = specToJSON(output);
+            if (!deepEqual(actual, c.output)) {
+              expect.fail(
+                `Output mismatch:\n  expected: ${JSON.stringify(c.output, null, 2)}\n  actual:   ${JSON.stringify(actual, null, 2)}`,
+              );
+            }
+          });
+        }
         continue;
       }
 

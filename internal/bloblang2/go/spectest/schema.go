@@ -32,8 +32,27 @@ type TestCase struct {
 	NoMetadataCheck bool              `yaml:"no_metadata_check"`
 	OutputType      string            `yaml:"output_type"`
 	Files           map[string]string `yaml:"files"`
+	Cases           []Case            `yaml:"cases"`
 	HasOutput       bool              `yaml:"-"` // set by custom unmarshaling; true when output field is present
 	HasError        bool              `yaml:"-"` // set by custom unmarshaling; true when error field is present
+}
+
+// Case is a single input/output case within a multi-case test. The mapping
+// is defined on the parent TestCase and compiled once; each Case provides
+// a different input and expected result to execute against it.
+type Case struct {
+	Name            string `yaml:"name"`
+	Input           any    `yaml:"input"`
+	InputMetadata   any    `yaml:"input_metadata"`
+	Output          any    `yaml:"output"`
+	OutputMetadata  any    `yaml:"output_metadata"`
+	Error           string `yaml:"error"`
+	Deleted         bool   `yaml:"deleted"`
+	NoOutputCheck   bool   `yaml:"no_output_check"`
+	NoMetadataCheck bool   `yaml:"no_metadata_check"`
+	OutputType      string `yaml:"output_type"`
+	HasOutput       bool   `yaml:"-"`
+	HasError        bool   `yaml:"-"`
 }
 
 // UnmarshalYAML implements custom unmarshaling to detect when the output
@@ -55,6 +74,29 @@ func (tc *TestCase) UnmarshalYAML(value *yaml.Node) error {
 				tc.HasOutput = true
 			case "error":
 				tc.HasError = true
+			}
+		}
+	}
+	return nil
+}
+
+// UnmarshalYAML implements custom unmarshaling to detect when the output
+// or error fields are explicitly set (including to null/empty).
+func (c *Case) UnmarshalYAML(value *yaml.Node) error {
+	type rawCase Case
+	var raw rawCase
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+	*c = Case(raw)
+
+	if value.Kind == yaml.MappingNode {
+		for i := 0; i < len(value.Content)-1; i += 2 {
+			switch value.Content[i].Value {
+			case "output":
+				c.HasOutput = true
+			case "error":
+				c.HasError = true
 			}
 		}
 	}
