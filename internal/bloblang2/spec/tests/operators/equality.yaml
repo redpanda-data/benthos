@@ -100,11 +100,16 @@ tests:
 
   # --- NaN equality ---
 
-  - name: "NaN == NaN is false"
-    input: {val: {_type: "float64", value: "NaN"}}
+  - name: "self-equality for special floats"
     mapping: |
       output.result = input.val == input.val
-    output: {"result": false}
+    cases:
+      - name: "NaN == NaN is false"
+        input: {val: {_type: "float64", value: "NaN"}}
+        output: {"result": false}
+      - name: "Infinity == Infinity is true"
+        input: {val: {_type: "float64", value: "Infinity"}}
+        output: {"result": true}
 
   - name: "NaN != NaN is true"
     input: {val: {_type: "float64", value: "NaN"}}
@@ -118,14 +123,6 @@ tests:
     input: {val: {_type: "float64", value: "-0.0"}}
     mapping: |
       output.result = input.val == 0.0
-    output: {"result": true}
-
-  # --- Infinity equality ---
-
-  - name: "Infinity == Infinity is true"
-    input: {val: {_type: "float64", value: "Infinity"}}
-    mapping: |
-      output.result = input.val == input.val
     output: {"result": true}
 
   - name: "Infinity != negative Infinity"

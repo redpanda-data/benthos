@@ -44,52 +44,33 @@ tests:
 
   # --- Input types ---
 
-  - name: "input is a string"
-    input: "hello world"
+  - name: "input passthrough for various types"
     mapping: |
       output.v = input
-    output: {"v": "hello world"}
-
-  - name: "input is a number"
-    input: 42
-    mapping: |
-      output.v = input
-    output: {"v": 42}
-
-  - name: "input is a float"
-    input: 3.14
-    mapping: |
-      output.v = input
-    output: {"v": 3.14}
-
-  - name: "input is a boolean"
-    input: true
-    mapping: |
-      output.v = input
-    output: {"v": true}
-
-  - name: "input is null"
-    input: null
-    mapping: |
-      output.v = input
-    output: {"v": null}
-
-  - name: "input is an empty object"
-    input: {}
-    mapping: |
-      output.v = input
-    output: {"v": {}}
-
-  - name: "input is an empty array"
-    input: []
-    mapping: |
-      output.v = input
-    output: {"v": []}
-
-  - name: "input defaults to null when not specified"
-    mapping: |
-      output.v = input
-    output: {"v": null}
+    cases:
+      - name: "string"
+        input: "hello world"
+        output: {"v": "hello world"}
+      - name: "number"
+        input: 42
+        output: {"v": 42}
+      - name: "float"
+        input: 3.14
+        output: {"v": 3.14}
+      - name: "boolean"
+        input: true
+        output: {"v": true}
+      - name: "null"
+        input: null
+        output: {"v": null}
+      - name: "empty object"
+        input: {}
+        output: {"v": {}}
+      - name: "empty array"
+        input: []
+        output: {"v": []}
+      - name: "defaults to null when not specified"
+        output: {"v": null}
 
   # --- Non-existent fields return null ---
 

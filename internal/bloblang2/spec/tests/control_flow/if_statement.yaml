@@ -3,21 +3,18 @@ description: "If as statement — standalone with output assignments, empty body
 tests:
   # --- Basic if statement with output assignment ---
 
-  - name: "if statement assigns to output when true"
-    input: {"type": "user"}
+  - name: "if statement conditional on input type"
     mapping: |
       if input.type == "user" {
         output.role = "member"
       }
-    output: {"role": "member"}
-
-  - name: "if statement skips body when false"
-    input: {"type": "guest"}
-    mapping: |
-      if input.type == "user" {
-        output.role = "member"
-      }
-    output: {}
+    cases:
+      - name: "assigns when true"
+        input: {"type": "user"}
+        output: {"role": "member"}
+      - name: "skips body when false"
+        input: {"type": "guest"}
+        output: {}
 
   - name: "if statement with multiple output assignments"
     input: {"type": "admin"}
@@ -45,25 +42,20 @@ tests:
 
   # --- If-else statement ---
 
-  - name: "if-else statement selects correct branch"
-    input: {"type": "admin"}
+  - name: "if-else statement branch selection"
     mapping: |
       if input.type == "admin" {
         output.role = "admin"
       } else {
         output.role = "user"
       }
-    output: {"role": "admin"}
-
-  - name: "if-else statement takes else branch"
-    input: {"type": "guest"}
-    mapping: |
-      if input.type == "admin" {
-        output.role = "admin"
-      } else {
-        output.role = "user"
-      }
-    output: {"role": "user"}
+    cases:
+      - name: "selects then branch"
+        input: {"type": "admin"}
+        output: {"role": "admin"}
+      - name: "takes else branch"
+        input: {"type": "guest"}
+        output: {"role": "user"}
 
   # --- Else-if chains ---
 

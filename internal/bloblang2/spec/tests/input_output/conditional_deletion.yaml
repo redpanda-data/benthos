@@ -19,21 +19,18 @@ tests:
       output.a = if false { deleted() }
     output: {"a": "keep"}
 
-  - name: "if-else deletes one field based on condition"
-    input: {"remove_b": true}
+  - name: "if-else conditional field deletion"
     mapping: |
       output.a = 1
       output.b = 2
       output.b = if input.remove_b { deleted() } else { output.b }
-    output: {"a": 1}
-
-  - name: "if-else keeps field when condition false"
-    input: {"remove_b": false}
-    mapping: |
-      output.a = 1
-      output.b = 2
-      output.b = if input.remove_b { deleted() } else { output.b }
-    output: {"a": 1, "b": 2}
+    cases:
+      - name: "deletes field when true"
+        input: {"remove_b": true}
+        output: {"a": 1}
+      - name: "keeps field when false"
+        input: {"remove_b": false}
+        output: {"a": 1, "b": 2}
 
   # --- Conditional field deletion via match ---
 

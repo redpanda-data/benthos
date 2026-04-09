@@ -117,7 +117,7 @@ tests:
 
   # --- Block body with match-as binding ---
 
-  - name: "match-as block body uses bound variable"
+  - name: "match-as block body name truncation"
     mapping: |
       output.v = match input.name as n {
         n.length() > 5 => {
@@ -126,20 +126,13 @@ tests:
         },
         _ => n,
       }
-    input: {"name": "Alexander"}
-    output: {"v": "Alexa..."}
-
-  - name: "match-as block body short name passthrough"
-    mapping: |
-      output.v = match input.name as n {
-        n.length() > 5 => {
-          $short = n.slice(0, 5)
-          $short + "..."
-        },
-        _ => n,
-      }
-    input: {"name": "Bob"}
-    output: {"v": "Bob"}
+    cases:
+      - name: "long name truncated"
+        input: {"name": "Alexander"}
+        output: {"v": "Alexa..."}
+      - name: "short name passthrough"
+        input: {"name": "Bob"}
+        output: {"v": "Bob"}
 
   # --- Block body returning deleted ---
 

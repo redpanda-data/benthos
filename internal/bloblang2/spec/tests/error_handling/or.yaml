@@ -51,16 +51,15 @@ tests:
   # --- Directly on input/output/variable (no intermediate field access) ---
 
   - name: "or on input directly"
-    input: null
     mapping: |
       output = input.or("fallback")
-    output: "fallback"
-
-  - name: "or on input directly when present"
-    input: "hello"
-    mapping: |
-      output = input.or("fallback")
-    output: "hello"
+    cases:
+      - name: "null input returns fallback"
+        input: null
+        output: "fallback"
+      - name: "present input returned unchanged"
+        input: "hello"
+        output: "hello"
 
   - name: "or on variable directly"
     mapping: |

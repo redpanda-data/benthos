@@ -3,8 +3,7 @@ description: "Match boolean form — with and without matched expression, non-bo
 tests:
   # --- Boolean match without expression ---
 
-  - name: "boolean match selects first true case"
-    input: {"score": 85}
+  - name: "boolean match grade classification"
     mapping: |
       output.grade = match {
         input.score >= 90 => "A",
@@ -12,28 +11,16 @@ tests:
         input.score >= 70 => "C",
         _ => "F",
       }
-    output: {"grade": "B"}
-
-  - name: "boolean match selects first case"
-    input: {"score": 95}
-    mapping: |
-      output.grade = match {
-        input.score >= 90 => "A",
-        input.score >= 80 => "B",
-        _ => "F",
-      }
-    output: {"grade": "A"}
-
-  - name: "boolean match falls to wildcard"
-    input: {"score": 30}
-    mapping: |
-      output.grade = match {
-        input.score >= 90 => "A",
-        input.score >= 80 => "B",
-        input.score >= 70 => "C",
-        _ => "F",
-      }
-    output: {"grade": "F"}
+    cases:
+      - name: "selects B for 85"
+        input: {"score": 85}
+        output: {"grade": "B"}
+      - name: "selects A for 95"
+        input: {"score": 95}
+        output: {"grade": "A"}
+      - name: "falls to wildcard for 30"
+        input: {"score": 30}
+        output: {"grade": "F"}
 
   - name: "boolean match first true wins even if later also true"
     input: {"score": 95}
