@@ -9,3 +9,7 @@ import (
 func TestBloblangV2Spec(t *testing.T) {
 	spectest.RunT(t, "spec/tests", &Interp{})
 }
+
+func TestBloblangV2Exam(t *testing.T) {
+	spectest.RunT(t, "speccondenser/exam", &Interp{})
+}

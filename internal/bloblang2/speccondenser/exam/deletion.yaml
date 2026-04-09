@@ -1,0 +1,60 @@
+description: "Deletion — field deletion, array element deletion in .map(), conditional deletion"
+
+tests:
+  - name: "delete output field removes it from result"
+    mapping: |
+      output.a = 1
+      output.b = 2
+      output.c = 3
+      output.b = deleted()
+    output: {"a": 1, "c": 3}
+
+  - name: "delete nested output field"
+    mapping: |
+      output.user.name = "Alice"
+      output.user.age = 30
+      output.user.email = "alice@example.com"
+      output.user.age = deleted()
+    output: {"user": {"name": "Alice", "email": "alice@example.com"}}
+
+  - name: "map lambda returning deleted omits elements"
+    mapping: |
+      output.v = [1, 2, 3, 4, 5].map(x ->
+        if x % 2 == 0 { deleted() } else { x }
+      )
+    output: {"v": [1, 3, 5]}
+
+  - name: "map lambda deleting all elements produces empty array"
+    mapping: |
+      output.v = ["a", "b", "c"].map(x -> deleted())
+    output: {"v": []}
+
+  - name: "conditional deletion with if — multi-case"
+    mapping: |
+      output.status = "active"
+      output.debug = "trace-123"
+      output.debug = if input.remove_debug { deleted() }
+    cases:
+      - name: "delete when condition true"
+        input: {"remove_debug": true}
+        output: {"status": "active"}
+      - name: "keep when condition false (void preserves)"
+        input: {"remove_debug": false}
+        output: {"status": "active", "debug": "trace-123"}
+
+  - name: "deleted in array literal omits element"
+    mapping: |
+      output.v = [1, deleted(), 3, deleted(), 5]
+    output: {"v": [1, 3, 5]}
+
+  - name: "deleted in object literal omits field"
+    mapping: |
+      output.v = {"keep": 1, "drop": deleted(), "also_keep": 3}
+    output: {"v": {"keep": 1, "also_keep": 3}}
+
+  - name: "map with conditional transform or delete"
+    mapping: |
+      output.v = [10, -5, 20, -3, 15].map(x ->
+        if x > 0 { x * 2 } else { deleted() }
+      )
+    output: {"v": [20, 40, 30]}

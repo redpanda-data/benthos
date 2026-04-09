@@ -46,9 +46,20 @@ type manifestEntry struct {
 type eligibleTest struct {
 	manifestEntry
 
-	Mapping   string
-	Input     any
-	InputMeta map[string]any
+	Mapping       string
+	Input         any
+	InputMeta     map[string]any
+	WriteGroupKey string // groups cases sharing one mapping for write tests
+}
+
+// writeTestGroup holds all cases from one parent test, grouped for a single
+// write prompt where the agent must produce one mapping that handles all cases.
+type writeTestGroup struct {
+	Key      string         // WriteGroupKey shared by all members
+	Category string         // test category (for Result.Group)
+	Name     string         // parent test name (without case suffix)
+	Mapping  string         // the reference mapping (shared by all members)
+	Cases    []eligibleTest // individual cases to test against
 }
 
 // loadEligibleTests walks YAML test files and returns decoded, JSON-encodable
@@ -67,6 +78,9 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 			rel = path
 		}
 		category := filepath.Dir(rel)
+		if category == "." {
+			category = ""
+		}
 		baseName := strings.TrimSuffix(filepath.Base(rel), ".yaml")
 
 		if categories != nil {
@@ -90,6 +104,7 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 				if len(tf.Files) > 0 || len(tc.Files) > 0 {
 					continue
 				}
+				groupKey := testID(category, fmt.Sprintf("%s_%03d", baseName, i))
 				for j := range tc.Cases {
 					c := &tc.Cases[j]
 					if !c.HasOutput || c.NoOutputCheck {
@@ -102,8 +117,9 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 					et := buildEligibleTest(
 						c.Input, c.InputMetadata, c.Output, c.OutputMetadata,
 						c.NoMetadataCheck, tc.Mapping, category,
-						fmt.Sprintf("%s/%s_%03d_%03d", category, baseName, i, j),
+						testID(category, fmt.Sprintf("%s_%03d_%03d", baseName, i, j)),
 						tc.Name+"/"+c.Name,
+						groupKey,
 					)
 					if et != nil {
 						tests = append(tests, *et)
@@ -122,11 +138,11 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 				continue
 			}
 
+			id := testID(category, fmt.Sprintf("%s_%03d", baseName, i))
 			et := buildEligibleTest(
 				tc.Input, tc.InputMetadata, tc.Output, tc.OutputMetadata,
 				tc.NoMetadataCheck, tc.Mapping, category,
-				fmt.Sprintf("%s/%s_%03d", category, baseName, i),
-				tc.Name,
+				id, tc.Name, id,
 			)
 			if et != nil {
 				tests = append(tests, *et)
@@ -141,7 +157,7 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 // eligibleTest. Returns nil if any step fails (non-JSON-encodable types, etc.).
 func buildEligibleTest(
 	rawInput, rawInputMeta, rawOutput, rawOutputMeta any,
-	noMetadataCheck bool, mapping, category, id, name string,
+	noMetadataCheck bool, mapping, category, id, name, writeGroupKey string,
 ) *eligibleTest {
 	input, err := spectest.DecodeValue(rawInput)
 	if err != nil {
@@ -197,10 +213,39 @@ func buildEligibleTest(
 				Metadata: normOutputMeta,
 			},
 		},
-		Mapping:   mapping,
-		Input:     normInput,
-		InputMeta: normInputMeta,
+		Mapping:       mapping,
+		Input:         normInput,
+		InputMeta:     normInputMeta,
+		WriteGroupKey: writeGroupKey,
 	}
+}
+
+// groupWriteTests groups eligible tests by WriteGroupKey for write exam
+// scoring. Multi-case tests that share a mapping become one group; single-case
+// tests become groups of one.
+func groupWriteTests(tests []eligibleTest) []writeTestGroup {
+	keyOrder := map[string]int{}
+	var groups []writeTestGroup
+
+	for _, t := range tests {
+		idx, ok := keyOrder[t.WriteGroupKey]
+		if !ok {
+			idx = len(groups)
+			keyOrder[t.WriteGroupKey] = idx
+			parentName := t.Name
+			if i := strings.Index(t.Name, "/"); i >= 0 {
+				parentName = t.Name[:i]
+			}
+			groups = append(groups, writeTestGroup{
+				Key:      t.WriteGroupKey,
+				Category: t.Category,
+				Name:     parentName,
+				Mapping:  t.Mapping,
+			})
+		}
+		groups[idx].Cases = append(groups[idx].Cases, t)
+	}
+	return groups
 }
 
 func loadSpecDocs(specDir string) (map[string][]byte, error) {
@@ -259,6 +304,13 @@ func decodeMetaMap(raw any) (map[string]any, error) {
 		return nil, fmt.Errorf("metadata must be an object, got %T", decoded)
 	}
 	return m, nil
+}
+
+func testID(category, base string) string {
+	if category == "" {
+		return base
+	}
+	return category + "/" + base
 }
 
 func parseCategories(s string) map[string]struct{} {

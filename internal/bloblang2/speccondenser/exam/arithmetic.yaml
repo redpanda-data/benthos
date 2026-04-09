@@ -1,0 +1,66 @@
+description: "Arithmetic operators: addition, subtraction, multiplication, division, modulo"
+
+tests:
+  - name: "addition with numeric types"
+    mapping: |
+      output.result = input.a + input.b
+    cases:
+      - name: "int plus int"
+        input: {"a": 5, "b": 3}
+        output: {"result": 8}
+      - name: "float plus float"
+        input: {"a": 2.5, "b": 3.5}
+        output: {"result": 6.0}
+      - name: "int plus float promotes to float"
+        input: {"a": 3, "b": 1.5}
+        output: {"result": 4.5}
+
+  - name: "subtraction"
+    mapping: |
+      output.result = input.a - input.b
+    cases:
+      - name: "positive result"
+        input: {"a": 10, "b": 3}
+        output: {"result": 7}
+      - name: "negative result"
+        input: {"a": 3, "b": 10}
+        output: {"result": -7}
+
+  - name: "multiplication"
+    mapping: |
+      output.result = input.a * input.b
+    cases:
+      - name: "int times int"
+        input: {"a": 6, "b": 7}
+        output: {"result": 42}
+      - name: "float times float"
+        input: {"a": 2.5, "b": 4.0}
+        output: {"result": 10.0}
+
+  - name: "division always produces float"
+    mapping: |
+      output.result = input.a / input.b
+    cases:
+      - name: "non-exact division"
+        input: {"a": 7, "b": 2}
+        output: {"result": 3.5}
+      - name: "exact division still float"
+        input: {"a": 10, "b": 2}
+        output: {"result": 5.0}
+      - name: "float division"
+        input: {"a": 7.5, "b": 2.5}
+        output: {"result": 3.0}
+
+  - name: "modulo preserves integer type"
+    mapping: |
+      output.result = input.a % input.b
+    cases:
+      - name: "int modulo int"
+        input: {"a": 7, "b": 3}
+        output: {"result": 1}
+      - name: "negative dividend"
+        input: {"a": -7, "b": 2}
+        output: {"result": -1}
+      - name: "float modulo"
+        input: {"a": 7.5, "b": 2.0}
+        output: {"result": 1.5}

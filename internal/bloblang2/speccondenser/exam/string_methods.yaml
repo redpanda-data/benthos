@@ -1,0 +1,84 @@
+description: "String methods: uppercase, lowercase, trim, split, replace_all, has_prefix, has_suffix"
+
+tests:
+  - name: "uppercase"
+    mapping: |
+      output.result = input.v.uppercase()
+    cases:
+      - name: "basic"
+        input: {"v": "hello world"}
+        output: {"result": "HELLO WORLD"}
+      - name: "already uppercase"
+        input: {"v": "HELLO"}
+        output: {"result": "HELLO"}
+      - name: "empty string"
+        input: {"v": ""}
+        output: {"result": ""}
+
+  - name: "lowercase"
+    mapping: |
+      output.result = input.v.lowercase()
+    cases:
+      - name: "basic"
+        input: {"v": "HELLO WORLD"}
+        output: {"result": "hello world"}
+      - name: "mixed case"
+        input: {"v": "HeLLo"}
+        output: {"result": "hello"}
+
+  - name: "trim"
+    mapping: |
+      output.result = input.v.trim()
+    cases:
+      - name: "spaces"
+        input: {"v": "  hello  "}
+        output: {"result": "hello"}
+      - name: "no whitespace"
+        input: {"v": "hello"}
+        output: {"result": "hello"}
+      - name: "only whitespace"
+        input: {"v": "   "}
+        output: {"result": ""}
+
+  - name: "split"
+    mapping: |
+      output.result = input.v.split(input.delim)
+    cases:
+      - name: "by comma"
+        input: {"v": "a,b,c", "delim": ","}
+        output: {"result": ["a", "b", "c"]}
+      - name: "no delimiter found"
+        input: {"v": "hello", "delim": ","}
+        output: {"result": ["hello"]}
+      - name: "multi-char delimiter"
+        input: {"v": "one::two::three", "delim": "::"}
+        output: {"result": ["one", "two", "three"]}
+
+  - name: "replace_all"
+    mapping: |
+      output.result = input.v.replace_all(input.old, input.new)
+    cases:
+      - name: "basic"
+        input: {"v": "hello world", "old": "world", "new": "earth"}
+        output: {"result": "hello earth"}
+      - name: "multiple occurrences"
+        input: {"v": "aabaa", "old": "a", "new": "x"}
+        output: {"result": "xxbxx"}
+      - name: "no match"
+        input: {"v": "hello", "old": "xyz", "new": "abc"}
+        output: {"result": "hello"}
+
+  - name: "has_prefix and has_suffix"
+    mapping: |
+      output.prefix = input.v.has_prefix(input.p)
+      output.suffix = input.v.has_suffix(input.s)
+    cases:
+      - name: "both present"
+        input: {"v": "hello world", "p": "hello", "s": "world"}
+        output: {"prefix": true, "suffix": true}
+      - name: "neither present"
+        input: {"v": "hello world", "p": "world", "s": "hello"}
+        output: {"prefix": false, "suffix": false}
+      - name: "empty always matches"
+        input: {"v": "hello", "p": "", "s": ""}
+        output: {"prefix": true, "suffix": true}

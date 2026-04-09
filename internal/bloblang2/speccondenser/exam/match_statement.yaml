@@ -1,0 +1,105 @@
+description: "Match as statement: modifying output and variables from match arms"
+
+tests:
+  - name: "match equality statement assigns output"
+    mapping: |
+      match input.type {
+        "user" => {
+          output.role = "member"
+          output.access = "read"
+        },
+        "admin" => {
+          output.role = "admin"
+          output.access = "full"
+        },
+        _ => {
+          output.role = "guest"
+          output.access = "none"
+        },
+      }
+    cases:
+      - name: "user"
+        input: {"type": "user"}
+        output: {"role": "member", "access": "read"}
+      - name: "admin"
+        input: {"type": "admin"}
+        output: {"role": "admin", "access": "full"}
+      - name: "unknown"
+        input: {"type": "visitor"}
+        output: {"role": "guest", "access": "none"}
+
+  - name: "match-as statement modifies output and variables"
+    mapping: |
+      $label = "unknown"
+      match input.score as s {
+        s >= 90 => {
+          output.grade = "A"
+          $label = "excellent"
+        },
+        s >= 60 => {
+          output.grade = "B"
+          $label = "good"
+        },
+        _ => {
+          output.grade = "F"
+          $label = "needs work"
+        },
+      }
+      output.label = $label
+    cases:
+      - name: "high score"
+        input: {"score": 95}
+        output: {"grade": "A", "label": "excellent"}
+      - name: "mid score"
+        input: {"score": 75}
+        output: {"grade": "B", "label": "good"}
+      - name: "low score"
+        input: {"score": 30}
+        output: {"grade": "F", "label": "needs work"}
+
+  - name: "boolean match statement"
+    mapping: |
+      match {
+        input.level >= 10 => {
+          output.rank = "expert"
+        },
+        input.level >= 5 => {
+          output.rank = "intermediate"
+        },
+        _ => {
+          output.rank = "beginner"
+        },
+      }
+    cases:
+      - name: "expert"
+        input: {"level": 15}
+        output: {"rank": "expert"}
+      - name: "intermediate"
+        input: {"level": 7}
+        output: {"rank": "intermediate"}
+      - name: "beginner"
+        input: {"level": 2}
+        output: {"rank": "beginner"}
+
+  - name: "match statement modifies pre-declared variable"
+    mapping: |
+      $discount = 0
+      match input.tier {
+        "gold" => {
+          $discount = 20
+        },
+        "silver" => {
+          $discount = 10
+        },
+      }
+      output.discount = $discount
+    cases:
+      - name: "gold tier"
+        input: {"tier": "gold"}
+        output: {"discount": 20}
+      - name: "silver tier"
+        input: {"tier": "silver"}
+        output: {"discount": 10}
+      - name: "no match leaves default"
+        input: {"tier": "bronze"}
+        output: {"discount": 0}
