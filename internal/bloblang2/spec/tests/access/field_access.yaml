@@ -15,11 +15,16 @@ tests:
       output.v = input.user.name
     output: {"v": "Alice"}
 
-  - name: "access deeply nested input field"
-    input: {"a": {"b": {"c": {"d": 42}}}}
+  - name: "deeply nested field access"
     mapping: |
       output.v = input.a.b.c.d
-    output: {"v": 42}
+    cases:
+      - name: "all present"
+        input: {"a": {"b": {"c": {"d": 42}}}}
+        output: {"v": 42}
+      - name: "null intermediate is error"
+        input: {"a": {}}
+        error: "null"
 
   - name: "access output field after assignment"
     mapping: |
@@ -47,12 +52,6 @@ tests:
     mapping: |
       output.v = input.user.email
     output: {"v": null}
-
-  - name: "deep path through null intermediate is error"
-    input: {"a": {}}
-    mapping: |
-      output.v = input.a.b.c.d
-    error: "null"
 
   - name: "non-existent field on variable returns null"
     mapping: |

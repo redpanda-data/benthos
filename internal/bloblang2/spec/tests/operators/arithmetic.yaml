@@ -188,14 +188,13 @@ tests:
 
   # --- NaN and Infinity arithmetic ---
 
-  - name: "NaN + float64 produces NaN"
-    input: {val: {_type: "float64", value: "NaN"}}
+  - name: "special float addition"
     mapping: |
       output.result = input.val + 1.0
-    output: {"result": {_type: "float64", value: "NaN"}}
-
-  - name: "Infinity + float64 stays Infinity"
-    input: {val: {_type: "float64", value: "Infinity"}}
-    mapping: |
-      output.result = input.val + 1.0
-    output: {"result": {_type: "float64", value: "Infinity"}}
+    cases:
+      - name: "NaN + float64 produces NaN"
+        input: {val: {_type: "float64", value: "NaN"}}
+        output: {"result": {_type: "float64", value: "NaN"}}
+      - name: "Infinity + float64 stays Infinity"
+        input: {val: {_type: "float64", value: "Infinity"}}
+        output: {"result": {_type: "float64", value: "Infinity"}}

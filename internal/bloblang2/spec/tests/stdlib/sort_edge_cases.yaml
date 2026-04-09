@@ -61,17 +61,16 @@ tests:
 
   # --- NaN in sort (total ordering: after all numbers) ---
 
-  - name: "NaN sorts after positive infinity"
+  - name: "sort with special float values"
     mapping: |
       output.v = input.arr.sort()
-    input: {"arr": [{_type: "float64", value: "NaN"}, {_type: "float64", value: "Infinity"}, 1.0]}
-    output: {"v": [1.0, {_type: "float64", value: "Infinity"}, {_type: "float64", value: "NaN"}]}
-
-  - name: "negative infinity sorts before all"
-    mapping: |
-      output.v = input.arr.sort()
-    input: {"arr": [0.0, {_type: "float64", value: "-Infinity"}, 1.0]}
-    output: {"v": [{_type: "float64", value: "-Infinity"}, 0.0, 1.0]}
+    cases:
+      - name: "NaN after positive infinity"
+        input: {"arr": [{_type: "float64", value: "NaN"}, {_type: "float64", value: "Infinity"}, 1.0]}
+        output: {"v": [1.0, {_type: "float64", value: "Infinity"}, {_type: "float64", value: "NaN"}]}
+      - name: "negative infinity before all"
+        input: {"arr": [0.0, {_type: "float64", value: "-Infinity"}, 1.0]}
+        output: {"v": [{_type: "float64", value: "-Infinity"}, 0.0, 1.0]}
 
   # --- sort_by ---
 

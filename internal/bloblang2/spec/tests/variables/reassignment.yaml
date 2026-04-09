@@ -60,25 +60,20 @@ tests:
 
   # --- Statement context: if-statement modifies outer variable ---
 
-  - name: "if-statement modifies outer variable when condition true"
-    input: {"flag": true}
+  - name: "if-statement outer variable modification"
     mapping: |
       $value = 10
       if input.flag {
         $value = 20
       }
       output.v = $value
-    output: {"v": 20}
-
-  - name: "if-statement does not modify outer variable when condition false"
-    input: {"flag": false}
-    mapping: |
-      $value = 10
-      if input.flag {
-        $value = 20
-      }
-      output.v = $value
-    output: {"v": 10}
+    cases:
+      - name: "modifies when true"
+        input: {"flag": true}
+        output: {"v": 20}
+      - name: "unchanged when false"
+        input: {"flag": false}
+        output: {"v": 10}
 
   - name: "if-else statement modifies outer variable in else branch"
     input: {"flag": false}
@@ -92,8 +87,7 @@ tests:
       output.v = $value
     output: {"v": "from-else"}
 
-  - name: "match statement modifies outer variable"
-    input: {"kind": "b"}
+  - name: "match statement outer variable modification"
     mapping: |
       $result = "none"
       match input.kind {
@@ -105,22 +99,13 @@ tests:
         },
       }
       output.v = $result
-    output: {"v": "found-b"}
-
-  - name: "match statement no match leaves outer variable unchanged"
-    input: {"kind": "c"}
-    mapping: |
-      $result = "none"
-      match input.kind {
-        "a" => {
-          $result = "found-a"
-        },
-        "b" => {
-          $result = "found-b"
-        },
-      }
-      output.v = $result
-    output: {"v": "none"}
+    cases:
+      - name: "modifies on match"
+        input: {"kind": "b"}
+        output: {"v": "found-b"}
+      - name: "unchanged on no match"
+        input: {"kind": "c"}
+        output: {"v": "none"}
 
   # --- New variables in statement blocks are block-scoped ---
 
@@ -159,25 +144,20 @@ tests:
 
   # --- Pre-declare pattern ---
 
-  - name: "pre-declare pattern with if-statement true branch"
-    input: {"flag": true}
+  - name: "pre-declare pattern with if-statement"
     mapping: |
       $temp = null
       if input.flag {
         $temp = "found"
       }
       output.v = $temp
-    output: {"v": "found"}
-
-  - name: "pre-declare pattern with if-statement false branch"
-    input: {"flag": false}
-    mapping: |
-      $temp = null
-      if input.flag {
-        $temp = "found"
-      }
-      output.v = $temp
-    output: {"v": null}
+    cases:
+      - name: "true branch assigns"
+        input: {"flag": true}
+        output: {"v": "found"}
+      - name: "false branch keeps null"
+        input: {"flag": false}
+        output: {"v": null}
 
   - name: "pre-declare pattern with match statement"
     input: {"kind": "gold"}
