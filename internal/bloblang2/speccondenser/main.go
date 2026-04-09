@@ -134,9 +134,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Print results.
-	fmt.Println()
-	agentexam.PrintComparisonTable(os.Stdout, aggregatePoolResults(poolResults))
+	// Print results — one table per pool, then a combined summary.
+	for _, pr := range poolResults {
+		fmt.Printf("\n=== %s ===\n\n", pr.Name)
+		agentexam.PrintComparisonTable(os.Stdout, map[string][]agentexam.Result{
+			"read":  pr.ReadResults,
+			"write": pr.WriteResults,
+		})
+	}
+
+	if len(poolResults) > 1 {
+		fmt.Printf("\n=== combined ===\n\n")
+		agentexam.PrintComparisonTable(os.Stdout, aggregatePoolResults(poolResults))
+	}
 
 	// Write artifact.
 	if err := writeArtifact(cfg.ArtifactDir, condensedSpec, poolResults); err != nil {
@@ -183,6 +193,7 @@ condense:
     # base_url: http://localhost:11434  # ollama only
     # max_turns: 200                    # ollama / claude
     # command: claude                   # claude / opencode executable override
+    # no_think: false                   # ollama only — disable reasoning
   timeout: 60m
 
 # Inner phase: pools of agents score the condensed spec via read/write exams.
