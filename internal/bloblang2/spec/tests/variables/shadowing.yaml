@@ -3,8 +3,7 @@ description: "Variable shadowing in expression contexts: if-expression, match ex
 tests:
   # --- If-expression shadows outer variable ---
 
-  - name: "if-expression shadows outer variable"
-    input: {"flag": true}
+  - name: "if-expression variable shadowing"
     mapping: |
       $value = 10
       output.inner = if input.flag {
@@ -12,21 +11,15 @@ tests:
         $value
       }
       output.outer = $value
-    output: {"inner": 20, "outer": 10}
+    cases:
+      - name: "shadow when true"
+        input: {"flag": true}
+        output: {"inner": 20, "outer": 10}
+      - name: "outer unchanged when false"
+        input: {"flag": false}
+        output: {"outer": 10}
 
-  - name: "if-expression shadow does not affect outer when condition false"
-    input: {"flag": false}
-    mapping: |
-      $value = 10
-      output.inner = if input.flag {
-        $value = 20
-        $value
-      }
-      output.outer = $value
-    output: {"outer": 10}
-
-  - name: "if-else expression shadows in both branches"
-    input: {"flag": true}
+  - name: "if-else expression shadowing"
     mapping: |
       $x = "original"
       output.result = if input.flag {
@@ -37,21 +30,13 @@ tests:
         $x
       }
       output.outer = $x
-    output: {"result": "from-if", "outer": "original"}
-
-  - name: "if-else expression shadow in else branch"
-    input: {"flag": false}
-    mapping: |
-      $x = "original"
-      output.result = if input.flag {
-        $x = "from-if"
-        $x
-      } else {
-        $x = "from-else"
-        $x
-      }
-      output.outer = $x
-    output: {"result": "from-else", "outer": "original"}
+    cases:
+      - name: "if branch shadow"
+        input: {"flag": true}
+        output: {"result": "from-if", "outer": "original"}
+      - name: "else branch shadow"
+        input: {"flag": false}
+        output: {"result": "from-else", "outer": "original"}
 
   # --- Match expression shadows outer variable ---
 

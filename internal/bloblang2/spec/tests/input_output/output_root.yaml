@@ -64,29 +64,22 @@ tests:
 
   # --- COW from input ---
 
-  - name: "output = input copies entire input object"
-    input: {"name": "Alice", "age": 30}
+  - name: "output = input copies various types"
     mapping: |
       output = input
-    output: {"name": "Alice", "age": 30}
-
-  - name: "output = input copies input array"
-    input: [1, 2, 3]
-    mapping: |
-      output = input
-    output: [1, 2, 3]
-
-  - name: "output = input copies input string"
-    input: "hello"
-    mapping: |
-      output = input
-    output: "hello"
-
-  - name: "output = input copies null input"
-    input: null
-    mapping: |
-      output = input
-    output: null
+    cases:
+      - name: "object"
+        input: {"name": "Alice", "age": 30}
+        output: {"name": "Alice", "age": 30}
+      - name: "array"
+        input: [1, 2, 3]
+        output: [1, 2, 3]
+      - name: "string"
+        input: "hello"
+        output: "hello"
+      - name: "null"
+        input: null
+        output: null
 
   - name: "output = input is logical copy with COW"
     input: {"name": "Alice", "score": 100}

@@ -87,17 +87,16 @@ tests:
 
   # --- NaN in sort (total ordering: NaN after all values) ---
 
-  - name: "sort puts NaN after all finite values"
+  - name: "sort ordering with NaN values"
     mapping: |
       output = input.arr.sort()
-    input: {"arr": [3.0, {_type: "float64", value: "NaN"}, 1.0, 2.0]}
-    output: [1.0, 2.0, 3.0, {_type: "float64", value: "NaN"}]
-
-  - name: "sort with multiple NaN values keeps them at end"
-    mapping: |
-      output = input.arr.sort()
-    input: {"arr": [{_type: "float64", value: "NaN"}, 2.0, {_type: "float64", value: "NaN"}, 1.0]}
-    output: [1.0, 2.0, {_type: "float64", value: "NaN"}, {_type: "float64", value: "NaN"}]
+    cases:
+      - name: "NaN after all finite values"
+        input: {"arr": [3.0, {_type: "float64", value: "NaN"}, 1.0, 2.0]}
+        output: [1.0, 2.0, 3.0, {_type: "float64", value: "NaN"}]
+      - name: "multiple NaN values kept at end"
+        input: {"arr": [{_type: "float64", value: "NaN"}, 2.0, {_type: "float64", value: "NaN"}, 1.0]}
+        output: [1.0, 2.0, {_type: "float64", value: "NaN"}, {_type: "float64", value: "NaN"}]
 
   # --- NaN in unique (NaN treated as equal) ---
 

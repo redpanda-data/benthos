@@ -41,17 +41,16 @@ tests:
 
   # --- Chained rescue patterns ---
 
-  - name: "null-safe then or for missing nested field"
-    input: {"user": null}
+  - name: "null-safe then or for nested field"
     mapping: |
       output.v = input.user?.name.or("anonymous")
-    output: {"v": "anonymous"}
-
-  - name: "null-safe on present value then or not triggered"
-    input: {"user": {"name": "Alice"}}
-    mapping: |
-      output.v = input.user?.name.or("anonymous")
-    output: {"v": "Alice"}
+    cases:
+      - name: "null user returns fallback"
+        input: {"user": null}
+        output: {"v": "anonymous"}
+      - name: "present user returns name"
+        input: {"user": {"name": "Alice"}}
+        output: {"v": "Alice"}
 
   - name: "null-safe chain to null then catch for method error"
     mapping: |

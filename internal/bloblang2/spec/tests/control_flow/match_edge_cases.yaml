@@ -82,17 +82,13 @@ tests:
         n.length() > 5 => n.uppercase(),
         _ => n.lowercase(),
       }
-    input: {"name": "Alexander"}
-    output: {"v": "ALEXANDER"}
-
-  - name: "match-as variable used in result with short name"
-    mapping: |
-      output.v = match input.name as n {
-        n.length() > 5 => n.uppercase(),
-        _ => n.lowercase(),
-      }
-    input: {"name": "Bob"}
-    output: {"v": "bob"}
+    cases:
+      - name: "long name uppercased"
+        input: {"name": "Alexander"}
+        output: {"v": "ALEXANDER"}
+      - name: "short name lowercased"
+        input: {"name": "Bob"}
+        output: {"v": "bob"}
 
   - name: "match-as variable not accessible outside match"
     mapping: |
@@ -146,21 +142,13 @@ tests:
         },
         _ => "unknown type",
       }
-    input: {"type": "user", "role": "admin"}
-    output: {"v": "full access"}
-
-  - name: "nested match with different type"
-    mapping: |
-      output.v = match input.type {
-        "user" => match input.role {
-          "admin" => "full access",
-          "viewer" => "read only",
-          _ => "limited",
-        },
-        _ => "unknown type",
-      }
-    input: {"type": "device", "role": "admin"}
-    output: {"v": "unknown type"}
+    cases:
+      - name: "user admin gets full access"
+        input: {"type": "user", "role": "admin"}
+        output: {"v": "full access"}
+      - name: "non-user type falls through"
+        input: {"type": "device", "role": "admin"}
+        output: {"v": "unknown type"}
 
   # --- Match in statement context ---
 

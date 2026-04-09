@@ -39,8 +39,7 @@ tests:
 
   # --- Else-if chains ---
 
-  - name: "else-if selects first matching branch"
-    input: {"score": 75}
+  - name: "else-if tier classification"
     mapping: |
       output.tier = if input.score >= 90 {
         "gold"
@@ -49,31 +48,16 @@ tests:
       } else {
         "bronze"
       }
-    output: {"tier": "silver"}
-
-  - name: "else-if falls through to else"
-    input: {"score": 30}
-    mapping: |
-      output.tier = if input.score >= 90 {
-        "gold"
-      } else if input.score >= 70 {
-        "silver"
-      } else {
-        "bronze"
-      }
-    output: {"tier": "bronze"}
-
-  - name: "else-if selects first branch"
-    input: {"score": 95}
-    mapping: |
-      output.tier = if input.score >= 90 {
-        "gold"
-      } else if input.score >= 70 {
-        "silver"
-      } else {
-        "bronze"
-      }
-    output: {"tier": "gold"}
+    cases:
+      - name: "selects middle branch"
+        input: {"score": 75}
+        output: {"tier": "silver"}
+      - name: "falls through to else"
+        input: {"score": 30}
+        output: {"tier": "bronze"}
+      - name: "selects first branch"
+        input: {"score": 95}
+        output: {"tier": "gold"}
 
   - name: "else-if without final else produces void when no branch matches"
     input: {"score": 30}
@@ -82,17 +66,16 @@ tests:
       output.tier = if input.score >= 90 { "gold" } else if input.score >= 70 { "silver" }
     output: {"tier": "default"}
 
-  - name: "else-if without final else — first branch matches"
-    input: {"score": 95}
+  - name: "else-if without final else — branch matches"
     mapping: |
       output.tier = if input.score >= 90 { "gold" } else if input.score >= 70 { "silver" }
-    output: {"tier": "gold"}
-
-  - name: "else-if without final else — second branch matches"
-    input: {"score": 75}
-    mapping: |
-      output.tier = if input.score >= 90 { "gold" } else if input.score >= 70 { "silver" }
-    output: {"tier": "silver"}
+    cases:
+      - name: "first branch"
+        input: {"score": 95}
+        output: {"tier": "gold"}
+      - name: "second branch"
+        input: {"score": 75}
+        output: {"tier": "silver"}
 
   # --- Variable declaration with if expression ---
 

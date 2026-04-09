@@ -116,17 +116,16 @@ tests:
 
   # --- Dynamic conditions not affected ---
 
-  - name: "dynamic true condition works normally"
-    input: {"flag": true}
+  - name: "dynamic condition works normally"
     mapping: |
       output.v = if input.flag { "yes" } else { "no" }
-    output: {"v": "yes"}
-
-  - name: "dynamic false condition works normally"
-    input: {"flag": false}
-    mapping: |
-      output.v = if input.flag { "yes" } else { "no" }
-    output: {"v": "no"}
+    cases:
+      - name: "true branch"
+        input: {"flag": true}
+        output: {"v": "yes"}
+      - name: "false branch"
+        input: {"flag": false}
+        output: {"v": "no"}
 
   # --- Folded condition feeds into DCE ---
 

@@ -107,20 +107,13 @@ tests:
         $result = "no"
       }
       output.v = $result
-    input: {"flag": true}
-    output: {"v": "yes"}
-
-  - name: "pre-declare then write in both branches (false)"
-    mapping: |
-      $result = ""
-      if input.flag {
-        $result = "yes"
-      } else {
-        $result = "no"
-      }
-      output.v = $result
-    input: {"flag": false}
-    output: {"v": "no"}
+    cases:
+      - name: "true branch"
+        input: {"flag": true}
+        output: {"v": "yes"}
+      - name: "false branch"
+        input: {"flag": false}
+        output: {"v": "no"}
 
   - name: "outer variable and block-scoped variable coexist"
     mapping: |
