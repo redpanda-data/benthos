@@ -863,6 +863,294 @@ func TestRunFile_KindPassOnSuccess(t *testing.T) {
 	}
 }
 
+// --- Multi-case tests ---
+
+func TestRunFile_MultiCase_AllPassing(t *testing.T) {
+	tf := &TestFile{
+		Tests: []TestCase{
+			{
+				Name:    "doubler",
+				Mapping: "output.v = input.x * 2",
+				Cases: []Case{
+					{Name: "positive", Input: map[string]any{"x": int(3)}, Output: map[string]any{"v": int(6)}},
+					{Name: "zero", Input: map[string]any{"x": int(0)}, Output: map[string]any{"v": int(0)}},
+					{Name: "negative", Input: map[string]any{"x": int(-5)}, Output: map[string]any{"v": int(-10)}},
+				},
+			},
+		},
+	}
+
+	interp := &mockInterpreter{
+		compileFunc: func(mapping string, files map[string]string) (Mapping, error) {
+			return &mockMapping{
+				execFunc: func(input any, metadata map[string]any) (any, map[string]any, bool, error) {
+					m := input.(map[string]any)
+					x := m["x"].(int64)
+					return map[string]any{"v": x * 2}, map[string]any{}, false, nil
+				},
+			}, nil
+		},
+	}
+
+	results := RunFile(tf, "test.yaml", interp)
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+	requirePass(t, results)
+
+	// Verify case names are populated.
+	for i, name := range []string{"positive", "zero", "negative"} {
+		if results[i].Case != name {
+			t.Fatalf("result[%d].Case = %q, want %q", i, results[i].Case, name)
+		}
+		if results[i].Test != "doubler" {
+			t.Fatalf("result[%d].Test = %q, want %q", i, results[i].Test, "doubler")
+		}
+	}
+}
+
+func TestRunFile_MultiCase_OneFails(t *testing.T) {
+	tf := &TestFile{
+		Tests: []TestCase{
+			{
+				Name:    "doubler",
+				Mapping: "output.v = input.x * 2",
+				Cases: []Case{
+					{Name: "correct", Input: map[string]any{"x": int(3)}, Output: map[string]any{"v": int(6)}},
+					{Name: "wrong", Input: map[string]any{"x": int(5)}, Output: map[string]any{"v": int(99)}},
+				},
+			},
+		},
+	}
+
+	interp := &mockInterpreter{
+		compileFunc: func(mapping string, files map[string]string) (Mapping, error) {
+			return &mockMapping{
+				execFunc: func(input any, metadata map[string]any) (any, map[string]any, bool, error) {
+					m := input.(map[string]any)
+					x := m["x"].(int64)
+					return map[string]any{"v": x * 2}, map[string]any{}, false, nil
+				},
+			}, nil
+		},
+	}
+
+	results := RunFile(tf, "test.yaml", interp)
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+	if results[0].Err != nil {
+		t.Fatalf("expected first case to pass, got: %v", results[0].Err)
+	}
+	if results[1].Err == nil {
+		t.Fatal("expected second case to fail")
+	}
+	if results[1].Case != "wrong" {
+		t.Fatalf("failed case = %q, want %q", results[1].Case, "wrong")
+	}
+}
+
+func TestRunFile_MultiCase_MixedExpectations(t *testing.T) {
+	tf := &TestFile{
+		Tests: []TestCase{
+			{
+				Name:    "mixed",
+				Mapping: "output = input",
+				Cases: []Case{
+					{Name: "output case", Input: int(42), Output: int(42)},
+					{Name: "error case", Input: "bad", Error: "kaboom"},
+					{Name: "deleted case", Input: nil, Deleted: true},
+				},
+			},
+		},
+	}
+
+	callIdx := 0
+	interp := &mockInterpreter{
+		compileFunc: func(mapping string, files map[string]string) (Mapping, error) {
+			return &mockMapping{
+				execFunc: func(input any, metadata map[string]any) (any, map[string]any, bool, error) {
+					callIdx++
+					switch callIdx {
+					case 1:
+						return int64(42), map[string]any{}, false, nil
+					case 2:
+						return nil, nil, false, fmt.Errorf("kaboom: bad input")
+					case 3:
+						return nil, nil, true, nil
+					}
+					return nil, nil, false, nil
+				},
+			}, nil
+		},
+	}
+
+	results := RunFile(tf, "test.yaml", interp)
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+	requirePass(t, results)
+}
+
+func TestRunFile_MultiCase_CompileError(t *testing.T) {
+	tf := &TestFile{
+		Tests: []TestCase{
+			{
+				Name:    "bad mapping",
+				Mapping: "broken",
+				Cases: []Case{
+					{Name: "a", Output: int(1)},
+				},
+			},
+		},
+	}
+
+	interp := &mockInterpreter{
+		compileFunc: func(mapping string, files map[string]string) (Mapping, error) {
+			return nil, &CompileError{Message: "syntax error"}
+		},
+	}
+
+	results := RunFile(tf, "test.yaml", interp)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for compile error, got %d", len(results))
+	}
+	if results[0].Err == nil {
+		t.Fatal("expected compile error to be reported")
+	}
+	if results[0].Kind != KindFail {
+		t.Fatalf("expected KindFail, got %v", results[0].Kind)
+	}
+}
+
+func TestRunFile_MultiCase_CompilesOnce(t *testing.T) {
+	tf := &TestFile{
+		Tests: []TestCase{
+			{
+				Name:    "shared mapping",
+				Mapping: "output = input",
+				Cases: []Case{
+					{Name: "a", Input: int(1), Output: int(1)},
+					{Name: "b", Input: int(2), Output: int(2)},
+					{Name: "c", Input: int(3), Output: int(3)},
+				},
+			},
+		},
+	}
+
+	compileCount := 0
+	interp := &mockInterpreter{
+		compileFunc: func(mapping string, files map[string]string) (Mapping, error) {
+			compileCount++
+			return &mockMapping{
+				execFunc: func(input any, metadata map[string]any) (any, map[string]any, bool, error) {
+					return input, map[string]any{}, false, nil
+				},
+			}, nil
+		},
+	}
+
+	results := RunFile(tf, "test.yaml", interp)
+	requirePass(t, results)
+	if compileCount != 1 {
+		t.Fatalf("expected 1 compile call, got %d", compileCount)
+	}
+}
+
+func TestRunFile_MultiCase_ValidationRejectsMixedInline(t *testing.T) {
+	tf := &TestFile{
+		Tests: []TestCase{
+			{
+				Name:    "mixed inline and cases",
+				Mapping: "output = 1",
+				Output:  int(1), // inline output
+				Cases: []Case{
+					{Name: "a", Output: int(1)},
+				},
+			},
+		},
+	}
+
+	results := RunFile(tf, "test.yaml", nil)
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+	if results[0].Kind != KindInvalidTest {
+		t.Fatalf("expected KindInvalidTest, got %v", results[0].Kind)
+	}
+}
+
+func TestRunFile_MultiCase_ValidationRejectsCompileErrorWithCases(t *testing.T) {
+	tf := &TestFile{
+		Tests: []TestCase{
+			{
+				Name:         "compile_error with cases",
+				Mapping:      "bad",
+				CompileError: "syntax",
+				Cases: []Case{
+					{Name: "a", Output: int(1)},
+				},
+			},
+		},
+	}
+
+	results := RunFile(tf, "test.yaml", nil)
+	if results[0].Kind != KindInvalidTest {
+		t.Fatalf("expected KindInvalidTest, got %v", results[0].Kind)
+	}
+}
+
+func TestRunFile_MultiCase_ValidationRejectsEmptyCases(t *testing.T) {
+	tf := &TestFile{
+		Tests: []TestCase{
+			{
+				Name:    "empty cases",
+				Mapping: "output = 1",
+				Cases:   []Case{},
+			},
+		},
+	}
+
+	results := RunFile(tf, "test.yaml", nil)
+	if results[0].Kind != KindInvalidTest {
+		t.Fatalf("expected KindInvalidTest, got %v", results[0].Kind)
+	}
+}
+
+func TestRunFile_MultiCase_ValidationRejectsCaseWithoutName(t *testing.T) {
+	tf := &TestFile{
+		Tests: []TestCase{
+			{
+				Name:    "unnamed case",
+				Mapping: "output = 1",
+				Cases: []Case{
+					{Name: "ok", Output: int(1)},
+					{Output: int(2)}, // no name
+				},
+			},
+		},
+	}
+
+	results := RunFile(tf, "test.yaml", nil)
+	if results[0].Kind != KindInvalidTest {
+		t.Fatalf("expected KindInvalidTest, got %v", results[0].Kind)
+	}
+}
+
+func TestResult_StringWithCase(t *testing.T) {
+	pass := Result{File: "types/int.yaml", Test: "doubler", Case: "positive"}
+	expected := "PASS types/int.yaml / doubler/positive"
+	if pass.String() != expected {
+		t.Fatalf("got %q, want %q", pass.String(), expected)
+	}
+
+	fail := Result{File: "types/int.yaml", Test: "doubler", Case: "negative", Err: fmt.Errorf("mismatch")}
+	expected = "FAIL types/int.yaml / doubler/negative: mismatch"
+	if fail.String() != expected {
+		t.Fatalf("got %q, want %q", fail.String(), expected)
+	}
+}
+
 func TestRunFile_InvalidInputMetadata(t *testing.T) {
 	tf := &TestFile{
 		Tests: []TestCase{

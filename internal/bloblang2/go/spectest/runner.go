@@ -26,6 +26,7 @@ const (
 type Result struct {
 	File string     // path to the YAML test file
 	Test string     // test case name
+	Case string     // case name within a multi-case test (empty for single-case tests)
 	Kind ResultKind // classification of the outcome
 	Err  error      // nil if the test passed
 }
@@ -35,10 +36,14 @@ func (r Result) Passed() bool { return r.Err == nil }
 
 // String returns a human-readable summary of this result.
 func (r Result) String() string {
-	if r.Err == nil {
-		return fmt.Sprintf("PASS %s / %s", r.File, r.Test)
+	name := r.Test
+	if r.Case != "" {
+		name += "/" + r.Case
 	}
-	return fmt.Sprintf("FAIL %s / %s: %v", r.File, r.Test, r.Err)
+	if r.Err == nil {
+		return fmt.Sprintf("PASS %s / %s", r.File, name)
+	}
+	return fmt.Sprintf("FAIL %s / %s: %v", r.File, name, r.Err)
 }
 
 // Run discovers and executes all spec tests in dir using the given
@@ -81,13 +86,17 @@ func RunFile(file *TestFile, filePath string, interp Interpreter) []Result {
 	results := make([]Result, 0, len(file.Tests))
 	for i := range file.Tests {
 		tc := &file.Tests[i]
-		kind, err := runTestCase(file, tc, interp)
-		results = append(results, Result{
-			File: filePath,
-			Test: tc.Name,
-			Kind: kind,
-			Err:  err,
-		})
+		if len(tc.Cases) > 0 {
+			results = append(results, runMultiCaseTest(file, tc, filePath, interp)...)
+		} else {
+			kind, err := runTestCase(file, tc, interp)
+			results = append(results, Result{
+				File: filePath,
+				Test: tc.Name,
+				Kind: kind,
+				Err:  err,
+			})
+		}
 	}
 	return results
 }
@@ -115,12 +124,27 @@ func RunT(t *testing.T, dir string, interp Interpreter) {
 			if err != nil {
 				t.Fatalf("loading test file: %v", err)
 			}
-			for _, r := range RunFile(tf, rel, interp) {
-				t.Run(r.Test, func(t *testing.T) {
-					if r.Err != nil {
-						t.Fatal(r.Err)
-					}
-				})
+			for i := range tf.Tests {
+				tc := &tf.Tests[i]
+				if len(tc.Cases) > 0 {
+					t.Run(tc.Name, func(t *testing.T) {
+						for _, r := range runMultiCaseTest(tf, tc, rel, interp) {
+							t.Run(r.Case, func(t *testing.T) {
+								if r.Err != nil {
+									t.Fatal(r.Err)
+								}
+							})
+						}
+					})
+				} else {
+					kind, err := runTestCase(tf, tc, interp)
+					r := Result{File: rel, Test: tc.Name, Kind: kind, Err: err}
+					t.Run(r.Test, func(t *testing.T) {
+						if r.Err != nil {
+							t.Fatal(r.Err)
+						}
+					})
+				}
 			}
 		})
 	}
@@ -280,10 +304,10 @@ func checkRuntimeError(err error, expectedSubstring string) error {
 	return nil
 }
 
-func checkOutput(tc *TestCase, actual any) error {
-	if tc.NoOutputCheck {
-		if tc.OutputType != "" {
-			ok, diff := CheckOutputType(tc.OutputType, actual)
+func checkOutputFields(output any, outputType string, noOutputCheck bool, actual any) error {
+	if noOutputCheck {
+		if outputType != "" {
+			ok, diff := CheckOutputType(outputType, actual)
 			if !ok {
 				return fmt.Errorf("output type mismatch: %s", diff)
 			}
@@ -291,7 +315,7 @@ func checkOutput(tc *TestCase, actual any) error {
 		return nil
 	}
 
-	expected, err := DecodeValue(tc.Output)
+	expected, err := DecodeValue(output)
 	if err != nil {
 		return fmt.Errorf("invalid test: decoding expected output: %w", err)
 	}
@@ -303,14 +327,18 @@ func checkOutput(tc *TestCase, actual any) error {
 	return nil
 }
 
-func checkMetadata(tc *TestCase, actual map[string]any) error {
-	if tc.NoMetadataCheck {
+func checkOutput(tc *TestCase, actual any) error {
+	return checkOutputFields(tc.Output, tc.OutputType, tc.NoOutputCheck, actual)
+}
+
+func checkMetadataFields(outputMetadata any, noMetadataCheck bool, actual map[string]any) error {
+	if noMetadataCheck {
 		return nil
 	}
 
 	var expected map[string]any
-	if tc.OutputMetadata != nil {
-		decoded, err := DecodeValue(tc.OutputMetadata)
+	if outputMetadata != nil {
+		decoded, err := DecodeValue(outputMetadata)
 		if err != nil {
 			return fmt.Errorf("invalid test: decoding expected output_metadata: %w", err)
 		}
@@ -330,6 +358,144 @@ func checkMetadata(tc *TestCase, actual map[string]any) error {
 	ok, diff := DeepEqual(any(expected), any(actual))
 	if !ok {
 		return fmt.Errorf("output metadata mismatch:\n%s", diff)
+	}
+	return nil
+}
+
+func checkMetadata(tc *TestCase, actual map[string]any) error {
+	return checkMetadataFields(tc.OutputMetadata, tc.NoMetadataCheck, actual)
+}
+
+// runMultiCaseTest executes a test that has multiple cases sharing one
+// compiled mapping.
+func runMultiCaseTest(file *TestFile, tc *TestCase, filePath string, interp Interpreter) []Result {
+	if err := validateMultiCase(tc); err != nil {
+		return []Result{{
+			File: filePath, Test: tc.Name,
+			Kind: KindInvalidTest, Err: err,
+		}}
+	}
+
+	mergedFiles := mergeFiles(file.Files, tc.Files)
+
+	mapping, compileErr := interp.Compile(tc.Mapping, mergedFiles)
+	if compileErr != nil {
+		return []Result{{
+			File: filePath, Test: tc.Name,
+			Kind: KindFail,
+			Err:  fmt.Errorf("unexpected compile error: %w", compileErr),
+		}}
+	}
+
+	results := make([]Result, 0, len(tc.Cases))
+	for i := range tc.Cases {
+		c := &tc.Cases[i]
+		kind, err := runCase(mapping, c)
+		results = append(results, Result{
+			File: filePath,
+			Test: tc.Name,
+			Case: c.Name,
+			Kind: kind,
+			Err:  err,
+		})
+	}
+	return results
+}
+
+// runCase executes a single case against an already-compiled mapping.
+func runCase(mapping Mapping, c *Case) (ResultKind, error) {
+	if err := validateCaseExpectations(c); err != nil {
+		return KindInvalidTest, err
+	}
+
+	input, err := DecodeValue(c.Input)
+	if err != nil {
+		return KindInvalidTest, fmt.Errorf("invalid case: decoding input: %w", err)
+	}
+
+	inputMeta, err := decodeMetadata(c.InputMetadata)
+	if err != nil {
+		return KindInvalidTest, fmt.Errorf("invalid case: decoding input_metadata: %w", err)
+	}
+
+	output, outputMeta, deleted, execErr := mapping.Exec(input, inputMeta)
+
+	if c.Error != "" || c.HasError {
+		return KindFail, checkRuntimeError(execErr, c.Error)
+	}
+	if c.Deleted {
+		if execErr != nil {
+			return KindFail, fmt.Errorf("unexpected error (expected deleted): %w", execErr)
+		}
+		if !deleted {
+			return KindFail, errors.New("expected message to be deleted, but it was not")
+		}
+		return KindPass, nil
+	}
+	if execErr != nil {
+		return KindFail, fmt.Errorf("unexpected runtime error: %w", execErr)
+	}
+	if deleted {
+		return KindFail, errors.New("message was unexpectedly deleted")
+	}
+
+	if err := checkOutputFields(c.Output, c.OutputType, c.NoOutputCheck, output); err != nil {
+		return KindFail, err
+	}
+	if err := checkMetadataFields(c.OutputMetadata, c.NoMetadataCheck, outputMeta); err != nil {
+		return KindFail, err
+	}
+	return KindPass, nil
+}
+
+// validateMultiCase checks that a multi-case test is well-formed.
+func validateMultiCase(tc *TestCase) error {
+	if len(tc.Cases) == 0 {
+		return errors.New("invalid test: cases array is empty")
+	}
+
+	// Cases must not coexist with inline execution fields.
+	if tc.HasOutput || tc.Output != nil || tc.NoOutputCheck ||
+		tc.Error != "" || tc.HasError || tc.Deleted ||
+		tc.Input != nil || tc.InputMetadata != nil || tc.OutputMetadata != nil {
+		return errors.New("invalid test: cannot mix inline input/output fields with cases")
+	}
+
+	if tc.CompileError != "" {
+		return errors.New("invalid test: compile_error cannot be combined with cases")
+	}
+
+	for i := range tc.Cases {
+		if tc.Cases[i].Name == "" {
+			return fmt.Errorf("invalid test: case at index %d has no name", i)
+		}
+	}
+	return nil
+}
+
+// validateCaseExpectations checks that a case specifies exactly one expectation.
+func validateCaseExpectations(c *Case) error {
+	count := 0
+	if c.Error != "" || c.HasError {
+		count++
+	}
+	if c.Deleted {
+		count++
+	}
+	if c.HasOutput || c.Output != nil || c.NoOutputCheck {
+		count++
+	}
+
+	if count == 0 {
+		return errors.New("invalid case: no expectation set (need output, error, or deleted)")
+	}
+	if count > 1 {
+		return fmt.Errorf("invalid case: multiple expectations set (error=%q, deleted=%v, has_output=%v)",
+			c.Error, c.Deleted, c.Output != nil || c.NoOutputCheck)
+	}
+
+	if c.OutputType != "" && !c.NoOutputCheck {
+		return errors.New("invalid case: output_type requires no_output_check to be true")
 	}
 	return nil
 }
