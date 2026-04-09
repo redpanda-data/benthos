@@ -57,11 +57,25 @@ func buildCondenseExam(specFiles map[string][]byte, condensedOut *string) (*agen
 	}, nil
 }
 
+// failedTranscript captures the exact prompt and response for a failed test,
+// written to the artifact directory for debugging.
+type failedTranscript struct {
+	Pool     string
+	Run      int // 1-based
+	TestID   string
+	TestName string
+	Kind     string // "read" or "write"
+	Prompt   string
+	Response string
+	Error    string
+}
+
 // poolResult holds aggregated results for a single scoring pool.
 type poolResult struct {
-	Name         string
-	ReadResults  []agentexam.Result
-	WriteResults []agentexam.Result
+	Name              string
+	ReadResults       []agentexam.Result
+	WriteResults      []agentexam.Result
+	FailedTranscripts []failedTranscript
 }
 
 // scoreCondensedSpec runs prompt-based read and write sub-exams against the
@@ -91,13 +105,23 @@ func scoreCondensedSpec(
 			}
 
 			for _, test := range tests {
-				readResult := runReadTest(ctx, agent, condensedSpec, test, poolCfg.Timeout, output)
+				readResult, readFT := runReadTest(ctx, agent, condensedSpec, test, poolCfg.Timeout, output)
 				agentexam.LogResult(output, readResult)
 				pr.ReadResults = append(pr.ReadResults, readResult)
+				if readFT != nil {
+					readFT.Pool = poolCfg.Name
+					readFT.Run = run + 1
+					pr.FailedTranscripts = append(pr.FailedTranscripts, *readFT)
+				}
 
-				writeResult := runWriteTest(ctx, agent, condensedSpec, test, poolCfg.Timeout, output)
+				writeResult, writeFT := runWriteTest(ctx, agent, condensedSpec, test, poolCfg.Timeout, output)
 				agentexam.LogResult(output, writeResult)
 				pr.WriteResults = append(pr.WriteResults, writeResult)
+				if writeFT != nil {
+					writeFT.Pool = poolCfg.Name
+					writeFT.Run = run + 1
+					pr.FailedTranscripts = append(pr.FailedTranscripts, *writeFT)
+				}
 			}
 		}
 
@@ -107,25 +131,34 @@ func scoreCondensedSpec(
 	return results, nil
 }
 
-func runReadTest(ctx context.Context, agent agentexam.Agent, spec string, test eligibleTest, timeout time.Duration, output io.Writer) agentexam.Result {
+func runReadTest(ctx context.Context, agent agentexam.Agent, spec string, test eligibleTest, timeout time.Duration, output io.Writer) (agentexam.Result, *failedTranscript) {
 	r := agentexam.Result{
 		ID:    test.ID,
 		Group: test.Category,
 		Name:  test.Name + " (read)",
 	}
 
-	inputData, _ := marshalEnvelope(envelope{Value: test.Input, Metadata: test.InputMeta})
-	expectedData, _ := marshalEnvelope(test.Expected)
+	inputJSON, _ := json.Marshal(test.Input)
+	expectedJSON, _ := json.Marshal(test.Expected.Value)
 
 	fmt.Fprintf(output, "\n--- [read] %s — %s ---\n", test.ID, test.Name)
-	fmt.Fprintf(output, "  mapping:\n    %s\n", indentLines(test.Mapping, "    "))
-	fmt.Fprintf(output, "  input:\n    %s", indentLines(string(inputData), "    "))
-	fmt.Fprintf(output, "  expected:\n    %s", indentLines(string(expectedData), "    "))
+	fmt.Fprintf(output, "  mapping:  %s\n", indentLines(test.Mapping, "            "))
+	fmt.Fprintf(output, "  input:    %s\n", inputJSON)
+	fmt.Fprintf(output, "  expected: %s\n", expectedJSON)
+
+	var prompt, response string
+
+	fail := func() (agentexam.Result, *failedTranscript) {
+		return r, &failedTranscript{
+			TestID: test.ID, TestName: test.Name, Kind: "read",
+			Prompt: prompt, Response: response, Error: r.Error,
+		}
+	}
 
 	prompt, err := buildReadPrompt(spec, test)
 	if err != nil {
 		r.Error = fmt.Sprintf("building prompt: %v", err)
-		return r
+		return fail()
 	}
 
 	runCtx := ctx
@@ -138,27 +171,21 @@ func runReadTest(ctx context.Context, agent agentexam.Agent, spec string, test e
 	result, err := agent.Run(runCtx, "", prompt, output)
 	if err != nil {
 		r.Error = fmt.Sprintf("agent error: %v", err)
-		return r
+		return fail()
 	}
 
-	response := result.Response
+	response = result.Response
 	fmt.Fprintf(output, "  response: %s\n", strings.TrimSpace(response))
 
-	outputEnv, err := extractJSON(response)
+	actualValue, err := extractValue(response)
 	if err != nil {
 		r.Error = fmt.Sprintf("extracting output: %v", err)
-		return r
-	}
-
-	actualValue := outputEnv["value"]
-	actualMeta, _ := outputEnv["metadata"].(map[string]any)
-	if actualMeta == nil {
-		actualMeta = map[string]any{}
+		return fail()
 	}
 
 	if ok, diff := naturalJSONEqual(test.Expected.Value, actualValue); !ok {
 		r.Error = "output mismatch: " + diff
-		return r
+		return fail()
 	}
 
 	if !test.NoMetadataCheck {
@@ -166,34 +193,47 @@ func runReadTest(ctx context.Context, agent agentexam.Agent, spec string, test e
 		if expectedMeta == nil {
 			expectedMeta = map[string]any{}
 		}
+		actualMeta := extractMetadata(response)
+		if actualMeta == nil {
+			actualMeta = map[string]any{}
+		}
 		if ok, diff := naturalJSONEqual(any(expectedMeta), any(actualMeta)); !ok {
 			r.Error = "metadata mismatch: " + diff
-			return r
+			return fail()
 		}
 	}
 
 	r.Score = 1
-	return r
+	return r, nil
 }
 
-func runWriteTest(ctx context.Context, agent agentexam.Agent, spec string, test eligibleTest, timeout time.Duration, output io.Writer) agentexam.Result {
+func runWriteTest(ctx context.Context, agent agentexam.Agent, spec string, test eligibleTest, timeout time.Duration, output io.Writer) (agentexam.Result, *failedTranscript) {
 	r := agentexam.Result{
 		ID:    test.ID,
 		Group: test.Category,
 		Name:  test.Name + " (write)",
 	}
 
-	inputData, _ := marshalEnvelope(envelope{Value: test.Input, Metadata: test.InputMeta})
-	expectedData, _ := marshalEnvelope(test.Expected)
+	inputJSON, _ := json.Marshal(test.Input)
+	expectedJSON, _ := json.Marshal(test.Expected.Value)
 
 	fmt.Fprintf(output, "\n--- [write] %s — %s ---\n", test.ID, test.Name)
-	fmt.Fprintf(output, "  input:\n    %s", indentLines(string(inputData), "    "))
-	fmt.Fprintf(output, "  expected:\n    %s", indentLines(string(expectedData), "    "))
+	fmt.Fprintf(output, "  input:    %s\n", inputJSON)
+	fmt.Fprintf(output, "  expected: %s\n", expectedJSON)
+
+	var prompt, response string
+
+	fail := func() (agentexam.Result, *failedTranscript) {
+		return r, &failedTranscript{
+			TestID: test.ID, TestName: test.Name, Kind: "write",
+			Prompt: prompt, Response: response, Error: r.Error,
+		}
+	}
 
 	prompt, err := buildWritePrompt(spec, test)
 	if err != nil {
 		r.Error = fmt.Sprintf("building prompt: %v", err)
-		return r
+		return fail()
 	}
 
 	runCtx := ctx
@@ -206,33 +246,33 @@ func runWriteTest(ctx context.Context, agent agentexam.Agent, spec string, test 
 	result, err := agent.Run(runCtx, "", prompt, output)
 	if err != nil {
 		r.Error = fmt.Sprintf("agent error: %v", err)
-		return r
+		return fail()
 	}
 
-	response := result.Response
+	response = result.Response
 	fmt.Fprintf(output, "  response: %s\n", strings.TrimSpace(response))
 
 	mappingSrc := extractMapping(response)
 	if mappingSrc == "" {
 		r.Error = "agent produced empty mapping"
-		return r
+		return fail()
 	}
 
 	interp := &bloblang2.Interp{}
 	mapping, compileErr := interp.Compile(mappingSrc, nil)
 	if compileErr != nil {
 		r.Error = fmt.Sprintf("compile error: %v", compileErr)
-		return r
+		return fail()
 	}
 
 	outVal, outMeta, deleted, execErr := mapping.Exec(test.Input, test.InputMeta)
 	if execErr != nil {
 		r.Error = fmt.Sprintf("runtime error: %v", execErr)
-		return r
+		return fail()
 	}
 	if deleted {
 		r.Error = "mapping deleted the message"
-		return r
+		return fail()
 	}
 	if outMeta == nil {
 		outMeta = map[string]any{}
@@ -243,7 +283,7 @@ func runWriteTest(ctx context.Context, agent agentexam.Agent, spec string, test 
 
 	if ok, diff := naturalJSONEqual(test.Expected.Value, coercedOutput); !ok {
 		r.Error = "output mismatch: " + diff
-		return r
+		return fail()
 	}
 
 	if !test.NoMetadataCheck {
@@ -253,12 +293,12 @@ func runWriteTest(ctx context.Context, agent agentexam.Agent, spec string, test 
 		}
 		if ok, diff := naturalJSONEqual(any(expectedMeta), coercedMeta); !ok {
 			r.Error = "metadata mismatch: " + diff
-			return r
+			return fail()
 		}
 	}
 
 	r.Score = 1
-	return r
+	return r, nil
 }
 
 // aggregatePoolResults builds the comparison table data and per-pool artifacts.
@@ -356,17 +396,61 @@ func writeArtifact(baseDir, condensedSpec string, pools []poolResult) error {
 		return err
 	}
 
-	combined := make(map[string]artifact, len(pools))
-	for _, pr := range pools {
-		combined[pr.Name] = buildPoolArtifact(pr)
+	type resultsFile struct {
+		Pools     map[string]artifact `json:"pools"`
+		Aggregate artifact            `json:"aggregate"`
 	}
 
-	data, err := json.MarshalIndent(combined, "", "  ")
+	poolArtifacts := make(map[string]artifact, len(pools))
+	for _, pr := range pools {
+		poolArtifacts[pr.Name] = buildPoolArtifact(pr)
+	}
+
+	// Build aggregate across all pools.
+	var allRead, allWrite []agentexam.Result
+	for _, pr := range pools {
+		allRead = append(allRead, pr.ReadResults...)
+		allWrite = append(allWrite, pr.WriteResults...)
+	}
+	aggregate := buildPoolArtifact(poolResult{
+		ReadResults:  allRead,
+		WriteResults: allWrite,
+	})
+
+	data, err := json.MarshalIndent(resultsFile{
+		Pools:     poolArtifacts,
+		Aggregate: aggregate,
+	}, "", "  ")
 	if err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(dir, "results.json"), append(data, '\n'), 0o644); err != nil {
 		return err
+	}
+
+	// Write transcripts for failed tests, organized as:
+	//   fail_transcripts/<pool>/run_<N>/<testID>_<kind>.txt
+	var totalTranscripts int
+	for _, pr := range pools {
+		totalTranscripts += len(pr.FailedTranscripts)
+	}
+	if totalTranscripts > 0 {
+		sanitize := strings.NewReplacer("/", "__", " ", "_")
+		for _, pr := range pools {
+			for _, ft := range pr.FailedTranscripts {
+				runDir := filepath.Join(dir, "fail_transcripts", ft.Pool, fmt.Sprintf("run_%d", ft.Run))
+				if err := os.MkdirAll(runDir, 0o755); err != nil {
+					return err
+				}
+				filename := sanitize.Replace(ft.TestID) + "_" + ft.Kind + ".txt"
+				content := fmt.Sprintf("Test: %s (%s)\nID:   %s\nError: %s\n\n=== PROMPT ===\n%s\n\n=== RESPONSE ===\n%s\n",
+					ft.TestName, ft.Kind, ft.TestID, ft.Error, ft.Prompt, ft.Response)
+				if err := os.WriteFile(filepath.Join(runDir, filename), []byte(content), 0o644); err != nil {
+					return err
+				}
+			}
+		}
+		fmt.Fprintf(os.Stderr, "wrote %d failed transcript(s) to %s\n", totalTranscripts, filepath.Join(dir, "fail_transcripts"))
 	}
 
 	fmt.Fprintf(os.Stderr, "artifact written to %s\n", dir)

@@ -35,6 +35,10 @@ type Ollama struct {
 	// SystemPrompt is prepended to the conversation. If empty, a default
 	// system prompt is used that instructs the model to use tools.
 	SystemPrompt string
+
+	// NoThink disables thinking/reasoning for models that support it
+	// (e.g., QWen 3). When true, the Ollama API is called with think=false.
+	NoThink bool
 }
 
 // Run implements agentexam.Agent by calling the Ollama chat API in a loop.
@@ -71,10 +75,16 @@ func (o *Ollama) Run(ctx context.Context, dir string, prompt string, output io.W
 		tools = ollamaToolDefs()
 	}
 
+	var think *bool
+	if o.NoThink {
+		f := false
+		think = &f
+	}
+
 	var response strings.Builder
 
 	for turn := 0; turn < maxTurns; turn++ {
-		resp, err := ollamaChat(ctx, baseURL, o.Model, messages, tools)
+		resp, err := ollamaChat(ctx, baseURL, o.Model, messages, tools, think)
 		if err != nil {
 			return nil, fmt.Errorf("ollama chat (turn %d): %w", turn, err)
 		}
@@ -146,6 +156,7 @@ type ollamaChatRequest struct {
 	Messages []ollamaMessage `json:"messages"`
 	Tools    []ollamaTool    `json:"tools,omitempty"`
 	Stream   bool            `json:"stream"`
+	Think    *bool           `json:"think,omitempty"`
 }
 
 type ollamaChatResponse struct {
@@ -368,12 +379,13 @@ var ollamaHTTPClient = &http.Client{
 	Timeout: 10 * time.Minute,
 }
 
-func ollamaChat(ctx context.Context, baseURL, model string, messages []ollamaMessage, tools []ollamaTool) (*ollamaChatResponse, error) {
+func ollamaChat(ctx context.Context, baseURL, model string, messages []ollamaMessage, tools []ollamaTool, think *bool) (*ollamaChatResponse, error) {
 	reqBody := ollamaChatRequest{
 		Model:    model,
 		Messages: messages,
 		Tools:    tools,
 		Stream:   false,
+		Think:    think,
 	}
 
 	body, err := json.Marshal(reqBody)

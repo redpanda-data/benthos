@@ -206,14 +206,6 @@ func indentLines(s, prefix string) string {
 	return strings.ReplaceAll(s, "\n", "\n"+prefix)
 }
 
-func marshalEnvelope(e envelope) ([]byte, error) {
-	data, err := json.MarshalIndent(e, "", "  ")
-	if err != nil {
-		return nil, err
-	}
-	return append(data, '\n'), nil
-}
-
 func decodeMetaMap(raw any) (map[string]any, error) {
 	if raw == nil {
 		return map[string]any{}, nil

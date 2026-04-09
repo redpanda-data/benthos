@@ -398,7 +398,7 @@ func TestOllamaChatSuccess(t *testing.T) {
 
 	got, err := ollamaChat(context.Background(), srv.URL, "test-model", []ollamaMessage{
 		{Role: "user", Content: "hi"},
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +414,7 @@ func TestOllamaChatError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := ollamaChat(context.Background(), srv.URL, "test-model", nil, nil)
+	_, err := ollamaChat(context.Background(), srv.URL, "test-model", nil, nil, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}

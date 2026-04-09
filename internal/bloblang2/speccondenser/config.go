@@ -56,6 +56,7 @@ type AgentConfig struct {
 	BaseURL  string `yaml:"base_url"`
 	MaxTurns int    `yaml:"max_turns"`
 	Command  string `yaml:"command"`
+	NoThink  bool   `yaml:"no_think"`
 }
 
 func loadConfig(path string) (*Config, error) {
@@ -125,6 +126,7 @@ func buildAgent(cfg AgentConfig) (agentexam.Agent, error) {
 		o := &agents.Ollama{
 			BaseURL: cfg.BaseURL,
 			Model:   cfg.Model,
+			NoThink: cfg.NoThink,
 		}
 		if cfg.MaxTurns > 0 {
 			o.MaxTurns = cfg.MaxTurns

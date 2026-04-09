@@ -234,6 +234,8 @@ func Run(ctx context.Context, exam *Exam, opts *Options) ([]Result, error) {
 	// Cleanup unless told to keep it.
 	if exam.UseFiles && !opts.KeepDir {
 		_ = os.RemoveAll(dir)
+	} else if exam.UseFiles && opts.KeepDir {
+		fmt.Fprintf(os.Stderr, "kept work dir: %s\n", dir)
 	}
 
 	return results, nil
