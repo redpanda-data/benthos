@@ -335,16 +335,6 @@ func runGroupWriteTest(ctx context.Context, agent agentexam.Agent, spec string, 
 	return r, nil
 }
 
-// aggregatePoolResults builds the comparison table data and per-pool artifacts.
-func aggregatePoolResults(poolResults []poolResult) map[string][]agentexam.Result {
-	out := make(map[string][]agentexam.Result, len(poolResults)*2)
-	for _, pr := range poolResults {
-		out[pr.Name+"/read"] = pr.ReadResults
-		out[pr.Name+"/write"] = pr.WriteResults
-	}
-	return out
-}
-
 func buildPoolArtifact(pr poolResult) artifact {
 	readSummary := agentexam.Summarize(pr.ReadResults)
 	writeSummary := agentexam.Summarize(pr.WriteResults)

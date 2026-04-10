@@ -77,11 +77,11 @@ func loadEligibleTests(testsDir string, categories map[string]struct{}) ([]eligi
 		if err != nil {
 			rel = path
 		}
+		baseName := strings.TrimSuffix(filepath.Base(rel), ".yaml")
 		category := filepath.Dir(rel)
 		if category == "." {
-			category = ""
+			category = baseName
 		}
-		baseName := strings.TrimSuffix(filepath.Base(rel), ".yaml")
 
 		if categories != nil {
 			if _, ok := categories[category]; !ok {

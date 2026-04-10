@@ -48,7 +48,7 @@ tests:
     output: {"v": "matched"}
 
   - name: "match with braced case body"
-    input: {"currency": "USD", "amount": 42}
+    input: {"currency": "USD", "amount": 9.99}
     mapping: |
       output.formatted = match input.currency {
         "USD" => {
@@ -60,7 +60,7 @@ tests:
         },
         _ => input.currency + " " + input.amount.string(),
       }
-    output: {"formatted": "$42"}
+    output: {"formatted": "$9.99"}
 
   - name: "non-exhaustive match produces void — preserves prior value"
     mapping: |
