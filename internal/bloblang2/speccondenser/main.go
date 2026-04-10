@@ -141,7 +141,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Print results — one table per pool, then a combined summary.
+	// Print results — one table per pool, then a comparison summary.
 	for _, pr := range poolResults {
 		fmt.Printf("\n=== %s ===\n\n", pr.Name)
 		agentexam.PrintComparisonTable(os.Stdout, map[string][]agentexam.Result{
@@ -151,8 +151,8 @@ func main() {
 	}
 
 	if len(poolResults) > 1 {
-		fmt.Printf("\n=== combined ===\n\n")
-		agentexam.PrintComparisonTable(os.Stdout, aggregatePoolResults(poolResults))
+		fmt.Printf("\n=== comparison ===\n\n")
+		printPoolSummary(os.Stdout, poolResults)
 	}
 
 	// Write artifact.
@@ -160,6 +160,44 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error writing artifact: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// printPoolSummary writes a compact comparison table with one row per pool.
+func printPoolSummary(w io.Writer, pools []poolResult) {
+	nameWidth := 4 // "Pool"
+	for _, pr := range pools {
+		if len(pr.Name) > nameWidth {
+			nameWidth = len(pr.Name)
+		}
+	}
+
+	colWidth := 20
+	sep := "+" + strings.Repeat("-", nameWidth+2) +
+		"+" + strings.Repeat("-", colWidth+2) +
+		"+" + strings.Repeat("-", colWidth+2) + "+"
+
+	fmt.Fprintln(w, sep)
+	fmt.Fprintf(w, "| %-*s | %-*s | %-*s |\n", nameWidth, "Pool", colWidth, "read", colWidth, "write")
+	fmt.Fprintln(w, sep)
+
+	for _, pr := range pools {
+		readSum := agentexam.Summarize(pr.ReadResults)
+		writeSum := agentexam.Summarize(pr.WriteResults)
+
+		readCell := "N/A"
+		if readSum.Total > 0 {
+			pct := readSum.TotalScore / float64(readSum.Total) * 100
+			readCell = fmt.Sprintf("%5.1f%% (%.1f/%d)", pct, readSum.TotalScore, readSum.Total)
+		}
+		writeCell := "N/A"
+		if writeSum.Total > 0 {
+			pct := writeSum.TotalScore / float64(writeSum.Total) * 100
+			writeCell = fmt.Sprintf("%5.1f%% (%.1f/%d)", pct, writeSum.TotalScore, writeSum.Total)
+		}
+
+		fmt.Fprintf(w, "| %-*s | %-*s | %-*s |\n", nameWidth, pr.Name, colWidth, readCell, colWidth, writeCell)
+	}
+	fmt.Fprintln(w, sep)
 }
 
 // extractEmbeddedExam writes the embedded exam YAML files to a temp directory

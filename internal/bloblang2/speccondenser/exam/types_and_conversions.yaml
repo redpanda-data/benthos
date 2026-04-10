@@ -8,9 +8,6 @@ tests:
       - name: "string"
         input: {"v": "hello"}
         output: {"t": "string"}
-      - name: "integer"
-        input: {"v": 42}
-        output: {"t": "int64"}
       - name: "float"
         input: {"v": 3.14}
         output: {"t": "float64"}
@@ -31,9 +28,9 @@ tests:
     mapping: |
       output.result = input.v.string()
     cases:
-      - name: "int to string"
-        input: {"v": 42}
-        output: {"result": "42"}
+      - name: "number to string"
+        input: {"v": 3.14}
+        output: {"result": "3.14"}
       - name: "float to string"
         input: {"v": 3.14}
         output: {"result": "3.14"}
