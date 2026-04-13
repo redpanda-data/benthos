@@ -50,6 +50,16 @@ class ResolveScope {
     }
     return false;
   }
+
+  // isParam checks whether a name is declared as a parameter (map param, lambda
+  // param, match-as binding) without checking variables. Bare identifiers must
+  // not resolve to $variables.
+  isParam(name: string): boolean {
+    for (let cur: ResolveScope | null = this; cur; cur = cur.parent) {
+      if (cur.params.has(name)) return true;
+    }
+    return false;
+  }
 }
 
 class Resolver {
@@ -273,7 +283,11 @@ class Resolver {
         this.error(e.pos, `${e.namespace}::${e.name} is not a valid expression (call it with parentheses or pass to a method)`);
       }
       this.resolveQualifiedIdent(e);
-    } else if (!this.scope.isDeclared(e.name)) {
+    } else if (this.scope.isParam(e.name)) {
+      // Resolves to a parameter (map param, lambda param, match-as binding).
+      // Bare identifiers must NOT resolve to $variables (those require the $
+      // prefix via VarExpr).
+    } else {
       const isFn = this.knownFunctions.has(e.name);
       if (this.isKnownMap(e.name) || isFn) {
         if (!this.inMethodArg) {

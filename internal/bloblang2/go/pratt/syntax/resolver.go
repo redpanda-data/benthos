@@ -145,6 +145,18 @@ func (s *resolveScope) lookupSlot(name string) (int, bool) {
 	return -1, false
 }
 
+// lookupParamSlot finds the slot index for a parameter (not a variable) by
+// walking the scope chain. Used for bare identifier resolution — bare
+// identifiers must not resolve to $variables.
+func (s *resolveScope) lookupParamSlot(name string) (int, bool) {
+	for cur := s; cur != nil; cur = cur.parent {
+		if slot, ok := cur.params[name]; ok {
+			return slot, true
+		}
+	}
+	return -1, false
+}
+
 // allocSlot assigns the next available slot index and returns it.
 func (s *resolveScope) allocSlot() int {
 	slot := s.nextSlot
@@ -411,8 +423,10 @@ func (r *resolver) resolveExpr(expr Expr) {
 				r.error(e.TokenPos, e.Namespace+"::"+e.Name+" is not a valid expression (call it with parentheses or pass to a method)")
 			}
 			r.resolveQualifiedIdent(e)
-		} else if slot, ok := r.scope.lookupSlot(e.Name); ok {
-			// Resolves to a variable or parameter — annotate with slot.
+		} else if slot, ok := r.scope.lookupParamSlot(e.Name); ok {
+			// Resolves to a parameter (map param, lambda param, match-as
+			// binding) — annotate with slot. Bare identifiers must NOT
+			// resolve to $variables (those require the $ prefix via VarExpr).
 			e.SlotIndex = slot
 		} else {
 			// Not a variable/parameter — check if it's a map or function name.
