@@ -1,0 +1,31 @@
+description: "Input/output paths, dynamic access, null-safe access, quoted fields, metadata"
+
+tests:
+  - name: "field access patterns with dynamic keys and null safety"
+    mapping: |
+      $key = input.field_name
+      output.dynamic = input.data[$key]
+      output.computed = input.data["item_" + input.suffix]
+      output.safe = input.data?.nested?.value
+      output.quoted = input."special-key"
+      output.deep_in = input.user.address.city
+      output.missing = input.nonexistent
+    cases:
+      - name: "all paths resolve"
+        input: {"field_name": "color", "suffix": "a", "data": {"color": "blue", "item_a": "found", "nested": {"value": 42}}, "special-key": "works", "user": {"address": {"city": "London"}}}
+        output: {"dynamic": "blue", "computed": "found", "safe": 42, "quoted": "works", "deep_in": "London", "missing": null}
+      - name: "null-safe chain short-circuits"
+        input: {"field_name": "missing", "suffix": "x", "data": {"nested": null}, "special-key": "ok", "user": {"address": {"city": "Paris"}}}
+        output: {"dynamic": null, "computed": null, "safe": null, "quoted": "ok", "deep_in": "Paris", "missing": null}
+
+  - name: "root assignment and metadata"
+    input: {"name": "Alice", "score": 100}
+    input_metadata: {"source": "kafka", "trace_id": "abc-123"}
+    mapping: |
+      output = input
+      output.greeting = "Hello, " + input.name
+      output.original = input.name
+      output@.source = input@.source
+      output@.processed = true
+    output: {"name": "Alice", "score": 100, "greeting": "Hello, Alice", "original": "Alice"}
+    output_metadata: {"source": "kafka", "processed": true}

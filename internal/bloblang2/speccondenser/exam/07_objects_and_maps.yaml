@@ -1,0 +1,41 @@
+description: "Object methods (keys, values, merge, without, map_entries, filter_entries), user-defined maps"
+
+tests:
+  - name: "object inspection and transformation"
+    mapping: |
+      $merged = input.base.merge(input.overrides)
+      $filtered = $merged.filter_entries((k, v) -> v != null)
+      $cleaned = $filtered.without(input.remove)
+      output.keys = $cleaned.keys().sort()
+      output.has_name = $cleaned.has_key("name")
+      output.value_count = $cleaned.values().length()
+      output.uppered = $cleaned.map_entries((k, v) -> {
+        "key": k,
+        "value": if v.type() == "string" { v.uppercase() } else { v },
+      })
+    cases:
+      - name: "merge with overrides, remove nulls and keys"
+        input: {"base": {"name": "Alice", "age": 30, "role": "dev"}, "overrides": {"age": 31, "email": null}, "remove": ["role"]}
+        output: {"keys": ["age", "name"], "has_name": true, "value_count": 2, "uppered": {"name": "ALICE", "age": 31}}
+      - name: "empty overrides"
+        input: {"base": {"x": "hello"}, "overrides": {}, "remove": []}
+        output: {"keys": ["x"], "has_name": false, "value_count": 1, "uppered": {"x": "HELLO"}}
+
+  - name: "user-defined maps with params, defaults, named args, and hoisting"
+    mapping: |
+      output.greeting = greet(input.name)
+      output.custom = greet(input.name, "Hi")
+      output.total = total(amount: input.price, tax_rate: input.tax)
+      output.named = sub(b: 3, a: 10)
+      map greet(name, prefix = "Hello") {
+        prefix + ", " + name + "!"
+      }
+      map total(amount, tax_rate) {
+        $tax = amount * tax_rate
+        amount + $tax
+      }
+      map sub(a, b) { a - b }
+    cases:
+      - name: "with defaults and named args"
+        input: {"name": "Bob", "price": 100, "tax": 0.2}
+        output: {"greeting": "Hello, Bob!", "custom": "Hi, Bob!", "total": 120.0, "named": 7}
