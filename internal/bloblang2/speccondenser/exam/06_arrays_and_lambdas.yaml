@@ -1,0 +1,51 @@
+description: "Array transforms, aggregation, mutation, lambdas (single/multi-param, block, capture, nested)"
+
+tests:
+  - name: "transform pipeline with lambdas and aggregation"
+    mapping: |
+      $factor = input.scale
+      $processed = input.items
+        .filter(x -> x.active)
+        .map(x -> {
+          $base = x.value * $factor
+          {"name": x.name.uppercase(), "score": $base}
+        })
+        .sort_by(x -> x.score)
+      output.items = $processed
+      output.total = $processed.map(x -> x.score).fold(0, (acc, x) -> acc + x)
+      output.names = $processed.map(x -> x.name).join(", ")
+      output.any_big = $processed.any(x -> x.score > 100)
+      output.all_positive = $processed.all(x -> x.score > 0)
+    cases:
+      - name: "mixed active and inactive items"
+        input: {"scale": 10, "items": [{"name": "alpha", "value": 5, "active": true}, {"name": "beta", "value": 15, "active": false}, {"name": "gamma", "value": 3, "active": true}]}
+        output: {"items": [{"name": "GAMMA", "score": 30}, {"name": "ALPHA", "score": 50}], "total": 80, "names": "GAMMA, ALPHA", "any_big": false, "all_positive": true}
+      - name: "all active with big score"
+        input: {"scale": 20, "items": [{"name": "one", "value": 8, "active": true}, {"name": "two", "value": 2, "active": true}]}
+        output: {"items": [{"name": "TWO", "score": 40}, {"name": "ONE", "score": 160}], "total": 200, "names": "TWO, ONE", "any_big": true, "all_positive": true}
+
+  - name: "array mutation, flatten, unique, enumerate, and nested lambdas"
+    mapping: |
+      $nested = [[1, 2], [2, 3], [3, 4]]
+      $flat = $nested.flatten().unique()
+      $doubled = $flat.map(x -> x * 2)
+      $arr = [10, 20, 30]
+      $arr = $arr.append(40)
+      $enumerated = $arr.enumerate().map(e -> e.index.string() + ":" + e.value.string())
+      output.flat_unique = $flat
+      output.doubled = $doubled
+      output.appended = $arr
+      output.enumerated = $enumerated
+      output.found = $flat.find(x -> x > 2)
+      output.sum = $flat.sum()
+      output.last = $arr[-1]
+      output.mid = $arr.slice(1, 3)
+    output: {"flat_unique": [1, 2, 3, 4], "doubled": [2, 4, 6, 8], "appended": [10, 20, 30, 40], "enumerated": ["0:10", "1:20", "2:30", "3:40"], "found": 3, "sum": 10, "last": 40, "mid": [20, 30]}
+
+  - name: "named map passed to higher-order method and nested lambdas"
+    mapping: |
+      map double(x) { x * 2 }
+      output.mapped = [1, 2, 3].map(double)
+      $matrix = [[1, 2], [3, 4]]
+      output.nested = $matrix.map(row -> row.map(x -> x * 10))
+    output: {"mapped": [2, 4, 6], "nested": [[10, 20], [30, 40]]}

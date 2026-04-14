@@ -280,8 +280,9 @@ scoring:
         model: qwen3.5:latest
         base_url: http://localhost:11434
         max_turns: 200
-      runs: 1       # number of times to run the full test suite
-      timeout: 10m  # per-test timeout
+      runs: 1            # number of times to run the full test suite
+      timeout: 10m       # per-test timeout
+      concurrency: 1     # max parallel agent calls (increase for faster runs)
 
     # - name: claude-opus
     #   agent:

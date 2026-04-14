@@ -1,0 +1,35 @@
+description: "Comparison, equality, logical operators, short-circuit evaluation, null equality"
+
+tests:
+  - name: "combined comparison and logic with short-circuit"
+    mapping: |
+      $in_range = input.value >= input.min && input.value <= input.max
+      $is_special = input.value == 0 || input.value == 100
+      $allow = $in_range && !$is_special
+      output.in_range = $in_range
+      output.is_special = $is_special
+      output.allow = $allow
+      output.cmp_str = input.name > "M"
+      output.eq_null = input.opt == null
+      output.neq_type = input.value != input.name
+    cases:
+      - name: "in range and not special"
+        input: {"value": 50, "min": 0, "max": 100, "name": "Zara", "opt": null}
+        output: {"in_range": true, "is_special": false, "allow": true, "cmp_str": true, "eq_null": true, "neq_type": true}
+      - name: "special value at boundary"
+        input: {"value": 100, "min": 0, "max": 100, "name": "Alice", "opt": "present"}
+        output: {"in_range": true, "is_special": true, "allow": false, "cmp_str": false, "eq_null": false, "neq_type": true}
+      - name: "out of range"
+        input: {"value": -1, "min": 0, "max": 100, "name": "Bob", "opt": null}
+        output: {"in_range": false, "is_special": false, "allow": false, "cmp_str": false, "eq_null": true, "neq_type": true}
+
+  - name: "equality across types and collections"
+    mapping: |
+      output.num_promo = 5 == 5.0
+      output.cross_type = "5" == 5
+      output.arr_order = [1, 2] == [2, 1]
+      output.arr_eq = [1, 2, 3] == [1, 2, 3]
+      output.obj_eq = {"a": 1, "b": 2} == {"b": 2, "a": 1}
+      output.null_eq = null == null
+      output.null_ne = null != false
+    output: {"num_promo": true, "cross_type": false, "arr_order": false, "arr_eq": true, "obj_eq": true, "null_eq": true, "null_ne": true}

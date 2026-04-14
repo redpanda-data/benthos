@@ -1,0 +1,38 @@
+description: "Error catch/throw, or/not_null, null vs void, deletion, void with or/catch"
+
+tests:
+  - name: "error handling with catch, throw, and or"
+    mapping: |
+      output.safe_div = (input.a / input.b).catch(err -> -1)
+      output.err_msg = (input.a / input.b).catch(err -> err.what)
+      output.thrown = throw("bad").catch(err -> "recovered: " + err.what)
+      output.no_err = "ok".catch(err -> "fallback")
+      output.chain = throw("a").catch(err -> throw("b")).catch(err -> err.what)
+      output.or_null = input.missing.or("default")
+      output.or_zero = (0).or("fallback")
+      output.not_null = input.missing.not_null().catch(err -> "was_null")
+      output.scoped = ((input.a / input.b).catch(err -> 42)).string()
+    cases:
+      - name: "division by zero triggers catch"
+        input: {"a": 10, "b": 0}
+        output: {"safe_div": -1, "err_msg": "division by zero", "thrown": "recovered: bad", "no_err": "ok", "chain": "b", "or_null": "default", "or_zero": 0, "not_null": "was_null", "scoped": "42"}
+      - name: "no error path"
+        input: {"a": 10, "b": 2, "missing": "present"}
+        output: {"safe_div": 5.0, "err_msg": 5.0, "thrown": "recovered: bad", "no_err": "ok", "chain": "b", "or_null": "present", "or_zero": 0, "not_null": "present", "scoped": "5.0"}
+
+  - name: "deletion and void semantics"
+    mapping: |
+      output.a = 1
+      output.b = 2
+      output.c = 3
+      output.b = deleted()
+      output.filtered = [1, 2, 3, 4, 5].map(x ->
+        if x % 2 == 0 { deleted() } else { x * 10 }
+      )
+      output.obj_del = {"keep": 1, "drop": deleted(), "also": 3}
+      output.kept = "prior"
+      output.kept = if false { "overwrite" }
+      output.rescued = (if false { "hello" }).or("void_rescued")
+      output.void_catch = "original"
+      output.void_catch = (if false { 1 }).catch(err -> 99)
+    output: {"a": 1, "c": 3, "filtered": [10, 30, 50], "obj_del": {"keep": 1, "also": 3}, "kept": "prior", "rescued": "void_rescued", "void_catch": "original"}

@@ -1,0 +1,25 @@
+description: "Arithmetic operators, type promotion, operator precedence, and associativity"
+
+tests:
+  - name: "mixed arithmetic with type promotion and precedence"
+    mapping: |
+      $base = input.price * input.qty
+      $discount = $base * input.discount / 100
+      $tax = ($base - $discount) * 0.15
+      $total = $base - $discount + $tax
+      output.subtotal = $base
+      output.discount = $discount
+      output.tax = $total - ($base - $discount)
+      output.total = $total
+      output.per_item = $total / input.qty
+      output.remainder = input.qty % input.batch_size
+    cases:
+      - name: "standard order with int and float promotion"
+        input: {"price": 25, "qty": 4, "discount": 10, "batch_size": 3}
+        output: {"subtotal": 100, "discount": 10.0, "tax": 13.5, "total": 103.5, "per_item": 25.875, "remainder": 1}
+      - name: "zero discount and exact division"
+        input: {"price": 50, "qty": 2, "discount": 0, "batch_size": 2}
+        output: {"subtotal": 100, "discount": 0.0, "tax": 15.0, "total": 115.0, "per_item": 57.5, "remainder": 0}
+      - name: "negative modulo"
+        input: {"price": 10, "qty": -3, "discount": 0, "batch_size": 2}
+        output: {"subtotal": -30, "discount": 0.0, "tax": -4.5, "total": -34.5, "per_item": 11.5, "remainder": -1}

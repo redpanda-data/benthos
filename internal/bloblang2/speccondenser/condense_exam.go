@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,7 +10,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 
 	bloblang2 "github.com/redpanda-data/benthos/v4/internal/bloblang2"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/agentexam"
@@ -78,8 +83,29 @@ type poolResult struct {
 	FailedTranscripts []failedTranscript
 }
 
+// testOutcome captures the result, any failed transcripts, and the buffered
+// verbose output for a single test executed concurrently.
+type testOutcome struct {
+	result      agentexam.Result
+	transcripts []failedTranscript
+	output      bytes.Buffer
+}
+
+// syncWriter wraps an io.Writer with a mutex so concurrent goroutines can
+// write complete lines without interleaving.
+type syncWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (s *syncWriter) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.w.Write(p)
+}
+
 // scoreCondensedSpec runs prompt-based read and write sub-exams against the
-// condensed spec across all configured scoring pools.
+// condensed spec across all configured scoring pools. Pools run concurrently.
 func scoreCondensedSpec(
 	ctx context.Context,
 	condensedSpec string,
@@ -88,53 +114,163 @@ func scoreCondensedSpec(
 	output io.Writer,
 ) ([]poolResult, error) {
 	writeGroups := groupWriteTests(tests)
+	sw := &syncWriter{w: output}
 
-	var results []poolResult
+	results := make([]poolResult, len(pools))
+	eg, egCtx := errgroup.WithContext(ctx)
 
-	for _, poolCfg := range pools {
-		agent, err := buildAgent(poolCfg.Agent)
-		if err != nil {
-			return nil, fmt.Errorf("pool %q: building agent: %w", poolCfg.Name, err)
-		}
-
-		fmt.Fprintf(output, "\n=== scoring pool: %s (%d run(s)) ===\n", poolCfg.Name, poolCfg.Runs)
-
-		pr := poolResult{Name: poolCfg.Name}
-
-		for run := range poolCfg.Runs {
-			if poolCfg.Runs > 1 {
-				fmt.Fprintf(output, "\n--- %s run %d/%d ---\n", poolCfg.Name, run+1, poolCfg.Runs)
+	for i, poolCfg := range pools {
+		eg.Go(func() error {
+			pr, err := scorePool(egCtx, condensedSpec, tests, writeGroups, poolCfg, sw)
+			if err != nil {
+				return fmt.Errorf("pool %q: %w", poolCfg.Name, err)
 			}
+			results[i] = pr
+			return nil
+		})
+	}
 
-			// Read tests: individual per case.
-			for _, test := range tests {
-				readResult, readFT := runReadTest(ctx, agent, condensedSpec, test, poolCfg.Timeout, output)
-				agentexam.LogResult(output, readResult)
-				pr.ReadResults = append(pr.ReadResults, readResult)
-				if readFT != nil {
-					readFT.Pool = poolCfg.Name
-					readFT.Run = run + 1
-					pr.FailedTranscripts = append(pr.FailedTranscripts, *readFT)
-				}
-			}
-
-			// Write tests: grouped by parent test.
-			for _, group := range writeGroups {
-				writeResult, writeFTs := runGroupWriteTest(ctx, agent, condensedSpec, group, poolCfg.Timeout, output)
-				agentexam.LogResult(output, writeResult)
-				pr.WriteResults = append(pr.WriteResults, writeResult)
-				for i := range writeFTs {
-					writeFTs[i].Pool = poolCfg.Name
-					writeFTs[i].Run = run + 1
-				}
-				pr.FailedTranscripts = append(pr.FailedTranscripts, writeFTs...)
-			}
-		}
-
-		results = append(results, pr)
+	if err := eg.Wait(); err != nil {
+		return nil, err
 	}
 
 	return results, nil
+}
+
+// scorePool runs all runs for a single scoring pool. Runs within a pool are
+// sequential; tests within each run are parallel (bounded by Concurrency).
+func scorePool(
+	ctx context.Context,
+	condensedSpec string,
+	tests []eligibleTest,
+	writeGroups []writeTestGroup,
+	poolCfg PoolConfig,
+	sw *syncWriter,
+) (poolResult, error) {
+	// Validate agent config once up front.
+	if _, err := buildAgent(poolCfg.Agent); err != nil {
+		return poolResult{}, fmt.Errorf("building agent: %w", err)
+	}
+
+	fmt.Fprintf(sw, "\n=== scoring pool: %s (%d run(s), concurrency=%d) ===\n",
+		poolCfg.Name, poolCfg.Runs, poolCfg.Concurrency)
+
+	pr := poolResult{Name: poolCfg.Name}
+
+	for run := range poolCfg.Runs {
+		if poolCfg.Runs > 1 {
+			fmt.Fprintf(sw, "\n--- %s run %d/%d ---\n", poolCfg.Name, run+1, poolCfg.Runs)
+		}
+
+		readOutcomes, writeOutcomes, err := scoreRun(
+			ctx, condensedSpec, tests, writeGroups, poolCfg, sw,
+		)
+		if err != nil {
+			return poolResult{}, err
+		}
+
+		// Assemble results in deterministic order and flush buffered output.
+		for i := range readOutcomes {
+			o := &readOutcomes[i]
+			pr.ReadResults = append(pr.ReadResults, o.result)
+			for j := range o.transcripts {
+				o.transcripts[j].Pool = poolCfg.Name
+				o.transcripts[j].Run = run + 1
+			}
+			pr.FailedTranscripts = append(pr.FailedTranscripts, o.transcripts...)
+			_, _ = sw.Write(o.output.Bytes())
+		}
+		for i := range writeOutcomes {
+			o := &writeOutcomes[i]
+			pr.WriteResults = append(pr.WriteResults, o.result)
+			for j := range o.transcripts {
+				o.transcripts[j].Pool = poolCfg.Name
+				o.transcripts[j].Run = run + 1
+			}
+			pr.FailedTranscripts = append(pr.FailedTranscripts, o.transcripts...)
+			_, _ = sw.Write(o.output.Bytes())
+		}
+	}
+
+	return pr, nil
+}
+
+// scoreRun fans out read and write tests concurrently within a single run,
+// bounded by the pool's Concurrency setting.
+func scoreRun(
+	ctx context.Context,
+	condensedSpec string,
+	tests []eligibleTest,
+	writeGroups []writeTestGroup,
+	poolCfg PoolConfig,
+	sw *syncWriter,
+) ([]testOutcome, []testOutcome, error) {
+	totalTests := len(tests) + len(writeGroups)
+	readOutcomes := make([]testOutcome, len(tests))
+	writeOutcomes := make([]testOutcome, len(writeGroups))
+
+	var completed int32
+
+	eg, egCtx := errgroup.WithContext(ctx)
+	eg.SetLimit(poolCfg.Concurrency)
+
+	// Fan out read tests.
+	for i, test := range tests {
+		eg.Go(func() error {
+			agent, err := buildAgent(poolCfg.Agent)
+			if err != nil {
+				return fmt.Errorf("building agent: %w", err)
+			}
+
+			buf := &readOutcomes[i].output
+			result, ft := runReadTest(egCtx, agent, condensedSpec, test, poolCfg.Timeout, buf)
+			agentexam.LogResult(buf, result)
+
+			readOutcomes[i].result = result
+			if ft != nil {
+				readOutcomes[i].transcripts = []failedTranscript{*ft}
+			}
+
+			n := atomic.AddInt32(&completed, 1)
+			status := "PASS"
+			if result.Score < 1 {
+				status = "FAIL"
+			}
+			fmt.Fprintf(sw, "  [%d/%d] %s  %s  %s\n", n, totalTests, status, result.ID, result.Name)
+			return nil
+		})
+	}
+
+	// Fan out write groups.
+	for i, group := range writeGroups {
+		eg.Go(func() error {
+			agent, err := buildAgent(poolCfg.Agent)
+			if err != nil {
+				return fmt.Errorf("building agent: %w", err)
+			}
+
+			buf := &writeOutcomes[i].output
+			result, fts := runGroupWriteTest(egCtx, agent, condensedSpec, group, poolCfg.Timeout, buf)
+			agentexam.LogResult(buf, result)
+
+			writeOutcomes[i].result = result
+			writeOutcomes[i].transcripts = fts
+
+			n := atomic.AddInt32(&completed, 1)
+			status := "PASS"
+			if result.Score < 1 {
+				status = "FAIL"
+			}
+			fmt.Fprintf(sw, "  [%d/%d] %s  %s  %s\n", n, totalTests, status, result.ID, result.Name)
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return nil, nil, err
+	}
+
+	return readOutcomes, writeOutcomes, nil
 }
 
 func runReadTest(ctx context.Context, agent agentexam.Agent, spec string, test eligibleTest, timeout time.Duration, output io.Writer) (agentexam.Result, *failedTranscript) {

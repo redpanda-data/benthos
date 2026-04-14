@@ -1,0 +1,51 @@
+description: "Variables, scoping (statement write-through vs expression shadowing), copy-on-write"
+
+tests:
+  - name: "statement write-through and expression shadowing"
+    mapping: |
+      $x = "original"
+      if input.do_write {
+        $x = "written"
+      }
+      output.after_stmt = $x
+      output.from_expr = if true {
+        $x = "shadowed"
+        $x
+      }
+      output.after_expr = $x
+    cases:
+      - name: "write-through changes outer, shadow does not"
+        input: {"do_write": true}
+        output: {"after_stmt": "written", "from_expr": "shadowed", "after_expr": "written"}
+      - name: "no write-through, shadow still isolated"
+        input: {"do_write": false}
+        output: {"after_stmt": "original", "from_expr": "shadowed", "after_expr": "original"}
+
+  - name: "copy-on-write independence across variables and output"
+    mapping: |
+      $source = {"nested": {"val": input.start}}
+      $copy1 = $source
+      $copy2 = $source
+      $copy1.nested.val = "changed1"
+      $copy2.nested.val = "changed2"
+      output = input
+      output.name = "modified"
+      output.source_val = $source.nested.val
+      output.copy1_val = $copy1.nested.val
+      output.copy2_val = $copy2.nested.val
+      output.input_name = input.name
+    cases:
+      - name: "all copies are independent"
+        input: {"name": "Alice", "start": "original"}
+        output: {"name": "modified", "start": "original", "source_val": "original", "copy1_val": "changed1", "copy2_val": "changed2", "input_name": "Alice"}
+
+  - name: "variable reassignment, path creation, and void skip"
+    mapping: |
+      $v = 10
+      $v = $v + 5
+      $v = if false { 99 }
+      $obj = {}
+      $obj.a.b.c = "deep"
+      output.v = $v
+      output.deep = $obj.a.b.c
+    output: {"v": 15, "deep": "deep"}

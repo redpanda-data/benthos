@@ -43,10 +43,11 @@ type ScoringConfig struct {
 
 // PoolConfig defines a pool of agent runs for scoring.
 type PoolConfig struct {
-	Name    string        `yaml:"name"`
-	Agent   AgentConfig   `yaml:"agent"`
-	Runs    int           `yaml:"runs"`
-	Timeout time.Duration `yaml:"timeout"`
+	Name        string        `yaml:"name"`
+	Agent       AgentConfig   `yaml:"agent"`
+	Runs        int           `yaml:"runs"`
+	Timeout     time.Duration `yaml:"timeout"`
+	Concurrency int           `yaml:"concurrency"`
 }
 
 // AgentConfig describes an agent to construct.
@@ -110,6 +111,9 @@ func (c *Config) applyDefaults() {
 		}
 		if p.Timeout == 0 {
 			p.Timeout = 10 * time.Minute
+		}
+		if p.Concurrency < 1 {
+			p.Concurrency = 1
 		}
 		if p.Name == "" {
 			p.Name = p.Agent.Type

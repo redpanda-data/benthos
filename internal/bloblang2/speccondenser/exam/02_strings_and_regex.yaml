@@ -1,0 +1,43 @@
+description: "String methods, regex operations, sequence methods on strings, negative indexing"
+
+tests:
+  - name: "normalize and extract from strings"
+    mapping: |
+      $trimmed = input.raw.trim()
+      $lower = $trimmed.lowercase()
+      $parts = $lower.split("@")
+      $user = $parts[0]
+      $domain = $parts[1]
+      output.user = $user
+      output.domain = $domain
+      output.display = $user.uppercase().slice(0, 1) + $user.slice(1)
+      output.valid = $lower.re_match("^[a-z0-9.]+@[a-z0-9.]+$")
+      output.redacted = $lower.re_replace_all("[a-z]", "*")
+      output.has_dot = $user.contains(".")
+      output.length = $lower.length()
+      output.last_char = $lower[-1].char()
+      output.reversed_domain = $domain.reverse()
+    cases:
+      - name: "standard email"
+        input: {"raw": "  Alice.Smith@Example.COM  "}
+        output: {"user": "alice.smith", "domain": "example.com", "display": "Alice.smith", "valid": true, "redacted": "*****.*****@*******.***", "has_dot": true, "length": 23, "last_char": "m", "reversed_domain": "moc.elpmaxe"}
+      - name: "simple email"
+        input: {"raw": "bob@test.io"}
+        output: {"user": "bob", "domain": "test.io", "display": "Bob", "valid": true, "redacted": "***@****.**", "has_dot": false, "length": 11, "last_char": "o", "reversed_domain": "oi.tset"}
+
+  - name: "regex extraction and replacement"
+    mapping: |
+      $matches = input.text.re_find_all("[0-9]+")
+      output.numbers = $matches
+      output.count = $matches.length()
+      output.cleaned = input.text.re_replace_all("[0-9]+", "#")
+      output.has_prefix = input.text.has_prefix(input.prefix)
+      output.has_suffix = input.text.has_suffix(input.suffix)
+      output.replaced = input.text.replace_all(input.old, input.new)
+    cases:
+      - name: "text with numbers"
+        input: {"text": "order 42 has 3 items", "prefix": "order", "suffix": "items", "old": " ", "new": "_"}
+        output: {"numbers": ["42", "3"], "count": 2, "cleaned": "order # has # items", "has_prefix": true, "has_suffix": true, "replaced": "order_42_has_3_items"}
+      - name: "no numbers"
+        input: {"text": "hello world", "prefix": "hi", "suffix": "world", "old": "o", "new": "0"}
+        output: {"numbers": [], "count": 0, "cleaned": "hello world", "has_prefix": false, "has_suffix": true, "replaced": "hell0 w0rld"}
