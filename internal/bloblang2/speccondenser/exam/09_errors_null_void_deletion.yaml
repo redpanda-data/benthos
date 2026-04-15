@@ -1,38 +1,91 @@
 description: "Error catch/throw, or/not_null, null vs void, deletion, void with or/catch"
 
 tests:
-  - name: "error handling with catch, throw, and or"
+  - name: "catch handles errors"
     mapping: |
       output.safe_div = (input.a / input.b).catch(err -> -1)
       output.err_msg = (input.a / input.b).catch(err -> err.what)
-      output.thrown = throw("bad").catch(err -> "recovered: " + err.what)
-      output.no_err = "ok".catch(err -> "fallback")
-      output.chain = throw("a").catch(err -> throw("b")).catch(err -> err.what)
-      output.or_null = input.missing.or("default")
-      output.or_zero = (0).or("fallback")
-      output.not_null = input.missing.not_null().catch(err -> "was_null")
-      output.scoped = ((input.a / input.b).catch(err -> 42)).string()
     cases:
       - name: "division by zero triggers catch"
         input: {"a": 10, "b": 0}
-        output: {"safe_div": -1, "err_msg": "division by zero", "thrown": "recovered: bad", "no_err": "ok", "chain": "b", "or_null": "default", "or_zero": 0, "not_null": "was_null", "scoped": "42"}
-      - name: "no error path"
-        input: {"a": 10, "b": 2, "missing": "present"}
-        output: {"safe_div": 5.0, "err_msg": 5.0, "thrown": "recovered: bad", "no_err": "ok", "chain": "b", "or_null": "present", "or_zero": 0, "not_null": "present", "scoped": "5.0"}
+        output: {"safe_div": -1, "err_msg": "division by zero"}
+      - name: "no error passes through"
+        input: {"a": 10, "b": 2}
+        output: {"safe_div": 5.0, "err_msg": 5.0}
 
-  - name: "deletion and void semantics"
+  - name: "throw and catch chain"
+    mapping: |
+      output.recovered = throw("bad").catch(err -> "got: " + err.what)
+      output.chained = throw("a").catch(err -> throw("b")).catch(err -> err.what)
+      output.no_err = "ok".catch(err -> "fallback")
+    output: {"recovered": "got: bad", "chained": "b", "no_err": "ok"}
+
+  - name: "catch scope is full postfix chain"
+    mapping: |
+      output.scoped = ((input.a / input.b).catch(err -> 42)).string()
+      output.raw = (input.a / input.b).catch(err -> 42)
+    cases:
+      - name: "catch returns value, string converts it"
+        input: {"a": 10, "b": 0}
+        output: {"scoped": "42", "raw": 42}
+      - name: "no error, string converts result"
+        input: {"a": 10, "b": 2}
+        output: {"scoped": "5.0", "raw": 5.0}
+
+  - name: "or rescues null and void"
+    mapping: |
+      output.from_null = input.absent.or("fallback")
+      output.from_value = input.present.or("fallback")
+      output.from_zero = (0).or("fallback")
+    cases:
+      - name: "null field gets fallback, present field kept, zero kept"
+        input: {"present": "real"}
+        output: {"from_null": "fallback", "from_value": "real", "from_zero": 0}
+
+  - name: "not_null checks"
+    mapping: |
+      output.ok = input.val.not_null().catch(err -> "was_null")
+      output.type = input.val.type()
+    cases:
+      - name: "value exists"
+        input: {"val": "here"}
+        output: {"ok": "here", "type": "string"}
+      - name: "value is null"
+        input: {"val": null}
+        output: {"ok": "was_null", "type": "null"}
+
+  - name: "deleted removes output field"
     mapping: |
       output.a = 1
       output.b = 2
       output.c = 3
       output.b = deleted()
+    output: {"a": 1, "c": 3}
+
+  - name: "deleted in object literal omits entry"
+    mapping: |
+      output.obj = {"keep": 1, "drop": deleted(), "also": 3}
+      output.count = 2
+    output: {"obj": {"keep": 1, "also": 3}, "count": 2}
+
+  - name: "deleted in map lambda omits element"
+    mapping: |
       output.filtered = [1, 2, 3, 4, 5].map(x ->
         if x % 2 == 0 { deleted() } else { x * 10 }
       )
-      output.obj_del = {"keep": 1, "drop": deleted(), "also": 3}
+      output.count = 3
+    output: {"filtered": [10, 30, 50], "count": 3}
+
+  - name: "void from if-without-else preserves prior assignment"
+    mapping: |
       output.kept = "prior"
       output.kept = if false { "overwrite" }
+      output.other = "untouched"
+    output: {"kept": "prior", "other": "untouched"}
+
+  - name: "void rescued by or, void passes through catch"
+    mapping: |
       output.rescued = (if false { "hello" }).or("void_rescued")
-      output.void_catch = "original"
-      output.void_catch = (if false { 1 }).catch(err -> 99)
-    output: {"a": 1, "c": 3, "filtered": [10, 30, 50], "obj_del": {"keep": 1, "also": 3}, "kept": "prior", "rescued": "void_rescued", "void_catch": "original"}
+      output.pass_through = "original"
+      output.pass_through = (if false { 1 }).catch(err -> 99)
+    output: {"rescued": "void_rescued", "pass_through": "original"}

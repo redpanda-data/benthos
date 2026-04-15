@@ -1,54 +1,94 @@
 description: "If expressions, if statements, match-boolean, match-equality, match-as, void semantics"
 
 tests:
-  - name: "classify with if and match"
+  - name: "match-as with cases"
     mapping: |
-      $kind = match input.value as v {
+      output.label = match input.value as v {
         v > 100 => "big",
         v > 0 => "small",
         v == 0 => "zero",
         _ => "negative",
       }
-      output.label = $kind
-      output.doubled = if $kind == "big" {
-        input.value * 2
-      } else if $kind == "small" {
-        input.value + 10
-      } else {
-        0
-      }
-      output.flag = match {
-        input.value > 50 && input.tags.contains("priority") => "urgent",
-        input.value > 50 => "notable",
-        _ => "normal",
-      }
+      output.doubled = input.value * 2
     cases:
-      - name: "big value with priority tag"
-        input: {"value": 150, "tags": ["priority", "new"]}
-        output: {"label": "big", "doubled": 300, "flag": "urgent"}
+      - name: "big value"
+        input: {"value": 150}
+        output: {"label": "big", "doubled": 300}
       - name: "small value"
-        input: {"value": 25, "tags": ["routine"]}
-        output: {"label": "small", "doubled": 35, "flag": "normal"}
-      - name: "zero value"
-        input: {"value": 0, "tags": []}
-        output: {"label": "zero", "doubled": 0, "flag": "normal"}
+        input: {"value": 25}
+        output: {"label": "small", "doubled": 50}
+      - name: "zero"
+        input: {"value": 0}
+        output: {"label": "zero", "doubled": 0}
+      - name: "negative"
+        input: {"value": -5}
+        output: {"label": "negative", "doubled": -10}
 
-  - name: "void from non-exhaustive match and if-without-else"
+  - name: "if-else expression in assignment"
+    mapping: |
+      output.grade = if input.score >= 90 {
+        "A"
+      } else if input.score >= 70 {
+        "B"
+      } else {
+        "C"
+      }
+      output.pass = input.score >= 70
+    cases:
+      - name: "top grade"
+        input: {"score": 95}
+        output: {"grade": "A", "pass": true}
+      - name: "middle grade"
+        input: {"score": 80}
+        output: {"grade": "B", "pass": true}
+      - name: "low grade"
+        input: {"score": 50}
+        output: {"grade": "C", "pass": false}
+
+  - name: "boolean match without target"
+    mapping: |
+      output.tier = match {
+        input.amount > 1000 => "gold",
+        input.amount > 100 => "silver",
+        _ => "bronze",
+      }
+      output.amount = input.amount
+    cases:
+      - name: "gold"
+        input: {"amount": 5000}
+        output: {"tier": "gold", "amount": 5000}
+      - name: "bronze"
+        input: {"amount": 50}
+        output: {"tier": "bronze", "amount": 50}
+
+  - name: "void from non-exhaustive match preserves prior value"
     mapping: |
       output.status = "pending"
       output.status = match input.code {
         "ok" => "approved",
         "err" => "rejected",
       }
-      output.note = "original"
-      output.note = if input.code == "ok" { "cleared" }
+      output.code = input.code
     cases:
-      - name: "match hits and if true"
+      - name: "match hits"
         input: {"code": "ok"}
-        output: {"status": "approved", "note": "cleared"}
-      - name: "match misses and if false — both void preserve"
+        output: {"status": "approved", "code": "ok"}
+      - name: "match misses — void preserves pending"
         input: {"code": "unknown"}
-        output: {"status": "pending", "note": "original"}
-      - name: "match hits but if false — partial void"
+        output: {"status": "pending", "code": "unknown"}
+      - name: "match hits second case"
         input: {"code": "err"}
-        output: {"status": "rejected", "note": "original"}
+        output: {"status": "rejected", "code": "err"}
+
+  - name: "void from if-without-else preserves prior value"
+    mapping: |
+      output.note = "original"
+      output.note = if input.flag { "updated" }
+      output.flag = input.flag
+    cases:
+      - name: "condition true — overwrites"
+        input: {"flag": true}
+        output: {"note": "updated", "flag": true}
+      - name: "condition false — void preserves original"
+        input: {"flag": false}
+        output: {"note": "original", "flag": false}

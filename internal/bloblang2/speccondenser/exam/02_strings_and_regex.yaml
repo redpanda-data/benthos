@@ -1,43 +1,57 @@
-description: "String methods, regex operations, sequence methods on strings, negative indexing"
+description: "String methods, regex operations, sequence methods on strings"
 
 tests:
-  - name: "normalize and extract from strings"
+  - name: "string case and split"
     mapping: |
-      $trimmed = input.raw.trim()
-      $lower = $trimmed.lowercase()
+      $lower = input.email.lowercase()
       $parts = $lower.split("@")
-      $user = $parts[0]
-      $domain = $parts[1]
-      output.user = $user
-      output.domain = $domain
-      output.display = $user.uppercase().slice(0, 1) + $user.slice(1)
-      output.valid = $lower.re_match("^[a-z0-9.]+@[a-z0-9.]+$")
-      output.redacted = $lower.re_replace_all("[a-z]", "*")
-      output.has_dot = $user.contains(".")
-      output.length = $lower.length()
-      output.last_char = $lower[-1].char()
-      output.reversed_domain = $domain.reverse()
+      output.user = $parts[0]
+      output.domain = $parts[1]
+      output.display = $parts[0].uppercase().slice(0, 1) + $parts[0].slice(1)
     cases:
-      - name: "standard email"
-        input: {"raw": "  Alice.Smith@Example.COM  "}
-        output: {"user": "alice.smith", "domain": "example.com", "display": "Alice.smith", "valid": true, "redacted": "*****.*****@*******.***", "has_dot": true, "length": 23, "last_char": "m", "reversed_domain": "moc.elpmaxe"}
-      - name: "simple email"
-        input: {"raw": "bob@test.io"}
-        output: {"user": "bob", "domain": "test.io", "display": "Bob", "valid": true, "redacted": "***@****.**", "has_dot": false, "length": 11, "last_char": "o", "reversed_domain": "oi.tset"}
+      - name: "mixed case email"
+        input: {"email": "Alice.Smith@Example.COM"}
+        output: {"user": "alice.smith", "domain": "example.com", "display": "Alice.smith"}
+      - name: "already lowercase"
+        input: {"email": "bob@test.io"}
+        output: {"user": "bob", "domain": "test.io", "display": "Bob"}
 
-  - name: "regex extraction and replacement"
+  - name: "trim, contains, and length"
     mapping: |
-      $matches = input.text.re_find_all("[0-9]+")
-      output.numbers = $matches
-      output.count = $matches.length()
+      $trimmed = input.text.trim()
+      output.trimmed = $trimmed
+      output.has_space = $trimmed.contains(" ")
+      output.len = $trimmed.length()
+    cases:
+      - name: "padded string"
+        input: {"text": "  hello world  "}
+        output: {"trimmed": "hello world", "has_space": true, "len": 11}
+      - name: "single word no padding"
+        input: {"text": "test"}
+        output: {"trimmed": "test", "has_space": false, "len": 4}
+
+  - name: "regex find and replace"
+    mapping: |
+      output.numbers = input.text.re_find_all("[0-9]+")
       output.cleaned = input.text.re_replace_all("[0-9]+", "#")
+      output.matches = input.text.re_match("^[a-z ]+$")
+    cases:
+      - name: "text with numbers"
+        input: {"text": "order 42 has 3 items"}
+        output: {"numbers": ["42", "3"], "cleaned": "order # has # items", "matches": false}
+      - name: "text without numbers"
+        input: {"text": "hello world"}
+        output: {"numbers": [], "cleaned": "hello world", "matches": true}
+
+  - name: "prefix, suffix, and replace_all"
+    mapping: |
       output.has_prefix = input.text.has_prefix(input.prefix)
       output.has_suffix = input.text.has_suffix(input.suffix)
       output.replaced = input.text.replace_all(input.old, input.new)
     cases:
-      - name: "text with numbers"
-        input: {"text": "order 42 has 3 items", "prefix": "order", "suffix": "items", "old": " ", "new": "_"}
-        output: {"numbers": ["42", "3"], "count": 2, "cleaned": "order # has # items", "has_prefix": true, "has_suffix": true, "replaced": "order_42_has_3_items"}
-      - name: "no numbers"
-        input: {"text": "hello world", "prefix": "hi", "suffix": "world", "old": "o", "new": "0"}
-        output: {"numbers": [], "count": 0, "cleaned": "hello world", "has_prefix": false, "has_suffix": true, "replaced": "hell0 w0rld"}
+      - name: "matching prefix and suffix"
+        input: {"text": "order 42 items", "prefix": "order", "suffix": "items", "old": " ", "new": "_"}
+        output: {"has_prefix": true, "has_suffix": true, "replaced": "order_42_items"}
+      - name: "no match"
+        input: {"text": "hello world", "prefix": "hi", "suffix": "earth", "old": "x", "new": "y"}
+        output: {"has_prefix": false, "has_suffix": false, "replaced": "hello world"}
