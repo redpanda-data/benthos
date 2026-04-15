@@ -1,41 +1,70 @@
 description: "Object methods (keys, values, merge, without, map_entries, filter_entries), user-defined maps"
 
 tests:
-  - name: "object inspection and transformation"
+  - name: "merge and without"
     mapping: |
-      $merged = input.base.merge(input.overrides)
-      $filtered = $merged.filter_entries((k, v) -> v != null)
-      $cleaned = $filtered.without(input.remove)
-      output.keys = $cleaned.keys().sort()
-      output.has_name = $cleaned.has_key("name")
-      output.value_count = $cleaned.values().length()
-      output.uppered = $cleaned.map_entries((k, v) -> {
+      $merged = input.base.merge(input.extra)
+      $cleaned = $merged.without(input.remove)
+      output.result = $cleaned
+      output.key_count = $cleaned.keys().length()
+    cases:
+      - name: "merge overrides and remove key"
+        input: {"base": {"name": "Alice", "age": 30, "role": "dev"}, "extra": {"age": 31}, "remove": ["role"]}
+        output: {"result": {"name": "Alice", "age": 31}, "key_count": 2}
+      - name: "empty overrides"
+        input: {"base": {"x": "hello"}, "extra": {}, "remove": []}
+        output: {"result": {"x": "hello"}, "key_count": 1}
+
+  - name: "filter_entries removes null values"
+    mapping: |
+      $filtered = input.data.filter_entries((k, v) -> v != null)
+      output.result = $filtered
+      output.has_name = $filtered.has_key("name")
+    cases:
+      - name: "removes nulls, keeps others"
+        input: {"data": {"name": "Alice", "email": null, "age": 30}}
+        output: {"result": {"name": "Alice", "age": 30}, "has_name": true}
+
+  - name: "map_entries returns an object"
+    mapping: |
+      output.uppered = input.data.map_entries((k, v) -> {
         "key": k,
         "value": if v.type() == "string" { v.uppercase() } else { v },
       })
+      output.key_count = input.data.keys().length()
     cases:
-      - name: "merge with overrides, remove nulls and keys"
-        input: {"base": {"name": "Alice", "age": 30, "role": "dev"}, "overrides": {"age": 31, "email": null}, "remove": ["role"]}
-        output: {"keys": ["age", "name"], "has_name": true, "value_count": 2, "uppered": {"name": "ALICE", "age": 31}}
-      - name: "empty overrides"
-        input: {"base": {"x": "hello"}, "overrides": {}, "remove": []}
-        output: {"keys": ["x"], "has_name": false, "value_count": 1, "uppered": {"x": "HELLO"}}
+      - name: "uppercases string values, keeps numbers"
+        input: {"data": {"name": "alice", "age": 30}}
+        output: {"uppered": {"name": "ALICE", "age": 30}, "key_count": 2}
 
-  - name: "user-defined maps with params, defaults, named args, and hoisting"
+  - name: "map_values and map_keys"
+    mapping: |
+      output.doubled = {"a": 1, "b": 2}.map_values(v -> v * 2)
+      output.prefixed = {"x": 1, "y": 2}.map_keys(k -> "pre_" + k)
+    output: {"doubled": {"a": 2, "b": 4}, "prefixed": {"pre_x": 1, "pre_y": 2}}
+
+  - name: "user-defined maps with params and defaults"
     mapping: |
       output.greeting = greet(input.name)
       output.custom = greet(input.name, "Hi")
-      output.total = total(amount: input.price, tax_rate: input.tax)
-      output.named = sub(b: 3, a: 10)
       map greet(name, prefix = "Hello") {
         prefix + ", " + name + "!"
       }
-      map total(amount, tax_rate) {
-        $tax = amount * tax_rate
-        amount + $tax
-      }
-      map sub(a, b) { a - b }
     cases:
-      - name: "with defaults and named args"
-        input: {"name": "Bob", "price": 100, "tax": 0.2}
-        output: {"greeting": "Hello, Bob!", "custom": "Hi, Bob!", "total": 120.0, "named": 7}
+      - name: "default and custom prefix"
+        input: {"name": "Bob"}
+        output: {"greeting": "Hello, Bob!", "custom": "Hi, Bob!"}
+
+  - name: "named args and hoisting"
+    mapping: |
+      output.result = compute(b: 3, a: 10)
+      output.sum = compute(b: 3, a: 10) + compute(b: 0, a: 5)
+      map compute(a, b) { a - b }
+    output: {"result": 7, "sum": 12}
+
+  - name: "iter and collect round-trip"
+    mapping: |
+      $entries = {"x": 1, "y": 2}.iter()
+      output.collected = $entries.collect()
+      output.entry_count = $entries.length()
+    output: {"collected": {"x": 1, "y": 2}, "entry_count": 2}

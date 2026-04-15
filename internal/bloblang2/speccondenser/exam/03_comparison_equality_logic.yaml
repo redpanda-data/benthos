@@ -1,35 +1,48 @@
 description: "Comparison, equality, logical operators, short-circuit evaluation, null equality"
 
 tests:
-  - name: "combined comparison and logic with short-circuit"
+  - name: "numeric comparison and boolean logic"
     mapping: |
-      $in_range = input.value >= input.min && input.value <= input.max
-      $is_special = input.value == 0 || input.value == 100
-      $allow = $in_range && !$is_special
+      $in_range = input.val >= input.lo && input.val <= input.hi
+      $is_special = input.val == 0 || input.val == 100
       output.in_range = $in_range
       output.is_special = $is_special
-      output.allow = $allow
-      output.cmp_str = input.name > "M"
-      output.eq_null = input.opt == null
-      output.neq_type = input.value != input.name
+      output.allow = $in_range && !$is_special
     cases:
       - name: "in range and not special"
-        input: {"value": 50, "min": 0, "max": 100, "name": "Zara", "opt": null}
-        output: {"in_range": true, "is_special": false, "allow": true, "cmp_str": true, "eq_null": true, "neq_type": true}
-      - name: "special value at boundary"
-        input: {"value": 100, "min": 0, "max": 100, "name": "Alice", "opt": "present"}
-        output: {"in_range": true, "is_special": true, "allow": false, "cmp_str": false, "eq_null": false, "neq_type": true}
+        input: {"val": 50, "lo": 0, "hi": 100}
+        output: {"in_range": true, "is_special": false, "allow": true}
+      - name: "at special boundary"
+        input: {"val": 100, "lo": 0, "hi": 100}
+        output: {"in_range": true, "is_special": true, "allow": false}
       - name: "out of range"
-        input: {"value": -1, "min": 0, "max": 100, "name": "Bob", "opt": null}
-        output: {"in_range": false, "is_special": false, "allow": false, "cmp_str": false, "eq_null": true, "neq_type": true}
+        input: {"val": -1, "lo": 0, "hi": 100}
+        output: {"in_range": false, "is_special": false, "allow": false}
 
-  - name: "equality across types and collections"
+  - name: "string comparison is lexicographic"
+    mapping: |
+      output.gt = input.a > input.b
+      output.eq = input.a == input.b
+      output.lt = input.a < input.b
+    cases:
+      - name: "first is greater"
+        input: {"a": "Zara", "b": "Alice"}
+        output: {"gt": true, "eq": false, "lt": false}
+      - name: "first is less"
+        input: {"a": "Bob", "b": "Mike"}
+        output: {"gt": false, "eq": false, "lt": true}
+
+  - name: "cross-type equality and null"
     mapping: |
       output.num_promo = 5 == 5.0
       output.cross_type = "5" == 5
-      output.arr_order = [1, 2] == [2, 1]
-      output.arr_eq = [1, 2, 3] == [1, 2, 3]
-      output.obj_eq = {"a": 1, "b": 2} == {"b": 2, "a": 1}
       output.null_eq = null == null
       output.null_ne = null != false
-    output: {"num_promo": true, "cross_type": false, "arr_order": false, "arr_eq": true, "obj_eq": true, "null_eq": true, "null_ne": true}
+    output: {"num_promo": true, "cross_type": false, "null_eq": true, "null_ne": true}
+
+  - name: "structural equality"
+    mapping: |
+      output.arr_eq = [1, 2, 3] == [1, 2, 3]
+      output.arr_order = [1, 2] == [2, 1]
+      output.obj_eq = {"a": 1, "b": 2} == {"b": 2, "a": 1}
+    output: {"arr_eq": true, "arr_order": false, "obj_eq": true}
