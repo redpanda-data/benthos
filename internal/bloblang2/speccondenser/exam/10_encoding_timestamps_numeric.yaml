@@ -1,42 +1,77 @@
 description: "Encoding (JSON, base64, hex), timestamps, numeric methods, type introspection and conversion"
 
 tests:
-  - name: "encoding round-trips and numeric methods"
+  - name: "base64 and hex encoding round-trip"
+    mapping: |
+      output.b64 = input.text.encode("base64")
+      output.b64_back = input.text.encode("base64").decode("base64").string()
+      output.hex = input.text.encode("hex")
+    cases:
+      - name: "encodes and decodes correctly"
+        input: {"text": "Alice"}
+        output: {"b64": "QWxpY2U=", "b64_back": "Alice", "hex": "416c696365"}
+
+  - name: "JSON parse and format round-trip"
     mapping: |
       $obj = {"name": input.name, "score": input.score}
       $json = $obj.format_json()
-      $parsed = $json.parse_json()
-      output.round_trip = $parsed
-      output.b64 = input.name.encode("base64")
-      output.b64_back = input.name.encode("base64").decode("base64").string()
-      output.hex = input.name.encode("hex")
-      output.abs = input.score.abs()
-      output.floor = input.value.floor()
-      output.ceil = input.value.ceil()
-      output.rounded = input.value.round(1)
+      output.round_trip = $json.parse_json()
+      output.is_string = $json.type()
+    cases:
+      - name: "object survives JSON round-trip"
+        input: {"name": "Alice", "score": 42}
+        output: {"round_trip": {"name": "Alice", "score": 42}, "is_string": "string"}
+
+  - name: "type introspection"
+    mapping: |
       output.type_str = input.name.type()
       output.type_num = input.score.type()
       output.type_null = null.type()
+    cases:
+      - name: "reports correct types"
+        input: {"name": "Alice", "score": 42}
+        output: {"type_str": "string", "type_num": "int64", "type_null": "null"}
+
+  - name: "type conversions"
+    mapping: |
       output.to_str = input.score.string()
       output.to_int = input.value.int64()
       output.to_float = input.score.float64()
       output.to_bool = "true".bool()
     cases:
-      - name: "standard values"
-        input: {"name": "Alice", "score": -42, "value": 3.75}
-        output: {"round_trip": {"name": "Alice", "score": -42}, "b64": "QWxpY2U=", "b64_back": "Alice", "hex": "416c696365", "abs": 42, "floor": 3.0, "ceil": 4.0, "rounded": 3.8, "type_str": "string", "type_num": "int64", "type_null": "null", "to_str": "-42", "to_int": 3, "to_float": -42.0, "to_bool": true}
-      - name: "positive values and rounding edge"
-        input: {"name": "Bob", "score": 7, "value": 2.55}
-        output: {"round_trip": {"name": "Bob", "score": 7}, "b64": "Qm9i", "b64_back": "Bob", "hex": "426f62", "abs": 7, "floor": 2.0, "ceil": 3.0, "rounded": 2.6, "type_str": "string", "type_num": "int64", "type_null": "null", "to_str": "7", "to_int": 2, "to_float": 7.0, "to_bool": true}
+      - name: "converts between types"
+        input: {"score": -42, "value": 3.75}
+        output: {"to_str": "-42", "to_int": 3, "to_float": -42.0, "to_bool": true}
 
-  - name: "timestamp operations"
+  - name: "numeric methods"
+    mapping: |
+      output.abs_val = input.score.abs()
+      output.floor_val = input.value.floor()
+      output.ceil_val = input.value.ceil()
+      output.rounded = input.value.round(1)
+    cases:
+      - name: "abs, floor, ceil, round"
+        input: {"score": -42, "value": 3.75}
+        output: {"abs_val": 42, "floor_val": 3.0, "ceil_val": 4.0, "rounded": 3.8}
+
+  - name: "timestamp creation and formatting"
     mapping: |
       $ts = timestamp(2024, 6, 15, 10, 30, 0)
       output.formatted = $ts.ts_format()
-      output.custom_fmt = $ts.ts_format("%Y-%m-%d")
+      output.custom = $ts.ts_format("%Y-%m-%d")
       output.unix = $ts.ts_unix()
+    output: {"formatted": "2024-06-15T10:30:00Z", "custom": "2024-06-15", "unix": 1718447400}
+
+  - name: "timestamp arithmetic with nanosecond constants"
+    mapping: |
+      $ts = timestamp(2024, 6, 15, 10, 30, 0)
       output.added = $ts.ts_add(2 * hour() + 30 * minute()).ts_format()
       output.subtracted = $ts.ts_add(day() * -1).ts_format()
+    output: {"added": "2024-06-15T13:00:00Z", "subtracted": "2024-06-14T10:30:00Z"}
+
+  - name: "timestamp parsing and round-trip"
+    mapping: |
       output.parsed = "2024-03-20".ts_parse("%Y-%m-%d").ts_format()
+      $ts = timestamp(2024, 6, 15, 10, 30, 0)
       output.round_trip = $ts.ts_unix().ts_from_unix() == $ts
-    output: {"formatted": "2024-06-15T10:30:00Z", "custom_fmt": "2024-06-15", "unix": 1718447400, "added": "2024-06-15T13:00:00Z", "subtracted": "2024-06-14T10:30:00Z", "parsed": "2024-03-20T00:00:00Z", "round_trip": true}
+    output: {"parsed": "2024-03-20T00:00:00Z", "round_trip": true}

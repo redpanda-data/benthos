@@ -21,31 +21,40 @@ tests:
         input: {"do_write": false}
         output: {"after_stmt": "original", "from_expr": "shadowed", "after_expr": "original"}
 
-  - name: "copy-on-write independence across variables and output"
+  - name: "copy-on-write independence"
     mapping: |
-      $source = {"nested": {"val": input.start}}
-      $copy1 = $source
-      $copy2 = $source
-      $copy1.nested.val = "changed1"
-      $copy2.nested.val = "changed2"
-      output = input
-      output.name = "modified"
-      output.source_val = $source.nested.val
-      output.copy1_val = $copy1.nested.val
-      output.copy2_val = $copy2.nested.val
-      output.input_name = input.name
+      $src = {"val": input.start}
+      $copy = $src
+      $copy.val = "changed"
+      output.src_val = $src.val
+      output.copy_val = $copy.val
     cases:
-      - name: "all copies are independent"
-        input: {"name": "Alice", "start": "original"}
-        output: {"name": "modified", "start": "original", "source_val": "original", "copy1_val": "changed1", "copy2_val": "changed2", "input_name": "Alice"}
+      - name: "copies are independent"
+        input: {"start": "original"}
+        output: {"src_val": "original", "copy_val": "changed"}
 
-  - name: "variable reassignment, path creation, and void skip"
+  - name: "output = input copies whole document"
+    mapping: |
+      output = input
+      output.extra = "added"
+    cases:
+      - name: "all input fields preserved plus new field"
+        input: {"name": "Alice", "age": 30}
+        output: {"name": "Alice", "age": 30, "extra": "added"}
+
+  - name: "void skip on variable reassignment"
     mapping: |
       $v = 10
       $v = $v + 5
       $v = if false { 99 }
+      output.v = $v
+      output.type = $v.type()
+    output: {"v": 15, "type": "int64"}
+
+  - name: "auto-creation of nested paths"
+    mapping: |
       $obj = {}
       $obj.a.b.c = "deep"
-      output.v = $v
       output.deep = $obj.a.b.c
-    output: {"v": 15, "deep": "deep"}
+      output.parent = $obj.a.b
+    output: {"deep": "deep", "parent": {"c": "deep"}}

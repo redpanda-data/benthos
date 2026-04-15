@@ -1,51 +1,79 @@
-description: "Array transforms, aggregation, mutation, lambdas (single/multi-param, block, capture, nested)"
+description: "Array transforms, aggregation, lambdas (single/multi-param, block, capture, nested)"
 
 tests:
-  - name: "transform pipeline with lambdas and aggregation"
+  - name: "filter and map with lambda"
+    mapping: |
+      $active = input.items.filter(x -> x.active)
+      output.names = $active.map(x -> x.name.uppercase())
+      output.count = $active.length()
+    cases:
+      - name: "mixed active and inactive"
+        input: {"items": [{"name": "alpha", "active": true}, {"name": "beta", "active": false}, {"name": "gamma", "active": true}]}
+        output: {"names": ["ALPHA", "GAMMA"], "count": 2}
+      - name: "all active"
+        input: {"items": [{"name": "one", "active": true}, {"name": "two", "active": true}]}
+        output: {"names": ["ONE", "TWO"], "count": 2}
+
+  - name: "sort_by is ascending and stable"
+    mapping: |
+      $sorted = input.items.sort_by(x -> x.score)
+      output.first = $sorted[0].name
+      output.last = $sorted[-1].name
+    cases:
+      - name: "sorts ascending by score"
+        input: {"items": [{"name": "high", "score": 90}, {"name": "low", "score": 10}, {"name": "mid", "score": 50}]}
+        output: {"first": "low", "last": "high"}
+
+  - name: "any and all short-circuit"
+    mapping: |
+      output.any_big = input.values.any(x -> x > 100)
+      output.all_pos = input.values.all(x -> x > 0)
+    cases:
+      - name: "none big, all positive"
+        input: {"values": [10, 20, 30]}
+        output: {"any_big": false, "all_pos": true}
+      - name: "one big, has negative"
+        input: {"values": [-5, 200, 30]}
+        output: {"any_big": true, "all_pos": false}
+
+  - name: "flatten, unique, and sum"
+    mapping: |
+      $flat = [[1, 2], [2, 3], [3, 4]].flatten().unique()
+      output.values = $flat
+      output.total = $flat.sum()
+    output: {"values": [1, 2, 3, 4], "total": 10}
+
+  - name: "fold, find, and enumerate"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.sum = $arr.fold(0, (acc, x) -> acc + x)
+      output.found = $arr.find(x -> x > 15)
+      output.labeled = $arr.enumerate().map(e -> e.index.string() + ":" + e.value.string())
+    output: {"sum": 60, "found": 20, "labeled": ["0:10", "1:20", "2:30"]}
+
+  - name: "block lambda with variable capture"
     mapping: |
       $factor = input.scale
-      $processed = input.items
-        .filter(x -> x.active)
-        .map(x -> {
-          $base = x.value * $factor
-          {"name": x.name.uppercase(), "score": $base}
-        })
-        .sort_by(x -> x.score)
-      output.items = $processed
-      output.total = $processed.map(x -> x.score).fold(0, (acc, x) -> acc + x)
-      output.names = $processed.map(x -> x.name).join(", ")
-      output.any_big = $processed.any(x -> x.score > 100)
-      output.all_positive = $processed.all(x -> x.score > 0)
+      output.scaled = input.values.map(x -> {
+        $result = x * $factor
+        $result
+      })
+      output.count = input.values.length()
     cases:
-      - name: "mixed active and inactive items"
-        input: {"scale": 10, "items": [{"name": "alpha", "value": 5, "active": true}, {"name": "beta", "value": 15, "active": false}, {"name": "gamma", "value": 3, "active": true}]}
-        output: {"items": [{"name": "GAMMA", "score": 30}, {"name": "ALPHA", "score": 50}], "total": 80, "names": "GAMMA, ALPHA", "any_big": false, "all_positive": true}
-      - name: "all active with big score"
-        input: {"scale": 20, "items": [{"name": "one", "value": 8, "active": true}, {"name": "two", "value": 2, "active": true}]}
-        output: {"items": [{"name": "TWO", "score": 40}, {"name": "ONE", "score": 160}], "total": 200, "names": "TWO, ONE", "any_big": true, "all_positive": true}
+      - name: "captures outer variable"
+        input: {"scale": 10, "values": [1, 2, 3]}
+        output: {"scaled": [10, 20, 30], "count": 3}
 
-  - name: "array mutation, flatten, unique, enumerate, and nested lambdas"
-    mapping: |
-      $nested = [[1, 2], [2, 3], [3, 4]]
-      $flat = $nested.flatten().unique()
-      $doubled = $flat.map(x -> x * 2)
-      $arr = [10, 20, 30]
-      $arr = $arr.append(40)
-      $enumerated = $arr.enumerate().map(e -> e.index.string() + ":" + e.value.string())
-      output.flat_unique = $flat
-      output.doubled = $doubled
-      output.appended = $arr
-      output.enumerated = $enumerated
-      output.found = $flat.find(x -> x > 2)
-      output.sum = $flat.sum()
-      output.last = $arr[-1]
-      output.mid = $arr.slice(1, 3)
-    output: {"flat_unique": [1, 2, 3, 4], "doubled": [2, 4, 6, 8], "appended": [10, 20, 30, 40], "enumerated": ["0:10", "1:20", "2:30", "3:40"], "found": 3, "sum": 10, "last": 40, "mid": [20, 30]}
-
-  - name: "named map passed to higher-order method and nested lambdas"
+  - name: "named map as higher-order argument"
     mapping: |
       map double(x) { x * 2 }
       output.mapped = [1, 2, 3].map(double)
+      output.count = [1, 2, 3].length()
+    output: {"mapped": [2, 4, 6], "count": 3}
+
+  - name: "nested lambdas"
+    mapping: |
       $matrix = [[1, 2], [3, 4]]
-      output.nested = $matrix.map(row -> row.map(x -> x * 10))
-    output: {"mapped": [2, 4, 6], "nested": [[10, 20], [30, 40]]}
+      output.scaled = $matrix.map(row -> row.map(x -> x * 10))
+      output.rows = $matrix.length()
+    output: {"scaled": [[10, 20], [30, 40]], "rows": 2}

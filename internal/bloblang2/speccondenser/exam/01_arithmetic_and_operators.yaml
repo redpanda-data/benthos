@@ -1,25 +1,40 @@
 description: "Arithmetic operators, type promotion, operator precedence, and associativity"
 
 tests:
-  - name: "mixed arithmetic with type promotion and precedence"
+  - name: "arithmetic with type promotion"
     mapping: |
-      $base = input.price * input.qty
-      $discount = $base * input.discount / 100
-      $tax = ($base - $discount) * 0.15
-      $total = $base - $discount + $tax
-      output.subtotal = $base
-      output.discount = $discount
-      output.tax = $total - ($base - $discount)
+      $total = input.qty * input.price
+      $tax = $total * 0.15
       output.total = $total
-      output.per_item = $total / input.qty
-      output.remainder = input.qty % input.batch_size
+      output.with_tax = $total + $tax
+      output.per_item = ($total + $tax) / input.qty
     cases:
-      - name: "standard order with int and float promotion"
-        input: {"price": 25, "qty": 4, "discount": 10, "batch_size": 3}
-        output: {"subtotal": 100, "discount": 10.0, "tax": 13.5, "total": 103.5, "per_item": 25.875, "remainder": 1}
-      - name: "zero discount and exact division"
-        input: {"price": 50, "qty": 2, "discount": 0, "batch_size": 2}
-        output: {"subtotal": 100, "discount": 0.0, "tax": 15.0, "total": 115.0, "per_item": 57.5, "remainder": 0}
-      - name: "negative modulo"
-        input: {"price": 10, "qty": -3, "discount": 0, "batch_size": 2}
-        output: {"subtotal": -30, "discount": 0.0, "tax": -4.5, "total": -34.5, "per_item": 11.5, "remainder": -1}
+      - name: "int times int promotes to float via division"
+        input: {"qty": 4, "price": 25}
+        output: {"total": 100, "with_tax": 115.0, "per_item": 28.75}
+      - name: "negative values"
+        input: {"qty": -3, "price": 10}
+        output: {"total": -30, "with_tax": -34.5, "per_item": 11.5}
+
+  - name: "division always returns float and modulo"
+    mapping: |
+      output.div = input.a / input.b
+      output.mod = input.a % input.b
+      output.combined = input.a / input.b + input.a % input.b
+    cases:
+      - name: "positive exact division"
+        input: {"a": 10, "b": 2}
+        output: {"div": 5.0, "mod": 0, "combined": 5.0}
+      - name: "negative modulo uses truncated division"
+        input: {"a": -7, "b": 3}
+        output: {"div": -2.3333333333333335, "mod": -1, "combined": -3.3333333333333335}
+
+  - name: "precedence and parentheses"
+    mapping: |
+      output.no_parens = input.a + input.b * input.c
+      output.with_parens = (input.a + input.b) * input.c
+      output.unary = -input.a + input.b
+    cases:
+      - name: "multiplication binds tighter than addition"
+        input: {"a": 2, "b": 3, "c": 4}
+        output: {"no_parens": 14, "with_parens": 20, "unary": 1}

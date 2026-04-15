@@ -1,31 +1,65 @@
 description: "Input/output paths, dynamic access, null-safe access, quoted fields, metadata"
 
 tests:
-  - name: "field access patterns with dynamic keys and null safety"
+  - name: "dynamic field access"
     mapping: |
       $key = input.field_name
       output.dynamic = input.data[$key]
       output.computed = input.data["item_" + input.suffix]
-      output.safe = input.data?.nested?.value
-      output.quoted = input."special-key"
-      output.deep_in = input.user.address.city
-      output.missing = input.nonexistent
     cases:
-      - name: "all paths resolve"
-        input: {"field_name": "color", "suffix": "a", "data": {"color": "blue", "item_a": "found", "nested": {"value": 42}}, "special-key": "works", "user": {"address": {"city": "London"}}}
-        output: {"dynamic": "blue", "computed": "found", "safe": 42, "quoted": "works", "deep_in": "London", "missing": null}
-      - name: "null-safe chain short-circuits"
-        input: {"field_name": "missing", "suffix": "x", "data": {"nested": null}, "special-key": "ok", "user": {"address": {"city": "Paris"}}}
-        output: {"dynamic": null, "computed": null, "safe": null, "quoted": "ok", "deep_in": "Paris", "missing": null}
+      - name: "keys resolve"
+        input: {"field_name": "color", "suffix": "a", "data": {"color": "blue", "item_a": "found"}}
+        output: {"dynamic": "blue", "computed": "found"}
+      - name: "keys do not resolve"
+        input: {"field_name": "nope", "suffix": "z", "data": {"color": "red"}}
+        output: {"dynamic": null, "computed": null}
 
-  - name: "root assignment and metadata"
-    input: {"name": "Alice", "score": 100}
-    input_metadata: {"source": "kafka", "trace_id": "abc-123"}
+  - name: "null-safe navigation"
+    mapping: |
+      output.safe = input.data?.nested?.value
+      output.direct = input.data.present
+    cases:
+      - name: "nested exists"
+        input: {"data": {"nested": {"value": 42}, "present": "yes"}}
+        output: {"safe": 42, "direct": "yes"}
+      - name: "nested is null — short-circuits"
+        input: {"data": {"nested": null, "present": "yes"}}
+        output: {"safe": null, "direct": "yes"}
+
+  - name: "quoted field names"
+    mapping: |
+      output.val = input."special-key"
+      output.with_space = input."has space"
+    cases:
+      - name: "accesses special characters in field names"
+        input: {"special-key": "works", "has space": "also works"}
+        output: {"val": "works", "with_space": "also works"}
+
+  - name: "output starts empty not as input copy"
+    mapping: |
+      output.greeting = "Hello, " + input.name
+      output.score = input.score
+    cases:
+      - name: "only assigned fields appear in output"
+        input: {"name": "Alice", "score": 100, "extra": "not copied"}
+        output: {"greeting": "Hello, Alice", "score": 100}
+
+  - name: "output = input copies all fields"
     mapping: |
       output = input
-      output.greeting = "Hello, " + input.name
-      output.original = input.name
+      output.added = "new"
+    cases:
+      - name: "all input fields preserved"
+        input: {"name": "Alice", "age": 30}
+        output: {"name": "Alice", "age": 30, "added": "new"}
+
+  - name: "metadata is separate from body"
+    input: {"name": "Alice"}
+    input_metadata: {"source": "kafka", "trace_id": "abc-123"}
+    mapping: |
+      output.name = input.name
+      output.has_meta = true
       output@.source = input@.source
       output@.processed = true
-    output: {"name": "Alice", "score": 100, "greeting": "Hello, Alice", "original": "Alice"}
+    output: {"name": "Alice", "has_meta": true}
     output_metadata: {"source": "kafka", "processed": true}

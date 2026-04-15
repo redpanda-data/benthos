@@ -58,8 +58,10 @@ Here is the input document (as JSON):
 	}
 
 	b.WriteString(`
-Execute the mapping against the input and produce the output.
-Respond with ONLY the output value as JSON. Do not wrap it in any envelope or object structure. **IMPORTANT** Do not respond with anything other than the output!
+Execute the mapping against the input and produce the output document.
+The output document starts as an empty object {}. The mapping populates it via output assignments (e.g. "output.x = ..." creates a key "x" in the output document).
+Respond with the complete output document as JSON. For example, if the mapping does "output.x = 1" and "output.y = 2", respond with {"x":1,"y":2}.
+**IMPORTANT** Do not respond with anything other than the output document!
 Do not include any explanation, commentary, or code fences.
 `)
 
@@ -128,6 +130,7 @@ Here is the input document (as JSON):
 Write a mapping in this language that transforms the input into the expected output.
 The mapping operates on the document directly — "output" IS the document, not a wrapper around it.
 For example, if the input is null and the expected output is false, the correct mapping is simply: output = false
+Prefer assigning each output field on its own line (e.g. output.x = expr) rather than building a single large object literal.
 Respond with ONLY the mapping code. **IMPORTANT** Do not respond with anything other than the mapping!
 Do not include any explanation, commentary, or code fences.
 `)
@@ -193,6 +196,7 @@ func buildGroupWritePrompt(spec string, group writeTestGroup) (string, error) {
 	b.WriteString(`
 The mapping operates on the document directly — "output" IS the document, not a wrapper around it.
 For example, if the input is null and the expected output is false, the correct mapping is simply: output = false
+Prefer assigning each output field on its own line (e.g. output.x = expr) rather than building a single large object literal.
 Respond with ONLY the mapping code. **IMPORTANT** Do not respond with anything other than the mapping!
 Do not include any explanation, commentary, or code fences.
 `)
