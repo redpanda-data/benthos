@@ -25,6 +25,7 @@ type artifact struct {
 	OverallScore float64                   `json:"overall_score"`
 	ReadScore    float64                   `json:"read_score"`
 	WriteScore   float64                   `json:"write_score"`
+	DurationSecs float64                   `json:"duration_s"`
 	Categories   map[string]categoryScores `json:"categories"`
 }
 
@@ -81,6 +82,7 @@ type poolResult struct {
 	ReadResults       []agentexam.Result
 	WriteResults      []agentexam.Result
 	FailedTranscripts []failedTranscript
+	Duration          time.Duration
 }
 
 // testOutcome captures the result, any failed transcripts, and the buffered
@@ -155,6 +157,7 @@ func scorePool(
 	fmt.Fprintf(sw, "\n=== scoring pool: %s (%d run(s), concurrency=%d) ===\n",
 		poolCfg.Name, poolCfg.Runs, poolCfg.Concurrency)
 
+	poolStart := time.Now()
 	pr := poolResult{Name: poolCfg.Name}
 
 	for run := range poolCfg.Runs {
@@ -192,6 +195,7 @@ func scorePool(
 		}
 	}
 
+	pr.Duration = time.Since(poolStart)
 	return pr, nil
 }
 
@@ -487,6 +491,7 @@ func buildPoolArtifact(pr poolResult) artifact {
 		OverallScore: (readPct + writePct) / 2,
 		ReadScore:    readPct,
 		WriteScore:   writePct,
+		DurationSecs: pr.Duration.Seconds(),
 		Categories:   buildCategoryScores(pr.ReadResults, pr.WriteResults),
 	}
 }
@@ -546,8 +551,12 @@ func writeArtifact(baseDir, condensedSpec string, pools []poolResult) error {
 	if err != nil {
 		return fmt.Errorf("generating UUID: %w", err)
 	}
+	return writeArtifactTo(filepath.Join(baseDir, id), condensedSpec, pools)
+}
 
-	dir := filepath.Join(baseDir, id)
+// writeArtifactTo writes a complete artifact (condensed spec, results JSON,
+// and fail transcripts) to the given directory.
+func writeArtifactTo(dir, condensedSpec string, pools []poolResult) error {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
@@ -568,13 +577,16 @@ func writeArtifact(baseDir, condensedSpec string, pools []poolResult) error {
 
 	// Build aggregate across all pools.
 	var allRead, allWrite []agentexam.Result
+	var totalDuration time.Duration
 	for _, pr := range pools {
 		allRead = append(allRead, pr.ReadResults...)
 		allWrite = append(allWrite, pr.WriteResults...)
+		totalDuration += pr.Duration
 	}
 	aggregate := buildPoolArtifact(poolResult{
 		ReadResults:  allRead,
 		WriteResults: allWrite,
+		Duration:     totalDuration,
 	})
 
 	data, err := json.MarshalIndent(resultsFile{

@@ -34,6 +34,17 @@ type CondenseConfig struct {
 	// SpecFile is a path to a pre-condensed spec file. When set, the
 	// condense agent is skipped and this file is used directly for scoring.
 	SpecFile string `yaml:"spec_file"`
+
+	// Population is the number of competing condensed specs per generation.
+	// Default: 1.
+	Population int `yaml:"population"`
+
+	// Survivors is the number of top specs kept each generation. Must be
+	// <= Population. Default: 1.
+	Survivors int `yaml:"survivors"`
+
+	// Generations is the number of score-select-improve cycles. Default: 1.
+	Generations int `yaml:"generations"`
 }
 
 // ScoringConfig defines the inner scoring phase.
@@ -76,7 +87,20 @@ func loadConfig(path string) (*Config, error) {
 	}
 
 	cfg.applyDefaults()
+
+	if err := cfg.validateEvolution(); err != nil {
+		return nil, err
+	}
+
 	return &cfg, nil
+}
+
+func (c *Config) validateEvolution() error {
+	if c.Condense.Survivors > c.Condense.Population {
+		return fmt.Errorf("condense.survivors (%d) must be <= condense.population (%d)",
+			c.Condense.Survivors, c.Condense.Population)
+	}
+	return nil
 }
 
 func (c *Config) validate() error {
@@ -103,6 +127,15 @@ func (c *Config) applyDefaults() {
 	}
 	if c.Condense.Timeout == 0 {
 		c.Condense.Timeout = 60 * time.Minute
+	}
+	if c.Condense.Population < 1 {
+		c.Condense.Population = 1
+	}
+	if c.Condense.Survivors < 1 {
+		c.Condense.Survivors = 1
+	}
+	if c.Condense.Generations < 1 {
+		c.Condense.Generations = 1
 	}
 	for i := range c.Scoring.Pools {
 		p := &c.Scoring.Pools[i]
@@ -147,6 +180,15 @@ func buildAgent(cfg AgentConfig) (agentexam.Agent, error) {
 			c.Command = cfg.Command
 		}
 		return c, nil
+	case "openai":
+		o := &agents.OpenAI{
+			BaseURL: cfg.BaseURL,
+			Model:   cfg.Model,
+		}
+		if cfg.MaxTurns > 0 {
+			o.MaxTurns = cfg.MaxTurns
+		}
+		return o, nil
 	case "opencode":
 		o := &agents.OpenCode{
 			Model: cfg.Model,
@@ -156,6 +198,6 @@ func buildAgent(cfg AgentConfig) (agentexam.Agent, error) {
 		}
 		return o, nil
 	default:
-		return nil, fmt.Errorf("unknown agent type %q (use ollama, claude, or opencode)", cfg.Type)
+		return nil, fmt.Errorf("unknown agent type %q (use ollama, openai, claude, or opencode)", cfg.Type)
 	}
 }
