@@ -20,9 +20,17 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: speccondenser <config.yaml>\n       speccondenser example-config")
-		os.Exit(1)
+	if len(os.Args) < 2 || os.Args[1] == "-h" || os.Args[1] == "--help" || os.Args[1] == "help" {
+		fmt.Fprintln(os.Stderr, `Usage: speccondenser <config.yaml>
+       speccondenser example-config
+
+Commands:
+  <config.yaml>    Run the condenser with the given configuration file.
+  example-config   Print an annotated example configuration to stdout.`)
+		if len(os.Args) < 2 {
+			os.Exit(1)
+		}
+		return
 	}
 
 	if os.Args[1] == "example-config" {
@@ -90,9 +98,11 @@ func main() {
 		}
 	}
 
-	// Phase 1: Get the condensed spec — either from a file or by running
-	// the condense agent.
+	// Get the condensed spec and score it — either from a file (single
+	// score pass) or via the evolutionary loop (generate/score/improve).
 	var condensedSpec string
+	var poolResults []poolResult
+
 	if cfg.Condense.SpecFile != "" {
 		data, err := os.ReadFile(cfg.Condense.SpecFile)
 		if err != nil {
@@ -101,44 +111,22 @@ func main() {
 		}
 		condensedSpec = string(data)
 		fmt.Fprintf(os.Stderr, "using pre-condensed spec: %s (%d bytes)\n", cfg.Condense.SpecFile, len(condensedSpec))
-	} else {
-		condenseAgent, err := buildAgent(cfg.Condense.Agent)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error building condense agent: %v\n", err)
+
+		var scoreErr error
+		poolResults, scoreErr = scoreCondensedSpec(context.Background(), condensedSpec, tests, cfg.Scoring.Pools, output)
+		if scoreErr != nil {
+			fmt.Fprintf(os.Stderr, "error scoring: %v\n", scoreErr)
 			os.Exit(1)
 		}
-
-		exam, err := buildCondenseExam(specFiles, &condensedSpec)
+	} else {
+		var err error
+		condensedSpec, poolResults, err = runEvolution(
+			context.Background(), cfg, specFiles, tests, cfg.Scoring.Pools, output,
+		)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
-
-		opts := &agentexam.Options{
-			Agent:   condenseAgent,
-			Timeout: cfg.Condense.Timeout,
-			KeepDir: cfg.KeepDir,
-			Output:  output,
-		}
-
-		results, err := agentexam.Run(context.Background(), exam, opts)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error running condense exam: %v\n", err)
-			os.Exit(1)
-		}
-		if len(results) == 0 || results[0].Score < 1 {
-			fmt.Fprintln(os.Stderr, "error: condense exam failed — agent did not produce condensed_spec.md")
-			os.Exit(1)
-		}
-
-		fmt.Fprintf(os.Stderr, "condensed spec: %d bytes\n", len(condensedSpec))
-	}
-
-	// Phase 2: Score the condensed spec with each pool.
-	poolResults, err := scoreCondensedSpec(context.Background(), condensedSpec, tests, cfg.Scoring.Pools, output)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error scoring: %v\n", err)
-		os.Exit(1)
 	}
 
 	// Print results — one table per pool, then a comparison summary.
@@ -261,8 +249,11 @@ keep_dir: false
 # To skip condensing and use a pre-made spec file, set spec_file instead.
 condense:
   # spec_file: ./condensed_spec.md
+  # population: 1    # N: competing specs per generation
+  # survivors: 1     # M: top specs kept each generation (must be <= population)
+  # generations: 1   # X: score-select-improve cycles
   agent:
-    type: ollama          # ollama | claude | opencode
+    type: ollama          # ollama | openai | claude | opencode
     model: qwen3.5:latest
     # base_url: http://localhost:11434  # ollama only
     # max_turns: 200                    # ollama / claude
@@ -283,6 +274,15 @@ scoring:
       runs: 1            # number of times to run the full test suite
       timeout: 10m       # per-test timeout
       concurrency: 1     # max parallel agent calls (increase for faster runs)
+
+    # - name: llama-server
+    #   agent:
+    #     type: openai            # OpenAI-compatible API (llama-server, vLLM, etc.)
+    #     base_url: http://localhost:8080
+    #     model: my-model         # optional if server only serves one model
+    #   runs: 1
+    #   timeout: 10m
+    #   concurrency: 1
 
     # - name: claude-opus
     #   agent:
