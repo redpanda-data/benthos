@@ -551,12 +551,8 @@ func writeArtifact(baseDir, condensedSpec string, pools []poolResult) error {
 	if err != nil {
 		return fmt.Errorf("generating UUID: %w", err)
 	}
-	return writeArtifactTo(filepath.Join(baseDir, id), condensedSpec, pools)
-}
 
-// writeArtifactTo writes a complete artifact (condensed spec, results JSON,
-// and fail transcripts) to the given directory.
-func writeArtifactTo(dir, condensedSpec string, pools []poolResult) error {
+	dir := filepath.Join(baseDir, id)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}

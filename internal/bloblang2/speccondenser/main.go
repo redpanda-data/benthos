@@ -98,11 +98,9 @@ Commands:
 		}
 	}
 
-	// Get the condensed spec and score it — either from a file (single
-	// score pass) or via the evolutionary loop (generate/score/improve).
+	// Phase 1: Get the condensed spec — either from a file or by running
+	// the condense agent.
 	var condensedSpec string
-	var poolResults []poolResult
-
 	if cfg.Condense.SpecFile != "" {
 		data, err := os.ReadFile(cfg.Condense.SpecFile)
 		if err != nil {
@@ -111,22 +109,42 @@ Commands:
 		}
 		condensedSpec = string(data)
 		fmt.Fprintf(os.Stderr, "using pre-condensed spec: %s (%d bytes)\n", cfg.Condense.SpecFile, len(condensedSpec))
-
-		var scoreErr error
-		poolResults, scoreErr = scoreCondensedSpec(context.Background(), condensedSpec, tests, cfg.Scoring.Pools, output)
-		if scoreErr != nil {
-			fmt.Fprintf(os.Stderr, "error scoring: %v\n", scoreErr)
+	} else {
+		condenseAgent, err := buildAgent(cfg.Condense.Agent)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error building condense agent: %v\n", err)
 			os.Exit(1)
 		}
-	} else {
-		var err error
-		condensedSpec, poolResults, err = runEvolution(
-			context.Background(), cfg, specFiles, tests, cfg.Scoring.Pools, output,
-		)
+
+		exam, err := buildCondenseExam(specFiles, &condensedSpec)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %v\n", err)
 			os.Exit(1)
 		}
+
+		results, err := agentexam.Run(context.Background(), exam, &agentexam.Options{
+			Agent:   condenseAgent,
+			Timeout: cfg.Condense.Timeout,
+			KeepDir: cfg.KeepDir,
+			Output:  output,
+		})
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error running condense exam: %v\n", err)
+			os.Exit(1)
+		}
+		if len(results) == 0 || results[0].Score < 1 {
+			fmt.Fprintln(os.Stderr, "error: condense exam failed — agent did not produce condensed_spec.md")
+			os.Exit(1)
+		}
+
+		fmt.Fprintf(os.Stderr, "condensed spec: %d bytes\n", len(condensedSpec))
+	}
+
+	// Phase 2: Score the condensed spec with each pool.
+	poolResults, err := scoreCondensedSpec(context.Background(), condensedSpec, tests, cfg.Scoring.Pools, output)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error scoring: %v\n", err)
+		os.Exit(1)
 	}
 
 	// Print results — one table per pool, then a comparison summary.
@@ -249,9 +267,6 @@ keep_dir: false
 # To skip condensing and use a pre-made spec file, set spec_file instead.
 condense:
   # spec_file: ./condensed_spec.md
-  # population: 1    # N: competing specs per generation
-  # survivors: 1     # M: top specs kept each generation (must be <= population)
-  # generations: 1   # X: score-select-improve cycles
   agent:
     type: ollama          # ollama | openai | claude | opencode
     model: qwen3.5:latest
