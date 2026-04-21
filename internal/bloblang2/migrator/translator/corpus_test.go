@@ -83,11 +83,12 @@ func TestCorpusRegression(t *testing.T) {
 
 	stats.report(t)
 
-	// Corpus pass-rate floor. This pins progress: the rate should only ever
-	// move up. Raise this as translation rules improve. Counted passes
-	// include OK (exact output match) and Flagged (V1-V2 divergence the
-	// translator explicitly warned about) outcomes.
-	minPassRate := 0.75
+	// Corpus pass-rate floor. Counted passes include OK (exact output
+	// match) and Flagged (V1-V2 divergence the translator explicitly
+	// warned about) outcomes. Pin just below the current rate (0.997)
+	// so a real regression trips the gate; raise as remaining divergences
+	// get handled.
+	minPassRate := 0.99
 	if stats.runRate() < minPassRate {
 		t.Fatalf("corpus pass rate %.3f below floor %.3f", stats.runRate(), minPassRate)
 	}
