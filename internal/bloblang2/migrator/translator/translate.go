@@ -2,6 +2,7 @@ package translator
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/v1ast"
@@ -34,11 +35,13 @@ type translator struct {
 // pushThisRebind makes V1 `this` translate to the given V2 identifier name
 // (typically a map parameter) while the callback is active.
 func (t *translator) pushThisRebind(name string) { t.thisRebindStack = append(t.thisRebindStack, name) }
+
 func (t *translator) popThisRebind() {
 	if n := len(t.thisRebindStack); n > 0 {
 		t.thisRebindStack = t.thisRebindStack[:n-1]
 	}
 }
+
 func (t *translator) currentThisRebind() (string, bool) {
 	if n := len(t.thisRebindStack); n > 0 {
 		return t.thisRebindStack[n-1], true
@@ -269,6 +272,7 @@ func (t *translator) translateIfStmt(i *v1ast.IfStmt) syntax.Stmt {
 	t.rec.Exact()
 	out := &syntax.IfStmt{TokenPos: pos(i.Pos)}
 	for _, br := range i.Branches {
+		t.flagBranchLets(br.Body)
 		cond := t.translateExpr(br.Cond)
 		body := t.translateStmts(br.Body)
 		if cond == nil {
@@ -277,9 +281,33 @@ func (t *translator) translateIfStmt(i *v1ast.IfStmt) syntax.Stmt {
 		out.Branches = append(out.Branches, syntax.IfBranch{Cond: cond, Body: body})
 	}
 	if i.Else != nil {
+		t.flagBranchLets(i.Else)
 		out.Else = t.translateStmts(i.Else)
 	}
 	return out
+}
+
+// flagBranchLets emits a SemanticChange for any `let` at the top of an
+// if/else branch body. V1 leaks the binding into the enclosing mapping
+// scope; V2 confines it to the branch. If the binding is referenced outside
+// the branch the V2 output won't compile — we flag unconditionally so the
+// divergence is surfaced whether or not that reference exists.
+func (t *translator) flagBranchLets(body []v1ast.Stmt) {
+	for _, s := range body {
+		l, ok := s.(*v1ast.LetStmt)
+		if !ok {
+			continue
+		}
+		p := l.NodePos()
+		t.rec.Note(Change{
+			Line: p.Line, Column: p.Column,
+			Severity:    SeverityWarning,
+			Category:    CategorySemanticChange,
+			RuleID:      RuleBlockScopedLet,
+			SpecRef:     "§11",
+			Explanation: "V1 let-bindings leak out of if/else branches; V2 scopes them per block. Move this declaration to the outer scope if the variable is used after the branch.",
+		})
+	}
 }
 
 // translateStmts maps a slice of V1 statements to V2.
@@ -664,7 +692,7 @@ func (t *translator) translateLiteral(l *v1ast.Literal) syntax.Expr {
 		}
 	case v1ast.LitInt:
 		out.TokenType = syntax.INT
-		out.Value = fmt.Sprintf("%d", l.Int)
+		out.Value = strconv.FormatInt(l.Int, 10)
 	case v1ast.LitFloat:
 		out.TokenType = syntax.FLOAT
 		if l.Raw != "" {
@@ -728,6 +756,7 @@ func (t *translator) translateBinary(b *v1ast.BinaryExpr) syntax.Expr {
 		})
 		return nil
 	}
+	t.flagOperatorDivergence(b)
 	t.rec.Exact()
 	return &syntax.BinaryExpr{Left: left, Op: op, OpPos: pos(b.OpPos), Right: right}
 }
@@ -812,17 +841,17 @@ func (t *translator) translateFieldAccess(f *v1ast.FieldAccess) syntax.Expr {
 }
 
 // objectLikeReceiver returns true if the V2 receiver expression is guaranteed
-// (or very likely) to evaluate to an object. Currently we treat input/output
-// references and their chained field accesses as object-like (the common
-// case); method-call and index-expression results are NOT object-guaranteed.
+// (or very likely) to evaluate to an object. We treat input/output roots and
+// their chained field accesses as object-like — the common case where V1 and
+// V2 agree. Variables, idents, method-call results, and index expressions are
+// NOT object-guaranteed: V1 returns null for field access on scalars, V2
+// errors, and without static type info we can't tell.
 func objectLikeReceiver(e syntax.Expr) bool {
 	switch r := e.(type) {
 	case *syntax.InputExpr, *syntax.OutputExpr, *syntax.InputMetaExpr, *syntax.OutputMetaExpr:
 		return true
 	case *syntax.FieldAccessExpr:
 		return objectLikeReceiver(r.Receiver)
-	case *syntax.VarExpr, *syntax.IdentExpr:
-		return true
 	}
 	return false
 }
@@ -863,6 +892,54 @@ func (t *translator) translateMethodCall(m *v1ast.MethodCall) syntax.Expr {
 
 // translateFunctionCall rewrites top-level `name(args)` calls.
 func (t *translator) translateFunctionCall(f *v1ast.FunctionCall) syntax.Expr {
+	// V1 `nothing()` is a sentinel that produces the "skip assignment"
+	// value. V2 expresses the same idea via the void type (no literal
+	// spelling — produced by an if-without-else whose condition is false).
+	// Rewrite `nothing()` to `if false { null }` so downstream assignments
+	// are skipped as they were in V1.
+	// V1 `parse_json` / `parse_yaml` return all numbers as float64; V2
+	// distinguishes int64 and float64 based on the serialised form.
+	// Downstream code that branches on .type() or compares types will
+	// diverge.
+	if f.Name == "parse_json" || f.Name == "parse_yaml" {
+		t.rec.Note(Change{
+			Line: f.NamePos.Line, Column: f.NamePos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§13",
+			Explanation: "V1 " + f.Name + "() returns all numbers as float64; V2 distinguishes int64 and float64 by serialised form",
+		})
+	}
+	// V1 `deleted()` as a top-level assignment marker has overlapping but
+	// distinct V2 semantics: V2 rejects it in some positions where V1
+	// silently accepted (e.g. variable assignment, comparison, method
+	// receiver). Flag so divergences surface.
+	if f.Name == "deleted" && len(f.Args) == 0 && !f.Named {
+		t.rec.Note(Change{
+			Line: f.NamePos.Line, Column: f.NamePos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§7.3",
+			Explanation: "V1 deleted() is widely tolerated; V2 errors when deleted() appears in variable assignments, comparisons, or as a method receiver",
+		})
+	}
+	if f.Name == "nothing" && len(f.Args) == 0 && !f.Named {
+		t.rec.Rewritten(Change{
+			Line: f.NamePos.Line, Column: f.NamePos.Column,
+			Severity:    SeverityInfo,
+			Category:    CategoryIdiomRewrite,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§14#36",
+			Explanation: "V1 `nothing()` sentinel rewritten as V2 void-producing `if false { null }`",
+		})
+		return &syntax.IfExpr{
+			TokenPos: pos(f.NamePos),
+			Branches: []syntax.IfExprBranch{{
+				Cond: &syntax.LiteralExpr{TokenPos: pos(f.NamePos), TokenType: syntax.FALSE, Value: "false"},
+				Body: &syntax.ExprBody{Result: &syntax.LiteralExpr{TokenPos: pos(f.NamePos), TokenType: syntax.NULL, Value: "null"}},
+			}},
+		}
+	}
 	args := t.translateArgs(f.Args)
 	t.rec.Exact()
 	return &syntax.CallExpr{
@@ -882,7 +959,7 @@ func (t *translator) translateMetaCall(m *v1ast.MetaCall) syntax.Expr {
 	t.rec.Rewritten(Change{
 		Line: m.TokPos.Line, Column: m.TokPos.Column,
 		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
-		RuleID: RuleMetaReadToInputMeta,
+		RuleID:      RuleMetaReadToInputMeta,
 		Explanation: "meta(expr) read rewritten as input@[expr]",
 	})
 	return &syntax.IndexExpr{
@@ -976,6 +1053,16 @@ func (t *translator) translateMatchExpr(m *v1ast.MatchExpr) syntax.Expr {
 		out.Subject = t.translateExpr(m.Subject)
 	}
 	for _, c := range m.Cases {
+		if lit, ok := c.Pattern.(*v1ast.Literal); ok && lit.Kind == v1ast.LitBool {
+			t.rec.Note(Change{
+				Line: lit.TokPos.Line, Column: lit.TokPos.Column,
+				Severity:    SeverityWarning,
+				Category:    CategorySemanticChange,
+				RuleID:      RuleMethodDoesNotExist,
+				SpecRef:     "§8",
+				Explanation: "V1 allows a boolean literal as a match case pattern (equality match); V2 rejects this — rewrite using `as` binding or an explicit boolean condition.",
+			})
+		}
 		mc := syntax.MatchCase{Wildcard: c.Wildcard}
 		if c.Pattern != nil {
 			mc.Pattern = t.translateExpr(c.Pattern)
@@ -1037,6 +1124,41 @@ func (t *translator) translatePathSegments(segs []v1ast.PathSegment) []syntax.Pa
 // package.
 func pos(p v1ast.Pos) syntax.Pos {
 	return syntax.Pos{Line: p.Line, Column: p.Column}
+}
+
+// flagOperatorDivergence records SemanticChange Notes for V1 binary operators
+// whose V2 behaviour differs on non-trivial operands. These are fire-
+// unconditionally diagnostics — V2 is stricter than V1 about types, so any
+// arithmetic/logical op that reaches non-primitive operands at runtime may
+// diverge. We record the divergence per operator kind (skip comparison and
+// equality, which are stricter in V2 but already flagged elsewhere).
+func (t *translator) flagOperatorDivergence(b *v1ast.BinaryExpr) {
+	switch b.Op {
+	case v1ast.TokAnd, v1ast.TokOr:
+		t.rec.Note(Change{
+			Line: b.OpPos.Line, Column: b.OpPos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleAndOrSameLevel,
+			SpecRef:     "§14#6",
+			Explanation: "V1 &&/|| coerce non-boolean operands; V2 requires boolean operands and errors otherwise",
+		})
+	case v1ast.TokPlus:
+		t.rec.Note(Change{
+			Line: b.OpPos.Line, Column: b.OpPos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§14#41",
+			Explanation: "V1 + concatenates bytes-to-string and string-to-bytes; V2 is type-strict",
+		})
+	case v1ast.TokPercent:
+		t.rec.Note(Change{
+			Line: b.OpPos.Line, Column: b.OpPos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleModuloFloatTruncation,
+			SpecRef:     "§14#39",
+			Explanation: "V1 % silently truncates float operands to int64 before mod; V2 uses fmod and preserves float64",
+		})
+	}
 }
 
 // mapV1BinaryOp maps a V1 binary operator token kind to its V2 TokenType
