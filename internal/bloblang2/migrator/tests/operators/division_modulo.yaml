@@ -1,0 +1,123 @@
+description: >
+  Division and modulo semantics — division always produces float,
+  modulo uses truncated division (fmod) semantics, division by zero
+  errors, and negative zero handling.
+
+tests:
+  # --- Division always produces float ---
+
+  - name: "integer / integer produces float"
+    mapping: |
+      root.v = 7 / 2
+    output: {"v": 3.5}
+
+  - name: "even integer division produces float"
+    mapping: |
+      root.v = 6 / 2
+    output: {"v": 3.0}
+
+  - name: "large integer division produces float"
+    mapping: |
+      root.v = 1000000 / 3
+    output: {"v": 333333.33333333331}
+
+  - name: "float / float produces float"
+    mapping: |
+      root.v = 7.5 / 2.5
+    output: {"v": 3.0}
+
+  - name: "integer / float produces float"
+    mapping: |
+      root.v = 10 / 2.5
+    output: {"v": 4.0}
+
+  - name: "float / integer produces float"
+    mapping: |
+      root.v = 7.5 / 3
+    output: {"v": 2.5}
+
+  # --- Division by zero ---
+
+  - name: "integer division by zero is error"
+    mapping: |
+      root.v = this.a / this.b
+    input: {"a": 5, "b": 0}
+    error: "divide by zero" # V1 constant-folds literal `/ 0` at compile time, so use runtime operands
+
+  - name: "float division by zero is error"
+    mapping: |
+      root.v = this.a / this.b
+    input: {"a": 5.0, "b": 0.0}
+    error: "divide by zero" # V1 constant-folds literal `/ 0.0` at compile time, so use runtime operands
+
+  - name: "zero divided by zero is error"
+    mapping: |
+      root.v = this.a / this.b
+    input: {"a": 0, "b": 0}
+    error: "divide by zero" # V1 constant-folds literal `0 / 0` at compile time, so use runtime operands
+
+  # --- Modulo (V1 requires integer operands) ---
+
+  - name: "integer modulo"
+    mapping: |
+      root.v = 7 % 3
+    output: {"v": 1}
+
+  - name: "integer modulo evenly divisible"
+    mapping: |
+      root.v = 9 % 3
+    output: {"v": 0}
+
+  - name: "negative dividend modulo (truncated division)"
+    mapping: |
+      root.v = -7 % 3
+    output: {"v": -1}
+
+  - name: "negative divisor modulo"
+    mapping: |
+      root.v = 7 % -3
+    output: {"v": 1}
+
+  - name: "both negative modulo"
+    mapping: |
+      root.v = -7 % -3
+    output: {"v": -1}
+
+  - name: "float modulo (fmod semantics)"
+    mapping: |
+      root.v = 7.5 % 2.5
+    output: {"v": 1} # V1: silently truncates float operands to int64 (7 % 2 = 1)
+
+  - name: "float modulo with remainder"
+    mapping: |
+      root.v = 7.0 % 2.5
+    output: {"v": 1} # V1: silently truncates float operands to int64 (7 % 2 = 1)
+
+  - name: "negative float modulo"
+    mapping: |
+      root.v = -7.5 % 2.5
+    output: {"v": -1} # V1: silently truncates float operands to int64 (-7 % 2 = -1)
+
+  - name: "modulo by zero is error"
+    mapping: |
+      root.v = this.a % this.b
+    input: {"a": 5, "b": 0}
+    error: "divide by zero" # V1 constant-folds literal `% 0` at compile time, so use runtime operands
+
+  - name: "float modulo by zero is error"
+    mapping: |
+      root.v = this.a % this.b
+    input: {"a": 5.0, "b": 0.0}
+    error: "divide by zero" # V1 truncates floats to int, then divide-by-zero at runtime
+
+  # --- Negative zero ---
+
+  - name: "negative zero equals positive zero"
+    mapping: |
+      root.v = -0.0 == 0.0
+    output: {"v": true}
+
+  - name: "negative zero is not less than positive zero"
+    mapping: |
+      root.v = -0.0 < 0.0
+    output: {"v": false}

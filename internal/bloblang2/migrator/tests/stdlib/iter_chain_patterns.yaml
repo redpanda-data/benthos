@@ -1,0 +1,63 @@
+description: >
+  Iterator chain patterns — complex combinations of .iter(), .map(),
+  .filter(), .fold(), .map_entries(), .map_values() with nested lambdas,
+  outer variable capture, and control flow inside lambda bodies.
+
+tests:
+  # --- iter + fold to rebuild object ---
+
+  - name: "iter then fold to filter and rebuild object"
+    skip: "V1 has no iter() method and no block-body lambdas with let"
+
+  - name: "iter then map then fold"
+    skip: "V1 has no iter() method and no block-body lambdas with let"
+
+  # --- map_entries with complex lambda ---
+
+  - name: "map_entries with if in lambda body"
+    skip: "V1 has no map_entries method"
+
+  - name: "map_entries with block body and local variables"
+    skip: "V1 has no map_entries method and no block-body lambdas"
+
+  # --- filter + map + sort chain ---
+
+  - name: "filter then map then sort"
+    mapping: |
+      root.v = [5, -3, 8, -1, 4, -6].filter(x -> x > 0).map_each(x -> x * x).sort()
+    output: {"v": [16, 25, 64]}
+
+  # --- map with outer capture + dynamic path ---
+
+  - name: "map with outer capture building objects"
+    skip: "V1 has no block-body lambdas with let/dynamic-key writes"
+
+  # --- Nested map operations ---
+
+  - name: "map_values calling map on inner arrays"
+    skip: "V1 has no map_values method"
+
+  - name: "map_values with fold on inner arrays"
+    skip: "V1 has no map_values method"
+
+  # --- Combined filter_entries and map_values ---
+
+  - name: "filter_entries then map_values chain"
+    skip: "V1 has no filter_entries/map_values methods"
+
+  # --- map producing objects then collect ---
+
+  - name: "map to key-value then collect"
+    skip: "V1 has no collect method"
+
+  # --- Chained any/all after transform ---
+
+  - name: "map then any"
+    mapping: |
+      root.v = [1, 2, 3, 4, 5].map_each(x -> x * x).any(sq -> sq > 20)
+    output: {"v": true}
+
+  - name: "filter then all"
+    mapping: |
+      root.v = [2, 4, 6, 8, 10].filter(x -> x > 3).all(x -> x % 2 == 0)
+    output: {"v": true}

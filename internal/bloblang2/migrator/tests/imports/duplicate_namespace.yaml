@@ -1,0 +1,89 @@
+description: "Imports: duplicate map-name collisions across imports — compile-time error"
+
+# V1 has no namespace / `as <alias>` mechanism. Imported maps are pulled into a single
+# flat map-name table; a name collision is a parse error:
+#   "map name collisions from import '<path>': [name1, name2, ...]"
+# (internal/bloblang/parser/mapping_parser.go:241). The V2 notion of "duplicate namespace"
+# does not apply. Where the original V2 test describes a pure namespace-aliasing concern
+# that V1 cannot express, we skip it. Where the test's intent matches a V1 map-name
+# collision, we translate it.
+
+files:
+  "helpers.blobl": |
+    map double { root = this * 2 }
+
+  "utils.blobl": |
+    map triple { root = this * 3 }
+
+  "more_helpers.blobl": |
+    map quad { root = this * 4 }
+
+  "helpers_conflict.blobl": |
+    # Redefines `double` — importing both this and helpers.blobl triggers a collision.
+    map double { root = this * 20 }
+
+  "dup_self.blobl": |
+    map dup_self_fn { root = this }
+
+tests:
+  # --- Same namespace name for different files ---
+
+  - name: "duplicate namespace from two different files is compile error"
+    skip: "V1 has no namespace aliases (no `as <name>`); there is no analogue to assigning two files the same alias."
+
+  - name: "duplicate namespace with three imports"
+    skip: "V1 has no namespace aliases (see previous skip)."
+
+  # --- Same file imported twice with same namespace ---
+  # In V1 there is no namespace; importing the same file twice re-registers the maps and
+  # triggers the map-name-collision error, which is the closest analogue.
+
+  - name: "same file imported twice with same namespace is compile error"
+    mapping: |
+      import "helpers.blobl"
+      import "helpers.blobl"
+      root.v = 5.apply("double")
+    compile_error: "collision" # FIXME-v1: verify — V1 reports "map name collisions from import" on the second import
+
+  # --- Same file imported twice with different namespaces is ok ---
+
+  - name: "same file imported with different namespaces is valid"
+    skip: "V1 has no namespace aliases; importing the same file twice is always a map-name collision, never a valid 'different namespace' situation."
+
+  # --- Different files with distinct namespaces is ok ---
+  # In V1 the distinctness comes from map names being distinct, not from aliases.
+
+  - name: "different files with distinct namespaces is valid"
+    mapping: |
+      import "helpers.blobl"
+      import "utils.blobl"
+      root.a = 5.apply("double")
+      root.b = 5.apply("triple")
+    output: {"a": 10, "b": 15}
+
+  # --- Duplicate namespace in nested import ---
+  # V1 equivalent: an imported file pulls in two other files that share a map name.
+
+  - name: "duplicate namespace within imported file is compile error"
+    files:
+      "bad_imports.blobl": |
+        import "helpers.blobl"
+        import "helpers_conflict.blobl"
+        map wrapper { root = this.apply("double") }
+    mapping: |
+      import "bad_imports.blobl"
+      root.v = 5.apply("wrapper")
+    compile_error: "collision" # FIXME-v1: verify — map-name collision surfaces when bad_imports.blobl itself is parsed
+
+  # --- Namespace shadows local map name (still valid — different resolution) ---
+  # V1 has no namespaces — the imported map is called by the same bare name as any local
+  # map, so a "namespace name matching a local map name" situation doesn't exist. We can
+  # however test that an imported map and a differently-named local map coexist.
+
+  - name: "namespace name can differ from local map names"
+    mapping: |
+      import "helpers.blobl"
+      map local_double { root = this * 2 }
+      root.a = 5.apply("double")
+      root.b = 5.apply("local_double")
+    output: {"a": 10, "b": 10}

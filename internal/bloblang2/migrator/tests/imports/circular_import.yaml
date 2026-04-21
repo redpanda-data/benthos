@@ -1,0 +1,54 @@
+description: "Imports: circular import detection — compile-time error"
+
+# V1 does not have a dedicated "circular import" detector. The importer recursively
+# parses each imported file (`importParser` in `internal/bloblang/parser/mapping_parser.go`)
+# and reports map-name collisions as parse errors. A genuine cycle (A imports B imports A)
+# would either recurse until an OS/Go stack overflow, or surface as a duplicate-name
+# collision, depending on the order in which maps are registered.
+#
+# The V2 semantic of a clean, named "circular import" error is not reproducible in V1 in
+# a portable way, so most tests here are skipped. Where the V2 test happens to correspond
+# to a V1 duplicate-map-name situation we translate it; otherwise we skip.
+
+files:
+  "leaf.blobl": |
+    map leaf_fn { root = this * 2 }
+
+  "mid.blobl": |
+    import "leaf.blobl"
+    map mid_fn { root = this.apply("leaf_fn") + 1 }
+
+tests:
+  # --- Direct circular import (A -> B -> A) ---
+
+  - name: "direct circular import is compile error"
+    skip: "V1 has no circular-import detector; the importer recurses until stack overflow or a duplicate-map-name collision. Behaviour is not a stable 'circular' error."
+
+  - name: "circular import detected from other entry point"
+    skip: "V1 has no circular-import detector (see previous skip)."
+
+  # --- Transitive circular import (A -> B -> C -> A) ---
+
+  - name: "transitive circular import is compile error"
+    skip: "V1 has no circular-import detector; transitive cycles produce undefined behaviour."
+
+  - name: "transitive circular from middle entry point"
+    skip: "V1 has no circular-import detector (see previous skip)."
+
+  # --- Self-import ---
+
+  - name: "self-import is compile error"
+    skip: "V1 has no circular-import detector; a file that imports itself recurses until overflow or name collision."
+
+  # --- Main file importing itself ---
+
+  - name: "main file importing file that imports back is circular"
+    skip: "V1 has no circular-import detector (see previous skips)."
+
+  # --- Non-circular is fine (control test) ---
+
+  - name: "non-circular chain compiles successfully"
+    mapping: |
+      import "mid.blobl"
+      root.v = 5.apply("mid_fn")
+    output: {"v": 11}

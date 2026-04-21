@@ -1,0 +1,274 @@
+description: "Type conversion methods: .string(), .int32(), .int64(), .uint32(), .uint64(), .float32(), .float64(), .bool(), .char(), .bytes()"
+
+tests:
+  # --- .string() ---
+
+  - name: "string from int64"
+    mapping: |
+      root = 42.string()
+    output: "42"
+
+  - name: "string from negative int64"
+    mapping: |
+      root = (-100).string()
+    output: "-100"
+
+  - name: "string from float64"
+    mapping: |
+      root = 3.14.string()
+    output: "3.14"
+
+  - name: "string from float64 whole number"
+    mapping: |
+      root = 5.0.string()
+    output: "5"
+
+  - name: "string from negative zero"
+    skip: "V2-only _type negative-zero literal shorthand"
+
+  - name: "string from float32"
+    skip: "V1 has no float32() method or distinct float32 type"
+
+  - name: "string from float32 whole number"
+    skip: "V1 has no float32() method or distinct float32 type"
+
+  - name: "string from nan"
+    skip: "V2-only _type NaN literal shorthand; V1 has no NaN literal"
+
+  - name: "string from bool true"
+    mapping: |
+      root = true.string()
+    output: "true"
+
+  - name: "string from bool false"
+    mapping: |
+      root = false.string()
+    output: "false"
+
+  - name: "string from null"
+    mapping: |
+      root = null.string()
+    output: "null"
+
+  - name: "string from timestamp"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "string from array compact json"
+    mapping: |
+      root = [1, 2, 3].string()
+    output: "[1,2,3]"
+
+  - name: "string from object keys sorted"
+    mapping: |
+      root = {"b": 2, "a": 1}.string()
+    output: "{\"a\":1,\"b\":2}"
+
+  - name: "string from string is identity"
+    mapping: |
+      root = "hello".string()
+    output: "hello"
+
+  - name: "string from bytes valid utf8"
+    mapping: |
+      root = "hello".bytes().string()
+    output: "hello"
+
+  # --- .int32() (V1 uses .number() which returns int64/float64) ---
+
+  - name: "int32 from int64"
+    skip: "V1 has no int32() method or distinct int32 type"
+
+  - name: "int32 from float64 truncates"
+    skip: "V1 has no int32() method"
+
+  - name: "int32 from negative float truncates toward zero"
+    skip: "V1 has no int32() method"
+
+  - name: "int32 from string"
+    skip: "V1 has no int32() method"
+
+  - name: "int32 overflow positive"
+    skip: "V1 has no int32() method"
+
+  - name: "int32 overflow negative"
+    skip: "V1 has no int32() method"
+
+  # --- .int64() (V1 uses .number() which returns int64/float64) ---
+
+  - name: "int64 from float64 truncates"
+    skip: "V1 has no int64() method; .number() preserves fractional part"
+
+  - name: "int64 from negative float truncates toward zero"
+    skip: "V1 has no int64() method; .number() preserves fractional part"
+
+  - name: "int64 from string"
+    mapping: |
+      root = "-500".number()
+    output: -500.0
+
+  - name: "int64 from invalid string"
+    mapping: |
+      root = "abc".number()
+    error: "ParseFloat"
+
+  - name: "int64 identity"
+    mapping: |
+      root = 42.number()
+    output: 42.0
+
+  # --- .uint32() ---
+
+  - name: "uint32 from int64"
+    skip: "V1 has no uint32() method or distinct uint32 type"
+
+  - name: "uint32 from float truncates toward zero"
+    skip: "V1 has no uint32() method"
+
+  - name: "uint32 negative is error"
+    skip: "V1 has no uint32() method"
+
+  - name: "uint32 overflow"
+    skip: "V1 has no uint32() method"
+
+  - name: "uint32 from string"
+    skip: "V1 has no uint32() method"
+
+  # --- .uint64() ---
+
+  - name: "uint64 from int64"
+    skip: "V1 has no uint64() method or distinct uint64 type"
+
+  - name: "uint64 from float truncates toward zero"
+    skip: "V1 has no uint64() method"
+
+  - name: "uint64 negative is error"
+    skip: "V1 has no uint64() method"
+
+  - name: "uint64 from string"
+    skip: "V1 has no uint64() method"
+
+  # --- .float32() ---
+
+  - name: "float32 from int64"
+    skip: "V1 has no float32() method or distinct float32 type"
+
+  - name: "float32 from float64"
+    skip: "V1 has no float32() method"
+
+  - name: "float32 from string"
+    skip: "V1 has no float32() method"
+
+  - name: "float32 from invalid string"
+    skip: "V1 has no float32() method"
+
+  # --- .float64() (V1 uses .number()) ---
+
+  - name: "float64 from int64"
+    mapping: |
+      root = 42.number()
+    output: 42.0
+
+  - name: "float64 from string"
+    mapping: |
+      root = "3.14".number()
+    output: 3.14
+
+  - name: "float64 from bool is error"
+    mapping: |
+      root = true.number()
+    error: "number"
+
+  - name: "float64 from invalid string"
+    mapping: |
+      root = "xyz".number()
+    error: "ParseFloat"
+
+  # --- .bool() ---
+
+  - name: "bool from true"
+    mapping: |
+      root = true.bool()
+    output: true
+
+  - name: "bool from false"
+    mapping: |
+      root = false.bool()
+    output: false
+
+  - name: "bool from string true"
+    mapping: |
+      root = "true".bool()
+    output: true
+
+  - name: "bool from string false"
+    mapping: |
+      root = "false".bool()
+    output: false
+
+  - name: "bool from int zero is false"
+    mapping: |
+      root = 0.bool()
+    output: false
+
+  - name: "bool from int nonzero is true"
+    mapping: |
+      root = 1.bool()
+    output: true
+
+  - name: "bool from negative int is true"
+    mapping: |
+      root = (-5).bool()
+    output: true
+
+  - name: "bool from float zero is false"
+    mapping: |
+      root = 0.0.bool()
+    output: false
+
+  - name: "bool from negative zero is false"
+    skip: "V2-only _type negative-zero literal shorthand"
+
+  - name: "bool from infinity is true"
+    skip: "V2-only _type Infinity literal; V1 has no Infinity literal"
+
+  - name: "bool from nan is error"
+    skip: "V2-only _type NaN literal; V1 has no NaN literal"
+
+  - name: "bool from invalid string is error"
+    mapping: |
+      root = "maybe".bool()
+    error: "expected bool"
+
+  # --- .char() ---
+
+  - name: "char from ascii codepoint"
+    skip: "V1 has no char() method"
+
+  - name: "char from emoji codepoint"
+    skip: "V1 has no char() method"
+
+  - name: "char from non-ascii codepoint"
+    skip: "V1 has no char() method"
+
+  - name: "char from zero codepoint"
+    skip: "V1 has no char() method"
+
+  - name: "char from invalid codepoint"
+    skip: "V1 has no char() method"
+
+  # --- .bytes() (V1 bytes() returns a []byte; equality assertion differs) ---
+
+  - name: "bytes from string"
+    skip: "V2-only _type bytes literal shorthand for expected output"
+
+  - name: "bytes from bytes identity"
+    skip: "V2-only _type bytes literal shorthand for expected output"
+
+  - name: "bytes from int goes through string"
+    skip: "V2-only _type bytes literal shorthand for expected output"
+
+  - name: "bytes from bool goes through string"
+    skip: "V2-only _type bytes literal shorthand for expected output"
+
+  - name: "bytes from empty string"
+    skip: "V2-only _type bytes literal shorthand for expected output"

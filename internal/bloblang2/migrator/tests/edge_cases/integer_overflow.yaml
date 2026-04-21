@@ -1,0 +1,132 @@
+description: "Edge cases: integer overflow for int32, int64, uint32, uint64 across add, sub, mul"
+
+tests:
+  # --- int64 overflow ---
+
+  - name: "int64 max + 1 overflows"
+    mapping: |
+      root = 9223372036854775807 + 1
+    error: "overflow"
+    skip: "V1-divergence: V1 silently wraps int64 overflow (§14.26) instead of erroring."
+
+  - name: "int64 min literal is compile error"
+    mapping: |
+      root = -9223372036854775808 - 1
+    compile_error: "exceeds"
+    skip: "V1-divergence: V1 parses -9223372036854775808 as unary-minus of a too-large literal; behaviour differs."
+
+  - name: "int64 min - 1 overflows"
+    mapping: |
+      root = (-9223372036854775807 - 1) - 1
+    error: "overflow"
+    skip: "V1-divergence: V1 silently wraps int64 overflow (§14.26) instead of erroring."
+
+  - name: "int64 max * 2 overflows"
+    mapping: |
+      root = 9223372036854775807 * 2
+    error: "overflow"
+    skip: "V1-divergence: V1 silently wraps int64 overflow (§14.26) instead of erroring."
+
+  - name: "int64 large positive multiplication overflows"
+    mapping: |
+      root = 4611686018427387904 * 3
+    error: "overflow"
+    skip: "V1-divergence: V1 silently wraps int64 overflow (§14.26) instead of erroring."
+
+  - name: "int64 max value is representable"
+    mapping: |
+      root = 9223372036854775807
+    output: 9223372036854775807
+
+  - name: "int64 min value via arithmetic is representable"
+    mapping: |
+      root = -9223372036854775807 - 1
+    output: -9223372036854775808
+
+  # --- int32 overflow via conversion ---
+
+  - name: "int32 max + 1 via conversion overflows"
+    mapping: |
+      root = 2147483648.int32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+
+  - name: "int32 min - 1 via conversion overflows"
+    mapping: |
+      root = (-2147483649).int32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+
+  - name: "int32 max is representable"
+    mapping: |
+      root = 2147483647.int32()
+    output: {_type: "int32", value: "2147483647"}
+    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+
+  - name: "int32 min is representable"
+    mapping: |
+      root = (-2147483648).int32()
+    output: {_type: "int32", value: "-2147483648"}
+    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+
+  # --- uint32 overflow via conversion ---
+
+  - name: "uint32 max + 1 via conversion overflows"
+    mapping: |
+      root = 4294967296.uint32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+
+  - name: "uint32 negative via conversion overflows"
+    mapping: |
+      root = (-1).uint32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+
+  - name: "uint32 max is representable"
+    mapping: |
+      root = 4294967295.uint32()
+    output: {_type: "uint32", value: "4294967295"}
+    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+
+  # --- uint64 overflow ---
+
+  - name: "uint64 max + 1 from string overflows"
+    mapping: |
+      root = "18446744073709551616".uint64()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+
+  - name: "uint64 negative is error"
+    mapping: |
+      root = (-1).uint64()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+
+  - name: "uint64 max from string is representable"
+    mapping: |
+      root = "18446744073709551615".uint64()
+    output: {_type: "uint64", value: "18446744073709551615"}
+    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+
+  - name: "uint64 max as bare literal is compile error"
+    mapping: |
+      root = 18446744073709551615.uint64()
+    compile_error: "exceeds"
+    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+
+  # --- Overflow at boundary ---
+
+  - name: "int64 max minus 1 plus 2 overflows"
+    mapping: |
+      let v = 9223372036854775806
+      root = $v + 2
+    error: "overflow"
+    skip: "V1-divergence: V1 silently wraps int64 overflow (§14.26) instead of erroring."
+
+  - name: "int64 min plus 1 minus 2 overflows"
+    mapping: |
+      let v = -9223372036854775807
+      root = $v - 2
+    error: "overflow"
+    skip: "V1-divergence: V1 silently wraps int64 overflow (§14.26) instead of erroring."

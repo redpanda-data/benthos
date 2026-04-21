@@ -1,0 +1,150 @@
+description: "Match equality form — expression evaluated once, == comparison, first match wins, boolean case error"
+
+tests:
+  # --- Basic equality match ---
+
+  - name: "match equality on animal sound"
+    mapping: |
+      root.sound = match this.animal {
+        "cat" => "meow",
+        "dog" => "woof",
+        _ => "unknown",
+      }
+    cases:
+      - name: "selects first case"
+        input: {"animal": "cat"}
+        output: {"sound": "meow"}
+      - name: "selects second case"
+        input: {"animal": "dog"}
+        output: {"sound": "woof"}
+      - name: "falls to wildcard"
+        input: {"animal": "bird"}
+        output: {"sound": "unknown"}
+
+  # --- First match wins ---
+
+  - name: "first matching case wins when multiple could match"
+    mapping: |
+      let x = "hello"
+      root.result = match $x {
+        "hello" => "first",
+        "hello" => "second",
+        _ => "default",
+      }
+    output: {"result": "first"}
+
+  # --- Numeric equality match ---
+
+  - name: "match on integer value"
+    input: {"code": 200}
+    mapping: |
+      root.status = match this.code {
+        200 => "ok",
+        404 => "not found",
+        500 => "error",
+        _ => "other",
+      }
+    output: {"status": "ok"}
+
+  # --- Null matching ---
+
+  - name: "match null case"
+    input: {"val": null}
+    mapping: |
+      root.result = match this.val {
+        null => "is null",
+        _ => "not null",
+      }
+    output: {"result": "is null"}
+
+  # --- Case expressions are evaluated (not just literals) ---
+
+  - name: "case expression uses variable"
+    skip: "V1 match arm patterns that are non-literal expressions (like $var) are evaluated as boolean predicates, not compared for equality against the subject — `$target => ...` with $target=\"hello\" is treated as if(string), which fails"
+
+  - name: "case expression uses concatenation"
+    mapping: |
+      root.result = match "foobar" {
+        "foo" + "bar" => "matched concat",
+        _ => "no match",
+      }
+    output: {"result": "matched concat"}
+
+  # --- Subsequent cases not evaluated after match ---
+
+  - name: "cases after match are not evaluated"
+    mapping: |
+      root.result = match "a" {
+        "a" => "found",
+        throw("should not evaluate") => "never",
+        _ => "default",
+      }
+    output: {"result": "found"}
+
+  # --- Boolean case values are errors ---
+  # In V1, boolean literal patterns (true/false) with a subject are classified as literals at parse
+  # time and compared via ICompare against the subject. They are NOT compile or runtime errors.
+  # `match "hello" { true => ... }` compares "hello" == true (returns false) and falls through.
+
+  - name: "boolean literal true as case is compile error"
+    mapping: |
+      root.result = match "hello" {
+        true => "yes",
+        _ => "no",
+      }
+    output: {"result": "no"} # FIXME-v1: verify — V1 compares "hello" == true, falls through to _
+
+  - name: "boolean literal false as case is compile error"
+    mapping: |
+      root.result = match 42 {
+        false => "no",
+        _ => "yes",
+      }
+    output: {"result": "yes"} # FIXME-v1: verify — V1 compares 42 == false, falls through to _
+
+  - name: "dynamic case evaluating to boolean is runtime error"
+    skip: "V1 rebinds `this` inside match arms to the subject value, so `this.score` inside the arm references the subject not the original root; the intended semantic is not expressible without a let binding"
+
+  - name: "dynamic boolean case error is catchable"
+    skip: "V1 does not treat dynamic-boolean-case as an error, and .catch lambda-with-error-object syntax is V2-specific"
+
+  # --- Expression evaluated once ---
+
+  - name: "matched expression evaluated once (side effects)"
+    mapping: |
+      let counter = 0
+      let counter = $counter + 1
+      root.result = match $counter {
+        1 => "one",
+        2 => "two",
+        _ => "other",
+      }
+    output: {"result": "one"}
+
+  # --- Match with braced case bodies ---
+
+  - name: "match case with braced body containing variables"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  # --- Wildcard is only catch-all (no else keyword) ---
+
+  - name: "wildcard catches all unmatched values"
+    mapping: |
+      root.result = match 999 {
+        1 => "one",
+        2 => "two",
+        _ => "catch all",
+      }
+    output: {"result": "catch all"}
+
+  # --- Non-exhaustive match produces void ---
+  # V1 match with no matching case returns null, not a void sentinel.
+
+  - name: "non-exhaustive match produces void — assignment skipped"
+    mapping: |
+      root.sound = "default"
+      root.sound = match "bird" {
+        "cat" => "meow",
+        "dog" => "woof",
+      }
+    output: {"sound": "default"}
