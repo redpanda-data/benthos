@@ -310,6 +310,8 @@ func (t *translator) applyToCall(m *v1ast.MethodCall, recv syntax.Expr) syntax.E
 		})
 		return nil
 	}
+	// If the map lives in an imported namespace, qualify the V2 call.
+	namespace := t.mapNamespace[nameLit.Str]
 	t.rec.Rewritten(Change{
 		Line: m.NamePos.Line, Column: m.NamePos.Column,
 		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
@@ -318,8 +320,9 @@ func (t *translator) applyToCall(m *v1ast.MethodCall, recv syntax.Expr) syntax.E
 		Explanation: "V1 recv.apply(\"name\") rewritten as V2 name(recv)",
 	})
 	return &syntax.CallExpr{
-		TokenPos: pos(m.NamePos),
-		Name:     nameLit.Str,
-		Args:     []syntax.CallArg{{Value: recv}},
+		TokenPos:  pos(m.NamePos),
+		Name:      nameLit.Str,
+		Namespace: namespace,
+		Args:      []syntax.CallArg{{Value: recv}},
 	}
 }

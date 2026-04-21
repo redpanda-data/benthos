@@ -68,7 +68,7 @@ func TestCorpusRegression(t *testing.T) {
 				stats.skippedV2Only++
 				continue
 			}
-			outcome := runOne(interp, tc)
+			outcome := runOne(interp, tc, tf.Files)
 			stats.record(outcome)
 			switch outcome.kind {
 			case outcomeUnexpected:
@@ -184,19 +184,24 @@ type outcome struct {
 	detail string
 }
 
-func runOne(interp spectest.Interpreter, tc *spectest.TestCase) outcome {
+func runOne(interp spectest.Interpreter, tc *spectest.TestCase, fileLevel map[string]string) outcome {
 	if tc.Mapping == "" {
 		return outcome{outcomeInvalidTest, "empty mapping"}
 	}
 
-	// 1. Translate V1 -> V2.
-	rep, err := translator.Migrate(tc.Mapping, translator.Options{MinCoverage: 0.5})
+	// 1. Translate V1 -> V2. Thread files into Migrate so imports in the
+	// V1 source resolve against the test's virtual filesystem.
+	rep, err := translator.Migrate(tc.Mapping, translator.Options{
+		MinCoverage: 0.5,
+		Files:       mergeFiles(fileLevel, tc.Files),
+	})
 	if err != nil {
 		return outcome{outcomeTranslateFail, fmt.Sprintf("translate: %v", err)}
 	}
 
-	// 2. Compile the V2 output.
-	compiled, compileErr := interp.Compile(rep.V2Mapping, nil)
+	// 2. Compile the V2 output against the translated virtual filesystem
+	// (V1 import contents also migrated to V2).
+	compiled, compileErr := interp.Compile(rep.V2Mapping, rep.V2Files)
 	if compileErr != nil {
 		// If the V1 test expects a compile error, a V2 compile error may be
 		// acceptable too.
@@ -309,4 +314,20 @@ func pct(n, total int) float64 {
 		return 0
 	}
 	return float64(n) / float64(total) * 100
+}
+
+// mergeFiles combines a file-level Files map with a test-level one. Test-
+// level entries win on collision.
+func mergeFiles(fileLevel, testLevel map[string]string) map[string]string {
+	if len(fileLevel) == 0 && len(testLevel) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(fileLevel)+len(testLevel))
+	for k, v := range fileLevel {
+		out[k] = v
+	}
+	for k, v := range testLevel {
+		out[k] = v
+	}
+	return out
 }

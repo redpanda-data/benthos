@@ -20,6 +20,15 @@ type translator struct {
 	// a V2 map body. When non-empty, the translator emits IdentExpr with
 	// the top of the stack instead of `input` for a V1 ThisExpr.
 	thisRebindStack []string
+	// mapNamespace maps a V1 map name to the V2 namespace it lives in. For
+	// locally-declared maps the namespace is "" (unqualified). For
+	// imported maps it is the alias assigned to the import statement. Used
+	// by `.apply("name")` rewrites to qualify the resulting V2 call.
+	mapNamespace map[string]string
+	// files is a snapshot of the outer Options.Files, carried on the
+	// translator so translateImport can parse imported file contents to
+	// learn the map names they declare.
+	files map[string]string
 }
 
 // pushThisRebind makes V1 `this` translate to the given V2 identifier name
@@ -75,6 +84,15 @@ func (t *translator) isBoundIdent(name string) bool {
 // translateProgram walks a parsed V1 program and produces a V2 program. Every
 // V1 node contributes to Coverage via recorder calls.
 func (t *translator) translateProgram(p *v1ast.Program) *syntax.Program {
+	if t.mapNamespace == nil {
+		t.mapNamespace = map[string]string{}
+	}
+	// Register locally-declared map names first (unqualified namespace) so
+	// later .apply() calls resolve correctly.
+	for _, m := range p.Maps {
+		t.mapNamespace[m.Name] = ""
+	}
+
 	out := &syntax.Program{}
 
 	// Translate statements in original order, routing map decls and imports
@@ -432,11 +450,10 @@ func (t *translator) tryTranslateMapBody(m *v1ast.MapDecl) (*syntax.ExprBody, bo
 	return out, true
 }
 
-// translateImport translates `import "path"` to V2.
+// translateImport translates `import "path"` to V2. Assigns a synthetic
+// namespace alias and records every map name in the imported file so that
+// subsequent `.apply(name)` call sites can be qualified.
 func (t *translator) translateImport(i *v1ast.ImportStmt) *syntax.ImportStmt {
-	// V1 imports have no namespace alias; V2 requires `as name` unless
-	// importing anonymously. Emit a warning — the caller must choose a
-	// namespace or flatten the maps.
 	lit, ok := i.Path.(*v1ast.Literal)
 	if !ok {
 		t.rec.Unsupported(Change{
@@ -446,18 +463,88 @@ func (t *translator) translateImport(i *v1ast.ImportStmt) *syntax.ImportStmt {
 		})
 		return nil
 	}
+	ns := namespaceFromPath(lit.Str)
+	// Record every map in the imported file under this namespace.
+	if content, ok := t.importedContent(lit.Str); ok {
+		if prog, err := v1ast.Parse(content); err == nil {
+			for _, m := range prog.Maps {
+				// Last import wins on map-name collision; V1 rejects this
+				// at parse but best-effort on our side.
+				t.mapNamespace[m.Name] = ns
+			}
+		}
+	}
 	t.rec.Rewritten(Change{
 		Line: i.Pos.Line, Column: i.Pos.Column,
-		Severity:    SeverityWarning,
-		Category:    CategorySemanticChange,
+		Severity:    SeverityInfo,
+		Category:    CategoryIdiomRewrite,
 		RuleID:      RuleImportStatement,
-		Explanation: `V1 import has no namespace; V2 requires "as name" — chose a default name`,
+		Explanation: `V1 import rewritten with synthetic V2 namespace alias`,
 	})
 	return &syntax.ImportStmt{
 		TokenPos:  pos(i.Pos),
 		Path:      lit.Str,
-		Namespace: "imported",
+		Namespace: ns,
 	}
+}
+
+// importedContent retrieves the V1 source of an imported file from the
+// translator's Options.Files (threaded via migrate). Returns ("", false) if
+// the file isn't in the map.
+//
+// Because translator doesn't currently carry Options after Migrate has
+// finished applyDefaults, we stash a pointer during translateProgram. For
+// now we read from a package-level slot; see files field on translator
+// below.
+func (t *translator) importedContent(path string) (string, bool) {
+	if t.files == nil {
+		return "", false
+	}
+	if s, ok := t.files[path]; ok {
+		return s, true
+	}
+	return "", false
+}
+
+// namespaceFromPath derives a V2 namespace alias from a V1 import path. It
+// strips directories and the .blobl extension, leaves something identifier-
+// safe, and falls back to "imported" for unusual shapes.
+func namespaceFromPath(p string) string {
+	// Trim trailing quote characters if any (unlikely but defensive).
+	s := p
+	// Strip directory.
+	if idx := lastIndexByte(s, '/'); idx >= 0 {
+		s = s[idx+1:]
+	}
+	// Strip extension.
+	if idx := lastIndexByte(s, '.'); idx >= 0 {
+		s = s[:idx]
+	}
+	// Replace non-identifier characters with '_'.
+	var b []byte
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '_':
+			b = append(b, byte(r))
+		default:
+			b = append(b, '_')
+		}
+	}
+	if len(b) == 0 || (b[0] >= '0' && b[0] <= '9') {
+		return "imported"
+	}
+	return string(b)
+}
+
+// lastIndexByte is a tiny replacement for strings.LastIndexByte to avoid
+// an import just for one call.
+func lastIndexByte(s string, c byte) int {
+	for i := len(s) - 1; i >= 0; i-- {
+		if s[i] == c {
+			return i
+		}
+	}
+	return -1
 }
 
 // translateExpr dispatches expression translation.
