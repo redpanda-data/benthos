@@ -47,8 +47,25 @@ Both share the same expression grammar. Everything below is in the full-mapping 
 - Source is UTF-8 (runes). The parser operates on `[]rune`.
 - **Whitespace** is spaces and tabs.
 - **Newlines** are `\n` or `\r\n`.
-- Whitespace and newlines are not significant *inside expressions* — the parser discards them freely between tokens (via `DiscardedWhitespaceNewlineComments`).
 - Newlines **are significant as statement separators** in mappings (see §7).
+- Newlines are **conditionally significant inside expressions** — the parser is not uniformly newline-tolerant. The rules:
+
+  **Positions that accept newlines freely** (between tokens, effectively ignored):
+  - Inside array literals between elements (`[a,\n b,\n c]`).
+  - Inside object literals between members (`{"a": 1,\n "b": 2}`).
+  - Inside function/method argument lists between arguments and around commas (`fn(\n a,\n b\n)`).
+  - After a binary operator in an arithmetic/comparison/logical chain (`a +\n b`).
+
+  **Positions that reject newlines**:
+  - **Immediately before a binary operator** (`a\n + b` is a parse error; the arithmetic chain delimiter uses `SpacesAndTabs` before the operator and `DiscardedWhitespaceNewlineComments` only after).
+  - **Around the `->` in a lambda** (`x\n-> body` and `x ->\n body` are parse errors; both sides of `->` use `SpacesAndTabs` only — `parser/query_expression_parser.go:222-228`).
+  - **Immediately before a `.` in a path or method chain** (`a\n.b` is a parse error; `parseWithTails` in `parser/query_function_parser.go:95-137` expects the `.` with no leading whitespace). Newlines AFTER the `.` are fine: `a.\n  b` and `a.\n  method()` both work.
+  - **Any whitespace before a `.`** (`a .b` also fails — the parser requires the dot to immediately follow the preceding expression). Space/newline after the `.` is fine.
+
+  **Migration implications**:
+  - Long method chains must break *after* the `.`, never before. `root = items.\n  filter(...).\n  map_each(...)` is idiomatic V1; `root = items\n  .filter(...)` is a parse error.
+  - Lambda bodies must stay on the same line as `->`. Wrap long bodies in parens + named capture (`foo.(name -> body)`) or use a `let` binding to split work.
+  - Long expressions break *after* the binary operator. `a +\n b` works; `a\n + b` does not.
 
 ### 2.2 Comments
 
@@ -122,7 +139,7 @@ Bloblang values at runtime are one of:
 |------------|-----------------------------------------------------------------------|
 | `null`     | The literal `null`.                                                   |
 | `bool`     | `true` / `false`.                                                     |
-| `number`   | Either integer (`int64`) or floating (`float64`). A single runtime type in user-facing sense; internally degrades between `int64` / `uint64` / `float64` (`query/arithmetic.go`). JSON numbers land as `json.Number` and are coerced as needed. |
+| `number`   | Either integer (`int64`) or floating (`float64`) at runtime. A single runtime type in user-facing sense; internally degrades between `int64` / `uint64` / `float64` (`query/arithmetic.go`). JSON numbers land as `json.Number` and are coerced as needed. **`.number()` as a coercion method always returns `float64`** — even for `"42".number()` — so use `.floor()` / `.round()` if an integer is required. Arithmetic preserves integer-ness (`2 + 3 → 5` as int64), but integer `/` always promotes to `float64` (see §5.3). |
 | `string`   | Go `string`, arbitrary UTF-8.                                         |
 | `bytes`    | Raw `[]byte`. Returned by `content()` and some decode methods; assignable to `root`. Implicit coercions to/from `string` occur in several methods. |
 | `timestamp`| `time.Time`. Produced by `now()`, `ts_parse()`, `ts_*` methods.       |
@@ -256,19 +273,28 @@ Comparison operators at level 3 are technically left-associative (`a == b == c` 
 | `-`      | number only                                | number         |
 | `*`      | number only                                | number         |
 | `/`      | number only                                | **always `float64`** |
-| `%`      | integer pair only (non-integer operands are type errors) | integer; divide-by-zero errors like `/` |
-| `==`     | any two values                             | bool; `5 == 5.0` is true (value-equality ignoring int/float distinction); structural for object/array; `null == null` is true; differing types generally compare `false` rather than error |
+| `%`      | any numeric pair — **floats are truncated to `int64`** silently via `IGetInt` (`value/type_helpers.go:175-178`). `7.5 % 2.5` evaluates as `7 % 2 == 1`, not a type error. | integer; divide-by-zero errors like `/` |
+| `==`     | any two values                             | bool; **asymmetric in coercion** (see note); `5 == 5.0` is true; structural for object/array; `null == null` is true |
 | `!=`     | any two values                             | bool; inverse of `==` |
-| `<`, `<=`, `>`, `>=` | number–number or string–string pair | bool; non-numeric/non-string operands are type errors. **Booleans are not orderable.** Timestamps compare as RFC3339Nano strings (works for well-formed timestamps). |
-| `&&`, `\|\|`         | bool pair                       | bool; non-bool operand errors. **Short-circuit is guaranteed by the implementation** (`boolAnd` / `boolOr` in `query/arithmetic.go:396-442` return before evaluating RHS). |
+| `<`, `<=`, `>`, `>=` | number–number or string–string pair | bool; non-numeric/non-string operands are type errors. **Booleans are not orderable.** Timestamps compare as RFC3339Nano strings (works for well-formed timestamps). Also asymmetric — see note. |
+| `&&`, `\|\|`         | bool — or any **numeric** that coerces via `IGetBool` (non-zero → true). Strings / null / arrays / objects are type errors. | bool; **Short-circuit is guaranteed** (`boolAnd` / `boolOr` in `query/arithmetic.go:396-442` return before evaluating RHS). So `true && 1` → `true`, `0 \|\| true` → `true`, `true && "x"` → error. |
 | `\|` (coalesce)      | any pair                        | left if not `null` and not error; otherwise right. The `deleted()` and `nothing()` sentinels register as null for this test, so `deleted() \| "x" == "x"`. |
 | `!`      | bool                                       | bool           |
 
 Note on `+` with bytes: when either operand is `[]byte`, both are coerced to `string` via `IGetString` and concatenated (`query/arithmetic.go:231-240`). The result is `string`, not `bytes`.
 
+**Note on comparison asymmetry** (`query/arithmetic.go:346-392`, `compareOp`): all comparison operators (`==`, `!=`, `<`, `<=`, `>`, `>=`) dispatch on the **left operand's restricted type** and then attempt to coerce the right operand to that type before comparing. Only if that coercion fails do they fall back to a generic structural compare (which usually returns `false` for type mismatches). The key consequences:
+
+- **`bool == number` is not symmetric**. Left side `bool`: the number is coerced to `bool` via `IGetBool` (non-zero → true), so `true == 1`, `false == 0`, `true == 3.14` all return **`true`**. Left side `number`: `IGetNumber` rejects bools, so `1 == true` returns **`false`**. Migration tools must preserve operand order.
+- **`bool == string`**: no coercion either way, falls to generic compare → **`false`** (e.g. `true == "true"` is `false`).
+- **`string == number`**: no coercion either way, returns **`false`** (e.g. `"5" == 5` is `false`).
+- **`null == null`** is `true`; **`null == <anything-else>`** is `false` (including `null == false` and `null == 0`).
+
+The asymmetry matters most for `==`/`!=` with bool-number pairs. For `<`, `<=`, `>`, `>=` the asymmetry is less visible because those operators don't admit bool coercion — a bool operand on either side errors.
+
 Integer overflow in `+`, `-`, `*` is **not checked** — results wrap per Go int64 semantics. Division and modulo by zero return an `ErrDivideByZero` (`query/arithmetic.go:188`, `204`), not `Inf`/`NaN`.
 
-Non-matching operand types raise a **recoverable mapping error** (§12) rather than a panic.
+**Compile-time vs. runtime errors**. When both operands of a binary operator are **literals** (including literal expressions), V1 evaluates the operation at parse time via constant folding. Any error produced — type mismatch, divide-by-zero, etc. — is raised as a **compile-time (fatal) parse error**, not a runtime error. Examples: `root = true + false`, `root = 5 + "foo"`, `root = 5 / 0`, `root = null < 3` all fail at parse time. The same operations with non-literal operands (e.g. `this.x + "foo"`) fail at runtime as a recoverable mapping error.
 
 ### 5.4 Path-scoped sub-expression: `foo.(expr)` and `foo.(name -> expr)`
 
@@ -331,16 +357,18 @@ Segment grammar (`fieldReferenceParser` + `quotedPathSegmentParser`):
 
 There is **no bracket-indexing syntax**: `this[0]` is a **parse error**. For dynamic indexing use `.index(i)` (`this.items.index(i)`) or build a path via `.get(path_expr)` style methods.
 
-### 6.3 Path access on arrays
+### 6.3 Path access on arrays and numeric-segment writes
 
-An unquoted numeric segment on an array value is treated as an index:
+**Reading**: an unquoted numeric segment on an array value is treated as an index:
 
 ```blobl
 this.items.0        # first element
 this.items.5        # sixth element; null if out of range
 ```
 
-**Negative indices via path are not supported** — the identifier character class is `[A-Za-z0-9_]`, so `this.items.-1` is a parse error (the `-` is not a valid segment character). For negative indexing, use the `.index(-1)` method. The numeric-segment path form works for non-negative integers only; it is kept primarily for JSON-path-style static access.
+**Negative indices via path are not supported** — the identifier character class is `[A-Za-z0-9_]`, so `this.items.-1` is a parse error. Use `.index(-1)` for negative indices. `.index()` errors out-of-range rather than returning null — use `.or(null)` / `.catch(null)` for null-on-OOB.
+
+**Writing a numeric-segment target creates an object**, not an array. `root.items.0 = "x"` produces `{"items": {"0": "x"}}` — the `"0"` key is a string in a JSON object, not an array index. There is **no automatic array creation** from numeric paths and **no array gap-filling**. To build arrays, seed explicitly (`root.items = []`) then append via `root.items = root.items.append(x)` (or similar methods), or construct the whole array in one expression and assign it.
 
 ### 6.4 Writable paths (assignment targets)
 
@@ -352,10 +380,11 @@ root.<segment>(.<segment>)* # write a nested field (quoted segments allowed)
 this                        # legacy: equivalent to root
 this.<segments>             # legacy: equivalent to root.<segments>
 meta                        # replace metadata wholesale
-meta <key>                  # single metadata entry; bare key (identifier) or quoted string
-meta(<expr>)                # function-form metadata target; key is an expression
+meta <key>                  # single metadata entry; bare identifier or quoted string ONLY
 <segment>(.<segment>)*      # legacy bare-path form: equivalent to root.<segments>
 ```
+
+**`meta(<expr>) = v` is NOT a valid assignment target** even though `meta("key")` reads work in expressions. The parser (`parser/mapping_parser.go` `metaStatementParser`) accepts only a bare identifier or a quoted string after `meta` at the target position. To write a dynamic metadata key, assemble an object and do a wholesale replacement: `meta = @.merge({(dynamic_key): value})` or `meta = {(key_expr): value}` (the latter wipes other entries).
 
 Variable bindings (`let name = ...`) are a **separate statement form** (§7.2), not an assignment with a target — they are not interchangeable with `=`-targets.
 
@@ -366,6 +395,7 @@ Key constraints:
 - `meta "foo" = deleted()` is the canonical way to remove a single metadata entry.
 - `meta = deleted()` wipes all metadata.
 - `root = deleted()` marks the whole message for deletion (the processor drops it).
+- **Whole-meta assignment requires an object**: `meta = "string"`, `meta = 5`, `meta = [1,2]` all raise a runtime error `"setting root meta object requires object value, received: <type>"`. The only permitted right-hand sides are `deleted()` (clears meta) and an object value.
 
 ### 6.5 `this` rebinding
 
@@ -514,7 +544,10 @@ root.label = if this.score > 50 { "high" } else { "low" }
 
 - Each branch body is a **single expression** (not a statement list).
 - `else if` chains work the same as in statement form.
-- If there is no `else` and no branch matches, the value is `null`.
+- If there is no `else` and no branch matches, the expression produces the **`nothing` sentinel** (`value.Nothing`), not `null`. When this sentinel is assigned to a target, **the assignment is silently skipped** (prior value preserved, target absent if never set). See §9.4.
+  - Example: `root.a = 1; root.a = if false { "x" }` leaves `root.a == 1` (the second assignment is elided).
+  - This also means `.catch()` cannot rescue a non-matching `if` — there is no error to catch; the whole assignment just vanishes.
+- A **null** condition is treated as falsy (branch doesn't fire) — V1 does not error on a null condition, only on non-bool non-null values.
 
 ### 8.4 `match` expression
 
@@ -551,9 +584,10 @@ Matching rules (`parser/query_expression_parser.go:44-58` and the match executor
   - `_` — wildcard, always matches.
   - A **literal** value (string, number, bool, null, literal object, literal array) — converted to an equality check against the subject via `value.ICompare` (representation-agnostic, so `5` matches `5.0`).
   - **Any other expression** — evaluated per-arm; the **result must be `bool`**, and a `true` result indicates a match. If a non-literal expression evaluates to a non-bool (e.g. a string or number), the match simply does not fire — no case-specific error is raised, and the next arm is tried.
-- Evaluation is top-to-bottom; first match wins.
-- If no case matches, the expression yields `null`. **Nothing is filtered**; the surrounding assignment still occurs unless the RHS sentinel is `nothing()`.
-- Inside each arm (both pattern and result), `this` is the subject (when present) or the outer `this` (subject-less form).
+- Evaluation is top-to-bottom; first match wins. **All arm patterns are evaluated eagerly** until one matches — an earlier `throw()` in a later arm still fires if a prior arm didn't match. V1 does not short-circuit arm evaluation at the pattern level.
+- If no case matches, the expression produces the **`nothing` sentinel**, not `null`. When assigned, the assignment is silently skipped (same semantics as a non-matching `if` — see §8.3).
+- Inside each arm (both pattern and result), `this` is the subject (when present) or the outer `this` (subject-less form). This is a common footgun: `match this.user { _ => this.user.name }` evaluates `this.user.name` as `<subject>.name`, which is `this.user.name` — same as intended here, but `match this.user { $target => ... }` evaluates `$target` in the subject context.
+- A **null** subject (or null condition via boolean pattern) is tolerated, not an error. V1 does not raise on `match null { ... }`.
 
 Note: the literal/expression classification is syntactic, so `match x { (5) => ... }` behaves the same as `match x { 5 => ... }` (the parenthesised literal still reaches the parser as a literal). But `match x { some_fn() => ... }` is treated as an expression pattern even if `some_fn()` always returns `5`.
 
@@ -598,6 +632,15 @@ The full, authoritative list is too long to inline and is subject to version dri
 
 - **Functions**: registered via `registerFunction` in `query/functions*.go`, aggregated in `query.AllFunctions`. Documented at `docs.redpanda.com/redpanda-connect/guides/bloblang/functions/`.
 - **Methods**: registered via `registerMethod` in `query/methods*.go` (split by category — general, strings, numbers, structured, time, regexp, encoding, coercion, parsing, jwt, geoip). Aggregated in `query.AllMethods`. Documented at `docs.redpanda.com/redpanda-connect/guides/bloblang/methods/`.
+
+### 9.0 Core vs. impure-package methods
+
+V1 has **two tiers** of built-in methods, which confuses migration:
+
+- **Core methods** are registered directly in `internal/bloblang/query/*.go` (`methods.go`, `methods_structured.go`, `methods_general.go`, etc.) and are available in every environment returned by `bloblang.NewEnvironment()` / `bloblang.GlobalEnvironment()`.
+- **Extension methods** are registered in `internal/impl/pure/*.go` and only become available when that package is imported (e.g. via `_ "github.com/redpanda-data/benthos/v4/internal/impl/pure"` or through the full `cmd/benthos` binary). Notable extension-only entries include `abs`, `int64`, `int32`, `float64`, `float32`, `uint32`, `uint64`, `pow`, `ceil`, `sqrt` (most numeric-width coercers), `ts_parse`, `ts_format`, `ts_strptime`, `ts_strftime`, `ts_add_iso8601`, `ts_sub`, most `ts_*` formatters, `.round(N)` with a precision argument, `.char`, `.map_values`, `.map_entries`, `.filter_entries`, `.collect`, `.concat`, `.chunk`, `.reverse` on arrays (string-only reverse is core), and a handful of encoding / hashing additions.
+
+A migration tool that parses a V1 mapping against the bare `public/bloblang` environment will report many of these as **unknown methods**. The migration tool should preserve those references verbatim and assume the host binary registers `internal/impl/pure` (as `cmd/benthos` and Redpanda Connect do).
 
 Each function/method spec (`query/docs.go`) carries:
 
@@ -649,13 +692,19 @@ Two functions return special sentinel values, not regular data. Both are recogni
   - As operand of `\|` or `.or(fallback)` → **replaced with fallback** (treated as null).
   - As operand of `.catch(fallback)` → **preserved** (not an error).
   - In a path tail (`deleted().foo`) → behaviour not covered by test corpus; migration tools should treat such chains as suspect rather than relying on any particular outcome.
-- **`nothing()`** — the *no-op* sentinel (`value.Nothing`).
-  - Assigned to anything → the assignment is **silently skipped** (`mapping/statement.go:64-67`); the target is left unchanged.
+- **`nothing()`** — the *no-op* sentinel (`value.Nothing`). **Sources** of this sentinel include:
+  - The explicit `nothing()` function call.
+  - `if <cond> { body }` with no `else`, when the condition is falsy (§8.3).
+  - `match <subject> { ... }` with no matching arm and no wildcard (§8.4).
+  - `if cond { body1 } else if cond2 { body2 }` where no arm's condition is truthy.
+
+  **Behaviour of the sentinel**:
+  - Assigned to anything → the assignment is **silently skipped** (`mapping/statement.go:64-67`); the target is left unchanged (prior value preserved, or the key is absent if never set). The field does **not** appear as `null` in the output.
   - Returned from a `.map_each` lambda → the **original element is preserved unchanged** (`query/iterator.go:243-244`).
-  - Returned from a match arm at the top level of an RHS → the whole assignment is skipped.
   - As operand to arithmetic or comparison operators → type error (same as `deleted()`).
   - As operand of `\|` or `.or(fallback)` → replaced with fallback (treated as null).
-  - As operand of `.catch(fallback)` → preserved (not an error).
+  - As operand of `.catch(fallback)` → preserved (not an error — there is nothing to catch).
+  - Assigned as the value of a `let` binding → the binding is **deleted**, not set to null. A subsequent `$name` read raises `"variable 'name' undefined"`. So `let x = nothing()` has the same effect as never declaring `x`.
 
 The distinction matters for migration: a match arm returning `deleted()` vs. `nothing()` at the **same position** produces different outputs (the field is removed vs. left at its prior value). Do not collapse them.
 
@@ -777,7 +826,19 @@ Inside a mapping, after an error has been produced further up the chain *and cau
 
 ### 12.5 Null-safe path access
 
-Path access into a `null` value or a missing field yields `null`, not an error. Method calls on `null` vary: some methods return `null`, some return their type's zero value, some raise a type error. A migration tool should treat any method on an untyped path as potentially null-returning.
+**Path access (`.field`, `.0`, `."quoted"`) is universally null-tolerant**: it returns `null` for every case where another language would raise a type error. Not just null — any non-object receiver. `5.foo`, `true.foo`, `"hello".foo`, `[1,2,3].foo`, and `null.foo` all yield `null`. The path machinery uses gabs which treats any non-object traversal as a missing key.
+
+**Method calls (`.method()`) are NOT null-tolerant by default**. They have per-method type requirements and generally error on a wrong-type receiver:
+- `null.length()` → error `"expected string, array or object value, got null"`.
+- `null.uppercase()` → error `"expected string value, got null"`.
+- `5.length()` → error `"expected string, array or object value, got number"`.
+
+A migration tool should therefore:
+- Treat any path access as returning null for missing/wrong-type data — never assume an error.
+- Treat any method call as a potential type error if the receiver type is not guaranteed.
+- Use `.catch(fallback)` to handle method-on-null errors, or `.or(fallback)` to handle both null results and errors uniformly.
+
+**`.index(n)` on an array is a method (not a path)** and follows method semantics: out-of-range indexes are a **runtime error** (`"variable arr: index '5' was out of bounds for array size: 3"`), not `null`. Use `.index(n).catch(null)` or `.index(n).or(null)` to get null-on-OOB.
 
 ### 12.6 Sentinel interaction summary
 
@@ -856,6 +917,37 @@ This section catalogues behaviours that are accepted by the V1 parser but that a
 34. **`.map_each` treats `deleted()` and `nothing()` differently** — `deleted()` drops the element; `nothing()` keeps the original element unchanged. Do not substitute one for the other during rewrite.
 35. **Lambda arguments pop the context**. In `items.map_each(x -> body)`, `body` executes with `this` = the **outer** context, not the element. Only the named parameter `x` refers to the element. Contrast `items.map_each(this.value)` (no lambda), where `this` IS the element. Migration tools must never mechanically wrap a non-lambda argument in `x -> ...` — semantics change. See §6.5 for the rule and `query/expression.go:166-175` for the implementation (`NamedContextFunction.Exec` calls `ctx.PopValue`).
 36. **`.catch(...)` and `.or(...)` treat sentinels differently**. `.catch(x)` passes `deleted()` / `nothing()` through untouched; `.or(x)` replaces them with the fallback. They cannot be used interchangeably when sentinels are in play. See §9.4 and §12.2.
+37. **Constant folding turns runtime errors into compile errors**. When both operands of an arithmetic, comparison, or coalesce operator are literal expressions, V1 evaluates the operation at parse time. Any type mismatch, divide-by-zero, or similar error is raised at parse time as a fatal compile error. `root = 5 / 0`, `root = true + false`, `root = null < 3` all fail at parse. The same expressions with one non-literal operand (e.g. `root = this.x / 0`) fail at runtime as recoverable errors. See §5.3 for the table.
+38. **`==` is asymmetric for `bool` vs. `number` operands**. `true == 1` returns `true` (bool-path coerces number to bool via `IGetBool`); `1 == true` returns `false` (number-path cannot coerce bool to number). Never swap comparison operand order during rewrite. See §5.3 note on comparison asymmetry.
+39. **`%` truncates float operands to `int64`** silently — `7.5 % 2.5` evaluates as `7 % 2 == 1`, not a type error. If the mapping intends an fmod-like operation, the V1 result will be wrong. See §5.3.
+40. **String `.length()` returns byte count, not codepoint count**. `"héllo".length()` is `6` (é is 2 bytes UTF-8), `"🎉".length()` is `4`. Migration tools should flag any test or mapping that assumes codepoint semantics from `.length()` on a string. Array `.length()` and object `.length()` behave as expected (element / key count). For codepoint counts, V1 has no built-in equivalent to V2's string-length semantics — rewrite to `.split("").length()` or a regex-based count if migrated.
+41. **Lambda bodies cannot start on a new line**. `items.map_each(x ->` followed by a newline and the body is a parse error — both sides of `->` use `SpacesAndTabs` only. Keep the lambda body on the same line as `->`, or move the whole expression inside `.(...)`/let-binding on one line. See §2.1.
+42. **Arithmetic/comparison/logical operators reject a leading newline**. `a\n + b` is a parse error; `a +\n b` is fine. Migration tools pretty-printing long expressions must break *after* the operator, not before.
+43. **Method/path dots cannot have whitespace before them**. `a.b` and `a.\n  b` work; `a .b`, `a\n .b`, `a\n.b` all fail. A mapping that pretty-prints method chains across lines must break *after* each `.`. See §2.1.
+44. **`if`-without-matching-branch and non-matching `match` produce `nothing`, not `null`**. The resulting assignment is silently skipped (§8.3, §8.4, §9.4). `.catch()` cannot rescue this — there is no error to catch.
+45. **`meta(<expr>) = v` is NOT a valid assignment target**, even though `meta("key")` as a read works. Only bare identifier or quoted string is accepted after `meta` on the LHS. See §6.4.
+46. **Numeric path segments as write targets create OBJECT keys, not array indices**. `root.items.0 = "x"` produces `{"items": {"0": "x"}}`. No array gap-filling. See §6.3.
+47. **`@` and `meta` refer to the SAME underlying map**; there is no copy-on-write separation between input-metadata reads and output-metadata writes. A later `@key` expression sees the most recent `meta key = …` write.
+48. **`&&` and `||` coerce numbers to bool** via `IGetBool` — `true && 1` is `true`, `0 || true` is `true`. They are strict about strings/null/arrays/objects (which error). See §5.3.
+49. **`.number()` always returns `float64`** — `"42".number()` is `42.0`, and `.sum()` / `.min()` / `.max()` on arrays return `float64` even when inputs are all-int. Integer methods like `.floor()` / `.round()` reduce to int64 when needed. See §3 and §9.0.
+50. **V1 `assign` is a deep merge** (overrides per-key), and `merge` *combines* duplicate keys into arrays — this is the opposite of V2's naming. Read the method docs before rewriting either.
+51. **`.all()` on an empty array returns `false`** in V1 (not `true` by vacuous truth). `.any()` on an empty array returns `false` as expected.
+52. **`.fold()` is NOT curried in V1**. Despite occasional older docs showing `fold(init, tally -> value -> expr)`, the parser rejects that form as a name collision. The actual form is `.fold(init, item -> expr)` where `item` is an **object with `{tally, value}` fields**.
+53. **`.reverse()` is string-only in V1 core**. Reversing arrays requires a comparator sort (`.sort(left > right)`) or the extension-only array `.reverse()` from `internal/impl/pure`.
+54. **`.round()` in the core env takes no arguments**. `.round(2)` for decimal precision lives in `internal/impl/pure`; without it, use `(x * 100).round() / 100`.
+55. **`.index()` silently truncates non-whole float arguments**. `[1,2,3].index(1.7)` behaves like `.index(1)`.
+56. **`find()` on arrays returns Go `int`, not `int64`** — an unusual type-width quirk that can cause subtle comparison / arithmetic mismatches. Normalise with `.number()` if needed.
+57. **`now()` returns a `string`**, not a `timestamp`. For a typed timestamp use `ts_parse(...)` (extension-only) on the string, or build a `time.Time` via other means.
+58. **`range(a, b)` is a compile-time validated builtin**. `range(5, 5)` errors at parse. `range(0, 10, 3)` yields `[0, 3, 6]` (integer truncation of `(stop-start)/step`, not inclusive of the stop bound).
+59. **`random_int` validates arguments at compile time** — negative `min`, `min > max`, etc. fail to parse.
+60. **`format_json` HTML-escapes by default** (`<` → `<`) and returns the literal string `"null"` when called on an empty array.
+61. **`.apply("name")` resolves the map name at runtime**, not compile time. `.apply("missing")` produces a runtime error, not a parse error — tools validating imports against a manifest should know this.
+62. **Recursion-limit errors ARE catchable** via `.catch()` — they come through as ordinary runtime errors even though they originate deep in the interpreter.
+63. **Error messages carry a prefix describing the failure source**: `"field \`this.x\`: <inner>"`, `"null literal: value is null"`, `"string literal: <inner>"`, `"number literal: attempted to divide by zero"`. Migration tools that substring-match on V1 errors should allow for these prefixes.
+64. **The `throw` function's argument is named `why`** (not `msg`). Compile errors about wrong type/arity mention `why`, not `throw`: `"missing parameter: why"`, `"field why: wrong argument type, expected string, got number"`.
+65. **Top-level statements in imported files** are silently accepted by the parser but do not establish bindings visible to subsequent `.apply()` calls. The var-scoping isolation makes those statements effectively dead code, and access from the caller raises a runtime `"variable 'x' undefined"` error.
+66. **Whole-meta assignment requires an object**. `meta = "str"`, `meta = 5`, `meta = [1,2]` all raise runtime `"setting root meta object requires object value, received: <type>"`. See §6.4.
+67. **Path collision on assignment raises a runtime error**. `root.user = "Alice"; root.user.name = "Jane"` fails with `"unable to set target path user.name as the value of user was a non-object type (string)"`. Migration tools should order/restructure assignments to avoid setting a scalar on a path prefix that is later extended.
 
 ---
 
@@ -875,8 +967,7 @@ Statement       = Assignment
 Assignment      = Target "=" Expression
 Target          = "root" ("." PathSegment)*
                 | "this" ("." PathSegment)*                 # legacy = root…
-                | "meta" [ BareKey | QuotedString ]         # whole-meta or single key
-                | "meta" "(" Expression ")"                 # computed-key meta
+                | "meta" [ BareKey | QuotedString ]         # whole-meta or single key (no computed keys)
                 | BareKey ("." PathSegment)*                # legacy bare path = root.…
 
 LetBinding      = "let" (Ident | QuotedString) "=" Expression
