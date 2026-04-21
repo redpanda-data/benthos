@@ -25,25 +25,25 @@ tests:
     mapping: |
       root = 2147483647.int32() + 1.int32()
     error: "overflow"
-    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+    skip: "V1-divergence: arithmetic operators do not handle int32/uint32/int16/int8/uint16/uint8 values"
 
   - name: "int32 min - 1 overflows"
     mapping: |
       root = (-2147483648).int32() - 1.int32()
     error: "overflow"
-    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+    skip: "V1-divergence: int64 intermediate prevents overflow detection on int32 arithmetic"
 
   - name: "int32 max * 2 overflows"
     mapping: |
       root = 2147483647.int32() * 2.int32()
     error: "overflow"
-    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+    skip: "V1-divergence: int64 intermediate prevents overflow detection on int32 arithmetic"
 
   - name: "int32 large negative multiplication overflows"
     mapping: |
       root = (-2147483648).int32() * (-1).int32()
     error: "overflow"
-    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+    skip: "V1-divergence: int64 intermediate prevents overflow detection on int32 arithmetic"
 
   # --- uint32 overflow ---
 
@@ -51,19 +51,19 @@ tests:
     mapping: |
       root = 4294967295.uint32() + 1.uint32()
     error: "overflow"
-    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+    skip: "V1-divergence: arithmetic operators do not handle int32/uint32/int16/int8/uint16/uint8 values"
 
   - name: "uint32 zero minus 1 overflows"
     mapping: |
       root = 0.uint32() - 1.uint32()
     error: "overflow"
-    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+    skip: "V1-divergence: int64 intermediate prevents overflow detection on uint32 arithmetic"
 
   - name: "uint32 max * 2 overflows"
     mapping: |
       root = 4294967295.uint32() * 2.uint32()
     error: "overflow"
-    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+    skip: "V1-divergence: int64 intermediate prevents overflow detection on uint32 arithmetic"
 
   # --- uint64 overflow ---
 
@@ -77,13 +77,13 @@ tests:
     mapping: |
       root = 0.uint64() - 1.uint64()
     error: "overflow"
-    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+    skip: "V1-divergence: V1 wraps uint64 overflow silently (no error) — quirk §14.26."
 
   - name: "uint64 max * 2 overflows"
     mapping: |
       root = "18446744073709551615".uint64() * 2.uint64()
     error: "overflow"
-    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+    skip: "V1-divergence: V1 wraps uint64 overflow silently (no error) — quirk §14.26."
 
   # --- int64 multiplication near boundaries ---
 
@@ -117,13 +117,12 @@ tests:
     mapping: |
       root = "18446744073709551614".uint64() + 1.uint64()
     output: {_type: "uint64", value: "18446744073709551615"}
-    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
 
   - name: "uint32 max minus 1 plus 1 is exactly max"
     mapping: |
       root = (4294967295.uint32() - 1.uint32()) + 1.uint32()
     output: {_type: "uint32", value: "4294967295"}
-    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+    skip: "V1-divergence: uint32 arithmetic collapses to int64, loses uint32 type identity"
 
   # --- Overflow in modulo (abs(min) overflows for signed) ---
 

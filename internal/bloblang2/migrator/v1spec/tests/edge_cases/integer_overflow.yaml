@@ -48,72 +48,61 @@ tests:
   - name: "int32 max + 1 via conversion overflows"
     mapping: |
       root = 2147483648.int32()
-    error: "overflow"
-    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+    error: "too large"
 
   - name: "int32 min - 1 via conversion overflows"
     mapping: |
       root = (-2147483649).int32()
-    error: "overflow"
-    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+    error: "too small"
 
   - name: "int32 max is representable"
     mapping: |
       root = 2147483647.int32()
     output: {_type: "int32", value: "2147483647"}
-    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
 
   - name: "int32 min is representable"
     mapping: |
       root = (-2147483648).int32()
     output: {_type: "int32", value: "-2147483648"}
-    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
 
   # --- uint32 overflow via conversion ---
 
   - name: "uint32 max + 1 via conversion overflows"
     mapping: |
       root = 4294967296.uint32()
-    error: "overflow"
-    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+    error: "too large"
 
   - name: "uint32 negative via conversion overflows"
     mapping: |
       root = (-1).uint32()
-    error: "overflow"
-    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+    error: "negative and cannot be cast"
 
   - name: "uint32 max is representable"
     mapping: |
       root = 4294967295.uint32()
     output: {_type: "uint32", value: "4294967295"}
-    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
 
   # --- uint64 overflow ---
 
   - name: "uint64 max + 1 from string overflows"
     mapping: |
       root = "18446744073709551616".uint64()
-    error: "overflow"
-    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+    error: "value out of range"
 
   - name: "uint64 negative is error"
     mapping: |
       root = (-1).uint64()
-    error: "overflow"
-    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+    error: "negative and cannot be cast"
 
   - name: "uint64 max from string is representable"
     mapping: |
       root = "18446744073709551615".uint64()
     output: {_type: "uint64", value: "18446744073709551615"}
-    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
 
   - name: "uint64 max as bare literal is compile error"
     mapping: |
       root = 18446744073709551615.uint64()
-    compile_error: "exceeds"
-    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+    compile_error: "value out of range"
 
   # --- Overflow at boundary ---
 
