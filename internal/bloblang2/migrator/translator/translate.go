@@ -759,10 +759,33 @@ func (t *translator) translateUnary(u *v1ast.UnaryExpr) syntax.Expr {
 // field access. This handles the null case; wrong-type receivers (e.g.
 // `5.field`) still error in V2 even with `?.`, which is a genuine V1-V2
 // divergence flagged separately when it arises.
+//
+// A V1 path segment whose name is an all-digit string (e.g. `this.items.0`)
+// is V1's array-indexing syntax (§6.3). V2 uses bracket indexing for that,
+// so we emit an IndexExpr with the numeric value rather than a literal field
+// named "0".
 func (t *translator) translateFieldAccess(f *v1ast.FieldAccess) syntax.Expr {
 	recv := t.translateExpr(f.Recv)
 	if recv == nil {
 		return nil
+	}
+	if !f.Seg.Quoted && isAllDigits(f.Seg.Name) {
+		t.rec.Rewritten(Change{
+			Line: f.Seg.Pos.Line, Column: f.Seg.Pos.Column,
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID: RuleNoBracketIndexing, SpecRef: "§14#10",
+			Explanation: "V1 numeric path segment rewritten as V2 index expression",
+		})
+		return &syntax.IndexExpr{
+			Receiver: recv,
+			Index: &syntax.LiteralExpr{
+				TokenPos:  pos(f.Seg.Pos),
+				TokenType: syntax.INT,
+				Value:     f.Seg.Name,
+			},
+			LBracketPos: pos(f.Seg.Pos),
+			NullSafe:    true,
+		}
 	}
 	t.rec.Exact()
 	return &syntax.FieldAccessExpr{
@@ -771,6 +794,19 @@ func (t *translator) translateFieldAccess(f *v1ast.FieldAccess) syntax.Expr {
 		FieldPos: pos(f.Seg.Pos),
 		NullSafe: true,
 	}
+}
+
+// isAllDigits returns true when s is a non-empty string of ASCII digits.
+func isAllDigits(s string) bool {
+	if len(s) == 0 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // translateMethodCall rewrites `recv.name(args)`. Some method names are
