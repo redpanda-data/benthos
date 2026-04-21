@@ -1,0 +1,171 @@
+description: "PathExpr collapse: chains of field access, indexing, and method calls are collapsed into flat path expressions"
+
+tests:
+  # --- Input field chains ---
+
+  - name: "input single field"
+    input: {"x": 1}
+    mapping: |
+      root.v = this.x
+    output: {"v": 1}
+
+  - name: "input two-level field chain"
+    input: {"a": {"b": 2}}
+    mapping: |
+      root.v = this.a.b
+    output: {"v": 2}
+
+  - name: "input deep field chain"
+    input: {"a": {"b": {"c": {"d": {"e": 42}}}}}
+    mapping: |
+      root.v = this.a.b.c.d.e
+    output: {"v": 42}
+
+  - name: "input field chain with index"
+    input: {"items": [10, 20, 30]}
+    mapping: |
+      root.v = this.items.index(1)
+    output: {"v": 20}
+
+  - name: "input field chain with nested index"
+    input: {"data": {"items": [{"name": "Alice"}, {"name": "Bob"}]}}
+    mapping: |
+      root.v = this.data.items.index(1).name
+    output: {"v": "Bob"}
+
+  - name: "input field chain with method call"
+    input: {"name": "Alice"}
+    mapping: |
+      root.v = this.name.uppercase()
+    output: {"v": "ALICE"}
+
+  - name: "input field chain with method and further field access"
+    input: {"data": [3, 1, 2]}
+    mapping: |
+      root.v = this.data.sort().index(0)
+    output: {"v": 1}
+
+  - name: "input field chain with multiple methods"
+    input: {"text": "  Hello World  "}
+    mapping: |
+      root.v = this.text.trim().lowercase()
+    output: {"v": "hello world"}
+
+  # --- Null-safe chains ---
+  # V1 has no `?.` null-safe operator. Path access into null already yields null (§12.5),
+  # but method calls on null typically error. These tests don't translate cleanly.
+
+  - name: "null-safe field chain short-circuits"
+    input: {"user": null}
+    mapping: |
+      root.v = this.user?.name?.trim()
+    skip: "V1 has no null-safe `?.` operator; closest equivalent would be nested .or(null) or try/catch"
+
+  - name: "null-safe index chain short-circuits"
+    input: {"items": null}
+    mapping: |
+      root.v = this.items?.index(0)?.name
+    skip: "V1 has no null-safe `?.` operator"
+
+  - name: "null-safe method chain short-circuits"
+    input: {"value": null}
+    mapping: |
+      root.v = this.value?.uppercase()
+    skip: "V1 has no null-safe `?.` operator; method on null would error"
+
+  - name: "mixed null-safe and regular access"
+    input: {"user": {"address": null}}
+    mapping: |
+      root.v = this.user.address.city
+    output: {"v": null} # V1 path access into null yields null without needing `?.` (§12.5)
+
+  # --- Output field chains ---
+
+  - name: "output field chain read after write"
+    mapping: |
+      root.user = {"name": "Alice", "age": 30}
+      root.v = root.user.name
+    output: {"user": {"name": "Alice", "age": 30}, "v": "Alice"}
+
+  - name: "output field chain with method"
+    mapping: |
+      root.data = {"name": "Alice"}
+      root.v = root.data.keys().length()
+    output: {"data": {"name": "Alice"}, "v": 1}
+
+  # --- Variable field chains ---
+
+  - name: "variable field chain"
+    mapping: |
+      let user = {"name": "Alice", "address": {"city": "London"}}
+      root.v = $user.address.city
+    output: {"v": "London"}
+
+  - name: "variable field chain with index"
+    mapping: |
+      let items = [10, 20, 30]
+      root.v = $items.index(2)
+    output: {"v": 30}
+
+  - name: "variable field chain with method"
+    mapping: |
+      let name = "hello"
+      root.v = $name.uppercase()
+    output: {"v": "HELLO"}
+
+  # --- Input metadata chains ---
+
+  - name: "input metadata field chain"
+    input_metadata: {"routing": {"region": "us-west"}}
+    mapping: |
+      root.v = @routing.region
+    output: {"v": "us-west"}
+    output_metadata: {"routing": {"region": "us-west"}} # V1 preserves input metadata on the message part when not modified
+
+  - name: "input metadata with method"
+    input_metadata: {"topic": "events"}
+    mapping: |
+      root.v = @topic.uppercase()
+    output: {"v": "EVENTS"}
+    output_metadata: {"topic": "events"} # V1 preserves input metadata when not modified
+
+  # --- Mixed chain with dynamic index ---
+
+  - name: "chain with dynamic string index"
+    input: {"data": {"x": 1, "y": 2}}
+    mapping: |
+      let key = "y"
+      root.v = this.data.get($key)
+    output: {"v": 2} # FIXME-v1: verify — V1 has no `[expr]` indexing; `.get(path)` is the closest equivalent
+
+  - name: "chain with negative index"
+    input: {"items": [1, 2, 3]}
+    mapping: |
+      root.v = this.items.index(-1)
+    output: {"v": 3}
+
+  # --- Chain with lambda method ---
+
+  - name: "chain with filter method"
+    input: {"items": [1, -2, 3, -4]}
+    mapping: |
+      root.v = this.items.filter(x -> x > 0)
+    output: {"v": [1, 3]}
+
+  - name: "chain with map and further access"
+    input: {"items": [1, 2, 3]}
+    mapping: |
+      root.v = this.items.map_each(x -> x * 2).length()
+    output: {"v": 3}
+
+  # --- Non-collapsible roots are preserved ---
+
+  - name: "method call on literal is not collapsed"
+    mapping: |
+      root.v = "hello".uppercase()
+    output: {"v": "HELLO"}
+
+  - name: "method call on function result is not collapsed"
+    mapping: |
+      root.v = uuid_v4().length()
+    output: {"v": 36}

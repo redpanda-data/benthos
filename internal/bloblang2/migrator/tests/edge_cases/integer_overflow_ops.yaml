@@ -1,0 +1,135 @@
+description: >
+  Integer overflow across all operations and integer types — addition,
+  subtraction, multiplication for int32, int64, uint32, uint64. Also
+  tests that overflow is always a runtime error, never wraps.
+
+tests:
+  # --- int64 overflow: subtraction ---
+
+  - name: "int64 min minus 1 via subtraction overflows"
+    mapping: |
+      let min = -9223372036854775807 - 1
+      root = $min - 1
+    error: "overflow"
+    skip: "V1-divergence: V1 wraps int64 overflow silently (no error) — quirk §14.26."
+
+  - name: "int64 large negative subtraction overflows"
+    mapping: |
+      root = (-9223372036854775807) - 9223372036854775807
+    error: "overflow"
+    skip: "V1-divergence: V1 wraps int64 overflow silently (no error) — quirk §14.26."
+
+  # --- int32 overflow: arithmetic ---
+
+  - name: "int32 max + 1 overflows"
+    mapping: |
+      root = 2147483647.int32() + 1.int32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+
+  - name: "int32 min - 1 overflows"
+    mapping: |
+      root = (-2147483648).int32() - 1.int32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+
+  - name: "int32 max * 2 overflows"
+    mapping: |
+      root = 2147483647.int32() * 2.int32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+
+  - name: "int32 large negative multiplication overflows"
+    mapping: |
+      root = (-2147483648).int32() * (-1).int32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .int32() distinct numeric-width conversion."
+
+  # --- uint32 overflow ---
+
+  - name: "uint32 max + 1 overflows"
+    mapping: |
+      root = 4294967295.uint32() + 1.uint32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+
+  - name: "uint32 zero minus 1 overflows"
+    mapping: |
+      root = 0.uint32() - 1.uint32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+
+  - name: "uint32 max * 2 overflows"
+    mapping: |
+      root = 4294967295.uint32() * 2.uint32()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+
+  # --- uint64 overflow ---
+
+  - name: "uint64 max + 1 overflows"
+    mapping: |
+      root = "18446744073709551615".uint64() + 1.uint64()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion, and silent overflow (§14.26)."
+
+  - name: "uint64 zero minus 1 overflows"
+    mapping: |
+      root = 0.uint64() - 1.uint64()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+
+  - name: "uint64 max * 2 overflows"
+    mapping: |
+      root = "18446744073709551615".uint64() * 2.uint64()
+    error: "overflow"
+    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+
+  # --- int64 multiplication near boundaries ---
+
+  - name: "int64 max / 2 * 3 overflows"
+    mapping: |
+      let half = 4611686018427387903
+      root = $half * 3
+    error: "overflow"
+    skip: "V1-divergence: V1 wraps int64 overflow silently (no error) — quirk §14.26."
+
+  - name: "int64 negative overflow from multiplication"
+    mapping: |
+      root = 9223372036854775807 * (-2)
+    error: "overflow"
+    skip: "V1-divergence: V1 wraps int64 overflow silently (no error) — quirk §14.26."
+
+  # --- Non-overflow boundary values work ---
+
+  - name: "int64 max - 1 + 1 is exactly max"
+    mapping: |
+      root = 9223372036854775806 + 1
+    output: 9223372036854775807
+
+  - name: "int32 max representable after subtraction"
+    mapping: |
+      root = (2147483647.int32() - 1.int32()) + 1.int32()
+    output: {_type: "int32", value: "2147483647"}
+    skip: "V2-only: V1 has no int32 distinct numeric width."
+
+  - name: "uint64 large value arithmetic within range"
+    mapping: |
+      root = "18446744073709551614".uint64() + 1.uint64()
+    output: {_type: "uint64", value: "18446744073709551615"}
+    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+
+  - name: "uint32 max minus 1 plus 1 is exactly max"
+    mapping: |
+      root = (4294967295.uint32() - 1.uint32()) + 1.uint32()
+    output: {_type: "uint32", value: "4294967295"}
+    skip: "V2-only: V1 has no .uint32() distinct numeric-width conversion."
+
+  # --- Overflow in modulo (abs(min) overflows for signed) ---
+
+  - name: "int64 min modulo -1 overflows"
+    mapping: |
+      let min = -9223372036854775807 - 1
+      root = $min % (-1)
+    error: "overflow"
+    skip: "V1-divergence: V1 silently wraps int64 overflow (modulo of int64-min by -1 does not error)."
