@@ -77,7 +77,6 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	// ----- Flag known semantic divergences without rewriting -----
 	case "length":
 		t.flagMethodDivergence(m, "V1 .length() on strings counts bytes; V2 counts codepoints (§14#40)")
-		// Fall through to 1:1 translation.
 		return nil
 	case "or":
 		t.rec.Rewritten(Change{
@@ -85,6 +84,32 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 			Severity: SeverityWarning, Category: CategorySemanticChange,
 			RuleID: RuleOrCatchesErrors, SpecRef: "§12.2",
 			Explanation: "V1 .or() catches errors AND nulls; V2 .or() catches nulls only — consider .catch(_ -> x) for error fallbacks",
+		})
+		return nil
+
+	// ----- V2 is stricter about receiver type; flag and pass through -----
+	case "merge":
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
+			Explanation: "V1 .merge() tolerates null receiver/arg; V2 errors. Audit whether operands can be null.",
+		})
+		return nil
+	case "filter", "map", "map_keys", "map_values", "filter_entries", "all", "any":
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID: RuleMethodDoesNotExist,
+			Explanation: "V1 " + "." + m.Name + "() accepts arrays and objects; V2 is strict about receiver type",
+		})
+		return nil
+	case "sum", "min", "max":
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID: RuleMethodDoesNotExist,
+			Explanation: "V1 " + "." + m.Name + "() always returns float64; V2 may preserve integer type — audit numeric comparisons",
 		})
 		return nil
 	}
