@@ -1,0 +1,422 @@
+package v1ast
+
+// Node is the interface implemented by every AST node.
+type Node interface {
+	// NodePos returns the source position of this node.
+	NodePos() Pos
+	// nodePos tags the interface for internal use; calling it directly is a
+	// no-op and exists only to prevent external types from claiming to be
+	// Nodes.
+	nodePos() Pos
+}
+
+// Expr is implemented by every expression node.
+type Expr interface {
+	Node
+	exprNode()
+}
+
+// Stmt is implemented by every statement node.
+type Stmt interface {
+	Node
+	stmtNode()
+}
+
+// Program is the root of a V1 mapping AST. Maps and imports live alongside
+// regular statements. The original source ordering is preserved on `Stmts`
+// (maps and imports also appear in Stmts in order; convenience slices Maps /
+// Imports are provided for quick access).
+type Program struct {
+	Stmts   []Stmt
+	Maps    []*MapDecl
+	Imports []*ImportStmt
+	Pos     Pos
+}
+
+func (p *Program) NodePos() Pos { return p.Pos }
+func (p *Program) nodePos() Pos { return p.Pos }
+
+//
+// Statements
+//
+
+// Assignment is `<target> = <expr>` at statement position.
+type Assignment struct {
+	Target AssignTarget
+	Value  Expr
+	Pos    Pos
+}
+
+func (a *Assignment) NodePos() Pos { return a.Pos }
+func (a *Assignment) nodePos() Pos { return a.Pos }
+func (a *Assignment) stmtNode()    {}
+
+// AssignTargetKind enumerates the shapes of assignment targets. V1 is
+// restrictive on the LHS (§6.4).
+type AssignTargetKind int
+
+const (
+	// TargetRoot is `root` optionally followed by path segments.
+	TargetRoot AssignTargetKind = iota
+	// TargetThis is `this` optionally followed by path segments. Note: the V1
+	// parser accepts this and produces literal top-level "this" key behaviour
+	// (quirk 72); the AST preserves it verbatim.
+	TargetThis
+	// TargetBare is a bare-identifier first segment followed by more path
+	// segments (legacy, equivalent to root.<ident>…).
+	TargetBare
+	// TargetMeta is `meta` with no key (wholesale replace), or `meta <ident>`
+	// / `meta "key"` for a single entry.
+	TargetMeta
+)
+
+// AssignTarget is the LHS of an `=` assignment.
+type AssignTarget struct {
+	Kind AssignTargetKind
+	// Path is the list of segments after the root keyword. For TargetBare,
+	// Path[0].Name is the bare identifier (and Quoted=false). For TargetMeta,
+	// Path has at most one entry (the key); it is empty for wholesale meta.
+	Path []PathSegment
+	Pos  Pos
+}
+
+// PathSegment is a dotted path component.
+type PathSegment struct {
+	Name   string // the literal segment name (or unescaped quoted string)
+	Quoted bool   // true if the segment was written in quoted form
+	Pos    Pos
+}
+
+// LetStmt is `let <name> = <expr>` or `let "<name>" = <expr>`.
+type LetStmt struct {
+	Name       string
+	NameQuoted bool
+	NamePos    Pos
+	Value      Expr
+	Pos        Pos
+}
+
+func (l *LetStmt) NodePos() Pos { return l.Pos }
+func (l *LetStmt) nodePos() Pos { return l.Pos }
+func (l *LetStmt) stmtNode()    {}
+
+// MapDecl is `map <name> { ... }`.
+type MapDecl struct {
+	Name    string
+	NamePos Pos
+	Body    []Stmt
+	Pos     Pos
+}
+
+func (m *MapDecl) NodePos() Pos { return m.Pos }
+func (m *MapDecl) nodePos() Pos { return m.Pos }
+func (m *MapDecl) stmtNode()    {}
+
+// ImportStmt is `import "path"`.
+type ImportStmt struct {
+	Path Expr // string literal
+	Pos  Pos
+}
+
+func (i *ImportStmt) NodePos() Pos { return i.Pos }
+func (i *ImportStmt) nodePos() Pos { return i.Pos }
+func (i *ImportStmt) stmtNode()    {}
+
+// FromStmt is `from "path"`.
+type FromStmt struct {
+	Path Expr
+	Pos  Pos
+}
+
+func (f *FromStmt) NodePos() Pos { return f.Pos }
+func (f *FromStmt) nodePos() Pos { return f.Pos }
+func (f *FromStmt) stmtNode()    {}
+
+// IfStmt is the statement form of `if / else if / else { ... }`.
+type IfStmt struct {
+	Branches []IfBranch // first is the if, rest are else-if
+	Else     []Stmt     // may be nil if no else clause
+	Pos      Pos
+}
+
+func (i *IfStmt) NodePos() Pos { return i.Pos }
+func (i *IfStmt) nodePos() Pos { return i.Pos }
+func (i *IfStmt) stmtNode()    {}
+
+// IfBranch is one `(if|else if) cond { body }` branch.
+type IfBranch struct {
+	Cond Expr
+	Body []Stmt
+	Pos  Pos
+}
+
+// BareExprStmt is a lone expression acting as the whole mapping (shorthand
+// for `root = expr`). Legal only when it is the sole statement.
+type BareExprStmt struct {
+	Expr Expr
+	Pos  Pos
+}
+
+func (b *BareExprStmt) NodePos() Pos { return b.Pos }
+func (b *BareExprStmt) nodePos() Pos { return b.Pos }
+func (b *BareExprStmt) stmtNode()    {}
+
+//
+// Expressions
+//
+
+// LiteralKind identifies the kind of a Literal.
+type LiteralKind int
+
+// Literal kinds.
+const (
+	LitNull LiteralKind = iota
+	LitBool
+	LitInt
+	LitFloat
+	LitString
+	LitRawString
+)
+
+// Literal represents null, true, false, integers, floats, strings.
+type Literal struct {
+	Kind LiteralKind
+	// Raw is the original source text (for INT/FLOAT preserved as-is; for
+	// strings it is the raw text of the token — quoted or triple-quoted). May
+	// be empty if synthesised.
+	Raw string
+	// Str is the decoded string value for LitString / LitRawString. Bool/Int
+	// readers can consult Raw.
+	Str    string
+	Bool   bool
+	Int    int64
+	Float  float64
+	TokPos Pos
+}
+
+func (l *Literal) NodePos() Pos { return l.TokPos }
+func (l *Literal) nodePos() Pos { return l.TokPos }
+func (l *Literal) exprNode()    {}
+
+// Ident is a bare identifier at expression position (the legacy `foo` =
+// `this.foo` form). The parser intentionally does NOT rewrite this; the
+// migrator is free to decide.
+type Ident struct {
+	Name   string
+	TokPos Pos
+}
+
+func (i *Ident) NodePos() Pos { return i.TokPos }
+func (i *Ident) nodePos() Pos { return i.TokPos }
+func (i *Ident) exprNode()    {}
+
+// ThisExpr is the literal `this` keyword.
+type ThisExpr struct{ TokPos Pos }
+
+func (t *ThisExpr) NodePos() Pos { return t.TokPos }
+func (t *ThisExpr) nodePos() Pos { return t.TokPos }
+func (t *ThisExpr) exprNode()    {}
+
+// RootExpr is the literal `root` keyword at expression position.
+type RootExpr struct{ TokPos Pos }
+
+func (r *RootExpr) NodePos() Pos { return r.TokPos }
+func (r *RootExpr) nodePos() Pos { return r.TokPos }
+func (r *RootExpr) exprNode()    {}
+
+// VarRef is `$name`.
+type VarRef struct {
+	Name   string
+	TokPos Pos
+}
+
+func (v *VarRef) NodePos() Pos { return v.TokPos }
+func (v *VarRef) nodePos() Pos { return v.TokPos }
+func (v *VarRef) exprNode()    {}
+
+// MetaRef is `@` (whole metadata, Name empty) or `@name` / `@"name"`.
+type MetaRef struct {
+	Name   string // empty for bare `@`
+	Quoted bool
+	TokPos Pos
+}
+
+func (m *MetaRef) NodePos() Pos { return m.TokPos }
+func (m *MetaRef) nodePos() Pos { return m.TokPos }
+func (m *MetaRef) exprNode()    {}
+
+// BinaryExpr is a binary-operator expression.
+type BinaryExpr struct {
+	Left, Right Expr
+	Op          TokenKind
+	OpPos       Pos
+}
+
+func (b *BinaryExpr) NodePos() Pos { return b.Left.nodePos() }
+func (b *BinaryExpr) nodePos() Pos { return b.Left.nodePos() }
+func (b *BinaryExpr) exprNode()    {}
+
+// UnaryExpr is `!x` or `-x`.
+type UnaryExpr struct {
+	Op      TokenKind
+	Operand Expr
+	OpPos   Pos
+}
+
+func (u *UnaryExpr) NodePos() Pos { return u.OpPos }
+func (u *UnaryExpr) nodePos() Pos { return u.OpPos }
+func (u *UnaryExpr) exprNode()    {}
+
+// ParenExpr wraps an expression in parentheses. Preserved in the AST so the
+// printer can round-trip.
+type ParenExpr struct {
+	Inner  Expr
+	TokPos Pos
+}
+
+func (p *ParenExpr) NodePos() Pos { return p.TokPos }
+func (p *ParenExpr) nodePos() Pos { return p.TokPos }
+func (p *ParenExpr) exprNode()    {}
+
+// FieldAccess is `recv.<name>` where Name is an identifier-class or quoted
+// path segment.
+type FieldAccess struct {
+	Recv Expr
+	Seg  PathSegment
+}
+
+func (f *FieldAccess) NodePos() Pos { return f.Recv.nodePos() }
+func (f *FieldAccess) nodePos() Pos { return f.Recv.nodePos() }
+func (f *FieldAccess) exprNode()    {}
+
+// MethodCall is `recv.name(args)`.
+type MethodCall struct {
+	Recv    Expr
+	Name    string
+	NamePos Pos
+	Args    []CallArg
+	Named   bool // all arguments are named (name: value)
+}
+
+func (m *MethodCall) NodePos() Pos { return m.Recv.nodePos() }
+func (m *MethodCall) nodePos() Pos { return m.Recv.nodePos() }
+func (m *MethodCall) exprNode()    {}
+
+// FunctionCall is a top-level call `name(args)`.
+type FunctionCall struct {
+	Name    string
+	NamePos Pos
+	Args    []CallArg
+	Named   bool
+}
+
+func (f *FunctionCall) NodePos() Pos { return f.NamePos }
+func (f *FunctionCall) nodePos() Pos { return f.NamePos }
+func (f *FunctionCall) exprNode()    {}
+
+// MetaCall is `meta(<expr>)` used as an expression (read form).
+type MetaCall struct {
+	Key    Expr
+	TokPos Pos
+}
+
+func (m *MetaCall) NodePos() Pos { return m.TokPos }
+func (m *MetaCall) nodePos() Pos { return m.TokPos }
+func (m *MetaCall) exprNode()    {}
+
+// CallArg is one argument, optionally named.
+type CallArg struct {
+	Name  string // empty for positional
+	Value Expr
+	Pos   Pos
+}
+
+// MapExpr is `recv.(body)` — a path-scoped subexpression that rebinds
+// `this`. For the named-capture variant `recv.(name -> body)` Body is a
+// Lambda.
+type MapExpr struct {
+	Recv   Expr
+	Body   Expr
+	TokPos Pos // position of the '.' before '('
+}
+
+func (m *MapExpr) NodePos() Pos { return m.Recv.nodePos() }
+func (m *MapExpr) nodePos() Pos { return m.Recv.nodePos() }
+func (m *MapExpr) exprNode()    {}
+
+// Lambda is `<name> -> <body>` or `_ -> <body>`.
+type Lambda struct {
+	Param    string
+	Discard  bool // true if param is `_`
+	ParamPos Pos
+	Body     Expr
+	ArrowPos Pos
+}
+
+func (l *Lambda) NodePos() Pos { return l.ParamPos }
+func (l *Lambda) nodePos() Pos { return l.ParamPos }
+func (l *Lambda) exprNode()    {}
+
+// ArrayLit is `[...]`.
+type ArrayLit struct {
+	Elems  []Expr
+	TokPos Pos // '['
+}
+
+func (a *ArrayLit) NodePos() Pos { return a.TokPos }
+func (a *ArrayLit) nodePos() Pos { return a.TokPos }
+func (a *ArrayLit) exprNode()    {}
+
+// ObjectLit is `{...}`.
+type ObjectLit struct {
+	Entries []ObjectEntry
+	TokPos  Pos // '{'
+}
+
+func (o *ObjectLit) NodePos() Pos { return o.TokPos }
+func (o *ObjectLit) nodePos() Pos { return o.TokPos }
+func (o *ObjectLit) exprNode()    {}
+
+// ObjectEntry is one `key: value` member.
+type ObjectEntry struct {
+	Key   Expr // may be *Literal (QuotedString) or any other expression (dynamic)
+	Value Expr
+}
+
+// IfExpr is the expression form of if/else if/else, where each branch body
+// is a single expression.
+type IfExpr struct {
+	Branches []IfExprBranch
+	Else     Expr // nil if no else
+	TokPos   Pos
+}
+
+func (i *IfExpr) NodePos() Pos { return i.TokPos }
+func (i *IfExpr) nodePos() Pos { return i.TokPos }
+func (i *IfExpr) exprNode()    {}
+
+// IfExprBranch is one arm of an IfExpr.
+type IfExprBranch struct {
+	Cond Expr
+	Body Expr
+	Pos  Pos
+}
+
+// MatchExpr is `match [subject] { cases }`.
+type MatchExpr struct {
+	Subject Expr // nil for subject-less match
+	Cases   []MatchCase
+	TokPos  Pos
+}
+
+func (m *MatchExpr) NodePos() Pos { return m.TokPos }
+func (m *MatchExpr) nodePos() Pos { return m.TokPos }
+func (m *MatchExpr) exprNode()    {}
+
+// MatchCase is one `pattern => body` arm.
+type MatchCase struct {
+	Pattern  Expr // nil for wildcard `_`
+	Wildcard bool
+	Body     Expr
+	Pos      Pos
+}
