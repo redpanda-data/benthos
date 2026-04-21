@@ -70,8 +70,13 @@ func TestCorpusRegression(t *testing.T) {
 			}
 			outcome := runOne(interp, tc)
 			stats.record(outcome)
-			if outcome.kind == outcomeUnexpected {
+			switch outcome.kind {
+			case outcomeUnexpected:
 				t.Logf("[DELTA] %s/%s: %s", rel, tc.Name, outcome.detail)
+			case outcomeV2CompileFail:
+				t.Logf("[V2COMP] %s/%s: %s", rel, tc.Name, outcome.detail)
+			case outcomeTranslateFail:
+				t.Logf("[TRANS] %s/%s: %s", rel, tc.Name, outcome.detail)
 			}
 		}
 	}
