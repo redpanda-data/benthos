@@ -1,8 +1,8 @@
-// Package migrator provides a Bloblang V1 spec-test runner. It adapts the
+// Package v1spec provides a Bloblang V1 spec-test runner. It adapts the
 // shared spectest schema (originally built for V2 conformance) so that the V1
 // equivalents under ./tests can be executed by the V1 interpreter and their
 // outputs compared against the same expectations.
-package migrator
+package v1spec
 
 import (
 	"fmt"
