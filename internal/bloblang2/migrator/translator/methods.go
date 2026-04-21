@@ -53,9 +53,9 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		return t.rewrittenRename(m, recv, "float64",
 			Change{
 				RuleID:      RuleMethodDoesNotExist,
-				Severity:    SeverityInfo,
-				Category:    CategoryIdiomRewrite,
-				Explanation: "V1 .number() renamed to V2 .float64() (V1 number always returns float64)",
+				Severity:    SeverityWarning,
+				Category:    CategorySemanticChange,
+				Explanation: "V1 .number() is float64; V2 .float64() preserves that, but downstream code expecting int64 results may break",
 			})
 
 	// ----- Variadic .without("a","b","c") -> .without(["a","b","c"]) -----
@@ -73,6 +73,20 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	// ----- V2 .catch requires a lambda; V1 accepts a plain value -----
 	case "catch":
 		return t.catchValueToLambda(m, recv)
+
+	// ----- Flag known semantic divergences without rewriting -----
+	case "length":
+		t.flagMethodDivergence(m, "V1 .length() on strings counts bytes; V2 counts codepoints (§14#40)")
+		// Fall through to 1:1 translation.
+		return nil
+	case "or":
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID: RuleOrCatchesErrors, SpecRef: "§12.2",
+			Explanation: "V1 .or() catches errors AND nulls; V2 .or() catches nulls only — consider .catch(_ -> x) for error fallbacks",
+		})
+		return nil
 	}
 	return nil
 }
@@ -126,6 +140,20 @@ func (t *translator) simpleRename(m *v1ast.MethodCall, recv syntax.Expr, newName
 		Args:      args,
 		Named:     m.Named,
 	}
+}
+
+// flagMethodDivergence emits a SemanticChange Change without rewriting the
+// method call itself. Useful for methods where V1 and V2 names match but
+// behaviour legitimately differs — the migrator can't always tell at
+// translate time whether the divergence applies, so warn unconditionally
+// and let the caller audit.
+func (t *translator) flagMethodDivergence(m *v1ast.MethodCall, reason string) {
+	t.rec.Rewritten(Change{
+		Line: m.NamePos.Line, Column: m.NamePos.Column,
+		Severity: SeverityWarning, Category: CategorySemanticChange,
+		RuleID: RuleStringLengthBytes, SpecRef: "§14#40",
+		Explanation: reason,
+	})
 }
 
 // rewrittenRename is simpleRename but emits a Change record describing the
