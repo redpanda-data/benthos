@@ -7,10 +7,50 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/v1ast"
 )
 
-// translator holds the per-call state: the Change/Coverage recorder and a
-// handful of helpers.
+// translator holds the per-call state: the Change/Coverage recorder, a
+// scope stack for lambda / named-capture parameter names, and helpers.
 type translator struct {
 	rec *recorder
+	// scopes is a stack of named context frames. An ident is resolved from
+	// the innermost frame outward; if not found, it falls back to the
+	// legacy V1 bare-ident form (this.<name>). Each entry in a frame is
+	// the parameter name introduced by a lambda or .(name -> body).
+	scopes []scopeFrame
+}
+
+// scopeFrame is one level of named-context bindings.
+type scopeFrame struct {
+	names map[string]struct{}
+}
+
+// pushScope adds a named-context frame. Callers must pair with popScope.
+func (t *translator) pushScope(names ...string) {
+	frame := scopeFrame{names: map[string]struct{}{}}
+	for _, n := range names {
+		if n != "" && n != "_" {
+			frame.names[n] = struct{}{}
+		}
+	}
+	t.scopes = append(t.scopes, frame)
+}
+
+// popScope removes the innermost frame.
+func (t *translator) popScope() {
+	if len(t.scopes) == 0 {
+		return
+	}
+	t.scopes = t.scopes[:len(t.scopes)-1]
+}
+
+// isBoundIdent reports whether name matches a named-context binding in any
+// active scope.
+func (t *translator) isBoundIdent(name string) bool {
+	for i := len(t.scopes) - 1; i >= 0; i-- {
+		if _, ok := t.scopes[i].names[name]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // translateProgram walks a parsed V1 program and produces a V2 program. Every
@@ -335,8 +375,15 @@ func (t *translator) translateExpr(e v1ast.Expr) syntax.Expr {
 		})
 		return t.metaReadExpr(x)
 	case *v1ast.Ident:
-		// Legacy bare identifier in expression position = `this.foo` = V2
-		// `input.foo`.
+		// If the name is a lambda parameter or named-context binding in
+		// scope, emit a V2 identifier reference — not the legacy
+		// bare-ident-to-input rewrite.
+		if t.isBoundIdent(x.Name) {
+			t.rec.Exact()
+			return &syntax.IdentExpr{TokenPos: pos(x.TokPos), Name: x.Name, SlotIndex: -1}
+		}
+		// Otherwise, legacy bare identifier in expression position =
+		// `this.foo` = V2 `input.foo`.
 		t.rec.Rewritten(Change{
 			Line: x.TokPos.Line, Column: x.TokPos.Column,
 			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
@@ -496,6 +543,13 @@ func (t *translator) translateUnary(u *v1ast.UnaryExpr) syntax.Expr {
 }
 
 // translateFieldAccess recursively walks the V1 field-access chain.
+//
+// V1 path access is universally null-tolerant: reading any field of a non-
+// object returns null (§12.5). V2 defaults to strict: `null.field` errors.
+// To preserve V1 semantics we emit the null-safe V2 form `?.field` on every
+// field access. This handles the null case; wrong-type receivers (e.g.
+// `5.field`) still error in V2 even with `?.`, which is a genuine V1-V2
+// divergence flagged separately when it arises.
 func (t *translator) translateFieldAccess(f *v1ast.FieldAccess) syntax.Expr {
 	recv := t.translateExpr(f.Recv)
 	if recv == nil {
@@ -506,14 +560,19 @@ func (t *translator) translateFieldAccess(f *v1ast.FieldAccess) syntax.Expr {
 		Receiver: recv,
 		Field:    f.Seg.Name,
 		FieldPos: pos(f.Seg.Pos),
+		NullSafe: true,
 	}
 }
 
-// translateMethodCall rewrites `recv.name(args)`.
+// translateMethodCall rewrites `recv.name(args)`. Some method names are
+// renamed or reshape in V2; methodRewrite handles those. Others are 1:1.
 func (t *translator) translateMethodCall(m *v1ast.MethodCall) syntax.Expr {
 	recv := t.translateExpr(m.Recv)
 	if recv == nil {
 		return nil
+	}
+	if out := t.methodRewrite(m, recv); out != nil {
+		return out
 	}
 	args := t.translateArgs(m.Args)
 	t.rec.Exact()
@@ -557,9 +616,17 @@ func (t *translator) translateMetaCall(m *v1ast.MetaCall) syntax.Expr {
 	}
 }
 
-// translateLambda rewrites `name -> body`.
+// translateLambda rewrites `name -> body`. The parameter name is pushed onto
+// the scope stack before translating the body so that identifier references
+// to the param are resolved as named-context, not legacy bare-idents.
 func (t *translator) translateLambda(l *v1ast.Lambda) syntax.Expr {
+	paramName := l.Param
+	if l.Discard {
+		paramName = "_"
+	}
+	t.pushScope(paramName)
 	body := t.translateExpr(l.Body)
+	t.popScope()
 	if body == nil {
 		return nil
 	}
