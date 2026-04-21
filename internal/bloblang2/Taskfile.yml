@@ -29,6 +29,12 @@ tasks:
     cmds:
       - go test ./internal/bloblang2/...
 
+  test:migrator:
+    desc: Run V1 mappings under ./migrator/tests against the V1 interpreter
+    dir: "{{.BENTHOS_ROOT}}"
+    cmds:
+      - go test ./internal/bloblang2/migrator/... -run TestBloblangV1Spec {{.CLI_ARGS}}
+
   build:
     desc: Build all artifacts
     cmds:
