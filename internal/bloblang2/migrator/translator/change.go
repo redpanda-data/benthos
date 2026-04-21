@@ -249,8 +249,12 @@ type Change struct {
 // Report is the result of a successful Migrate call.
 type Report struct {
 	V2Mapping string
-	Changes   []Change
-	Coverage  Coverage
+	// V2Files is the set of imported files translated from V1 to V2. Keys
+	// are the paths used by the V1 source's import statements. Empty when
+	// Options.Files was empty.
+	V2Files  map[string]string
+	Changes  []Change
+	Coverage Coverage
 }
 
 // Coverage summarises the translator's progress over the V1 input.
@@ -282,6 +286,15 @@ type Options struct {
 	// TreatWarningsAsErrors causes Warning-severity Changes to be promoted
 	// to Error; useful for CI.
 	TreatWarningsAsErrors bool
+
+	// Files is a virtual filesystem for `import` resolution, keyed by the
+	// path used in the V1 source. Both the V1 parser's import resolution
+	// and the final V2 parse check consult this map. nil means "use the
+	// host filesystem" — but note the V1 parser currently does not accept
+	// a files argument either (it resolves via its own configured
+	// importer), so this field is presently consumed only by the final V2
+	// parse verifier. Future work may thread it through more deeply.
+	Files map[string]string
 }
 
 // DefaultOptions returns reasonable defaults.
