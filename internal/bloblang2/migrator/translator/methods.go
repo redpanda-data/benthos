@@ -113,7 +113,7 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		t.rec.Rewritten(Change{
 			Line: m.NamePos.Line, Column: m.NamePos.Column,
 			Severity: SeverityWarning, Category: CategorySemanticChange,
-			RuleID: RuleMethodDoesNotExist,
+			RuleID:      RuleMethodDoesNotExist,
 			Explanation: "V1 " + "." + m.Name + "() accepts arrays and objects; V2 is strict about receiver type",
 		})
 		return nil
@@ -121,8 +121,32 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		t.rec.Rewritten(Change{
 			Line: m.NamePos.Line, Column: m.NamePos.Column,
 			Severity: SeverityWarning, Category: CategorySemanticChange,
-			RuleID: RuleMethodDoesNotExist,
+			RuleID:      RuleMethodDoesNotExist,
 			Explanation: "V1 " + "." + m.Name + "() always returns float64; V2 may preserve integer type — audit numeric comparisons",
+		})
+		return nil
+	case "abs", "floor", "ceil", "round":
+		// V1 numeric methods return an untyped "number"; V2 preserves the
+		// typed variant (int64 stays int64, float64 stays float64). Runtime
+		// values compare equal but type-introspection / JSON serialisation
+		// differ.
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§14#5",
+			Explanation: "V1 ." + m.Name + "() returns an unspecified numeric type; V2 preserves int64/float64 — downstream code branching on .type() may behave differently",
+		})
+		return nil
+	case "type":
+		// V1 .type() collapses int and float to "number"; V2 reports the
+		// precise "int64"/"float64"/"timestamp" strings.
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§13",
+			Explanation: "V1 .type() returns \"number\" for any integer/float; V2 reports int64/float64 separately (and timestamp as timestamp, not string)",
 		})
 		return nil
 	}

@@ -4,10 +4,6 @@ package v1ast
 type Node interface {
 	// NodePos returns the source position of this node.
 	NodePos() Pos
-	// nodePos tags the interface for internal use; calling it directly is a
-	// no-op and exists only to prevent external types from claiming to be
-	// Nodes.
-	nodePos() Pos
 }
 
 // Expr is implemented by every expression node.
@@ -33,8 +29,8 @@ type Program struct {
 	Pos     Pos
 }
 
+// NodePos returns the source position of this node.
 func (p *Program) NodePos() Pos { return p.Pos }
-func (p *Program) nodePos() Pos { return p.Pos }
 
 //
 // Statements
@@ -47,8 +43,8 @@ type Assignment struct {
 	Pos    Pos
 }
 
+// NodePos returns the source position of this node.
 func (a *Assignment) NodePos() Pos { return a.Pos }
-func (a *Assignment) nodePos() Pos { return a.Pos }
 func (a *Assignment) stmtNode()    {}
 
 // AssignTargetKind enumerates the shapes of assignment targets. V1 is
@@ -96,8 +92,8 @@ type LetStmt struct {
 	Pos        Pos
 }
 
+// NodePos returns the source position of this node.
 func (l *LetStmt) NodePos() Pos { return l.Pos }
-func (l *LetStmt) nodePos() Pos { return l.Pos }
 func (l *LetStmt) stmtNode()    {}
 
 // MapDecl is `map <name> { ... }`.
@@ -108,8 +104,8 @@ type MapDecl struct {
 	Pos     Pos
 }
 
+// NodePos returns the source position of this node.
 func (m *MapDecl) NodePos() Pos { return m.Pos }
-func (m *MapDecl) nodePos() Pos { return m.Pos }
 func (m *MapDecl) stmtNode()    {}
 
 // ImportStmt is `import "path"`.
@@ -118,8 +114,8 @@ type ImportStmt struct {
 	Pos  Pos
 }
 
+// NodePos returns the source position of this node.
 func (i *ImportStmt) NodePos() Pos { return i.Pos }
-func (i *ImportStmt) nodePos() Pos { return i.Pos }
 func (i *ImportStmt) stmtNode()    {}
 
 // FromStmt is `from "path"`.
@@ -128,8 +124,8 @@ type FromStmt struct {
 	Pos  Pos
 }
 
+// NodePos returns the source position of this node.
 func (f *FromStmt) NodePos() Pos { return f.Pos }
-func (f *FromStmt) nodePos() Pos { return f.Pos }
 func (f *FromStmt) stmtNode()    {}
 
 // IfStmt is the statement form of `if / else if / else { ... }`.
@@ -139,8 +135,8 @@ type IfStmt struct {
 	Pos      Pos
 }
 
+// NodePos returns the source position of this node.
 func (i *IfStmt) NodePos() Pos { return i.Pos }
-func (i *IfStmt) nodePos() Pos { return i.Pos }
 func (i *IfStmt) stmtNode()    {}
 
 // IfBranch is one `(if|else if) cond { body }` branch.
@@ -157,8 +153,8 @@ type BareExprStmt struct {
 	Pos  Pos
 }
 
+// NodePos returns the source position of this node.
 func (b *BareExprStmt) NodePos() Pos { return b.Pos }
-func (b *BareExprStmt) nodePos() Pos { return b.Pos }
 func (b *BareExprStmt) stmtNode()    {}
 
 //
@@ -194,8 +190,8 @@ type Literal struct {
 	TokPos Pos
 }
 
+// NodePos returns the source position of this node.
 func (l *Literal) NodePos() Pos { return l.TokPos }
-func (l *Literal) nodePos() Pos { return l.TokPos }
 func (l *Literal) exprNode()    {}
 
 // Ident is a bare identifier at expression position (the legacy `foo` =
@@ -206,22 +202,22 @@ type Ident struct {
 	TokPos Pos
 }
 
+// NodePos returns the source position of this node.
 func (i *Ident) NodePos() Pos { return i.TokPos }
-func (i *Ident) nodePos() Pos { return i.TokPos }
 func (i *Ident) exprNode()    {}
 
 // ThisExpr is the literal `this` keyword.
 type ThisExpr struct{ TokPos Pos }
 
+// NodePos returns the source position of this node.
 func (t *ThisExpr) NodePos() Pos { return t.TokPos }
-func (t *ThisExpr) nodePos() Pos { return t.TokPos }
 func (t *ThisExpr) exprNode()    {}
 
 // RootExpr is the literal `root` keyword at expression position.
 type RootExpr struct{ TokPos Pos }
 
+// NodePos returns the source position of this node.
 func (r *RootExpr) NodePos() Pos { return r.TokPos }
-func (r *RootExpr) nodePos() Pos { return r.TokPos }
 func (r *RootExpr) exprNode()    {}
 
 // VarRef is `$name`.
@@ -230,8 +226,8 @@ type VarRef struct {
 	TokPos Pos
 }
 
+// NodePos returns the source position of this node.
 func (v *VarRef) NodePos() Pos { return v.TokPos }
-func (v *VarRef) nodePos() Pos { return v.TokPos }
 func (v *VarRef) exprNode()    {}
 
 // MetaRef is `@` (whole metadata, Name empty) or `@name` / `@"name"`.
@@ -241,8 +237,8 @@ type MetaRef struct {
 	TokPos Pos
 }
 
+// NodePos returns the source position of this node.
 func (m *MetaRef) NodePos() Pos { return m.TokPos }
-func (m *MetaRef) nodePos() Pos { return m.TokPos }
 func (m *MetaRef) exprNode()    {}
 
 // BinaryExpr is a binary-operator expression.
@@ -252,8 +248,8 @@ type BinaryExpr struct {
 	OpPos       Pos
 }
 
-func (b *BinaryExpr) NodePos() Pos { return b.Left.nodePos() }
-func (b *BinaryExpr) nodePos() Pos { return b.Left.nodePos() }
+// NodePos returns the source position of this node.
+func (b *BinaryExpr) NodePos() Pos { return b.Left.NodePos() }
 func (b *BinaryExpr) exprNode()    {}
 
 // UnaryExpr is `!x` or `-x`.
@@ -263,8 +259,8 @@ type UnaryExpr struct {
 	OpPos   Pos
 }
 
+// NodePos returns the source position of this node.
 func (u *UnaryExpr) NodePos() Pos { return u.OpPos }
-func (u *UnaryExpr) nodePos() Pos { return u.OpPos }
 func (u *UnaryExpr) exprNode()    {}
 
 // ParenExpr wraps an expression in parentheses. Preserved in the AST so the
@@ -274,8 +270,8 @@ type ParenExpr struct {
 	TokPos Pos
 }
 
+// NodePos returns the source position of this node.
 func (p *ParenExpr) NodePos() Pos { return p.TokPos }
-func (p *ParenExpr) nodePos() Pos { return p.TokPos }
 func (p *ParenExpr) exprNode()    {}
 
 // FieldAccess is `recv.<name>` where Name is an identifier-class or quoted
@@ -285,8 +281,8 @@ type FieldAccess struct {
 	Seg  PathSegment
 }
 
-func (f *FieldAccess) NodePos() Pos { return f.Recv.nodePos() }
-func (f *FieldAccess) nodePos() Pos { return f.Recv.nodePos() }
+// NodePos returns the source position of this node.
+func (f *FieldAccess) NodePos() Pos { return f.Recv.NodePos() }
 func (f *FieldAccess) exprNode()    {}
 
 // MethodCall is `recv.name(args)`.
@@ -298,8 +294,8 @@ type MethodCall struct {
 	Named   bool // all arguments are named (name: value)
 }
 
-func (m *MethodCall) NodePos() Pos { return m.Recv.nodePos() }
-func (m *MethodCall) nodePos() Pos { return m.Recv.nodePos() }
+// NodePos returns the source position of this node.
+func (m *MethodCall) NodePos() Pos { return m.Recv.NodePos() }
 func (m *MethodCall) exprNode()    {}
 
 // FunctionCall is a top-level call `name(args)`.
@@ -310,8 +306,8 @@ type FunctionCall struct {
 	Named   bool
 }
 
+// NodePos returns the source position of this node.
 func (f *FunctionCall) NodePos() Pos { return f.NamePos }
-func (f *FunctionCall) nodePos() Pos { return f.NamePos }
 func (f *FunctionCall) exprNode()    {}
 
 // MetaCall is `meta(<expr>)` used as an expression (read form).
@@ -320,8 +316,8 @@ type MetaCall struct {
 	TokPos Pos
 }
 
+// NodePos returns the source position of this node.
 func (m *MetaCall) NodePos() Pos { return m.TokPos }
-func (m *MetaCall) nodePos() Pos { return m.TokPos }
 func (m *MetaCall) exprNode()    {}
 
 // CallArg is one argument, optionally named.
@@ -340,8 +336,8 @@ type MapExpr struct {
 	TokPos Pos // position of the '.' before '('
 }
 
-func (m *MapExpr) NodePos() Pos { return m.Recv.nodePos() }
-func (m *MapExpr) nodePos() Pos { return m.Recv.nodePos() }
+// NodePos returns the source position of this node.
+func (m *MapExpr) NodePos() Pos { return m.Recv.NodePos() }
 func (m *MapExpr) exprNode()    {}
 
 // Lambda is `<name> -> <body>` or `_ -> <body>`.
@@ -353,8 +349,8 @@ type Lambda struct {
 	ArrowPos Pos
 }
 
+// NodePos returns the source position of this node.
 func (l *Lambda) NodePos() Pos { return l.ParamPos }
-func (l *Lambda) nodePos() Pos { return l.ParamPos }
 func (l *Lambda) exprNode()    {}
 
 // ArrayLit is `[...]`.
@@ -363,8 +359,8 @@ type ArrayLit struct {
 	TokPos Pos // '['
 }
 
+// NodePos returns the source position of this node.
 func (a *ArrayLit) NodePos() Pos { return a.TokPos }
-func (a *ArrayLit) nodePos() Pos { return a.TokPos }
 func (a *ArrayLit) exprNode()    {}
 
 // ObjectLit is `{...}`.
@@ -373,8 +369,8 @@ type ObjectLit struct {
 	TokPos  Pos // '{'
 }
 
+// NodePos returns the source position of this node.
 func (o *ObjectLit) NodePos() Pos { return o.TokPos }
-func (o *ObjectLit) nodePos() Pos { return o.TokPos }
 func (o *ObjectLit) exprNode()    {}
 
 // ObjectEntry is one `key: value` member.
@@ -391,8 +387,8 @@ type IfExpr struct {
 	TokPos   Pos
 }
 
+// NodePos returns the source position of this node.
 func (i *IfExpr) NodePos() Pos { return i.TokPos }
-func (i *IfExpr) nodePos() Pos { return i.TokPos }
 func (i *IfExpr) exprNode()    {}
 
 // IfExprBranch is one arm of an IfExpr.
@@ -409,8 +405,8 @@ type MatchExpr struct {
 	TokPos  Pos
 }
 
+// NodePos returns the source position of this node.
 func (m *MatchExpr) NodePos() Pos { return m.TokPos }
-func (m *MatchExpr) nodePos() Pos { return m.TokPos }
 func (m *MatchExpr) exprNode()    {}
 
 // MatchCase is one `pattern => body` arm.

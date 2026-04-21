@@ -17,9 +17,9 @@ import (
 // whitespace / layout drift.
 func TestRuleUnits(t *testing.T) {
 	for _, c := range []struct {
-		name    string
-		v1      string
-		wantV2  []string // all substrings must appear in the V2 text
+		name     string
+		v1       string
+		wantV2   []string // all substrings must appear in the V2 text
 		wantRule translator.RuleID
 	}{
 		{

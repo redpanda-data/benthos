@@ -50,6 +50,13 @@ func (r *recorder) Unsupported(ch Change) {
 	r.emit(ch)
 }
 
+// Note records a Change without touching the coverage counters. Use for
+// cross-cutting diagnostics that aren't tied to a single V1 AST node (e.g.
+// the post-translation sanity-check Parse).
+func (r *recorder) Note(ch Change) {
+	r.emit(ch)
+}
+
 // emit writes the Change to the report, respecting verbose and warnings-as-
 // errors options.
 func (r *recorder) emit(ch Change) {

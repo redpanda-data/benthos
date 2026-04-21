@@ -17,18 +17,19 @@ import "fmt"
 type Severity int
 
 const (
-	// Info is a benign rewrite — the V1 and V2 forms are equivalent, but the
-	// V1 form was non-canonical (e.g. a bare identifier) or idiomatic V2
-	// differs from idiomatic V1.
+	// SeverityInfo marks a benign rewrite — the V1 and V2 forms are
+	// equivalent, but the V1 form was non-canonical (e.g. a bare identifier)
+	// or idiomatic V2 differs from idiomatic V1.
 	SeverityInfo Severity = iota
 
-	// Warning means the V1 and V2 forms may diverge on some inputs, and the
-	// caller should audit the translated mapping.
+	// SeverityWarning means the V1 and V2 forms may diverge on some inputs,
+	// and the caller should audit the translated mapping.
 	SeverityWarning
 
-	// Error means the translator could not produce a V2 form that preserves
-	// V1 semantics at all, and the emitted mapping almost certainly behaves
-	// differently. The affected span may also have been elided.
+	// SeverityError means the translator could not produce a V2 form that
+	// preserves V1 semantics at all, and the emitted mapping almost
+	// certainly behaves differently. The affected span may also have been
+	// elided.
 	SeverityError
 )
 
@@ -90,7 +91,11 @@ func (c Category) String() string {
 // Add new rules by appending here. Never reuse values.
 type RuleID int
 
+// RuleID values. Trailing-line comments describe the rule. See the
+// bloblang_v1_spec.md §14 quirk anchors in parentheses.
 const (
+	// RuleUnknown is the zero value; only appears when a Change was built
+	// without setting a rule.
 	RuleUnknown RuleID = iota
 
 	// Naming & shape.
@@ -100,11 +105,11 @@ const (
 	RuleBareIdentToInput   // bare ident `foo` -> `input.foo` (§14#1)
 	RuleBarePathToOutput   // bare-path target `foo.bar = v` -> `output.foo.bar = v` (§14#2)
 
-	// Metadata.
+	// Metadata rules.
 	RuleMetaTargetToOutputMeta // `meta foo = v` -> `output@.foo = v`
 	RuleMetaReadToInputMeta    // `meta("k")` or `@k` -> `input@.k` or `input@[k]`
 
-	// Operators.
+	// Operator rules.
 	RuleCoalescePrecedence    // `a + b | c` parens preserved (§14#4)
 	RuleAndOrSameLevel        // `a || b && c` V1=(a||b)&&c vs V2=a||(b&&c) (§14#3)
 	RuleBoolNumberEquality    // `true == 1` / `1 == true` asymmetry (§14#38)
@@ -112,45 +117,60 @@ const (
 	RuleIntDivReturnsFloat    // `/` on ints returns float64 (§14#5)
 	RuleLiteralConstantFold   // arithmetic/comparison literal folds at parse (§14#37)
 
-	// Sentinels & error model.
+	// Sentinel and error-model rules.
 	RuleOrCatchesErrors   // V1 `.or()` catches errors; V2 `.or()` doesn't (§12.2)
 	RuleDeletedInMapEach  // deleted()/nothing() propagation in map_each (§14#34)
 	RuleSentinelInLiteral // sentinels in array/object literals elide (§9.4)
 
-	// Lambdas & methods.
+	// Lambda and method rules.
 	RuleLambdaContextPop  // inside `x -> body`, `this` is outer (§14#35)
 	RuleIteratorRebinding // `.map_each(this.foo)` non-lambda rebinds `this` (§6.5)
 	RuleSortComparator    // `.sort(left > right)` implicit-param form
 	RuleFoldObjectParam   // `.fold(init, item -> ...)` with item={tally,value}
 
-	// Control flow.
+	// Control-flow rules.
 	RuleIfNoElseNothing     // `if cond { x }` no-else produces nothing sentinel (§14#44)
 	RuleMatchNoMatchNothing // match with no matching arm produces nothing (§8.4)
 	RuleMatchLiteralFold    // match pattern constant folding (§14#75)
 	RuleMatchSubjectRebinds // match arms rebind `this` to subject (§8.4)
 
-	// Paths & indexing.
+	// Path and indexing rules.
 	RuleNumericPathWrite  // path.0 = v creates object key (§14#46)
 	RuleNoBracketIndexing // `this[0]` not valid; use `.index(0)` (§14#10)
 
-	// Strings.
+	// String rules.
 	RuleStringLengthBytes // `.length()` on string returns byte count (§14#40)
 
-	// Methods & functions (existence / renames).
+	// Method and function existence/rename rules.
 	RuleMethodDoesNotExist // e.g. map_values, collect, chunk, char — no V2/V1 equivalent
 	RuleNowReturnsString   // `now()` returns a string in V1 (§14#57)
 
-	// Maps & imports.
+	// Map and import rules.
 	RuleMapDeclTranslation // `map foo { body }` -> V2 `map foo { body }`
 	RuleImportStatement    // `import "path"` -> V2 equivalent
 	RuleFromStatement      // `from "path"` whole-mapping include (§10.5)
 
-	// Object/array literals.
+	// Object and array literal rules.
 	RuleBareIdentObjectKey // `{a: 1}` -> `{(input.a): 1}` (§14#8)
 	RuleComputedKey        // `{(expr): v}` -> V2 equivalent
 
-	// Catch-all.
+	// RuleUnsupportedConstruct is the catch-all when no more specific rule
+	// applies.
 	RuleUnsupportedConstruct
+
+	// RuleEmittedInvalidV2 flags that the translator's emitted V2 text did
+	// not parse under syntax.Parse. This is either a genuine translator bug
+	// (when V1 input was valid) or an echo of a V1 compile error the V2
+	// parser also rejects (e.g. chained `<`, missing imports, duplicate
+	// namespaces). Callers that want to detect real bugs can filter on this
+	// rule; the report is still returned with the best-effort V2 text.
+	RuleEmittedInvalidV2
+
+	// RuleBlockScopedLet flags a `let` declaration inside an if/else branch
+	// body. V1 scopes variables at the mapping level so declarations leak
+	// out; V2 scopes them per block. If the variable is referenced outside
+	// the branch, the V2 output will fail to compile.
+	RuleBlockScopedLet
 )
 
 // String satisfies fmt.Stringer.
@@ -228,6 +248,10 @@ func (r RuleID) String() string {
 		return "computed-key"
 	case RuleUnsupportedConstruct:
 		return "unsupported-construct"
+	case RuleEmittedInvalidV2:
+		return "emitted-invalid-v2"
+	case RuleBlockScopedLet:
+		return "block-scoped-let"
 	}
 	return fmt.Sprintf("rule(%d)", r)
 }

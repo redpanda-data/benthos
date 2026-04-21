@@ -22,62 +22,107 @@ import (
 func Migrate(v1Source string, opts Options) (*Report, error) {
 	opts = applyDefaults(opts)
 
-	if v1Source == "" {
-		return newRecorder(opts).finalise(""), nil
-	}
-
-	// 1. Parse V1 source into an AST.
-	prog, err := v1ast.Parse(v1Source)
-	if err != nil {
-		return nil, fmt.Errorf("migrator: parsing V1 source: %w", err)
-	}
-
-	// 2. Walk the V1 AST, producing a V2 AST plus Changes and Coverage.
-	tr := &translator{rec: newRecorder(opts), files: opts.Files}
-	v2Prog := tr.translateProgram(prog)
-
-	// 3. Print the V2 AST.
-	v2Source := syntax.Print(v2Prog)
-
-	// 4. Translate any imported files too — they're V1 source that V2's
-	// parser will read verbatim unless we convert them first.
-	files, err := translateFiles(opts.Files, opts)
+	// 1. Translate imported files first so the main source's sanity check
+	// can resolve them as V2.
+	v2Files, err := translateFiles(opts.Files, opts)
 	if err != nil {
 		return nil, fmt.Errorf("migrator: translating imported file: %w", err)
 	}
 
-	// 5. Sanity-check: the V2 output must compile. If it doesn't, that's a
-	// translator bug — return a distinctive error rather than silently
-	// producing broken V2.
-	if _, errs := syntax.Parse(v2Source, "", files); len(errs) > 0 {
-		return nil, fmt.Errorf("migrator: emitted V2 failed to parse (internal bug): %v\n\nemitted:\n%s", errs, v2Source)
+	// 2. Translate the main V1 source against the V2 import map.
+	rep, err := migrateSource(v1Source, opts, v2Files)
+	if err != nil {
+		return nil, err
 	}
+	rep.V2Files = v2Files
 
-	// 6. Finalise the report and check coverage.
-	rep := tr.rec.finalise(v2Source)
-	rep.V2Files = files
+	// 3. Coverage gate.
 	if cerr := checkCoverage(rep, opts.MinCoverage); cerr != nil {
 		return nil, cerr
 	}
 	return rep, nil
 }
 
+// migrateSource is the core V1→V2 translation step for a single source string.
+// It doesn't touch opts.Files — v2Files is supplied by the caller as a fully
+// translated V2 import map. This keeps the recursive translateFiles loop from
+// re-invoking Migrate (which would re-enter translateFiles and loop).
+//
+// The post-translation sanity-check Parse is non-fatal: if it fails, we record
+// an Unsupported Change tagged RuleEmittedInvalidV2 and still return the
+// Report with the emitted text. Most V1-invalid inputs (chained comparisons,
+// missing imports, duplicate namespaces) echo as V2 parse errors here — they
+// are not translator bugs but honest V2 rejections of V1-invalid input, and
+// should flow through to the caller's Compile for classification.
+func migrateSource(v1Source string, opts Options, v2Files map[string]string) (*Report, error) {
+	if v1Source == "" {
+		return newRecorder(opts).finalise(""), nil
+	}
+
+	prog, err := v1ast.Parse(v1Source)
+	if err != nil {
+		return nil, fmt.Errorf("migrator: parsing V1 source: %w", err)
+	}
+
+	tr := &translator{rec: newRecorder(opts), files: opts.Files}
+	v2Prog := tr.translateProgram(prog)
+	v2Source := syntax.Print(v2Prog)
+
+	if _, errs := syntax.Parse(v2Source, "", v2Files); len(errs) > 0 {
+		tr.rec.Note(Change{
+			Line: 1, Column: 1,
+			Severity:    SeverityError,
+			Category:    CategoryUnsupported,
+			RuleID:      RuleEmittedInvalidV2,
+			Explanation: fmt.Sprintf("emitted V2 failed to parse: %v", errs),
+		})
+	}
+
+	return tr.rec.finalise(v2Source), nil
+}
+
 // translateFiles migrates each file in the Files map from V1 to V2 source,
 // so V2's Parse sees V2 content wherever it resolves an import.
 //
-// Nested imports inside an imported file are not re-translated here (we pass
-// nil Files to the inner Migrate to avoid unbounded recursion on cycles);
-// they resolve at V2 Parse time against the already-translated outer map.
+// The outer loop is a fixpoint: files whose imports are all already
+// translated complete first, their results feed the next round, and so on.
+// This handles nested import chains (A imports B imports C) without
+// recursing into Migrate. After the fixpoint settles, any files still
+// pending (cycles, or files with unresolvable imports) get one final pass
+// with all siblings visible — remaining errors are fatal.
 func translateFiles(in map[string]string, outerOpts Options) (map[string]string, error) {
 	if len(in) == 0 {
 		return nil, nil
 	}
-	out := make(map[string]string, len(in))
 	innerOpts := outerOpts
 	innerOpts.MinCoverage = 0
-	innerOpts.Files = nil
-	for path, src := range in {
-		rep, err := Migrate(src, innerOpts)
+
+	pending := make(map[string]string, len(in))
+	for k, v := range in {
+		pending[k] = v
+	}
+	out := make(map[string]string, len(in))
+
+	for {
+		progress := false
+		for path, src := range pending {
+			rep, err := migrateSource(src, innerOpts, out)
+			if err != nil || hasUnresolvedImport(rep) {
+				continue
+			}
+			out[path] = rep.V2Mapping
+			delete(pending, path)
+			progress = true
+		}
+		if !progress || len(pending) == 0 {
+			break
+		}
+	}
+	// Leftovers (cycles, or files with genuinely missing imports): one last
+	// pass with all translated siblings visible. Any remaining error is
+	// still fatal.
+	for path, src := range pending {
+		rep, err := migrateSource(src, innerOpts, out)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", path, err)
 		}
@@ -86,6 +131,17 @@ func translateFiles(in map[string]string, outerOpts Options) (map[string]string,
 	return out, nil
 }
 
+// hasUnresolvedImport reports whether the report signals an emitted-invalid-V2
+// change, which during the fixpoint most likely means a sibling file hasn't
+// been translated yet. The caller retries next round.
+func hasUnresolvedImport(rep *Report) bool {
+	for _, c := range rep.Changes {
+		if c.RuleID == RuleEmittedInvalidV2 {
+			return true
+		}
+	}
+	return false
+}
 
 // applyDefaults fills in zero-valued options with DefaultOptions().
 func applyDefaults(opts Options) Options {

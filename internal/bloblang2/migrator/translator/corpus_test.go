@@ -210,10 +210,24 @@ func runOne(interp spectest.Interpreter, tc *spectest.TestCase, fileLevel map[st
 	// (V1 import contents also migrated to V2).
 	compiled, compileErr := interp.Compile(rep.V2Mapping, rep.V2Files)
 	if compileErr != nil {
-		// If the V1 test expects a compile error, a V2 compile error may be
-		// acceptable too.
+		// If the V1 test expects a compile error, a V2 compile error is
+		// the faithful outcome.
 		if tc.CompileError != "" {
 			return outcome{outcomeOK, ""}
+		}
+		// V2 performs more validation at compile time than V1, so V1
+		// runtime errors sometimes surface as V2 compile errors. The
+		// caller still gets a rejection — count as Flagged.
+		if tc.Error != "" || tc.HasError {
+			return outcome{outcomeFlagged, fmt.Sprintf("V1 runtime error surfaces as V2 compile error: %v", compileErr)}
+		}
+		// V2 is intentionally stricter about some constructs that V1
+		// accepted (chained == / !=, void propagation outside the
+		// `nothing()` sentinel, etc.). When the translator flagged the
+		// relevant construct up front, this is a known divergence, not a
+		// translator bug.
+		if hasFlaggedDivergence(rep) {
+			return outcome{outcomeFlagged, fmt.Sprintf("V2 compile error, known divergence flagged: %v", compileErr)}
 		}
 		return outcome{outcomeV2CompileFail, fmt.Sprintf("V2 compile: %v", compileErr)}
 	}

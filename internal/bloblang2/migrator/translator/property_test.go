@@ -25,11 +25,11 @@ func TestNeverPanics(t *testing.T) {
 		"{}",
 		strings.Repeat("root = this\n", 1000),
 		"let x = 1\n$x = 2", // invalid V1 (var reassignment)
-		"root.a =1",          // invalid V1 (no whitespace around =)
-		"!!true",             // invalid V1 (double-not)
-		"this[0]",            // invalid V1 (bracket indexing)
-		"root = 5 / 0",       // V1 compile-time divide-by-zero
-		`root = {5: "x"}`,    // V1 compile-time invalid key
+		"root.a =1",         // invalid V1 (no whitespace around =)
+		"!!true",            // invalid V1 (double-not)
+		"this[0]",           // invalid V1 (bracket indexing)
+		"root = 5 / 0",      // V1 compile-time divide-by-zero
+		`root = {5: "x"}`,   // V1 compile-time invalid key
 	}
 
 	for _, in := range inputs {
