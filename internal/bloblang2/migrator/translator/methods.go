@@ -69,8 +69,49 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	// ----- .exists(path) -> (path != null).catch(false) -----
 	case "exists":
 		return t.existsToNullCheck(m, recv)
+
+	// ----- V2 .catch requires a lambda; V1 accepts a plain value -----
+	case "catch":
+		return t.catchValueToLambda(m, recv)
 	}
 	return nil
+}
+
+// catchValueToLambda wraps V1 `.catch(value)` as V2 `.catch(_ -> value)`.
+// V2's .catch takes a lambda receiving the error; V1 accepts either a value
+// or a lambda. We wrap plain values unconditionally — if the V1 argument was
+// already a lambda the wrap is redundant but harmless.
+func (t *translator) catchValueToLambda(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+	if len(m.Args) != 1 {
+		return nil
+	}
+	arg := m.Args[0].Value
+	// If already a V1 lambda, translate it 1:1 — no wrap needed.
+	if _, isLambda := arg.(*v1ast.Lambda); isLambda {
+		return nil
+	}
+	value := t.translateExpr(arg)
+	if value == nil {
+		return nil
+	}
+	t.rec.Rewritten(Change{
+		Line: m.NamePos.Line, Column: m.NamePos.Column,
+		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+		RuleID:      RuleOrCatchesErrors,
+		SpecRef:     "§12.2",
+		Explanation: "V1 .catch(value) wrapped in lambda for V2: .catch(_ -> value)",
+	})
+	wrapped := &syntax.LambdaExpr{
+		TokenPos: pos(m.NamePos),
+		Params:   []syntax.Param{{Discard: true, Pos: pos(m.NamePos), SlotIndex: -1}},
+		Body:     &syntax.ExprBody{Result: value},
+	}
+	return &syntax.MethodCallExpr{
+		Receiver:  recv,
+		Method:    "catch",
+		MethodPos: pos(m.NamePos),
+		Args:      []syntax.CallArg{{Value: wrapped}},
+	}
 }
 
 // simpleRename emits a V2 MethodCallExpr with a different method name, all
@@ -203,20 +244,31 @@ func (t *translator) findValueToLambda(m *v1ast.MethodCall, recv syntax.Expr) sy
 	}
 }
 
-// existsToNullCheck rewrites V1 `.exists(path)` into V2
-// `(recv.path != null).catch(false)`. V2 has no dedicated exists method.
+// existsToNullCheck rewrites V1 `.exists()` into V2. V1 has two shapes:
+//
+//   - `.exists(key)` on an object: checks for key presence -> V2 `.has_key(key)`.
+//   - `.exists()` on a value: non-null check -> V2 `(recv != null).catch(false)`.
 func (t *translator) existsToNullCheck(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
-	// V1 .exists() takes zero or one arg. For zero-arg (check receiver),
-	// result is `recv != null`. For one-arg string literal path, traverse.
-	// For simplicity we handle the zero-arg case only; flag dynamic variants.
+	// One-arg form is `has_key` on V2.
+	if len(m.Args) == 1 {
+		return t.rewrittenRename(m, recv, "has_key",
+			Change{
+				RuleID:      RuleMethodDoesNotExist,
+				Severity:    SeverityInfo,
+				Category:    CategoryIdiomRewrite,
+				Explanation: "V1 .exists(key) rewritten as V2 .has_key(key)",
+			})
+	}
 	if len(m.Args) != 0 {
 		t.rec.Unsupported(Change{
 			Line: m.NamePos.Line, Column: m.NamePos.Column,
 			RuleID:      RuleMethodDoesNotExist,
-			Explanation: "V1 .exists(path) with arguments has no simple V2 rewrite",
+			Explanation: "V1 .exists() with more than one arg has no V2 rewrite",
 		})
 		return nil
 	}
+	// Zero-arg form: recv != null, caught to false for non-null receivers
+	// with unreadable types.
 	t.rec.Rewritten(Change{
 		Line: m.NamePos.Line, Column: m.NamePos.Column,
 		Severity: SeverityWarning, Category: CategorySemanticChange,
