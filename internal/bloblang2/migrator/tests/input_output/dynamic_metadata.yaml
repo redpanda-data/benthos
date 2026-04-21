@@ -1,0 +1,109 @@
+description: >
+  Dynamic metadata access — computed keys for reading and writing metadata,
+  metadata in expressions, and metadata COW with variables.
+
+tests:
+  # --- Dynamic metadata write with variable key ---
+
+  - name: "write metadata with variable key"
+    # V1 has no `meta(expr) = value` form; dynamic keys require a wholesale
+    # `meta = { ... }` assignment with a dynamic key object literal.
+    input: {}
+    mapping: |
+      let key = "source"
+      meta = {($key): "kafka"}
+    output: {}
+    output_metadata: {"source": "kafka"}
+
+  - name: "write multiple metadata keys from loop data"
+    input: {}
+    mapping: |
+      let keys = ["env", "region"]
+      let vals = ["prod", "us-east"]
+      meta = {($keys.0): $vals.0, ($keys.1): $vals.1}
+    output: {}
+    output_metadata: {"env": "prod", "region": "us-east"}
+
+  # --- Dynamic metadata read with variable key ---
+
+  - name: "read metadata with variable key"
+    input: {}
+    input_metadata: {"source": "kafka", "topic": "events"}
+    mapping: |
+      let key = "topic"
+      root.v = meta($key)
+    output: {"v": "events"}
+    # V1 carries input metadata forward by default.
+    output_metadata: {"source": "kafka", "topic": "events"}
+
+  - name: "read missing metadata with variable key returns null"
+    # V1 `meta("missing")` errors; `.or(null)` rescues to null.
+    input: {}
+    input_metadata: {"source": "kafka"}
+    mapping: |
+      let key = "missing"
+      root.v = meta($key).or(null)
+    output: {"v": null}
+    output_metadata: {"source": "kafka"}
+
+  # --- Dynamic metadata delete ---
+
+  - name: "delete metadata key with variable"
+    # V1 has no computed-key meta target. To delete by dynamic key, rebuild
+    # the whole meta object without it via without().
+    input: {}
+    input_metadata: {"keep": "yes", "drop": "no"}
+    mapping: |
+      let remove_key = "drop"
+      meta = @.without($remove_key)
+    output: {}
+    output_metadata: {"keep": "yes"}
+
+  # --- Metadata values used in expressions ---
+
+  - name: "metadata value in arithmetic"
+    input: {}
+    input_metadata: {"count": 5}
+    mapping: |
+      root.doubled = @count * 2
+    output: {"doubled": 10}
+    output_metadata: {"count": 5}
+
+  - name: "metadata value in string concatenation"
+    input: {}
+    input_metadata: {"prefix": "hello"}
+    mapping: |
+      root.greeting = @prefix + " world"
+    output: {"greeting": "hello world"}
+    output_metadata: {"prefix": "hello"}
+
+  - name: "metadata value as condition"
+    input: {}
+    input_metadata: {"debug": true}
+    mapping: |
+      root.level = if @debug { "trace" } else { "info" }
+    output: {"level": "trace"}
+    output_metadata: {"debug": true}
+
+  # --- Metadata round-trip through variable ---
+
+  - name: "metadata to variable to output metadata"
+    input: {}
+    input_metadata: {"trace_id": "abc-123"}
+    mapping: |
+      let trace = @trace_id
+      meta trace_id = $trace
+    output: {}
+    output_metadata: {"trace_id": "abc-123"}
+
+  # --- Metadata from computed expression key ---
+
+  - name: "write metadata with expression key"
+    # V1 cannot write meta with a computed key; emulate via wholesale
+    # `meta = { ... }` with dynamic key in object literal.
+    input: {}
+    mapping: |
+      let prefix = "x"
+      meta = {($prefix + "_header"): "value"}
+    output: {}
+    output_metadata: {"x_header": "value"}

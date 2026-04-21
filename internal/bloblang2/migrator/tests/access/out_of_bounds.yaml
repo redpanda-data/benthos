@@ -1,0 +1,172 @@
+description: "Out of bounds index errors for arrays, strings, and bytes; empty collections; boundary indices"
+
+tests:
+  # --- Array out of bounds ---
+
+  - name: "array index beyond length"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(3)
+    error: "out of bounds"
+
+  - name: "array index far beyond length"
+    mapping: |
+      let arr = [1, 2]
+      root.v = $arr.index(100)
+    error: "out of bounds"
+
+  - name: "empty array index 0 is error"
+    mapping: |
+      let arr = []
+      root.v = $arr.index(0)
+    error: "out of bounds"
+
+  - name: "empty array negative index is error"
+    mapping: |
+      let arr = []
+      root.v = $arr.index(-1)
+    error: "out of bounds"
+
+  - name: "array last valid positive index"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(2)
+    output: {"v": 30}
+
+  - name: "array first invalid positive index"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(3)
+    error: "out of bounds"
+
+  - name: "array last valid negative index"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(-3)
+    output: {"v": 10}
+
+  - name: "array first invalid negative index"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(-4)
+    error: "out of bounds"
+
+  - name: "single element array valid indices"
+    mapping: |
+      let arr = [42]
+      root.a = $arr.index(0)
+      root.b = $arr.index(-1)
+    output: {"a": 42, "b": 42}
+
+  - name: "single element array invalid positive"
+    mapping: |
+      let arr = [42]
+      root.v = $arr.index(1)
+    error: "out of bounds"
+
+  # --- String out of bounds ---
+
+  - name: "string index beyond length"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string index far beyond length"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "empty string index 0 is error"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "empty string negative index is error"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string last valid positive index"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string first invalid positive index"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string last valid negative index"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string first invalid negative index"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "single char string boundary"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "single char string invalid positive"
+    skip: "V2-only: V1 has no string indexing"
+
+  # --- Bytes out of bounds ---
+
+  - name: "bytes index beyond length"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes index far beyond length"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "empty bytes index 0 is error"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "empty bytes negative index is error"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes last valid positive index"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes first invalid positive index"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes last valid negative index"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes first invalid negative index"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "single byte boundary"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "single byte invalid positive"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  # --- Multibyte boundary ---
+
+  - name: "multibyte string codepoint boundary"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "multibyte string codepoint out of bounds"
+    skip: "V2-only: V1 has no string indexing"
+
+  # --- Non-integer and extreme float indices ---
+
+  - name: "array index with NaN is error"
+    input: {"nan": {_type: "float64", value: "NaN"}}
+    mapping: |
+      root.v = [10, 20, 30].index(this.nan)
+    skip: "V2-only: V1 test harness cannot inject raw NaN via {_type} markers"
+
+  - name: "array index with Infinity is error"
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    mapping: |
+      root.v = [10, 20, 30].index(this.inf)
+    skip: "V2-only: V1 test harness cannot inject raw Infinity via {_type} markers"
+
+  - name: "array index with large float exceeding int64 range is error"
+    input: {"big": {_type: "float64", value: "1e19"}}
+    mapping: |
+      root.v = [10, 20, 30].index(this.big)
+    skip: "V2-only: V1 test harness cannot inject 1e19 float via {_type} markers"
+
+  - name: "array index with whole-number float 2.0 is accepted"
+    mapping: |
+      root.v = [10, 20, 30].index(2.0)
+    output: {"v": 30} # FIXME-v1: verify - V1 .index() may require integer
+
+  - name: "array index with fractional float 1.5 is error"
+    skip: "V1 .index() silently truncates non-whole floats to int (1.5 → 1); no error raised"
+
+  - name: "multibyte bytes boundary differs from string"
+    mapping: |
+      let s = "café"
+      root.string_len = $s.length()
+      root.bytes_len = $s.bytes().length()
+    output: {"string_len": 5, "bytes_len": 5} # V1 .length() on a string returns byte count, not codepoint count

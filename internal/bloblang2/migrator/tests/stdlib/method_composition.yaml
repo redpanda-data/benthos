@@ -1,0 +1,131 @@
+description: "Cross-method composition tests: chaining stdlib methods in realistic combinations"
+
+tests:
+  # --- String + encoding chains ---
+
+  - name: "trim then encode base64"
+    mapping: |
+      root = "  hello  ".trim().encode("base64")
+    output: "aGVsbG8="
+
+  - name: "split then map uppercase"
+    mapping: |
+      root = "a,b,c".split(",").map_each(v -> v.uppercase())
+    output: ["A", "B", "C"]
+
+  - name: "split then filter then join"
+    mapping: |
+      root = "a,,b,,c".split(",").filter(v -> v.length() > 0).join(",")
+    output: "a,b,c"
+
+  - name: "replace_all then split then length"
+    mapping: |
+      root = "one::two::three".replace_all("::", ",").split(",").length()
+    output: 3
+
+  # --- Numeric + type chains ---
+
+  - name: "abs then floor"
+    skip: "V1 has no abs() method"
+
+  - name: "ceil then int64 conversion"
+    skip: "V1 has no int64() method; use .number() instead (returns int64 or float64)"
+
+  - name: "round then format_json"
+    skip: "V1 round() takes no precision argument"
+
+  - name: "abs preserves int32 type through chain"
+    skip: "V1 has no abs()/int32() methods; V1 has no 'int32' type"
+
+  # --- Timestamp + format chains ---
+
+  - name: "ts_parse then ts_format custom"
+    skip: "V1 ts_format uses Go layout, not strftime (use ts_strftime for %Y-%m-%d)"
+
+  - name: "timestamp constructor then ts_add then ts_format"
+    skip: "V1 has no timestamp() function constructor, no ts_add (has ts_add_iso8601), no minute() constant"
+
+  - name: "ts_parse then ts_unix then ts_from_unix round-trip"
+    skip: "V1 has no ts_from_unix method"
+
+  - name: "timestamp subtraction then comparison"
+    skip: "V1 has no timestamp() function constructor or hour() constant"
+
+  # --- JSON + object chains ---
+
+  - name: "parse_json then keys sorted"
+    mapping: |
+      root = "{\"b\":2,\"a\":1}".parse_json().keys().sort()
+    output: ["a", "b"]
+
+  - name: "object merge then format_json"
+    mapping: |
+      root = {"a": 1}.assign({"b": 2}).format_json(no_indent: true).string()
+    output: '{"a":1,"b":2}'
+
+  - name: "parse_json then map values"
+    skip: "V1 has no map_values method"
+
+  - name: "format_json then parse_json idempotent"
+    mapping: |
+      let obj = {"name": "Alice", "age": 30, "active": true}
+      root = $obj.format_json(no_indent: true).parse_json() == $obj
+    output: true
+
+  # --- Array + query chains ---
+
+  - name: "range then filter then sum"
+    mapping: |
+      root = range(1, 11).filter(v -> v % 2 == 0).sum()
+    output: 30.0
+
+  - name: "range then map then sort descending"
+    mapping: |
+      root = range(1, 4).map_each(v -> v * v).sort(item -> item.right < item.left)
+    output: [9, 4, 1]
+
+  - name: "array map abs then max"
+    skip: "V1 has no abs() method"
+
+  - name: "split then unique then sort then join"
+    mapping: |
+      root = "b,a,c,a,b".split(",").unique().sort().join(",")
+    output: "a,b,c"
+
+  # --- Encoding round-trip chains ---
+
+  - name: "string to base64 to hex round-trip"
+    mapping: |
+      root = "hello".encode("base64").decode("base64").encode("hex")
+    output: "68656c6c6f"
+
+  - name: "format_json then encode base64 then decode"
+    mapping: |
+      root = {"key": "value"}.format_json(no_indent: true).encode("base64").decode("base64").string()
+    output: '{"key":"value"}'
+
+  # --- Error handling in chains ---
+
+  - name: "parse_json catch returns default"
+    mapping: |
+      root = "bad json".parse_json().catch("fallback")
+    output: "fallback"
+
+  - name: "ts_parse catch returns null"
+    skip: "migrator V1 core env lacks ts_parse"
+
+  - name: "chained method after or"
+    mapping: |
+      root = null.or("hello").uppercase()
+    output: "HELLO"
+
+  - name: "abs on parse_json result"
+    skip: "V1 has no abs() method"
+
+  # --- Timestamp arithmetic composition ---
+
+  - name: "ts_add chained multiple times"
+    skip: "V1 has no timestamp() function constructor or ts_add method"
+
+  - name: "ts_unix_nano to int then back preserves nanos"
+    skip: "V1 has no timestamp() constructor or ts_from_unix_nano method"

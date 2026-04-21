@@ -1,0 +1,93 @@
+description: >
+  Bare identifier resolution — bare identifiers (without $ prefix) must NOT
+  resolve to variables. Variables require the $ prefix for both declaration
+  and reference. Bare identifiers resolve only to map parameters, lambda
+  parameters, match-as bindings, map names (in call/method-arg context),
+  and standard library functions (in call/method-arg context).
+
+tests:
+  # --- Bare identifier must not resolve to a $variable ---
+
+  - name: "bare identifier does not resolve to variable of same name"
+    input: {}
+    mapping: |
+      let foo = "hello world"
+      root = foo
+    output: null # V1 resolves bare `foo` to `this.foo` (legacy); with no input.foo this yields null
+
+  - name: "bare identifier in expression does not resolve to variable"
+    mapping: |
+      let x = 10
+      root.v = x + 1
+    error: "cannot add types null"
+
+  - name: "bare identifier in method chain does not resolve to variable"
+    mapping: |
+      let name = "alice"
+      root.v = name.uppercase()
+    error: "expected string" # FIXME-v1: V1 treats `name` as `this.name`; null.uppercase() is a runtime type error
+
+  - name: "bare identifier in array literal does not resolve to variable"
+    mapping: |
+      let val = 42
+      root.v = [val]
+    output: {"v": [null]} # FIXME-v1: V1 bare `val` = `this.val`, yielding null; no error raised
+
+  - name: "bare identifier in object value does not resolve to variable"
+    mapping: |
+      let val = 42
+      root.v = {"key": val}
+    output: {"v": {"key": null}} # FIXME-v1: V1 bare `val` = `this.val`; yields null; no error
+
+  - name: "bare identifier in if condition does not resolve to variable"
+    input: {}
+    mapping: |
+      let flag = true
+      root.v = if flag { "yes" } else { "no" }
+    output: {"v": "no"} # V1 treats bare `flag` as `this.flag` (null); null is accepted as falsy in if conditions
+
+  - name: "bare identifier with $ prefix works correctly"
+    mapping: |
+      let foo = "hello world"
+      root = $foo
+    output: "hello world"
+
+  # --- Bare identifiers that ARE valid (parameters, match-as bindings) ---
+
+  - name: "bare identifier as lambda parameter is valid"
+    mapping: |
+      root.v = [1, 2, 3].map_each(x -> x * 2)
+    output: {"v": [2, 4, 6]}
+
+  - name: "bare identifier as match-as binding is valid"
+    skip: "V1 match has no `as` binding clause; use `.(val -> ...)` or a let binding instead"
+    mapping: |
+      root.v = match 42 as val {
+        val > 0 => "positive",
+        _ => "other",
+      }
+    output: {"v": "positive"}
+
+  - name: "bare identifier as map parameter is valid"
+    skip: "V1 maps do not take parameters; receiver is `this`"
+    mapping: |
+      map double(x) { x * 2 }
+      root.v = double(21)
+    output: {"v": 42}
+
+  # --- Variable with same name as parameter does not leak through bare ident ---
+
+  - name: "variable does not shadow lambda parameter via bare ident"
+    mapping: |
+      let x = 999
+      root.v = [1, 2, 3].map_each(x -> x * 2)
+    output: {"v": [2, 4, 6]}
+
+  - name: "bare ident after lambda still requires $ for variable"
+    mapping: |
+      let x = 10
+      root.items = [1, 2].map_each(x -> x + 1)
+      root.v = $x
+    output:
+      items: [2, 3]
+      v: 10

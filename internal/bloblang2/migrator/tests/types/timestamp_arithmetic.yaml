@@ -1,0 +1,195 @@
+description: >
+  Timestamp arithmetic edge cases — subtraction overflow for far-apart
+  timestamps, ts_add overflow, unix conversion round-trips, nanosecond
+  precision, fractional second formatting, and timezone handling.
+
+tests:
+  # --- Subtraction precision ---
+
+  - name: "timestamp subtraction with nanosecond precision"
+    mapping: |
+      let a = timestamp(2024, 3, 1, 0, 0, 0, 0)
+      let b = timestamp(2024, 3, 1, 0, 0, 0, 123456789)
+      root.diff = $b - $a
+    skip: "V2-only: V1 has no timestamp() constructor; V1 uses .ts_sub() for timestamp diff"
+
+  - name: "timestamp subtraction across days"
+    mapping: |
+      let a = timestamp(2024, 3, 1, 0, 0, 0)
+      let b = timestamp(2024, 3, 3, 0, 0, 0)
+      root.diff = $b - $a
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp subtraction across months"
+    mapping: |
+      let a = timestamp(2024, 1, 1, 0, 0, 0)
+      let b = timestamp(2024, 2, 1, 0, 0, 0)
+      root.diff = ($b - $a) / second()
+    skip: "V2-only: V1 has no timestamp() constructor or second() constant"
+
+  - name: "timestamp subtraction yields zero for same timestamp"
+    mapping: |
+      let t = timestamp(2024, 6, 15, 12, 0, 0)
+      root.diff = $t - $t
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  # --- Subtraction overflow (timestamps > ~292 years apart) ---
+
+  - name: "timestamp subtraction overflow — far future minus far past"
+    mapping: |
+      let past = timestamp(1700, 1, 1, 0, 0, 0)
+      let future = timestamp(2300, 1, 1, 0, 0, 0)
+      root.diff = $future - $past
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  # --- ts_add edge cases ---
+
+  - name: "ts_add with nanosecond precision"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(1)
+    skip: "V2-only: V1 has no timestamp() constructor or ts_add(nanos) method"
+
+  - name: "ts_add with sub-millisecond precision"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(1500000)
+    skip: "V2-only: V1 has no timestamp() constructor or ts_add"
+
+  - name: "ts_add negative one day"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(day() * -1)
+    skip: "V2-only: V1 has no timestamp()/day() or ts_add"
+
+  - name: "ts_add crossing year boundary"
+    mapping: |
+      root.ts = timestamp(2024, 12, 31, 23, 59, 59).ts_add(second())
+    skip: "V2-only: V1 has no timestamp()/second() or ts_add"
+
+  - name: "ts_add multiple days as seconds"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(second() * 86400 * 7)
+    skip: "V2-only: V1 has no timestamp()/second() or ts_add"
+
+  # --- Unix conversion round-trips ---
+
+  - name: "ts_unix round-trip"
+    mapping: |
+      let ts = timestamp(2024, 3, 1, 12, 0, 0)
+      root.rt = $ts.ts_unix().ts_from_unix().ts_format()
+    skip: "V2-only: V1 has no timestamp() constructor or ts_from_unix method"
+
+  - name: "ts_unix_milli round-trip with milliseconds"
+    mapping: |
+      let ts = timestamp(2024, 3, 1, 12, 0, 0, 123000000)
+      root.rt = $ts.ts_unix_milli().ts_from_unix_milli().ts_format()
+    skip: "V2-only: V1 has no timestamp() constructor or ts_from_unix_milli"
+
+  - name: "ts_unix_micro round-trip with microseconds"
+    mapping: |
+      let ts = timestamp(2024, 3, 1, 12, 0, 0, 123456000)
+      root.rt = $ts.ts_unix_micro().ts_from_unix_micro().ts_format()
+    skip: "V2-only: V1 has no timestamp() constructor or ts_from_unix_micro"
+
+  - name: "ts_unix_nano lossless round-trip with nanoseconds"
+    mapping: |
+      let ts = timestamp(2024, 3, 1, 12, 0, 0, 123456789)
+      root.rt = $ts.ts_unix_nano().ts_from_unix_nano().ts_format()
+    skip: "V2-only: V1 has no timestamp() constructor or ts_from_unix_nano"
+
+  - name: "ts_unix returns int64"
+    mapping: |
+      root.v = timestamp(2024, 3, 1, 12, 0, 0).ts_unix().type()
+    skip: "V2-only: V1 has no timestamp() constructor; V1 .type() returns 'number'"
+
+  - name: "ts_unix_nano returns int64"
+    mapping: |
+      root.v = timestamp(2024, 3, 1, 12, 0, 0).ts_unix_nano().type()
+    skip: "V2-only: V1 has no timestamp() constructor; V1 .type() returns 'number'"
+
+  # --- Fractional second formatting ---
+
+  - name: "fractional seconds trim trailing zeros to shortest"
+    mapping: |
+      root.s = timestamp(2024, 3, 1, 12, 0, 0, 100000000).string()
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "microsecond precision formatting"
+    mapping: |
+      root.s = timestamp(2024, 3, 1, 12, 0, 0, 123456000).string()
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "nanosecond precision formatting"
+    mapping: |
+      root.s = timestamp(2024, 3, 1, 12, 0, 0, 123456789).string()
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  # --- ts_parse timezone handling ---
+
+  - name: "ts_parse with Z timezone"
+    mapping: |
+      let ts = "2024-03-01T12:00:00Z".ts_parse()
+      root.s = $ts.ts_format()
+    skip: "V1 ts_parse requires explicit format argument"
+
+  - name: "ts_parse with positive offset"
+    mapping: |
+      let ts = "2024-03-01T12:00:00+05:30".ts_parse()
+      root.s = $ts.ts_format()
+    skip: "V1 ts_parse requires explicit format argument"
+
+  - name: "ts_parse with negative offset"
+    mapping: |
+      let ts = "2024-03-01T12:00:00-08:00".ts_parse()
+      root.s = $ts.ts_format()
+    skip: "V1 ts_parse requires explicit format argument"
+
+  - name: "ts_parse fractional seconds with nanosecond precision"
+    mapping: |
+      root.ts = "2024-03-01T12:00:00.123456789Z".ts_parse()
+    skip: "V1 ts_parse requires explicit format argument"
+
+  # --- ts_from_unix with float (limited precision) ---
+
+  - name: "ts_from_unix with integer"
+    mapping: |
+      root.s = 1709294400.ts_from_unix().ts_format()
+    skip: "V2-only: V1 has no ts_from_unix method"
+
+  - name: "ts_from_unix with float gives sub-second"
+    mapping: |
+      root.s = 1709294400.5.ts_from_unix().ts_format()
+    skip: "V2-only: V1 has no ts_from_unix method"
+
+  # --- Comparison with timestamps from different construction methods ---
+
+  - name: "timestamps from constructor and parse are equal"
+    mapping: |
+      let a = timestamp(2024, 3, 1, 12, 0, 0)
+      let b = "2024-03-01T12:00:00Z".ts_parse()
+      root.eq = $a == $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamps from constructor and unix round-trip are equal"
+    mapping: |
+      let a = timestamp(2024, 3, 1, 12, 0, 0)
+      let b = $a.ts_unix().ts_from_unix()
+      root.eq = $a == $b
+    skip: "V2-only: V1 has no timestamp() constructor or ts_from_unix"
+
+  # --- Arithmetic type errors ---
+
+  - name: "number minus timestamp is error"
+    mapping: |
+      root.v = 100 - timestamp(2024, 3, 1)
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp plus timestamp is error"
+    mapping: |
+      let a = timestamp(2024, 3, 1)
+      let b = timestamp(2024, 3, 2)
+      root.v = $a + $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp minus number is error"
+    mapping: |
+      root.v = timestamp(2024, 3, 1) - 1
+    skip: "V2-only: V1 has no timestamp() constructor"

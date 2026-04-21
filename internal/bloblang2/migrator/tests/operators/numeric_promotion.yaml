@@ -1,0 +1,189 @@
+description: "Numeric promotion rules: same type, width promotion, signed/unsigned, int/float, checked errors"
+
+tests:
+  # --- Same type: no promotion ---
+
+  - name: "int64 + int64 stays int64"
+    mapping: |
+      root.result = 10 + 20
+    output: {"result": 30}
+
+  - name: "float64 + float64 stays float64"
+    mapping: |
+      root.result = 1.5 + 2.5
+    output: {"result": 4.0}
+
+  - name: "int32 + int32 stays int32"
+    mapping: |
+      root.result = 10.int32() + 20.int32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint32 + uint32 stays uint32"
+    mapping: |
+      root.result = 10.uint32() + 20.uint32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint64 + uint64 stays uint64"
+    mapping: |
+      root.result = 10.uint64() + 20.uint64()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "float32 + float32 stays float32"
+    mapping: |
+      root.result = 1.5.float32() + 2.5.float32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  # --- Same signedness, different width: promote to wider ---
+
+  - name: "int32 + int64 promotes to int64"
+    mapping: |
+      root.result = 5.int32() + 10
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "int64 + int32 promotes to int64"
+    mapping: |
+      root.result = 10 + 5.int32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint32 + uint64 promotes to uint64"
+    mapping: |
+      root.result = 5.uint32() + 10.uint64()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "float32 + float64 promotes to float64"
+    mapping: |
+      root.result = 1.5.float32() + 2.5
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "float64 + float32 promotes to float64"
+    mapping: |
+      root.result = 2.5 + 1.5.float32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  # --- Signed + unsigned integer: promote to int64 ---
+
+  - name: "int32 + uint32 promotes to int64"
+    mapping: |
+      root.result = 5.int32() + 10.uint32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "int64 + uint32 promotes to int64"
+    mapping: |
+      root.result = 100 + 50.uint32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "int32 + uint64 promotes to int64 when value fits"
+    mapping: |
+      root.result = 5.int32() + 10.uint64()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "int64 + uint64 promotes to int64 when value fits"
+    mapping: |
+      root.result = 5 + 10.uint64()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint64 exceeding int64 max causes error"
+    mapping: |
+      root.result = 5 + "9999999999999999999".uint64()
+    skip: "V2-only: uint64 overflow semantics not checked in V1"
+
+  - name: "uint64 at int64 max boundary succeeds"
+    mapping: |
+      root.result = 0 + 9223372036854775807.uint64()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint64 just above int64 max causes error"
+    mapping: |
+      root.result = 0 + "9223372036854775808".uint64()
+    skip: "V2-only: uint64 overflow semantics not checked in V1"
+
+  # --- Any integer + any float: promote to float64 ---
+
+  - name: "int64 + float64 promotes to float64"
+    mapping: |
+      root.result = 5 + 3.0
+    output: {"result": 8.0}
+
+  - name: "float64 + int64 promotes to float64"
+    mapping: |
+      root.result = 3.0 + 5
+    output: {"result": 8.0}
+
+  - name: "int32 + float64 promotes to float64"
+    mapping: |
+      root.result = 5.int32() + 3.0
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint64 + float64 promotes to float64 when safe"
+    mapping: |
+      root.result = 100.uint64() + 1.5
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "int32 + float32 promotes to float64"
+    mapping: |
+      root.result = 5.int32() + 3.0.float32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint32 + float32 promotes to float64"
+    mapping: |
+      root.result = 10.uint32() + 2.5.float32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  # --- Checked promotion: integer magnitude > 2^53 to float ---
+
+  - name: "int64 exceeding float64 exact range causes error"
+    mapping: |
+      root.result = 9007199254740993 + 1.0
+    # V1: silent float degradation, no safety check. 9007199254740993 converts to float64 as 9007199254740992
+    # (precision loss above 2^53); +1.0 rounds back to 9007199254740992.
+    output: {"result": 9007199254740992.0}
+
+  - name: "int64 at float64 exact limit succeeds"
+    mapping: |
+      root.result = 9007199254740992 + 1.0
+    output: {"result": 9007199254740992.0} # V1: exact value 2^53 is representable, +1.0 rounds back to 2^53.
+
+  - name: "negative int64 exceeding float64 exact range causes error"
+    mapping: |
+      root.result = -9007199254740993 + 1.0
+    # V1: silent float degradation. -9007199254740993 converts to float64 as -9007199254740992, +1.0 = -9007199254740991.
+    output: {"result": -9007199254740991.0}
+
+  # --- Promotion with comparison operators ---
+
+  - name: "int32 < int64 promotes to int64 for comparison"
+    mapping: |
+      root.result = 5.int32() < 10
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "int64 >= float64 promotes to float64 for comparison"
+    mapping: |
+      root.result = 5 >= 5.0
+    output: {"result": true}
+
+  - name: "uint32 > int32 promotes to int64 for comparison"
+    mapping: |
+      root.result = 10.uint32() > 5.int32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  # --- Promotion with equality ---
+
+  - name: "int64 == float64 promotes to float64"
+    mapping: |
+      root.result = 5 == 5.0
+    output: {"result": true}
+
+  - name: "int32 == int64 promotes to int64"
+    mapping: |
+      root.result = 5.int32() == 5
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "int32 == float64 promotes to float64"
+    mapping: |
+      root.result = 5.int32() == 5.0
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint32 == int64 promotes to int64"
+    mapping: |
+      root.result = 42.uint32() == 42
+    skip: "V2-only: specific numeric width not distinguishable in V1"

@@ -1,0 +1,171 @@
+description: "Output assignment: building output incrementally, auto-creation of intermediate objects/arrays, collision errors, gap filling, sequential references"
+
+tests:
+  # --- Basic incremental building ---
+
+  - name: "assign single field to output"
+    mapping: |
+      root.name = "Alice"
+    output: {"name": "Alice"}
+
+  - name: "assign multiple fields to output"
+    mapping: |
+      root.name = "Alice"
+      root.age = 30
+      root.active = true
+    output: {"name": "Alice", "age": 30, "active": true}
+
+  - name: "output starts as empty object"
+    # V1 `root` is unset (null) before any assignment. `root.v = root` reads
+    # `root` as null and the assignment resolves to void, leaving root
+    # untouched — the mapping produces no root assignment so the input
+    # passes through unchanged.
+    input: {}
+    mapping: |
+      root.v = root
+    output: {}
+
+  # --- Auto-creation of intermediate objects ---
+
+  - name: "auto-create nested object"
+    mapping: |
+      root.user.name = "Alice"
+    output: {"user": {"name": "Alice"}}
+
+  - name: "auto-create deeply nested object"
+    mapping: |
+      root.user.address.city = "London"
+    output: {"user": {"address": {"city": "London"}}}
+
+  - name: "auto-create very deeply nested object"
+    mapping: |
+      root.a.b.c.d.e = 42
+    output: {"a": {"b": {"c": {"d": {"e": 42}}}}}
+
+  - name: "auto-create and add sibling fields"
+    mapping: |
+      root.user.name = "Alice"
+      root.user.age = 30
+    output: {"user": {"name": "Alice", "age": 30}}
+
+  # --- Auto-creation with array index ---
+
+  - name: "auto-create array with index zero"
+    # V1 path auto-creation is always OBJECT-valued, even for numeric segments.
+    # `root.items.0 = "x"` on unset `items` creates `{"items": {"0": "x"}}`,
+    # not an array. To get an array you must first assign an array literal.
+    mapping: |
+      root.items.0 = "first"
+    output: {"items": {"0": "first"}}
+
+  - name: "auto-create array with object elements"
+    # As above: auto-created intermediates are objects keyed by the literal
+    # segment text (here "0").
+    mapping: |
+      root.items.0.name = "first"
+    output: {"items": {"0": {"name": "first"}}}
+
+  - name: "auto-create array then add more elements"
+    # V1 auto-creates an object (not array) when the base is unset.
+    mapping: |
+      root.items.0 = "a"
+      root.items.1 = "b"
+      root.items.2 = "c"
+    output: {"items": {"0": "a", "1": "b", "2": "c"}}
+
+  # --- Dynamic index: string creates object, int creates array ---
+
+  - name: "dynamic string index creates object field"
+    skip: "V1 has no dynamic bracket indexing in assignment targets (§6.4 forbids root.(expr) / root[expr])"
+
+  - name: "dynamic int index creates array element"
+    skip: "V1 has no dynamic bracket indexing in assignment targets"
+
+  # --- Array gap filling ---
+
+  - name: "gap filling with null"
+    # V1 has no array gap-filling — the intermediate is an object keyed by "2".
+    mapping: |
+      root.items.2 = "x"
+    output: {"items": {"2": "x"}}
+
+  - name: "gap filling after existing elements"
+    # V1 builds an object keyed by numeric strings; no gap filling.
+    mapping: |
+      root.items.0 = "a"
+      root.items.3 = "d"
+    output: {"items": {"0": "a", "3": "d"}}
+
+  - name: "gap filling with zero-based first element then gap"
+    mapping: |
+      root.arr.0 = 10
+      root.arr.5 = 50
+    output: {"arr": {"0": 10, "5": 50}}
+
+  # --- Sequential references to earlier output ---
+
+  - name: "reference previously assigned output field"
+    mapping: |
+      root.x = 10
+      root.y = root.x + 5
+    output: {"x": 10, "y": 15}
+
+  - name: "reference nested output field"
+    mapping: |
+      root.user.name = "Alice"
+      root.greeting = "Hello, " + root.user.name
+    output: {"user": {"name": "Alice"}, "greeting": "Hello, Alice"}
+
+  - name: "reference output array element"
+    # V1 auto-creates an object (not array) for numeric path segments.
+    mapping: |
+      root.items.0 = 100
+      root.items.1 = root.items.0 * 2
+    output: {"items": {"0": 100, "1": 200}}
+
+  - name: "overwrite previously assigned field"
+    mapping: |
+      root.status = "pending"
+      root.status = "done"
+    output: {"status": "done"}
+
+  # --- Collision errors ---
+
+  - name: "collision: field access on string value"
+    # V1 errors with "unable to set target path ... non-object type".
+    mapping: |
+      root.user = "Alice"
+      root.user.name = "Alice"
+    error: "non-object type"
+
+  - name: "collision: field access on integer value"
+    mapping: |
+      root.count = 42
+      root.count.value = 42
+    error: "non-object type"
+
+  - name: "collision: field access on boolean value"
+    mapping: |
+      root.flag = true
+      root.flag.sub = false
+    error: "non-object type"
+
+  - name: "collision: index access on string value"
+    # V1 has no bracket indexing; `.0` on a string value errors the same way
+    # as field access on a non-object.
+    mapping: |
+      root.data = "hello"
+      root.data.0 = "H"
+    error: "non-object type"
+
+  # --- Mixed nesting ---
+
+  - name: "build complex nested structure incrementally"
+    # V1 auto-creates nested objects keyed by numeric strings, not arrays.
+    mapping: |
+      root.users.0.name = "Alice"
+      root.users.0.age = 30
+      root.users.1.name = "Bob"
+      root.users.1.age = 25
+      root.count = 2
+    output: {"users": {"0": {"name": "Alice", "age": 30}, "1": {"name": "Bob", "age": 25}}, "count": 2}

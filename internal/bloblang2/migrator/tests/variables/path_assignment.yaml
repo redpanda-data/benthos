@@ -1,0 +1,189 @@
+description: "Variable path assignment: field mutation, index mutation, auto-creation, gap filling, deleted removal, wrong intermediate type errors"
+
+tests:
+  # --- Field assignment ---
+
+  - name: "assign field on object variable"
+    skip: "V1 does not support variable path assignment; must rebuild via .merge"
+    mapping: |
+      let obj = {"name": "Alice"}
+      let obj = $obj.merge({"name": "Bob"})
+      root.v = $obj
+    output: {"v": {"name": "Bob"}}
+
+  - name: "add new field to object variable"
+    skip: "V1 does not support variable path assignment"
+    mapping: |
+      let obj = {"a": 1}
+      let obj = $obj.merge({"b": 2})
+      root.v = $obj
+    output: {"v": {"a": 1, "b": 2}}
+
+  - name: "assign nested field on object variable"
+    skip: "V1 does not support nested variable path assignment"
+    mapping: |
+      let obj = {"user": {"name": "Alice"}}
+      let obj = $obj.merge({"user": $obj.user.merge({"name": "Bob"})})
+      root.v = $obj
+    output: {"v": {"user": {"name": "Bob"}}}
+
+  - name: "auto-create intermediate object for field assignment"
+    skip: "V1 has no auto-creation semantics for variables; value must be explicitly built"
+    mapping: |
+      let obj = {"user": {"name": "Alice"}}
+      root.v = $obj
+    output: {"v": {"user": {"name": "Alice"}}}
+
+  - name: "deeply nested auto-creation"
+    skip: "V1 has no auto-creation semantics for variables"
+    mapping: |
+      let obj = {"a": {"b": {"c": {"d": 42}}}}
+      root.v = $obj
+    output: {"v": {"a": {"b": {"c": {"d": 42}}}}}
+
+  # --- Index assignment ---
+
+  - name: "assign index on array variable"
+    skip: "V1 does not support variable index assignment"
+    mapping: |
+      let arr = [10, 20, 30]
+      let arr = $arr.enumerated().map_each(e -> if e.index == 1 { 99 } else { e.value })
+      root.v = $arr
+    output: {"v": [10, 99, 30]}
+
+  - name: "assign to end of array"
+    skip: "V1 does not support variable index assignment; use .append"
+    mapping: |
+      let arr = [1, 2, 3]
+      let arr = $arr.append(4)
+      root.v = $arr
+    output: {"v": [1, 2, 3, 4]}
+
+  - name: "gaps filled with null"
+    skip: "V1 has no gap-filling semantics"
+    mapping: |
+      let arr = [1, null, null, 99]
+      root.v = $arr
+    output: {"v": [1, null, null, 99]}
+
+  - name: "assign to index zero of empty array"
+    skip: "V1 does not support variable index assignment"
+    mapping: |
+      let arr = ["first"]
+      root.v = $arr
+    output: {"v": ["first"]}
+
+  - name: "negative index assignment"
+    skip: "V1 does not support variable index assignment, and path-form `.−1` is a parse error"
+    mapping: |
+      let arr = [10, 20, 99]
+      root.v = $arr
+    output: {"v": [10, 20, 99]}
+
+  # --- Auto-creation based on index type ---
+
+  - name: "auto-create array for numeric index on empty object field"
+    skip: "V1 has no auto-creation semantics for variables"
+    mapping: |
+      let obj = {"items": ["first"]}
+      root.v = $obj
+    output: {"v": {"items": ["first"]}}
+
+  - name: "auto-create object for string field on empty object field"
+    skip: "V1 has no auto-creation semantics for variables"
+    mapping: |
+      let obj = {"nested": {"key": "value"}}
+      root.v = $obj
+    output: {"v": {"nested": {"key": "value"}}}
+
+  # --- Deleted removes field ---
+
+  - name: "deleted removes field from variable object"
+    skip: "V1 does not support variable path assignment (including deleted()); use .without"
+    mapping: |
+      let obj = {"a": 1, "b": 2, "c": 3}
+      let obj = $obj.without("b")
+      root.v = $obj
+    output: {"v": {"a": 1, "c": 3}}
+
+  - name: "deleted removes nested field from variable object"
+    skip: "V1 does not support nested variable path assignment"
+    mapping: |
+      let obj = {"user": {"name": "Alice", "age": 30}}
+      let obj = $obj.merge({"user": $obj.user.without("age")})
+      root.v = $obj
+    output: {"v": {"user": {"name": "Alice"}}}
+
+  # --- Deleted removes array element (shifts remaining) ---
+
+  - name: "deleted removes array element and shifts"
+    skip: "V1 does not support variable index assignment"
+    mapping: |
+      let arr = [10, 20, 30, 40]
+      let arr = $arr.enumerated().filter(e -> e.index != 1).map_each(e -> e.value)
+      root.v = $arr
+    output: {"v": [10, 30, 40]}
+
+  - name: "deleted removes first array element"
+    skip: "V1 does not support variable index assignment"
+    mapping: |
+      let arr = [10, 20, 30]
+      let arr = $arr.slice(1)
+      root.v = $arr
+    output: {"v": [20, 30]}
+
+  - name: "deleted removes last array element"
+    skip: "V1 does not support variable index assignment"
+    mapping: |
+      let arr = [10, 20, 30]
+      let arr = $arr.slice(0, $arr.length() - 1)
+      root.v = $arr
+    output: {"v": [10, 20]}
+
+  # --- Wrong intermediate type errors ---
+
+  - name: "field assignment on string variable is error"
+    skip: "V1 does not support variable path assignment; no such error is raised"
+    mapping: |
+      let val = "hello"
+    error: "field" # FIXME-v1: test is inapplicable in V1
+
+  - name: "field assignment on integer variable is error"
+    skip: "V1 does not support variable path assignment"
+    mapping: |
+      let val = 42
+    error: "field" # FIXME-v1
+
+  - name: "field assignment on boolean variable is error"
+    skip: "V1 does not support variable path assignment"
+    mapping: |
+      let val = true
+    error: "field" # FIXME-v1
+
+  - name: "index assignment on string variable is error"
+    skip: "V1 does not support variable index assignment"
+    mapping: |
+      let val = "hello"
+    error: "index" # FIXME-v1
+
+  - name: "nested path wrong intermediate type is error"
+    skip: "V1 does not support variable path assignment"
+    mapping: |
+      let obj = {"name": "Alice"}
+    error: "field" # FIXME-v1
+
+  # --- Multiple path assignments ---
+
+  - name: "multiple field assignments build up object"
+    skip: "V1 does not support variable path assignment; must build via a single object literal or chained merges"
+    mapping: |
+      let record = {"name": "Alice", "age": 30, "active": true}
+      root.v = $record
+    output: {"v": {"name": "Alice", "age": 30, "active": true}}
+
+  - name: "mixed field and index assignments"
+    skip: "V1 does not support variable path/index assignment"
+    mapping: |
+      let data = {"scores": [90, 85], "name": "Alice"}
+      root.v = $data
+    output: {"v": {"scores": [90, 85], "name": "Alice"}}

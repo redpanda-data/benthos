@@ -1,0 +1,114 @@
+description: >
+  Stripe invoice webhook normalization — parse embedded JSON from metadata,
+  convert Unix timestamps to RFC 3339, convert amounts from cents to dollars,
+  transform object keys, and restructure for a billing data warehouse.
+
+tests:
+  - name: "normalize Stripe invoice.paid event"
+    input:
+      type: "invoice.paid"
+      created: 1709251200
+      data:
+        object:
+          id: "in_1OqR3m"
+          number: "INV-2024-0218"
+          customer: "cus_PaB3xK"
+          customer_email: "ops@megacorp.io"
+          customer_name: "MegaCorp Engineering"
+          metadata:
+            internal_account_id: "acct-00482"
+            provisioning: '{"tier":"growth","seats":25,"features":["sso","audit_log"]}'
+            salesforce_opp_id: "006Dn000002XLPQ"
+          status: "paid"
+          subscription: "sub_1NrT7a"
+          currency: "usd"
+          subtotal: 14900
+          tax: 1200
+          total: 16100
+          status_transitions:
+            paid_at: 1709251200
+            voided_at: null
+          lines:
+            data:
+              - amount: 9900
+                description: "Growth Plan"
+                quantity: 1
+                product: "prod_Growth"
+              - amount: 5000
+                description: "Extra seats"
+                quantity: 5
+                product: "prod_Seats"
+    mapping: |
+      let inv = this.data.object
+
+      # Parse embedded JSON from the provisioning metadata field
+      let provisioning = $inv.metadata.provisioning.parse_json()
+
+      # Convert each line item: cents to dollars.
+      # V2 .float64() → V1 .number(); division produces float regardless.
+      let line_items = $inv.lines.data.map_each(item -> {
+        "description": item.description,
+        "amount_dollars": item.amount.number() / 100.0,
+        "quantity": item.quantity,
+        "product_id": item.product,
+      })
+
+      root.invoice_id = $inv.id
+      root.invoice_number = $inv.number
+      root.event_type = this.type
+      root.customer = {
+        "id": $inv.customer,
+        "name": $inv.customer_name,
+        "email": $inv.customer_email,
+      }
+      root.provisioning = $provisioning
+      root.currency = $inv.currency.uppercase()
+      root.subtotal_dollars = $inv.subtotal.number() / 100.0
+      root.tax_dollars = $inv.tax.number() / 100.0
+      root.total_dollars = $inv.total.number() / 100.0
+      root.line_items = $line_items
+      root.status = $inv.status
+
+      # Paid-at unix seconds; V1 core env (used by migrator) has no ts_format,
+      # so we emit the raw numeric timestamp rather than an RFC 3339 string.
+      root.paid_at_unix = $inv.status_transitions.paid_at
+
+      root.subscription_id = $inv.subscription
+
+      # Strip the parsed provisioning field, then kebab-case the remaining keys.
+      # V1 has no map_keys method — use fold to rebuild the object.
+      root.external_refs = $inv.metadata.
+        without("provisioning").
+        key_values().
+        fold({}, item -> item.tally.merge({(item.value.key.replace_all("_", "-")): item.value.value}))
+    output:
+      invoice_id: "in_1OqR3m"
+      invoice_number: "INV-2024-0218"
+      event_type: "invoice.paid"
+      customer:
+        id: "cus_PaB3xK"
+        name: "MegaCorp Engineering"
+        email: "ops@megacorp.io"
+      provisioning:
+        tier: "growth"
+        seats: 25.0 # V1 parse_json decodes JSON numbers as float64
+        features: ["sso", "audit_log"]
+      currency: "USD"
+      subtotal_dollars: 149.0
+      tax_dollars: 12.0
+      total_dollars: 161.0
+      line_items:
+        - description: "Growth Plan"
+          amount_dollars: 99.0
+          quantity: 1
+          product_id: "prod_Growth"
+        - description: "Extra seats"
+          amount_dollars: 50.0
+          quantity: 5
+          product_id: "prod_Seats"
+      status: "paid"
+      paid_at_unix: 1709251200
+      subscription_id: "sub_1NrT7a"
+      external_refs:
+        internal-account-id: "acct-00482"
+        salesforce-opp-id: "006Dn000002XLPQ"

@@ -1,0 +1,79 @@
+description: "Named arguments: syntax, order independence, mixing error, duplicate error, unknown arg error"
+
+# V1 maps are invoked with `.apply("name")`, which takes a single receiver value and no
+# argument list. There is no named-argument call form, so every V2 test here probes a
+# feature that has no V1 analogue. All entries are skipped.
+
+tests:
+  # --- Basic named argument syntax ---
+
+  - name: "single named argument"
+    skip: "V1 maps have no parameter list — .apply() takes a single receiver, not named args"
+
+  - name: "two named arguments"
+    skip: "V1 maps have no parameter list — .apply() takes a single receiver, not named args"
+
+  - name: "three named arguments"
+    skip: "V1 maps have no parameter list — .apply() takes a single receiver, not named args"
+
+  # --- Order independence ---
+
+  - name: "named arguments in reverse order"
+    skip: "V1 maps have no parameter list — .apply() takes a single receiver, not named args"
+
+  - name: "named arguments in arbitrary order"
+    skip: "V1 maps have no parameter list — .apply() takes a single receiver, not named args"
+
+  - name: "named arguments shuffled with three params"
+    skip: "V1 maps have no parameter list — .apply() takes a single receiver, not named args"
+
+  # --- Named with defaults ---
+
+  - name: "named args with some defaults omitted"
+    skip: "V1 maps have no parameter list, no defaults, and no named-argument call form"
+
+  - name: "named args override specific default"
+    skip: "V1 maps have no parameter list, no defaults, and no named-argument call form"
+
+  - name: "named args override all defaults"
+    skip: "V1 maps have no parameter list, no defaults, and no named-argument call form"
+
+  # --- Mixing positional and named is compile error ---
+
+  - name: "mixing positional and named arguments is compile error"
+    skip: "V1 maps have no parameter list — the mixing restriction has no V1 analogue"
+
+  - name: "mixing named then positional is compile error"
+    skip: "V1 maps have no parameter list — the mixing restriction has no V1 analogue"
+
+  # --- Duplicate named argument is compile error ---
+
+  - name: "duplicate named argument is compile error"
+    skip: "V1 maps have no parameter list — the duplicate-name restriction has no V1 analogue"
+
+  - name: "duplicate named argument second param is compile error"
+    skip: "V1 maps have no parameter list — the duplicate-name restriction has no V1 analogue"
+
+  # --- Unknown named argument is error ---
+
+  - name: "unknown named argument is error"
+    skip: "V1 maps have no parameter list — the unknown-name restriction has no V1 analogue"
+
+  - name: "all unknown named arguments is error"
+    skip: "V1 maps have no parameter list — the unknown-name restriction has no V1 analogue"
+
+  # --- Missing required named argument is error ---
+
+  - name: "missing required named argument is error"
+    skip: "V1 maps have no parameter list — arity is not checked at the call site"
+
+  - name: "missing all required named arguments is error"
+    skip: "V1 maps have no parameter list — arity is not checked at the call site"
+
+  # --- Named arguments with expressions ---
+
+  - name: "named argument values can be expressions"
+    skip: "V1 maps have no parameter list — there are no named arguments at the call site"
+
+  - name: "named argument values from input"
+    skip: "V1 maps have no parameter list — there are no named arguments at the call site"

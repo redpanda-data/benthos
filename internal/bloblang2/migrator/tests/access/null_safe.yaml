@@ -1,0 +1,149 @@
+description: "Null-safe navigation with ?. and ?[: short-circuits on null, type errors on non-null wrong type"
+
+tests:
+  # --- Basic ?. on null ---
+
+  - name: "null-safe field access on null returns null"
+    mapping: |
+      let v = null
+      root.v = $v.name
+    output: {"v": null} # V1: path into null yields null natively; no ?. needed (§12.5)
+
+  - name: "null-safe field access on non-null object works"
+    mapping: |
+      let v = {"name": "Alice"}
+      root.v = $v.name
+    output: {"v": "Alice"}
+
+  - name: "null-safe on null input field"
+    input: {"user": null}
+    mapping: |
+      root.v = this.user.name
+    output: {"v": null}
+
+  - name: "null-safe on missing input field returns null"
+    input: {}
+    mapping: |
+      root.v = this.missing.name
+    output: {"v": null}
+
+  # --- Chained ?. ---
+
+  - name: "chained null-safe field access"
+    mapping: |
+      root.v = this.user.address.city
+    cases:
+      - name: "all present"
+        input: {"user": {"address": {"city": "London"}}}
+        output: {"v": "London"}
+      - name: "middle is null"
+        input: {"user": {"address": null}}
+        output: {"v": null}
+      - name: "first is null"
+        input: {"user": null}
+        output: {"v": null}
+      - name: "first missing"
+        input: {}
+        output: {"v": null}
+
+  # --- ?[ on null ---
+
+  - name: "null-safe bracket on null returns null"
+    mapping: |
+      let v = null
+      root.v = $v.get("key")
+    output: {"v": null} # FIXME-v1: verify - V1 .get() on null returns null
+
+  - name: "null-safe bracket on object works"
+    mapping: |
+      let v = {"key": "value"}
+      root.v = $v.get("key")
+    output: {"v": "value"}
+
+  - name: "null-safe bracket on null array returns null"
+    mapping: |
+      let v = null
+      root.v = $v.index(0).or(null)
+    output: {"v": null} # V1 .index() on null errors; use .or(null) to mimic null-safe semantics
+
+  - name: "null-safe bracket on array works"
+    mapping: |
+      let v = [10, 20, 30]
+      root.v = $v.index(1)
+    output: {"v": 20}
+
+  # --- Null-safe method call ---
+
+  - name: "null-safe method on null returns null"
+    mapping: |
+      let v = null
+      root.v = $v.length().catch(null)
+    output: {"v": null} # FIXME-v1: verify - V1 .length() on null errors; use .catch(null) to match ?. semantics
+
+  - name: "null-safe method on non-null works"
+    mapping: |
+      let v = "hello"
+      root.v = $v.length()
+    output: {"v": 5}
+
+  - name: "null-safe chained method on null"
+    mapping: |
+      let v = null
+      root.v = $v.trim().catch(null)
+    output: {"v": null} # FIXME-v1: verify - V1 .trim() on null errors; use .catch(null)
+
+  # --- Type errors still throw on non-null wrong type ---
+
+  - name: "null-safe field on integer is error"
+    mapping: |
+      root.v = 5.name
+    output: {"v": null} # V1 field access on scalars silently returns null
+
+  - name: "null-safe field on string is error"
+    mapping: |
+      root.v = "hello".name
+    output: {"v": null} # V1 field access on scalars silently returns null
+
+  - name: "null-safe field on boolean is error"
+    mapping: |
+      root.v = true.name
+    output: {"v": null} # V1 field access on scalars silently returns null
+
+  - name: "null-safe field on array is error"
+    mapping: |
+      root.v = [1, 2].name
+    output: {"v": null} # V1 field access on scalars silently returns null
+
+  - name: "non-null wrong type in chain is error"
+    input: {"value": "hello"}
+    mapping: |
+      root.v = this.value.nonfield.trim()
+    error: "field" # FIXME-v1: verify - field access on string may error or return null
+
+  # --- Mixed null-safe and regular access ---
+
+  - name: "regular then null-safe access"
+    input: {"user": {"profile": null}}
+    mapping: |
+      root.v = this.user.profile.bio
+    output: {"v": null}
+
+  - name: "null-safe then regular access on present value"
+    input: {"user": {"profile": {"bio": "hello"}}}
+    mapping: |
+      root.v = this.user.profile.bio
+    output: {"v": "hello"}
+
+  # --- Null-safe with dynamic access chains ---
+
+  - name: "null-safe bracket then dot"
+    mapping: |
+      let data = null
+      root.v = $data.get("key").name
+    output: {"v": null} # FIXME-v1: verify - V1 .get() on null returns null, then path into null also null
+
+  - name: "null-safe bracket on nested null"
+    input: {"items": null}
+    mapping: |
+      root.v = this.items.index(0).or(null)
+    output: {"v": null} # V1 .index() on null errors; use .or(null) for null-safe semantics

@@ -1,0 +1,290 @@
+description: "Integer types: int32, int64, uint32, uint64 literals, limits, and conversions"
+
+tests:
+  # --- int64 literals (default) ---
+
+  - name: "integer literal is int64"
+    mapping: |
+      root = 42.type()
+    # V1 .type() returns "number" — no int64/float64 distinction
+    skip: "V2-only: V1 .type() returns 'number' for all numerics"
+
+  - name: "zero literal is int64"
+    mapping: |
+      root = 0.type()
+    skip: "V2-only: V1 .type() returns 'number' for all numerics"
+
+  - name: "negative integer via unary minus"
+    mapping: |
+      root = (-10).type()
+    skip: "V2-only: V1 .type() returns 'number' for all numerics"
+
+  - name: "negative integer value"
+    mapping: |
+      root = -10
+    output: -10
+
+  - name: "int64 max value"
+    mapping: |
+      root = 9223372036854775807
+    output: 9223372036854775807
+
+  - name: "int64 min literal exceeds int64 range"
+    # V1 parses `-N` as `(unary-minus N)` — the positive literal is parsed first and overflows.
+    # The compile error is strconv's "value out of range".
+    mapping: |
+      root = -9223372036854775808
+    compile_error: "value out of range"
+
+  - name: "int64 min value via arithmetic"
+    mapping: |
+      root = -9223372036854775807 - 1
+    # FIXME-v1: V1 int overflow is silent per Go int64; this should yield int64 min
+    output: -9223372036854775808
+
+  # --- int32 conversions ---
+
+  - name: "int32 from int64 literal"
+    mapping: |
+      root = 42.number()
+    skip: "V2-only: V1 has no int32 type"
+
+  - name: "int32 type check"
+    mapping: |
+      root = 42.number().type()
+    skip: "V2-only: V1 has no int32 type"
+
+  - name: "int32 from string"
+    mapping: |
+      root = "42".number()
+    skip: "V2-only: V1 has no int32 type"
+
+  - name: "int32 max value"
+    mapping: |
+      root = 2147483647.number()
+    skip: "V2-only: V1 has no int32 type"
+
+  - name: "int32 min value"
+    mapping: |
+      root = (-2147483648).number()
+    skip: "V2-only: V1 has no int32 type"
+
+  - name: "int32 overflow positive"
+    mapping: |
+      root = 2147483648.number()
+    skip: "V2-only: V1 has no int32 type/range"
+
+  - name: "int32 overflow negative"
+    mapping: |
+      root = (-2147483649).number()
+    skip: "V2-only: V1 has no int32 type/range"
+
+  - name: "int32 zero"
+    mapping: |
+      root = 0.number()
+    skip: "V2-only: V1 has no int32 type"
+
+  - name: "int32 negative"
+    mapping: |
+      root = (-100).number()
+    skip: "V2-only: V1 has no int32 type"
+
+  # --- uint32 conversions ---
+
+  - name: "uint32 from int64"
+    mapping: |
+      root = 42.number()
+    skip: "V2-only: V1 has no uint32 type"
+
+  - name: "uint32 type check"
+    mapping: |
+      root = 42.number().type()
+    skip: "V2-only: V1 has no uint32 type"
+
+  - name: "uint32 from string"
+    mapping: |
+      root = "255".number()
+    skip: "V2-only: V1 has no uint32 type"
+
+  - name: "uint32 max value"
+    mapping: |
+      root = 4294967295.number()
+    skip: "V2-only: V1 has no uint32 type"
+
+  - name: "uint32 zero"
+    mapping: |
+      root = 0.number()
+    skip: "V2-only: V1 has no uint32 type"
+
+  - name: "uint32 overflow"
+    mapping: |
+      root = 4294967296.number()
+    skip: "V2-only: V1 has no uint32 type/range"
+
+  - name: "uint32 negative is error"
+    mapping: |
+      root = (-1).number()
+    skip: "V2-only: V1 has no uint32 type/range"
+
+  # --- uint64 conversions ---
+
+  - name: "uint64 from int64"
+    mapping: |
+      root = 42.number()
+    skip: "V2-only: V1 has no uint64 type"
+
+  - name: "uint64 type check"
+    mapping: |
+      root = 42.number().type()
+    skip: "V2-only: V1 has no uint64 type"
+
+  - name: "uint64 from string"
+    mapping: |
+      root = "1000".number()
+    skip: "V2-only: V1 has no uint64 type"
+
+  - name: "uint64 max from string"
+    mapping: |
+      root = "18446744073709551615".number()
+    skip: "V2-only: V1 has no uint64 type"
+
+  - name: "uint64 zero"
+    mapping: |
+      root = 0.number()
+    skip: "V2-only: V1 has no uint64 type"
+
+  - name: "uint64 negative is error"
+    mapping: |
+      root = (-1).number()
+    skip: "V2-only: V1 has no uint64 type/range"
+
+  - name: "uint64 max as bare literal is compile error"
+    mapping: |
+      root = 18446744073709551615.number()
+    skip: "V2-only: V1 has no uint64 type; literal would be a compile error anyway but different semantics"
+
+  - name: "uint64 overflow from string"
+    mapping: |
+      root = "18446744073709551616".number()
+    skip: "V2-only: V1 has no uint64 type"
+
+  # --- int64 conversions ---
+
+  - name: "int64 from string"
+    # V1 `"42".number()` returns float64, not int64 — there's no separate int-conversion method.
+    mapping: |
+      root = "42".number()
+    output: 42.0
+
+  - name: "int64 from float truncates"
+    mapping: |
+      root = 3.9.number()
+    # FIXME-v1: V1 .number() on a float returns the float (no truncation). V1 has no direct int-conversion method.
+    skip: "V1 .number() on float returns the float unchanged; no int-coercion method"
+
+  - name: "int64 from negative float truncates toward zero"
+    mapping: |
+      root = (-3.9).number()
+    skip: "V1 .number() on float returns the float unchanged; no int-coercion method"
+
+  - name: "int64 from bool is error"
+    mapping: |
+      root = true.number()
+    # FIXME-v1: verify error substring
+    error: "expected number"
+
+  - name: "int64 from invalid string"
+    # V1 surfaces strconv's own error text.
+    mapping: |
+      root = "not_a_number".number()
+    error: "invalid syntax"
+
+  # --- Cross-type integer equality (promotion) ---
+
+  - name: "int32 equals int64 same value"
+    mapping: |
+      root = 5.number() == 5
+    output: true
+
+  - name: "int32 not equals int64 different value"
+    mapping: |
+      root = 5.number() == 6
+    output: false
+
+  - name: "uint32 equals int64 same value"
+    mapping: |
+      root = 42.number() == 42
+    output: true
+
+  - name: "uint64 equals int64 same value"
+    mapping: |
+      root = 42.number() == 42
+    output: true
+
+  - name: "int64 equals float64 same value"
+    mapping: |
+      root = 5 == 5.0
+    # V1 == is representation-agnostic for numbers
+    output: true
+
+  # --- Integer arithmetic basics ---
+
+  - name: "int64 addition"
+    mapping: |
+      root = 5 + 3
+    output: 8
+
+  - name: "int64 subtraction"
+    mapping: |
+      root = 10 - 3
+    output: 7
+
+  - name: "int64 multiplication"
+    mapping: |
+      root = 6 * 7
+    output: 42
+
+  - name: "int64 modulo"
+    mapping: |
+      root = 7 % 2
+    output: 1
+
+  - name: "int64 division produces float64"
+    mapping: |
+      root = 7 / 2
+    # V1 / on ints always returns float
+    output: 3.5
+
+  - name: "int64 overflow addition"
+    mapping: |
+      root = 9223372036854775807 + 1
+    # V1 integer overflow is silent per Go int64 semantics; no error
+    skip: "V1 int64 overflow wraps silently per Go semantics; no error raised"
+
+  - name: "int64 min literal is compile error in subtraction"
+    # V1 parses `-N` as `(unary-minus N)`; the positive literal overflows int64 at parse.
+    mapping: |
+      root = -9223372036854775808 - 1
+    compile_error: "value out of range"
+
+  - name: "int64 overflow subtraction"
+    mapping: |
+      root = (-9223372036854775807 - 1) - 1
+    skip: "V1 int64 overflow wraps silently per Go semantics; no error raised"
+
+  # --- Conversion from float to integer types ---
+
+  - name: "float to int32"
+    mapping: |
+      root = 3.14.number()
+    skip: "V2-only: V1 has no int32 type and no float-to-int coercion method"
+
+  - name: "float to uint32"
+    mapping: |
+      root = 100.0.number()
+    skip: "V2-only: V1 has no uint32 type"
+
+  - name: "float to uint64"
+    mapping: |
+      root = 100.0.number()
+    skip: "V2-only: V1 has no uint64 type"

@@ -1,0 +1,168 @@
+description: "Input access: reading fields, metadata, various input types, immutability guarantees, non-existent fields return null"
+
+tests:
+  # --- Basic input field access ---
+
+  - name: "access top-level input field"
+    input: {"name": "Alice"}
+    mapping: |
+      root.v = this.name
+    output: {"v": "Alice"}
+
+  - name: "access nested input field"
+    input: {"user": {"name": "Bob", "age": 30}}
+    mapping: |
+      root.name = this.user.name
+      root.age = this.user.age
+    output: {"name": "Bob", "age": 30}
+
+  - name: "access deeply nested input field"
+    input: {"a": {"b": {"c": {"d": "deep"}}}}
+    mapping: |
+      root.v = this.a.b.c.d
+    output: {"v": "deep"}
+
+  - name: "access input array element by index"
+    # V1 has no bracket indexing — use path segment `.N` for non-negative indices.
+    input: [10, 20, 30]
+    mapping: |
+      root.first = this.0
+      root.second = this.1
+      root.third = this.2
+    output: {"first": 10, "second": 20, "third": 30}
+
+  - name: "access nested array in input object"
+    input: {"items": ["a", "b", "c"]}
+    mapping: |
+      root.v = this.items.1
+    output: {"v": "b"}
+
+  - name: "access object inside input array"
+    input: [{"name": "Alice"}, {"name": "Bob"}]
+    mapping: |
+      root.v = this.1.name
+    output: {"v": "Bob"}
+
+  # --- Input types ---
+
+  - name: "input passthrough for various types"
+    mapping: |
+      root.v = this
+    cases:
+      - name: "string"
+        input: "hello world"
+        output: {"v": "hello world"}
+      - name: "number"
+        input: 42
+        output: {"v": 42}
+      - name: "float"
+        input: 3.14
+        output: {"v": 3.14}
+      - name: "boolean"
+        input: true
+        output: {"v": true}
+      - name: "null"
+        input: null
+        output: {"v": null}
+      - name: "empty object"
+        input: {}
+        output: {"v": {}}
+      - name: "empty array"
+        input: []
+        output: {"v": []}
+      - name: "defaults to null when not specified"
+        output: {"v": null}
+
+  # --- Non-existent fields return null ---
+
+  - name: "non-existent top-level field returns null"
+    input: {"name": "Alice"}
+    mapping: |
+      root.v = this.missing
+    output: {"v": null}
+
+  - name: "non-existent nested field returns null"
+    input: {"user": {}}
+    mapping: |
+      root.v = this.user.name
+    output: {"v": null}
+
+  - name: "deep path through null intermediate is error"
+    # V1 null-safe path access yields null rather than erroring.
+    input: {"a": 1}
+    mapping: |
+      root.v = this.x.y.z
+    output: {"v": null}
+
+  - name: "out of bounds array index is error"
+    # V1 path indexing (`this.N`) on a shorter array yields null rather than
+    # erroring; the erroring bounds behaviour lives on `.index(N)`.
+    input: [1, 2, 3]
+    mapping: |
+      root.v = this.10
+    output: {"v": null}
+
+  # --- Input metadata access ---
+
+  - name: "read single input metadata key"
+    input: {"data": 1}
+    input_metadata: {"source": "kafka"}
+    mapping: |
+      root.v = @source
+    output: {"v": "kafka"}
+    output_metadata: {"source": "kafka"}
+
+  - name: "read all input metadata as object"
+    input: {"data": 1}
+    input_metadata: {"source": "kafka", "topic": "events"}
+    mapping: |
+      root.v = @
+    output: {"v": {"source": "kafka", "topic": "events"}}
+    output_metadata: {"source": "kafka", "topic": "events"}
+
+  - name: "undefined metadata key returns null"
+    # V1 `@missing` returns null, whereas `meta("missing")` errors. The @-form
+    # gives null-default semantics.
+    input: {"data": 1}
+    input_metadata: {"source": "kafka"}
+    mapping: |
+      root.v = @missing
+    output: {"v": null}
+    output_metadata: {"source": "kafka"}
+
+  - name: "metadata with no input_metadata is empty object"
+    input: {"data": 1}
+    mapping: |
+      root.v = @
+    output: {"v": {}}
+
+  - name: "metadata value can be any type"
+    input: {}
+    input_metadata: {"count": 42, "active": true, "tags": ["a", "b"]}
+    mapping: |
+      root.count = @count
+      root.active = @active
+      root.tags = @tags
+    output: {"count": 42, "active": true, "tags": ["a", "b"]}
+    output_metadata: {"count": 42, "active": true, "tags": ["a", "b"]}
+
+  - name: "nested metadata path access"
+    input: {}
+    input_metadata: {"routing": {"region": "us-west", "zone": "a"}}
+    mapping: |
+      root.v = @routing.region
+    output: {"v": "us-west"}
+    output_metadata: {"routing": {"region": "us-west", "zone": "a"}}
+
+  # --- Input immutability ---
+
+  - name: "input is not modified by output assignment from input"
+    input: {"name": "Alice", "age": 30}
+    mapping: |
+      root = this
+      root.name = "Bob"
+      root.original = this.name
+    output: {"name": "Bob", "age": 30, "original": "Alice"}
+
+  - name: "input array is not modified by variable mutation"
+    skip: "V1 has no variable reassignment ($copy[0] = 99 is not expressible)"

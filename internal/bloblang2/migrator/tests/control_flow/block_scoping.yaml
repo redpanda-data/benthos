@@ -1,0 +1,149 @@
+description: "Block scoping — V1 has NO block scope for let variables; most tests intentionally behave differently from V2."
+
+tests:
+  # --- Expression context: shadowing (if expression) ---
+  # V1 has no block scope, so "shadowing" is really mutation — $value leaks out.
+
+  - name: "if expression shadows outer variable"
+    skip: "V1 does not block-scope let variables — $value reassignment inside if expression leaks to outer scope"
+
+  - name: "if expression shadow does not leak to else branch"
+    mapping: |
+      let value = 10
+      root.result = if false {
+        (let value = 20) | $value
+      } else {
+        $value
+      }
+    skip: "V1 does not block-scope let variables; V1 if-expression branches are single expressions not statement lists, so inline let is not supported"
+
+  - name: "if expression shadow in else branch"
+    skip: "V1 does not block-scope let variables, and V1 if-expression branches are single expressions"
+
+  # --- Statement context: mutation (if statement) ---
+
+  - name: "if statement mutates outer variable"
+    mapping: |
+      let value = 10
+      if true {
+        let value = 20
+      }
+      root.result = $value
+    output: {"result": 20}
+
+  - name: "if statement mutation persists after block"
+    mapping: |
+      let x = 1
+      let y = 2
+      if true {
+        let x = 10
+        let y = 20
+      }
+      root.x = $x
+      root.y = $y
+    output: {"x": 10, "y": 20}
+
+  - name: "if statement mutation only happens if condition is true"
+    mapping: |
+      let value = "original"
+      if false {
+        let value = "changed"
+      }
+      root.result = $value
+    output: {"result": "original"}
+
+  # --- New variables in statement context are block-scoped ---
+  # V1 does NOT block-scope let — the variable DOES leak out.
+
+  - name: "new variable in if statement not visible outside"
+    mapping: |
+      if true {
+        let new_var = 42
+      }
+      root.result = $new_var
+    output: {"result": 42}
+
+  - name: "new variable in else branch not visible outside"
+    mapping: |
+      if false {
+        let a = 1
+      } else {
+        let b = 2
+      }
+      root.result = $b
+    output: {"result": 2}
+
+  - name: "variable in one branch not visible in sibling branch"
+    mapping: |
+      if false {
+        let x = 10
+      } else {
+        root.result = $x
+      }
+    error: "variable 'x' undefined"
+
+  # --- Expression context: match expression shadows ---
+
+  - name: "match expression shadows outer variable"
+    skip: "V1 match-expression arms are single expressions, not statement lists; no inline let inside arm body"
+
+  # --- Statement context: match statement mutates ---
+
+  - name: "match statement mutates outer variable"
+    skip: "V1 match is an expression only — there is no statement form that holds a statement list per arm"
+
+  # --- Nested scopes ---
+
+  - name: "nested if expressions each shadow independently"
+    skip: "V1 does not block-scope let variables, and V1 if-expression branches are single expressions"
+
+  - name: "if statement inside expression body is compile error"
+    skip: "V1 if-expression branches are always single expressions; nesting an if-statement inside is not even representable"
+
+  # --- Variables declared in block not accessible after ---
+
+  - name: "variable from match case not visible after match"
+    skip: "V1 match arms are single expressions; a let inside a match arm body is not expressible"
+
+  # --- Else-if scoping ---
+
+  - name: "else-if branches have independent scopes"
+    mapping: |
+      let result = "none"
+      if false {
+        let result = "first"
+      } else if true {
+        let result = "second"
+        let local = "only here"
+      } else {
+        let result = "third"
+      }
+      root.result = $result
+      root.local = $local
+    output: {"result": "second", "local": "only here"}
+
+  - name: "else-if statement mutates outer variable from middle branch"
+    mapping: |
+      let result = "none"
+      if false {
+        let result = "first"
+      } else if true {
+        let result = "second"
+      } else {
+        let result = "third"
+      }
+      root.result = $result
+    output: {"result": "second"}
+
+  # --- Deep nesting ---
+
+  - name: "three levels of nesting with correct scoping"
+    skip: "V1 does not block-scope let variables; V1 if-expression branches are single expressions"
+
+  # --- Match-as binding scope ---
+
+  - name: "match-as binding not visible after match expression"
+    skip: "V1 has no match-as syntax"
+
+  - name: "match-as binding does not conflict with variable of different naming"
+    skip: "V1 has no match-as syntax"

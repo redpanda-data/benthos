@@ -1,0 +1,208 @@
+description: "Variable reassignment: same-scope mutation, statement context outer modification, block-scoped new vars, pre-declare pattern"
+
+tests:
+  # --- Same-scope reassignment (mutation) ---
+
+  - name: "reassign variable in same scope"
+    mapping: |
+      let x = 1
+      let x = 2
+      root.v = $x
+    output: {"v": 2}
+
+  - name: "reassign variable multiple times"
+    mapping: |
+      let x = 1
+      let x = 2
+      let x = 3
+      let x = 4
+      root.v = $x
+    output: {"v": 4}
+
+  - name: "reassign variable to different type"
+    mapping: |
+      let x = 42
+      let x = "hello"
+      root.v = $x
+    output: {"v": "hello"}
+
+  - name: "reassign variable using its own value"
+    mapping: |
+      let x = 10
+      let x = $x + 5
+      root.v = $x
+    output: {"v": 15}
+
+  - name: "reassign variable accumulation"
+    mapping: |
+      let sum = 0
+      let sum = $sum + 1
+      let sum = $sum + 2
+      let sum = $sum + 3
+      root.v = $sum
+    output: {"v": 6}
+
+  - name: "void skips variable reassignment"
+    skip: "V1 has no void concept; `if false { 42 }` yields null, and `let x = null` re-binds x to null (does not skip)"
+    mapping: |
+      let x = 10
+      let x = if false { 42 }
+      root.v = $x
+    output: {"v": 10} # FIXME-v1: V1 would produce null, not 10
+
+  - name: "void from match skips variable reassignment"
+    skip: "V1 has no void concept; unmatched match yields null, which re-binds the variable"
+    mapping: |
+      let x = "original"
+      let x = match "nope" {
+        "a" => "found",
+      }
+      root.v = $x
+    output: {"v": "original"} # FIXME-v1: V1 would produce null
+
+  # --- Statement context: if-statement modifies outer variable ---
+
+  - name: "if-statement outer variable modification"
+    mapping: |
+      let value = 10
+      if this.flag {
+        let value = 20
+      }
+      root.v = $value
+    cases:
+      - name: "modifies when true"
+        input: {"flag": true}
+        output: {"v": 20}
+      - name: "unchanged when false"
+        input: {"flag": false}
+        output: {"v": 10}
+
+  - name: "if-else statement modifies outer variable in else branch"
+    input: {"flag": false}
+    mapping: |
+      let value = "initial"
+      if this.flag {
+        let value = "from-if"
+      } else {
+        let value = "from-else"
+      }
+      root.v = $value
+    output: {"v": "from-else"}
+
+  - name: "match statement outer variable modification"
+    skip: "V1 has no statement-mode match with `{ let result = ... }` arm blocks"
+    mapping: |
+      let result = "none"
+      match this.kind {
+        "a" => { let result = "found-a" },
+        "b" => { let result = "found-b" },
+      }
+      root.v = $result
+    cases:
+      - name: "modifies on match"
+        input: {"kind": "b"}
+        output: {"v": "found-b"}
+      - name: "unchanged on no match"
+        input: {"kind": "c"}
+        output: {"v": "none"}
+
+  # --- New variables in statement blocks are block-scoped ---
+
+  - name: "new variable in if-statement block not visible outside"
+    skip: "V1 has no block scope for let"
+    input: {"flag": true}
+    mapping: |
+      if this.flag {
+        let local = "hello"
+        root.inner = $local
+      }
+      root.outer = $local
+    compile_error: "undeclared" # FIXME-v1: V1 has no block scope, so $local is visible and no error
+
+  - name: "new variable in match statement block not visible outside"
+    skip: "V1 has no statement-mode match, and no block scope for let"
+    mapping: |
+      match "a" {
+        "a" => {
+          let local = "found"
+          root.inner = $local
+        },
+      }
+      root.outer = $local
+    compile_error: "undeclared" # FIXME-v1
+
+  - name: "new variable in else block not visible outside"
+    skip: "V1 has no block scope for let"
+    input: {"flag": false}
+    mapping: |
+      if this.flag {
+        root.x = 1
+      } else {
+        let temp = "hello"
+        root.y = $temp
+      }
+      root.z = $temp
+    compile_error: "undeclared" # FIXME-v1: V1 has no block scope
+
+  # --- Pre-declare pattern ---
+
+  - name: "pre-declare pattern with if-statement"
+    mapping: |
+      let temp = null
+      if this.flag {
+        let temp = "found"
+      }
+      root.v = $temp
+    cases:
+      - name: "true branch assigns"
+        input: {"flag": true}
+        output: {"v": "found"}
+      - name: "false branch keeps null"
+        input: {"flag": false}
+        output: {"v": null}
+
+  - name: "pre-declare pattern with match statement"
+    skip: "V1 has no statement-mode match with block arms"
+    input: {"kind": "gold"}
+    mapping: |
+      let discount = 0
+      match this.kind {
+        "gold" => { let discount = 20 },
+        "silver" => { let discount = 10 },
+      }
+      root.v = $discount
+    output: {"v": 20}
+
+  - name: "pre-declare pattern with nested if-statements"
+    input: {"a": true, "b": true}
+    mapping: |
+      let msg = "none"
+      if this.a {
+        let msg = "a"
+        if this.b {
+          let msg = "a+b"
+        }
+      }
+      root.v = $msg
+    output: {"v": "a+b"}
+
+  - name: "pre-declare pattern modification and further use"
+    input: {"items": ["x", "y", "z"]}
+    mapping: |
+      let count = 0
+      let count = this.items.length()
+      root.v = $count
+    output: {"v": 3}
+
+  # --- Statement context reassignment uses new value after block ---
+
+  - name: "outer variable modified in statement reflects after block"
+    input: {"score": 95}
+    mapping: |
+      let tier = "bronze"
+      if this.score >= 90 {
+        let tier = "gold"
+      }
+      root.tier = $tier
+      root.check = $tier == "gold"
+    output: {"tier": "gold", "check": true}

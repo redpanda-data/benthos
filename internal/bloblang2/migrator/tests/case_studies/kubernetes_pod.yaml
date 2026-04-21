@@ -1,0 +1,141 @@
+description: >
+  Kubernetes pod health alert — zip container spec with status by name to
+  correlate resource limits with failure reasons, detect OOMKilled containers,
+  build a condition summary from the conditions array, and set output metadata
+  for alert routing.
+
+tests:
+  - name: "build alert from unhealthy pod with OOMKilled container"
+    input:
+      metadata:
+        name: "order-processor-7b4f8d6c9-xk2lp"
+        namespace: "production"
+        labels:
+          app.kubernetes.io/name: "order-processor"
+          app.kubernetes.io/version: "2.4.1"
+        creationTimestamp: "2024-03-15T08:22:05Z"
+      spec:
+        nodeName: "ip-10-0-47-132.ec2.internal"
+        containers:
+          - name: "app"
+            image: "registry.internal/order-processor:2.4.1"
+            resources:
+              limits: {cpu: "1000m", memory: "1Gi"}
+          - name: "sidecar"
+            image: "envoyproxy/envoy:v1.28.0"
+            resources:
+              limits: {cpu: "500m", memory: "256Mi"}
+      status:
+        phase: "Running"
+        conditions:
+          - {type: "Initialized", status: "True"}
+          - {type: "ContainersReady", status: "False", reason: "ContainersNotReady"}
+          - {type: "Ready", status: "False", reason: "ContainersNotReady"}
+        startTime: "2024-03-15T08:22:05Z"
+        containerStatuses:
+          - name: "app"
+            ready: false
+            restartCount: 4
+            started: false
+            state:
+              waiting: {reason: "CrashLoopBackOff"}
+            lastState:
+              terminated:
+                exitCode: 137
+                reason: "OOMKilled"
+                startedAt: "2024-03-15T09:11:45Z"
+                finishedAt: "2024-03-15T09:14:32Z"
+          - name: "sidecar"
+            ready: true
+            restartCount: 0
+            started: true
+            state:
+              running: {startedAt: "2024-03-15T08:22:20Z"}
+            lastState: {}
+    mapping: |
+      let meta = this.metadata
+      let spec = this.spec
+      let status = this.status
+
+      # For each unhealthy container, correlate with spec and describe state.
+      # V2 block-body lambdas with inline `let` do not exist in V1; inline all
+      # intermediate computations instead. Uses the .(capture -> ...) named-capture
+      # form (§5.4) to bind a looked-up container for reuse in the object body.
+      # V2 .find(lambda) → V1 .filter(lambda).index(0) (null when no match).
+      # V2 .has_key(k) → V1 .keys().contains(k).
+      # V2 ?.x → V1 .x | null (coalesce catches null and errors).
+      let unhealthy = $status.containerStatuses.
+        filter(cs -> !cs.ready).
+        map_each(cs -> $spec.containers.filter(c -> c.name == cs.name).index(0).or(null).(spec_c -> {"name": cs.name, "state": match { cs.state.keys().contains("waiting") => cs.state.waiting.reason, cs.state.keys().contains("terminated") => cs.state.terminated.reason, _ => "Running" }, "last_exit_code": if cs.lastState.keys().contains("terminated") { cs.lastState.terminated.exitCode } else { null }, "last_exit_reason": if cs.lastState.keys().contains("terminated") { cs.lastState.terminated.reason } else { null }, "restart_count": cs.restartCount, "memory_limit": spec_c.resources.limits.memory | null, "cpu_limit": spec_c.resources.limits.cpu | null, "oom_suspected": cs.lastState.keys().contains("terminated") && (cs.lastState.terminated.reason | "") == "OOMKilled"}))
+
+      # Convert conditions array to a boolean summary object.
+      # V2 .collect() → V1 fold {key,value} records into an object.
+      let condition_summary = $status.conditions.
+        map_each(c -> {"key": c.type, "value": c.status == "True"}).
+        fold({}, item -> item.tally.merge({(item.value.key): item.value.value}))
+
+      # Severity: critical if any OOM or high restart count
+      let severity = if $unhealthy.any(c -> c.oom_suspected || c.restart_count > 3) {
+        "critical"
+      } else if $unhealthy.length() > 0 {
+        "warning"
+      } else {
+        "ok"
+      }
+
+      root.alert = {
+        "severity": $severity,
+        "source": "k8s-pod-monitor",
+      }
+      root.pod = {
+        "name": $meta.name,
+        "namespace": $meta.namespace,
+        "node": $spec.nodeName,
+        "app": $meta.labels."app.kubernetes.io/name",
+        "version": $meta.labels."app.kubernetes.io/version",
+        "phase": $status.phase,
+      }
+      root.unhealthy_containers = $unhealthy
+      root.condition_summary = $condition_summary
+      root.not_ready_reason = $status.conditions.
+        filter(c -> c.type == "Ready" && c.status != "True").
+        index(0).reason | null
+      root.healthy_container_count = $status.containerStatuses.
+        filter(cs -> cs.ready).length()
+      root.total_container_count = $status.containerStatuses.length()
+
+      # V2 output@.x → V1 meta x
+      meta alert_severity = $severity
+      meta k8s_namespace = $meta.namespace
+      meta k8s_pod = $meta.name
+    output:
+      alert:
+        severity: "critical"
+        source: "k8s-pod-monitor"
+      pod:
+        name: "order-processor-7b4f8d6c9-xk2lp"
+        namespace: "production"
+        node: "ip-10-0-47-132.ec2.internal"
+        app: "order-processor"
+        version: "2.4.1"
+        phase: "Running"
+      unhealthy_containers:
+        - name: "app"
+          state: "CrashLoopBackOff"
+          last_exit_code: 137
+          last_exit_reason: "OOMKilled"
+          restart_count: 4
+          memory_limit: "1Gi"
+          cpu_limit: "1000m"
+          oom_suspected: true
+      condition_summary:
+        Initialized: true
+        ContainersReady: false
+        Ready: false
+      not_ready_reason: "ContainersNotReady"
+      healthy_container_count: 1
+      total_container_count: 2
+    output_metadata:
+      alert_severity: "critical"
+      k8s_namespace: "production"
+      k8s_pod: "order-processor-7b4f8d6c9-xk2lp"

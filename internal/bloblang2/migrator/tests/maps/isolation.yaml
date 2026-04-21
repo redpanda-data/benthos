@@ -1,0 +1,141 @@
+description: "Map isolation: no access to input, output, or top-level $variables from map body; lambdas inside maps also isolated"
+
+# V1 map isolation rules differ substantially from V2:
+#  - V1 has no `input` keyword — the top-level message is `this`, which inside a map body
+#    is rebound to the receiver. The outer message is simply inaccessible from inside a map.
+#  - V1 has no `output` keyword — writes go to `root`, and inside a map `root` is a fresh
+#    value scoped to the map. The outer `root` is not accessible from inside a map.
+#  - V1 variables ARE cleared at `.apply()` boundaries — a top-level `$global` is NOT visible
+#    inside the map body; accessing it yields unset (`null` on read, error if depended on).
+#  - V1 does not flag access-to-outer as a compile error; it silently sees a reset env.
+#    These V2 compile-error cases therefore have no V1 analogue and are skipped.
+
+tests:
+  # --- Cannot access input ---
+
+  - name: "accessing input in map body is compile error"
+    skip: "V1 has no `input` keyword — `this` is rebound to the receiver inside the map; the outer message is simply not accessible"
+
+  - name: "accessing input directly in map body is compile error"
+    skip: "V1 has no `input` keyword — `this` is rebound to the receiver inside the map"
+
+  # --- Cannot access output ---
+
+  - name: "accessing output in map body is compile error"
+    skip: "V1 has no `output` keyword — `root` inside the map is a fresh value scoped to the map; the outer `root` is not accessible"
+
+  - name: "assigning to output in map body is compile error"
+    skip: "V1 has no `output` keyword — writes inside the map go to the map's own fresh `root`"
+
+  # --- Cannot access top-level variables ---
+  # V1 clears the $var environment on .apply() entry, so a top-level $global is not visible inside the map.
+  # V1 does not raise a compile-time undeclared-variable error for this — reading an unset variable
+  # is a runtime condition. These are adjusted to runtime behaviour (map evaluates $global as unset).
+
+  - name: "accessing top-level variable in map body is compile error"
+    # V1's error wording reports the bare name (without the `$` sigil).
+    mapping: |
+      let global = 100
+      map bad {
+        root = $global + this
+      }
+      root.v = 1.apply("bad")
+    error: "variable 'global' undefined"
+
+  - name: "top-level variable with same name not accessible in map"
+    mapping: |
+      let x = 99
+      map get {
+        root = $x
+      }
+      root.v = 1.apply("get")
+    error: "variable 'x' undefined"
+
+  # --- Local variables inside map are fine ---
+
+  - name: "local variables declared inside map work"
+    mapping: |
+      map compute {
+        let doubled = this * 2
+        root = $doubled + 1
+      }
+      root.v = 5.apply("compute")
+    output: {"v": 11}
+
+  - name: "multiple local variables inside map work"
+    mapping: |
+      map transform {
+        let sum = this.a + this.b
+        let product = this.a * this.b
+        root = {"sum": $sum, "product": $product}
+      }
+      root = {"a": 3, "b": 4}.apply("transform")
+    output: {"sum": 7, "product": 12}
+
+  # --- Parameters are accessible ---
+
+  - name: "parameters are accessible by name"
+    mapping: |
+      map echo {
+        root = this
+      }
+      root.v = "test".apply("echo")
+    output: {"v": "test"}
+
+  - name: "all parameters accessible in multi-param map"
+    mapping: |
+      map triple {
+        root = [this.a, this.b, this.c]
+      }
+      root.v = {"a": 1, "b": 2, "c": 3}.apply("triple")
+    output: {"v": [1, 2, 3]}
+
+  # --- Lambdas inside maps are also isolated ---
+
+  - name: "lambda inside map cannot access input"
+    skip: "V1 has no `input` keyword — inside a lambda nested in a map, `this` is the outer (map's) receiver, not the message"
+
+  - name: "lambda inside map cannot access output"
+    skip: "V1 has no `output` keyword — writes go to `root`, which inside a map is the map-scoped fresh value"
+
+  - name: "lambda inside map cannot access top-level variable"
+    # V1's error wording reports the bare name (without the `$` sigil).
+    mapping: |
+      let factor = 10
+      map scale {
+        root = this.map_each(x -> x * $factor)
+      }
+      root.v = [1, 2, 3].apply("scale")
+    error: "variable 'factor' undefined"
+
+  - name: "lambda inside map can access map parameters"
+    mapping: |
+      map scale {
+        # `this` is captured in a var because lambda bodies pop the context stack —
+        # inside `x -> ...` the bare `this` reverts to the outer context (the map's receiver's parent).
+        let factor = this.factor
+        root = this.items.map_each(x -> x * $factor)
+      }
+      root.v = {"items": [1, 2, 3], "factor": 10}.apply("scale")
+    output: {"v": [10, 20, 30]}
+
+  - name: "lambda inside map can access map local variables"
+    mapping: |
+      map process {
+        let prefix = "item"
+        root = this.map_each(x -> $prefix + ":" + x)
+      }
+      root.v = ["a", "b"].apply("process")
+    output: {"v": ["item:a", "item:b"]}
+
+  # --- Passing external context as parameter works ---
+
+  - name: "pass input data as parameter to map"
+    input: {"items": [1, 2, 3], "multiplier": 10}
+    mapping: |
+      map scale {
+        let multiplier = this.multiplier
+        root = this.items.map_each(x -> x * $multiplier)
+      }
+      root.v = this.apply("scale")
+    output: {"v": [10, 20, 30]}

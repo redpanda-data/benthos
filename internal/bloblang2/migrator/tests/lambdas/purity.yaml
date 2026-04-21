@@ -1,0 +1,112 @@
+description: "Lambda purity — no output assignment, variable shadowing, context inheritance"
+
+tests:
+  # --- Cannot assign to output from lambda ---
+  # V1 lambda bodies are single expressions — assignments inside lambda bodies are simply not
+  # representable, so the V2-specific "compile_error: output" cases have no V1 equivalent.
+
+  - name: "lambda cannot assign to output field"
+    skip: "V1 lambda bodies are single expressions — assignments inside lambda bodies are unrepresentable"
+
+  - name: "lambda cannot assign to output root"
+    skip: "V1 lambda bodies are single expressions — assignments inside lambda bodies are unrepresentable"
+
+  - name: "lambda cannot assign to output metadata"
+    skip: "V1 lambda bodies are single expressions — assignments inside lambda bodies are unrepresentable"
+
+  - name: "nested lambda cannot assign to output"
+    skip: "V1 lambda bodies are single expressions — assignments inside lambda bodies are unrepresentable"
+
+  # --- Variable shadowing (not mutation) in expression context ---
+  # V1 has NO block scope for let variables (§7.2), and lambda bodies are single expressions
+  # with no `let` inside. All V2 "shadow" tests exhibit fundamentally different semantics.
+
+  - name: "lambda shadows outer variable"
+    skip: "V1 lambda bodies cannot contain let statements (single-expression bodies)"
+
+  - name: "lambda shadows — outer unchanged after map"
+    skip: "V1 lambda bodies cannot contain let statements; V1 also has no block scope for let"
+
+  - name: "fold lambda shadows outer variable"
+    skip: "V1 lambda bodies cannot contain let statements (single-expression bodies)"
+
+  - name: "block body variable does not leak"
+    skip: "V1 lambda bodies are single expressions — no block form"
+
+  # --- Context inheritance: top-level lambda reads input and output ---
+  # V1 has no `input` / `output` keywords. At the top level, `this` is the input payload
+  # and `root` is the evolving output. Lambdas pop the context (§6.5) but top-level variables
+  # and metadata remain accessible.
+
+  - name: "top-level lambda reads input"
+    input: {"multiplier": 10}
+    mapping: |
+      root.result = [1, 2, 3].map_each(x -> x * this.multiplier)
+    output: {"result": [10, 20, 30]}
+    # Note: `this` inside a lambda body refers to the OUTER `this` (§6.5), which at top level
+    # is the input payload. So `this.multiplier` reads input.multiplier correctly.
+
+  - name: "top-level lambda reads output"
+    # V1 `root` inside a lambda body refers to the partial output so far. This works.
+    mapping: |
+      root.base = 100
+      root.result = [1, 2, 3].map_each(x -> x + root.base)
+    output: {"base": 100, "result": [101, 102, 103]}
+
+  - name: "top-level lambda reads input metadata"
+    # V1 preserves input metadata through to the output by default — declare the expected output metadata
+    # so the runner doesn't treat the carried-over `scale` key as an unexpected entry.
+    input: null
+    input_metadata: {"scale": "5"}
+    mapping: |
+      root.result = [1, 2].map_each(x -> x.string() + @scale)
+    output: {"result": ["15", "25"]}
+    output_metadata: {"scale": "5"}
+
+  - name: "top-level lambda reads outer variable"
+    mapping: |
+      let factor = 3
+      root.result = [10, 20].map_each(x -> x * $factor)
+    output: {"result": [30, 60]}
+
+  # --- Lambda inside map cannot access input ---
+  # V1 named maps: inside the body, `this` is the receiver (the value passed to .apply),
+  # NOT the original input. So `this` inside a lambda inside a map body is the OUTER `this`
+  # of the map, which is the receiver, not the original input payload.
+
+  - name: "lambda inside map cannot read input"
+    # V1 analogue: inside the map body, `this` is the map's receiver, not the original input.
+    # So if caller did `.apply("transform")` on [1,2], inside the map `this` is [1,2] and
+    # `this.value` is undefined. This is a runtime error — V1 wording is about multiplying null.
+    input: {"value": 42}
+    mapping: |
+      map transform { root = this.map_each(x -> x * this.value) }
+      root.result = [1, 2].apply("transform")
+    error: "cannot multiply types"
+
+  - name: "lambda inside map cannot read output"
+    # V1: inside a map, `root` is a FRESH value, not the outer root.
+    # The outer root is inaccessible. Reading root.base inside the map gets the fresh map-local root's base (null).
+    mapping: |
+      root.base = 10
+      map transform { root = this.map_each(x -> x + root.base) }
+      root.result = [1, 2].apply("transform")
+    error: "cannot add types"
+
+  - name: "lambda inside map can read map parameter"
+    # V1 maps have no parameters — the single input is `this`. Reshape to pass an object.
+    mapping: |
+      map scale { root = this.items.map_each(x -> x * this.factor) }
+      root.result = {"items": [1, 2, 3], "factor": 5}.apply("scale")
+    output: {"result": [5, 10, 15]}
+
+  - name: "lambda inside map can read map local variable"
+    # V1 maps have their variable env reset on entry; a let set inside the map is visible
+    # to lambdas within that map body.
+    mapping: |
+      map transform {
+        let offset = 100
+        root = this.map_each(x -> x + $offset)
+      }
+      root.result = [1, 2, 3].apply("transform")
+    output: {"result": [101, 102, 103]}

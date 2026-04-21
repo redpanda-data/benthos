@@ -1,0 +1,56 @@
+description: "Default parameter values in lambda expressions"
+
+tests:
+  # V1 lambdas have a single named parameter (or `_`) and no default-value syntax.
+  # Every V2-only default-parameter feature is untranslatable.
+
+  # --- Basic defaults ---
+
+  - name: "single param with default — value provided"
+    skip: "V1 lambdas do not support default parameter values"
+
+  - name: "lambda default integer literal"
+    skip: "V1 lambdas do not support default parameter values"
+
+  - name: "lambda default string literal"
+    skip: "V1 lambdas do not support default parameter values"
+
+  - name: "lambda default boolean literal"
+    skip: "V1 lambdas do not support default parameter values"
+
+  - name: "lambda default null literal"
+    skip: "V1 lambdas do not support default parameter values"
+
+  - name: "lambda default float literal"
+    skip: "V1 lambdas do not support default parameter values"
+
+  # --- Positional omission ---
+
+  - name: "trailing default params omitted"
+    skip: "V1 lambdas do not support default parameter values"
+
+  # --- Defaults must come after required ---
+
+  - name: "default before required is compile error"
+    skip: "V1 lambdas do not support default parameter values — this V2-only compile error does not apply"
+
+  # --- Default values must be literals ---
+
+  - name: "default value expression is compile error"
+    skip: "V1 lambdas do not support default parameter values — this V2-only compile error does not apply"
+
+  - name: "default value variable reference is compile error"
+    skip: "V1 lambdas do not support default parameter values — this V2-only compile error does not apply"
+
+  - name: "default value function call is compile error"
+    skip: "V1 lambdas do not support default parameter values — this V2-only compile error does not apply"
+
+  # --- Multiple defaults ---
+
+  - name: "multiple default params all using defaults"
+    skip: "V1 lambdas do not support default parameter values"
+
+  # --- Discard cannot have default ---
+
+  - name: "discard param with default is compile error"
+    skip: "V1 lambdas do not support default parameter values — this V2-only compile error does not apply"

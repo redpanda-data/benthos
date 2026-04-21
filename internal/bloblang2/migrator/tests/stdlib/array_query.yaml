@@ -1,0 +1,331 @@
+description: "Array query methods — any, all, find, contains, index_of, sum, min, max, fold"
+
+tests:
+  # --- any ---
+
+  - name: "any returns true when some match"
+    mapping: |
+      root.result = [1, 2, 3, 4].any(x -> x > 3)
+    output: {"result": true}
+
+  - name: "any returns false when none match"
+    mapping: |
+      root.result = [1, 2, 3].any(x -> x > 10)
+    output: {"result": false}
+
+  - name: "any returns false for empty array"
+    mapping: |
+      root.result = [].any(x -> x > 0)
+    output: {"result": false}
+
+  - name: "any short-circuits on first true"
+    mapping: |
+      root.result = [1, 2, 3].any(x -> if x == 1 { true } else { throw("should not reach") })
+    output: {"result": true}
+
+  - name: "any non-bool return is error"
+    mapping: |
+      root.result = [1, 2].any(x -> x * 2)
+    error: "bool"
+
+  - name: "any void return is error"
+    skip: "V1 has no 'void' concept; if-without-else returns null"
+
+  # --- all ---
+
+  - name: "all returns true when all match"
+    mapping: |
+      root.result = [2, 4, 6].all(x -> x % 2 == 0)
+    output: {"result": true}
+
+  - name: "all returns false when some do not match"
+    mapping: |
+      root.result = [2, 3, 6].all(x -> x % 2 == 0)
+    output: {"result": false}
+
+  - name: "all returns true for empty array"
+    skip: "V1 .all() on empty array returns false (unlike V2 which returns true by vacuous truth)"
+
+  - name: "all short-circuits on first false"
+    mapping: |
+      root.result = [1, 2, 3].all(x -> if x == 1 { false } else { throw("should not reach") })
+    output: {"result": false}
+
+  - name: "all non-bool return is error"
+    mapping: |
+      root.result = [1, 2].all(x -> x.string())
+    error: "bool"
+
+  - name: "all void return is error"
+    skip: "V1 has no 'void' concept; if-without-else returns null"
+
+  # --- find (V2's find(lambda) returns matched element; V1 find_by returns index. Compose filter+index.) ---
+
+  - name: "find returns first match"
+    mapping: |
+      root.result = [1, 2, 3, 4].filter(x -> x > 2).index(0)
+    output: {"result": 3}
+
+  - name: "find returns void when no match"
+    skip: "V2-only: find returning void sentinel; V1 filter+index returns null, different semantics"
+
+  - name: "find on empty array returns void"
+    skip: "V2-only: find returning void sentinel"
+
+  - name: "find short-circuits on first match"
+    skip: "V1 composition filter(...).index(0) does not short-circuit"
+
+  - name: "find void lambda return is error"
+    skip: "V1 has no 'void' concept"
+
+  - name: "find void result works with or"
+    mapping: |
+      root.result = [1, 2, 3].filter(x -> x > 10).index(0).or("none")
+    output: {"result": "none"}
+
+  - name: "find void result assigned to output field is void (no assignment)"
+    skip: "V2-only 'void' assignment semantics; V1 would assign null"
+
+  # --- contains (array) ---
+
+  - name: "contains finds integer"
+    mapping: |
+      root.result = [1, 2, 3].contains(2)
+    output: {"result": true}
+
+  - name: "contains does not find missing element"
+    mapping: |
+      root.result = [1, 2, 3].contains(4)
+    output: {"result": false}
+
+  - name: "contains finds string"
+    mapping: |
+      root.result = ["apple", "banana"].contains("banana")
+    output: {"result": true}
+
+  - name: "contains on empty array"
+    mapping: |
+      root.result = [].contains(1)
+    output: {"result": false}
+
+  - name: "contains with null"
+    mapping: |
+      root.result = [1, null, 3].contains(null)
+    output: {"result": true}
+
+  - name: "contains with bool"
+    mapping: |
+      root.result = [true, false].contains(false)
+    output: {"result": true}
+
+  - name: "contains type mismatch returns false"
+    mapping: |
+      root.result = [1, 2, 3].contains("2")
+    output: {"result": false}
+
+  # --- index_of (array) ---
+  # V1 'find' method returns the index (matches V2's 'index_of' semantics).
+
+  - name: "index_of finds first occurrence"
+    mapping: |
+      root.result = [10, 20, 30, 20].find(20).number()
+    output: {"result": 1.0}
+
+  - name: "index_of returns -1 when not found"
+    mapping: |
+      root.result = [10, 20, 30].find(99).number()
+    output: {"result": -1.0}
+
+  - name: "index_of on empty array"
+    mapping: |
+      root.result = [].find(1).number()
+    output: {"result": -1.0}
+
+  - name: "index_of with string"
+    mapping: |
+      root.result = ["a", "b", "c"].find("b").number()
+    output: {"result": 1.0}
+
+  - name: "index_of type mismatch returns -1"
+    mapping: |
+      root.result = [1, 2, 3].find("1").number()
+    output: {"result": -1.0}
+
+  # --- sum ---
+
+  - name: "sum of integers"
+    mapping: |
+      root.result = [1, 2, 3, 4].sum()
+    output: {"result": 10.0}
+
+  - name: "sum of empty array is zero int64"
+    mapping: |
+      root.result = [].sum()
+    output: {"result": 0.0}
+
+  - name: "sum of floats"
+    mapping: |
+      root.result = [1.5, 2.5, 3.0].sum()
+    output: {"result": 7.0}
+
+  - name: "sum promotes int and float pairwise"
+    mapping: |
+      root.result = [1, 2.5, 3].sum()
+    output: {"result": 6.5}
+
+  - name: "sum non-numeric element is error"
+    mapping: |
+      root.result = [1, "two", 3].sum()
+    error: "expected number"
+
+  - name: "sum single element"
+    mapping: |
+      root.result = [42].sum()
+    output: {"result": 42.0}
+
+  - name: "sum single non-numeric element is error"
+    mapping: |
+      root.result = ["hello"].sum()
+    error: "expected number"
+
+  - name: "sum single bool element is error"
+    mapping: |
+      root.result = [true].sum()
+    error: "expected number"
+
+  # --- min (V1 min/max coerce everything to float64 and reject non-numeric) ---
+
+  - name: "min of integers"
+    mapping: |
+      root.result = [3, 1, 4, 1, 5].min()
+    output: {"result": 1.0}
+
+  - name: "min of floats"
+    mapping: |
+      root.result = [3.14, 1.0, 2.71].min()
+    output: {"result": 1.0}
+
+  - name: "min of strings"
+    mapping: |
+      root.result = ["banana", "apple", "cherry"].min()
+    error: "number"
+
+  - name: "min of empty array is error"
+    mapping: |
+      root.result = [].min()
+    error: "empty"
+
+  - name: "min cross-family is error"
+    mapping: |
+      root.result = [1, "two"].min()
+    error: "number"
+
+  - name: "min single element"
+    mapping: |
+      root.result = [42].min()
+    output: {"result": 42.0}
+
+  - name: "min with numeric promotion"
+    mapping: |
+      root.result = [3, 1.5, 2].min()
+    output: {"result": 1.5}
+
+  - name: "min large int64 mixed with float is error"
+    skip: "V1 min/max always coerce to float64; no exact-representation check"
+
+  - name: "max large int64 mixed with float is error"
+    skip: "V1 min/max always coerce to float64; no exact-representation check"
+
+  - name: "min mixed numeric result is promoted type"
+    mapping: |
+      root.result = [3, 1.5, 2].min().type()
+    output: {"result": "number"}
+
+  - name: "max mixed numeric returns promoted type"
+    mapping: |
+      let result = [1.5, 3, 2].max()
+      root.value = $result
+      root.type = $result.type()
+    output: {"value": 3.0, "type": "number"}
+
+  # --- max ---
+
+  - name: "max of integers"
+    mapping: |
+      root.result = [3, 1, 4, 1, 5].max()
+    output: {"result": 5.0}
+
+  - name: "max of floats"
+    mapping: |
+      root.result = [3.14, 1.0, 2.71].max()
+    output: {"result": 3.14}
+
+  - name: "max of strings"
+    mapping: |
+      root.result = ["banana", "apple", "cherry"].max()
+    error: "number"
+
+  - name: "max of empty array is error"
+    mapping: |
+      root.result = [].max()
+    error: "empty"
+
+  - name: "max cross-family is error"
+    mapping: |
+      root.result = [1, "two"].max()
+    error: "number"
+
+  - name: "max single element"
+    mapping: |
+      root.result = ["only"].max()
+    error: "number"
+
+  # --- fold (V1 lambda is item -> item.tally + item.value, single-arg) ---
+
+  - name: "fold sum with integer accumulator"
+    mapping: |
+      root.result = [1, 2, 3, 4].fold(0, item -> item.tally + item.value)
+    output: {"result": 10}
+
+  - name: "fold string concatenation"
+    mapping: |
+      root.result = ["a", "b", "c"].fold("", item -> item.tally + item.value)
+    output: {"result": "abc"}
+
+  - name: "fold on empty array returns initial value"
+    mapping: |
+      root.result = [].fold(42, item -> item.tally + item.value)
+    output: {"result": 42}
+
+  - name: "fold builds array"
+    mapping: |
+      root.result = [1, 2, 3].fold([], item -> item.tally.append(item.value * 10))
+    output: {"result": [10, 20, 30]}
+
+  - name: "fold builds object"
+    mapping: |
+      let pairs = [{"k": "a", "v": 1}, {"k": "b", "v": 2}]
+      root.result = $pairs.fold({}, item -> item.tally.merge({(item.value.k): item.value.v}))
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "fold with product"
+    mapping: |
+      root.result = [1, 2, 3, 4].fold(1, item -> item.tally * item.value)
+    output: {"result": 24}
+
+  # --- Named arguments for lambda methods ---
+
+  - name: "fold with named args reordered"
+    mapping: |
+      root.result = [1, 2, 3].fold(query: item -> item.tally + item.value, initial: 0)
+    output: {"result": 6}
+
+  - name: "filter with named fn arg"
+    mapping: |
+      root.result = [1, 2, 3, 4].filter(test: x -> x > 2)
+    output: {"result": [3, 4]}
+
+  - name: "slice with named args reordered"
+    mapping: |
+      root.result = [10, 20, 30, 40, 50].slice(high: 3, low: 1)
+    output: {"result": [20, 30]}

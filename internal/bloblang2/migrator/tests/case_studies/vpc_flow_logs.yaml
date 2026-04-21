@@ -1,0 +1,145 @@
+description: >
+  VPC Flow Logs parsing and enrichment — split space-delimited log records into
+  structured objects, map protocol numbers to names, classify IPs by address
+  range, identify well-known port services, detect anomalies (rejected SSH),
+  compute per-flow throughput, filter NODATA records, and aggregate a summary.
+
+tests:
+  - name: "parse and enrich VPC flow log batch"
+    input:
+      owner: "123456789012"
+      logGroup: "/aws/vpc/flowlogs/vpc-0a1b2c3d"
+      logStream: "eni-0f1a2b3c-all"
+      logEvents:
+        - message: "2 123456789012 eni-0f1a2b3c 10.0.1.47 203.0.113.50 44832 443 6 12 1680 1710505200 1710505260 ACCEPT OK"
+        - message: "2 123456789012 eni-0f1a2b3c 198.51.100.22 10.0.1.47 55912 22 6 847 52140 1710505200 1710505260 REJECT OK"
+        - message: "2 123456789012 eni-0f1a2b3c 10.0.1.47 10.0.2.83 38210 5432 6 245 89200 1710505200 1710505260 ACCEPT OK"
+        - message: "2 123456789012 eni-0f1a2b3c - - - - - - - 1710505260 1710505320 - NODATA"
+    mapping: |
+      # V1 maps take a single receiver (`this`); V2 parameterised maps become
+      # single-receiver maps invoked via .apply.
+      map protocol_name {
+        root = match this {
+          "6" => "TCP",
+          "17" => "UDP",
+          "1" => "ICMP",
+          _ => "proto-" + this,
+        }
+      }
+
+      map port_service {
+        root = match this {
+          "443" => "HTTPS",
+          "80" => "HTTP",
+          "22" => "SSH",
+          "5432" => "PostgreSQL",
+          "3306" => "MySQL",
+          _ => null,
+        }
+      }
+
+      map classify_ip {
+        root = match {
+          this.has_prefix("10.") => "internal",
+          this.has_prefix("172.") => "internal",
+          this.has_prefix("192.168.") => "internal",
+          this.has_prefix("169.254.") => "link-local",
+          _ => "external",
+        }
+      }
+
+      let nodata_count = this.logEvents.
+        filter(e -> e.message.has_suffix("NODATA")).length()
+
+      # Parse space-delimited records, dropping NODATA.
+      # V2 $f[3] (bracket index into variable) → V1 $f.3 (literal numeric path).
+      # V2 block-body lambdas with `let` → V1 chain named-capture .(name -> ...)
+      # forms to bind multiple derived values.
+      # V2 .int64() → V1 .number().
+      # V2 .split(" ")[-1] (negative index) → V1 .split(" ").index(-1).
+      # V1 lambda bodies must start on the same line as `->`. Deeply nested
+      # .(name -> body) named captures are chained inline.
+      let flows = this.logEvents.
+        filter(e -> !e.message.has_suffix("NODATA")).
+        map_each(e -> e.message.split(" ").(f -> f.3.apply("classify_ip").(src_class -> f.4.apply("classify_ip").(dst_class -> f.7.apply("protocol_name").(proto -> (f.6.apply("port_service") | f.5.apply("port_service") | null).(service -> (match { src_class == "internal" && dst_class == "external" => "outbound", src_class == "external" && dst_class == "internal" => "inbound", _ => "internal" }).(direction -> {
+          "protocol": proto,
+          "src_addr": f.3,
+          "dst_addr": f.4,
+          "src_port": f.5.number(),
+          "dst_port": f.6.number(),
+          "service": service,
+          "direction": direction,
+          "traffic_class": match direction { "outbound" => dst_class, "inbound" => src_class, _ => "internal" },
+          "action": f.12,
+          "packets": f.8.number(),
+          "bytes": f.9.number(),
+          # V1 .round() takes no args; scale then round and divide to keep 1 decimal.
+          "bytes_per_sec": (f.9.number() / (f.11.number() - f.10.number()) * 10).round() / 10,
+          "anomaly": f.12 == "REJECT" && service == "SSH",
+        })))))))
+
+      root.vpc_id = this.logGroup.split("/").index(-1)
+      root.account_id = this.owner
+      root.interface_id = this.logStream.split("-all").0
+      root.flows = $flows
+      root.summary = {
+        "total_flows": $flows.length(),
+        "accepted": $flows.filter(r -> r.action == "ACCEPT").length(),
+        "rejected": $flows.filter(r -> r.action == "REJECT").length(),
+        "anomalies": $flows.filter(r -> r.anomaly).length(),
+        "total_bytes": $flows.map_each(r -> r.bytes).sum(),
+        "nodata_dropped": $nodata_count,
+      }
+    output:
+      vpc_id: "vpc-0a1b2c3d"
+      account_id: "123456789012"
+      interface_id: "eni-0f1a2b3c"
+      flows:
+        # V1 .number() always returns float64 — port, packet, and byte counts
+        # that we parse via .number() are floats here (not ints).
+        - protocol: "TCP"
+          src_addr: "10.0.1.47"
+          dst_addr: "203.0.113.50"
+          src_port: 44832.0
+          dst_port: 443.0
+          service: "HTTPS"
+          direction: "outbound"
+          traffic_class: "external"
+          action: "ACCEPT"
+          packets: 12.0
+          bytes: 1680.0
+          bytes_per_sec: 28.0
+          anomaly: false
+        - protocol: "TCP"
+          src_addr: "198.51.100.22"
+          dst_addr: "10.0.1.47"
+          src_port: 55912.0
+          dst_port: 22.0
+          service: "SSH"
+          direction: "inbound"
+          traffic_class: "external"
+          action: "REJECT"
+          packets: 847.0
+          bytes: 52140.0
+          bytes_per_sec: 869.0
+          anomaly: true
+        - protocol: "TCP"
+          src_addr: "10.0.1.47"
+          dst_addr: "10.0.2.83"
+          src_port: 38210.0
+          dst_port: 5432.0
+          service: "PostgreSQL"
+          direction: "internal"
+          traffic_class: "internal"
+          action: "ACCEPT"
+          packets: 245.0
+          bytes: 89200.0
+          bytes_per_sec: 1486.7
+          anomaly: false
+      summary:
+        total_flows: 3
+        accepted: 2
+        rejected: 1
+        anomalies: 1
+        total_bytes: 143020.0 # sum of floats remains a float
+        nodata_dropped: 1

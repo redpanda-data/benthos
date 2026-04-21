@@ -1,0 +1,18 @@
+description: >
+  Bloblang V2 feature showcase — demonstrates the major syntax and semantic
+  improvements over V1 in a single mapping: null-safe navigation, lambda
+  expressions, parameterized maps with defaults and named arguments, all three
+  match expression forms, separated error handling (.catch vs .or), metadata
+  access, and variable scoping rules.
+
+tests:
+  - name: "V2 feature showcase: SaaS user event processing"
+    skip: >
+      This test is explicitly a V2 showcase — by design, nearly every section
+      relies on a V2-only feature with no direct V1 equivalent. Preserved as a
+      single skipped case rather than split because the original is one test
+      with one output: parameterised maps with defaults / named args, match
+      with `as` binding, .catch(err -> ...) lambda form, lexical variable
+      scoping inside if-expressions, and null-safe ?. chaining are all V2-only.
+      The inline v1: comments in the source describe the closest V1 equivalent
+      for each section.

@@ -1,0 +1,164 @@
+description: >
+  Variable mutation patterns across nested scopes — statement-mode
+  write-through in nested if/match, expression-mode shadowing,
+  and interactions between the two contexts.
+
+tests:
+  # --- Statement-mode nested if: both levels modify outer ---
+
+  - name: "nested if-statements both modify outer variable"
+    mapping: |
+      let x = 0
+      if true {
+        let x = 1
+        if true {
+          let x = 2
+        }
+      }
+      root.v = $x
+    output: {"v": 2}
+
+  - name: "nested if-statement inner false — outer modified only"
+    mapping: |
+      let x = 0
+      if true {
+        let x = 1
+        if false {
+          let x = 2
+        }
+      }
+      root.v = $x
+    output: {"v": 1}
+
+  - name: "match-statement arms modify outer variable"
+    skip: "V1 has no statement-mode match; match is expression-only, arms are single expressions not blocks"
+    mapping: |
+      let result = "init"
+      match "b" {
+        "a" => "alpha",
+        "b" => "beta",
+        _ => "other",
+      }
+      root.v = $result
+    output: {"v": "beta"}
+
+  - name: "nested match inside if modifies outer"
+    skip: "V1 has no statement-mode match with `{ let val = ... }` arm blocks"
+    mapping: |
+      let val = 0
+      if true {
+        let val = match "x" {
+          "x" => 42,
+          _ => -1,
+        }
+      }
+      root.v = $val
+    output: {"v": 42}
+
+  # --- Expression-mode shadowing does not affect outer ---
+
+  - name: "if-expression shadows outer variable"
+    skip: "V1 has no block scope for let — `let x = \"inner\"` inside an if-expression mutates the outer binding"
+    mapping: |
+      let x = "outer"
+      root.inner = if true {
+        let x = "inner"
+        $x
+      } else { "nope" }
+      root.outer = $x
+    output: {"inner": "inner", "outer": "outer"}
+
+  - name: "match-expression shadows outer variable"
+    skip: "V1 match arm body is a single expression; cannot declare + return"
+    mapping: |
+      let x = "outer"
+      root.matched = match "go" {
+        "go" => "matched",
+        _ => "nope",
+      }
+      root.outer = $x
+    output: {"matched": "matched", "outer": "outer"}
+
+  - name: "lambda shadows outer variable"
+    skip: "V1 lambda body is a single expression; cannot declare + return. Also V1 has no block scope for let."
+    mapping: |
+      let x = 100
+      root.mapped = [1, 2, 3].map_each(x -> x * 10)
+      root.outer = $x
+    output: {"mapped": [10, 20, 30], "outer": 100}
+
+  # --- Statement modifies then expression reads ---
+
+  - name: "statement modifies variable, expression reads it"
+    skip: "V1 does not support variable path assignment; use let to rebuild"
+    mapping: |
+      let data = {"status": "pending"}
+      if true {
+        let data = $data.merge({"status": "done"})
+      }
+      root.v = if true { $data.status } else { "unknown" }
+    output: {"v": "done"}
+
+  # --- Expression body variable not visible outside ---
+
+  - name: "variable declared in if-expression not visible outside"
+    skip: "V1 has no block scope for let; `let temp = 42` inside an if is visible outside"
+    mapping: |
+      root.v = if true {
+        let temp = 42
+        $temp
+      } else { 0 }
+      root.leaked = $temp
+    compile_error: "undeclared" # FIXME-v1: V1 has no scope boundary — no error
+
+  - name: "variable declared in match-expression not visible outside"
+    skip: "V1 match arm body is a single expression and has no let scope anyway; also no scope isolation"
+    mapping: |
+      root.v = match "a" {
+        "a" => "hello",
+        _ => "nope",
+      }
+      root.leaked = $inner
+    compile_error: "undeclared" # FIXME-v1
+
+  - name: "variable declared in lambda not visible outside"
+    skip: "V1 lambda body is a single expression; cannot declare within it"
+    mapping: |
+      root.v = [1].map_each(x -> x * 10)
+      root.leaked = $inner
+    compile_error: "undeclared" # FIXME-v1
+
+  # --- Path assign in statement mode modifies outer ---
+
+  - name: "path assign in if-statement modifies outer object"
+    skip: "V1 does not support variable path assignment; must rebuild via .merge"
+    mapping: |
+      let config = {"debug": false, "verbose": false}
+      if true {
+        let config = $config.merge({"debug": true})
+      }
+      root.v = $config
+    output: {"v": {"debug": true, "verbose": false}}
+
+  - name: "path assign in match-statement modifies outer object"
+    skip: "V1 has no statement-mode match with block arms, and no variable path assignment"
+    mapping: |
+      let config = {"level": "info"}
+      match "debug" {
+        "debug" => { let config = $config.merge({"level": "debug"}) },
+        "trace" => { let config = $config.merge({"level": "trace"}) },
+      }
+      root.v = $config
+    output: {"v": {"level": "debug"}}
+
+  # --- Complex nested: statement with expression inside ---
+
+  - name: "if-statement body uses expression that shadows"
+    skip: "V1 lambda body is a single expression; cannot declare within"
+    mapping: |
+      let items = []
+      if true {
+        let items = [1, 2, 3].map_each(x -> x * 2)
+      }
+      root.v = $items
+    output: {"v": [2, 4, 6]}

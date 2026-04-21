@@ -1,0 +1,114 @@
+description: "Edge cases: multi-codepoint emoji, combining characters, no normalization"
+
+tests:
+  # --- Multi-codepoint emoji ---
+
+  - name: "skin-tone emoji has length 2"
+    # V1 `.length()` counts bytes. Each of these emoji is 4 bytes in UTF-8 → total 8.
+    mapping: |
+      root = "\U0001F44B\U0001F3FD".length()
+    output: 8
+
+  - name: "simple emoji has length 1"
+    # V1 `.length()` counts bytes. U+1F600 is 4 bytes in UTF-8.
+    mapping: |
+      root = "\U0001F600".length()
+    output: 4
+
+  - name: "flag emoji has length 2 (two regional indicators)"
+    # V1 `.length()` counts bytes. Two regional indicators are 4 bytes each → 8 bytes.
+    mapping: |
+      root = "\U0001F1FA\U0001F1F8".length()
+    output: 8
+
+  - name: "family emoji (ZWJ sequence) has multiple codepoints"
+    # V1 `.length()` counts bytes. Three 4-byte emoji + two 3-byte ZWJ joiners = 18 bytes.
+    mapping: |
+      root = "\U0001F468‍\U0001F469‍\U0001F467".length()
+    output: 18
+
+  # --- Codepoint indexing on emoji ---
+
+  - name: "index first codepoint of multi-codepoint emoji"
+    mapping: |
+      root = "\U0001F44B\U0001F3FD"[0]
+    output: 128075
+    skip: "V2-only: V1 has no bracket-indexing (§14.10) and no codepoint indexing on strings."
+
+  - name: "index second codepoint of multi-codepoint emoji"
+    mapping: |
+      root = "\U0001F44B\U0001F3FD"[1]
+    output: 127997
+    skip: "V2-only: V1 has no bracket-indexing (§14.10) and no codepoint indexing on strings."
+
+  # --- Combining characters ---
+
+  - name: "precomposed e-acute has length 1"
+    # V1 `.length()` counts bytes. Precomposed "é" (U+00E9) is 2 bytes in UTF-8.
+    mapping: |
+      root = "é".length()
+    output: 2
+
+  - name: "decomposed e plus combining acute has length 2"
+    # V1 .length() counts bytes: 'e' (1 byte) + U+0301 combining acute (2 bytes) = 3 bytes.
+    mapping: |
+      root = "é".length()
+    output: 3
+
+  - name: "precomposed and decomposed are not equal"
+    mapping: |
+      root = "é" == "é"
+    output: false
+
+  - name: "precomposed and decomposed have different lengths"
+    mapping: |
+      let a = "é".length()
+      let b = "é".length()
+      root = $a == $b
+    output: false
+    # FIXME-v1: verify — depends on V1 .length() codepoint vs byte semantics.
+
+  # --- String comparison is codepoint-by-codepoint ---
+
+  - name: "string comparison is codepoint-based"
+    mapping: |
+      root = "á" < "é"
+    output: true
+
+  # --- Unicode in object keys ---
+
+  - name: "unicode string as object key"
+    mapping: |
+      root = {"é": "accent"}
+    output: {"é": "accent"}
+
+  - name: "emoji as object key"
+    mapping: |
+      root = {"\U0001F600": "smile"}
+    output: {"😀": "smile"}
+
+  # --- Unicode string methods ---
+
+  - name: "contains with unicode"
+    mapping: |
+      root = "café".contains("é")
+    output: true
+
+  - name: "uppercase with unicode"
+    mapping: |
+      root = "café".uppercase()
+    output: "CAFÉ"
+
+  # --- Mixed ASCII and multi-byte ---
+
+  - name: "length of mixed ASCII and multi-byte string"
+    # V1 `.length()` counts bytes: 'a' (1) + U+1F600 (4) + 'b' (1) = 6.
+    mapping: |
+      root = "a\U0001F600b".length()
+    output: 6
+
+  - name: "index past emoji in mixed string"
+    mapping: |
+      root = "a\U0001F600b"[2]
+    output: 98
+    skip: "V2-only: V1 has no bracket-indexing (§14.10) and no codepoint indexing on strings."

@@ -1,0 +1,257 @@
+description: "Numeric methods: abs, floor, ceil, round (half-even)"
+
+tests:
+  # --- abs: float64 ---
+
+  - name: "abs positive float64 is identity"
+    skip: "V1 has no abs() method"
+
+  - name: "abs negative float64"
+    skip: "V1 has no abs() method"
+
+  - name: "abs zero float64"
+    skip: "V1 has no abs() method"
+
+  - name: "abs float64 returns float64"
+    skip: "V1 has no abs() method"
+
+  # --- abs: int64 ---
+
+  - name: "abs positive int64 is identity"
+    skip: "V1 has no abs() method"
+
+  - name: "abs negative int64"
+    skip: "V1 has no abs() method"
+
+  - name: "abs zero int64"
+    skip: "V1 has no abs() method"
+
+  - name: "abs int64 returns int64"
+    skip: "V1 has no abs() method"
+
+  - name: "abs int64 min value overflows"
+    skip: "V1 has no abs() method"
+
+  # --- abs: int32 ---
+
+  - name: "abs negative int32"
+    skip: "V1 has no abs()/int32() methods"
+
+  - name: "abs int32 min value overflows"
+    skip: "V1 has no abs()/int32() methods"
+
+  - name: "abs int32 returns int32"
+    skip: "V1 has no abs()/int32() methods"
+
+  # --- abs: uint64 identity ---
+
+  - name: "abs uint64 is identity"
+    skip: "V1 has no abs()/uint64() methods"
+
+  # --- abs: uint32 identity ---
+
+  - name: "abs uint32 is identity"
+    skip: "V1 has no abs()/uint32() methods"
+
+  # --- abs: float32 ---
+
+  - name: "abs negative float32"
+    skip: "V1 has no abs()/float32() methods"
+
+  - name: "abs float32 returns float32"
+    skip: "V1 has no abs()/float32() methods"
+
+  # --- floor (V1 returns integer if fits, else float) ---
+
+  - name: "floor positive float64"
+    mapping: |
+      root = 3.7.floor()
+    output: 3
+
+  - name: "floor negative float64"
+    mapping: |
+      root = (-3.2).floor()
+    output: -4
+
+  - name: "floor already integer float64"
+    mapping: |
+      root = 5.0.floor()
+    output: 5
+
+  - name: "floor zero"
+    mapping: |
+      root = 0.0.floor()
+    output: 0
+
+  - name: "floor negative already integer"
+    mapping: |
+      root = (-4.0).floor()
+    output: -4
+
+  - name: "floor small positive"
+    mapping: |
+      root = 0.1.floor()
+    output: 0
+
+  - name: "floor small negative"
+    mapping: |
+      root = (-0.1).floor()
+    output: -1
+
+  - name: "floor returns float64"
+    mapping: |
+      root = 3.7.floor().type()
+    output: "number"
+
+  - name: "floor float32 returns float32"
+    skip: "V1 has no float32() method or distinct float32 type"
+
+  - name: "floor float32 value"
+    skip: "V1 has no float32() method or distinct float32 type"
+
+  # --- ceil ---
+
+  - name: "ceil positive float64"
+    mapping: |
+      root = 3.2.ceil()
+    output: 4
+
+  - name: "ceil negative float64"
+    mapping: |
+      root = (-3.7).ceil()
+    output: -3
+
+  - name: "ceil already integer float64"
+    mapping: |
+      root = 5.0.ceil()
+    output: 5
+
+  - name: "ceil zero"
+    mapping: |
+      root = 0.0.ceil()
+    output: 0
+
+  - name: "ceil small positive"
+    mapping: |
+      root = 0.1.ceil()
+    output: 1
+
+  - name: "ceil small negative"
+    mapping: |
+      root = (-0.1).ceil()
+    output: 0
+
+  - name: "ceil returns float64"
+    mapping: |
+      root = 3.2.ceil().type()
+    output: "number"
+
+  - name: "ceil float32 returns float32"
+    skip: "V1 has no float32() method or distinct float32 type"
+
+  - name: "ceil float32 value"
+    skip: "V1 has no float32() method or distinct float32 type"
+
+  # --- round: default (V1 rounds away from zero at .5, not half-even) ---
+
+  - name: "round up from 3.7"
+    mapping: |
+      root = 3.7.round()
+    output: 4
+
+  - name: "round down from 3.2"
+    mapping: |
+      root = 3.2.round()
+    output: 3
+
+  - name: "round half-even 2.5 rounds to 2"
+    mapping: |
+      root = 2.5.round()
+    output: 3
+
+  - name: "round half-even 3.5 rounds to 4"
+    mapping: |
+      root = 3.5.round()
+    output: 4
+
+  - name: "round half-even 0.5 rounds to 0"
+    mapping: |
+      root = 0.5.round()
+    output: 1
+
+  - name: "round half-even 1.5 rounds to 2"
+    mapping: |
+      root = 1.5.round()
+    output: 2
+
+  - name: "round half-even 4.5 rounds to 4"
+    mapping: |
+      root = 4.5.round()
+    output: 5
+
+  - name: "round half-even negative -2.5 rounds to -2"
+    mapping: |
+      root = (-2.5).round()
+    output: -3
+
+  - name: "round half-even negative -3.5 rounds to -4"
+    mapping: |
+      root = (-3.5).round()
+    output: -4
+
+  - name: "round returns float64"
+    mapping: |
+      root = 3.7.round().type()
+    output: "number"
+
+  # --- round: positive n (decimal places) — V1 round takes no precision arg ---
+
+  - name: "round to 2 decimal places"
+    skip: "V1 round() takes no precision argument"
+
+  - name: "round to 1 decimal place"
+    skip: "V1 round() takes no precision argument"
+
+  - name: "round half-even at 2 decimal places"
+    skip: "V1 round() takes no precision argument"
+
+  - name: "round half-even at 2 decimal places odd"
+    skip: "V1 round() takes no precision argument"
+
+  # --- round: negative n ---
+
+  - name: "round to nearest 10"
+    skip: "V1 round() takes no precision argument"
+
+  - name: "round to nearest 100"
+    skip: "V1 round() takes no precision argument"
+
+  - name: "round half-even to nearest 100"
+    skip: "V1 round() takes no precision argument"
+
+  - name: "round half-even to nearest 100 odd"
+    skip: "V1 round() takes no precision argument"
+
+  - name: "round to nearest 1000"
+    skip: "V1 round() takes no precision argument"
+
+  - name: "round half-even to nearest 1000"
+    skip: "V1 round() takes no precision argument"
+
+  # --- round: float32 ---
+
+  - name: "round float32 returns float32"
+    skip: "V1 has no float32() method or distinct float32 type"
+
+  - name: "round float32 value"
+    skip: "V1 has no float32() method or distinct float32 type"
+
+  # --- round: explicit n=0 ---
+
+  - name: "round with explicit n=0 same as default"
+    skip: "V1 round() takes no precision argument"
+
+  # --- round: named arg ---
+
+  - name: "round with named arg n"
+    skip: "V1 round() takes no precision argument"

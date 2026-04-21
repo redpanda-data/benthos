@@ -1,0 +1,158 @@
+description: "Dynamic access with [expr]: arrays, objects, strings, bytes; type errors for wrong index types"
+
+tests:
+  # --- Object dynamic access ---
+
+  - name: "object dynamic access with string literal"
+    mapping: |
+      let obj = {"name": "Alice"}
+      root.v = $obj.get("name")
+    output: {"v": "Alice"}
+
+  - name: "object dynamic access with variable"
+    mapping: |
+      let obj = {"color": "blue"}
+      let key = "color"
+      root.v = $obj.get($key)
+    output: {"v": "blue"}
+
+  - name: "object dynamic access with expression"
+    mapping: |
+      let obj = {"key_a": "found"}
+      let suffix = "a"
+      root.v = $obj.get("key_" + $suffix)
+    output: {"v": "found"}
+
+  - name: "object dynamic access non-existent key returns null"
+    mapping: |
+      let obj = {"a": 1}
+      root.v = $obj.get("missing")
+    output: {"v": null}
+
+  - name: "object dynamic access with integer key is error"
+    mapping: |
+      let obj = {"name": "Alice"}
+      root.v = $obj.get(0)
+    compile_error: "expected string, got number"
+
+  - name: "object dynamic access with bool key is error"
+    mapping: |
+      let obj = {"name": "Alice"}
+      root.v = $obj.get(true)
+    compile_error: "expected string, got bool"
+
+  - name: "object dynamic access with null key is error"
+    mapping: |
+      let obj = {"name": "Alice"}
+      root.v = $obj.get(null)
+    compile_error: "expected string, got null"
+
+  # --- Array dynamic access ---
+
+  - name: "array index zero"
+    mapping: |
+      let arr = ["a", "b", "c"]
+      root.v = $arr.index(0)
+    output: {"v": "a"}
+
+  - name: "array index middle"
+    mapping: |
+      let arr = ["a", "b", "c"]
+      root.v = $arr.index(1)
+    output: {"v": "b"}
+
+  - name: "array index last"
+    mapping: |
+      let arr = ["a", "b", "c"]
+      root.v = $arr.index(2)
+    output: {"v": "c"}
+
+  - name: "array index with float whole number accepted"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(2.0)
+    output: {"v": 30} # FIXME-v1: verify - V1 .index() may require int
+
+  - name: "array index with non-whole float is error"
+    skip: "V1 .index() silently truncates non-whole floats to int (1.5 → 1); no error raised"
+
+  - name: "array index with string is error"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index("0")
+    compile_error: "expected number value, got string"
+
+  - name: "array index with bool is error"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(true)
+    compile_error: "expected number value, got bool"
+
+  - name: "array index with variable"
+    mapping: |
+      let arr = [10, 20, 30]
+      let i = 1
+      root.v = $arr.index($i)
+    output: {"v": 20}
+
+  - name: "nested array and object dynamic access"
+    input: {"users": [{"name": "Alice"}, {"name": "Bob"}]}
+    mapping: |
+      root.v = this.users.index(1).name
+    output: {"v": "Bob"}
+
+  # --- String dynamic access (codepoint) ---
+
+  - name: "string index returns codepoint value"
+    skip: "V2-only: V1 has no string indexing (strings are not indexable as arrays of codepoints)"
+
+  - name: "string index with float whole number accepted"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string index with non-whole float is error"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string index with string key is error"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string index non-ascii codepoint value"
+    skip: "V2-only: V1 has no string indexing"
+
+  # --- Bytes dynamic access ---
+
+  - name: "bytes index returns byte value"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes index with float whole number accepted"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes index with non-whole float is error"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  # --- Indexing non-indexable types ---
+
+  - name: "index on boolean is error"
+    skip: "V2-only: V1 has no bracket indexing syntax; closest analogue is .index()/.get() which do not apply to scalars"
+
+  - name: "index on integer is error"
+    skip: "V2-only: V1 has no bracket indexing syntax"
+
+  - name: "index on float is error"
+    skip: "V2-only: V1 has no bracket indexing syntax"
+
+  - name: "index on null is error"
+    skip: "V2-only: V1 has no bracket indexing syntax; .index()/.get() on null returns null in V1"
+
+  # --- Chained dynamic access ---
+
+  - name: "chained bracket access on nested object"
+    mapping: |
+      let data = {"a": {"b": {"c": "deep"}}}
+      root.v = $data.get("a").get("b").get("c")
+    output: {"v": "deep"}
+
+  - name: "mixed dot and bracket access"
+    input: {"users": [{"name": "Alice"}]}
+    mapping: |
+      root.v = this.users.index(0).name
+    output: {"v": "Alice"}

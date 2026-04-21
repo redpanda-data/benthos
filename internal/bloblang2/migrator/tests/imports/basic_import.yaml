@@ -1,0 +1,144 @@
+description: "Imports: basic file imports, calling imported maps, passing values via the receiver"
+
+# V1 imports bring map definitions into a flat global namespace. There is no `as <alias>`
+# form and no `ns::map` qualified reference — the importing file sees the imported maps
+# by their bare name via `.apply("name")`. Multi-argument maps are expressed by passing
+# an object receiver and reading fields off `this` inside the map body.
+
+files:
+  "helpers.blobl": |
+    map double {
+      root = this * 2
+    }
+    map greet {
+      root = "hello " + this
+    }
+    map add {
+      root = this.a + this.b
+    }
+    map constant {
+      root = 42
+    }
+
+tests:
+  # --- Basic imported-map calls ---
+
+  - name: "import and call zero-param map"
+    mapping: |
+      import "helpers.blobl"
+      root.v = {}.apply("constant")
+    output: {"v": 42}
+
+  - name: "import and call single-param map"
+    mapping: |
+      import "helpers.blobl"
+      root.v = 21.apply("double")
+    output: {"v": 42}
+
+  - name: "import and call two-param map"
+    mapping: |
+      import "helpers.blobl"
+      root.v = {"a": 3, "b": 7}.apply("add")
+    output: {"v": 10}
+
+  - name: "import and call map with string arg"
+    mapping: |
+      import "helpers.blobl"
+      root.v = "world".apply("greet")
+    output: {"v": "hello world"}
+
+  - name: "call imported map multiple times"
+    mapping: |
+      import "helpers.blobl"
+      root.a = 5.apply("double")
+      root.b = 10.apply("double")
+    output: {"a": 10, "b": 20}
+
+  - name: "call multiple imported maps"
+    mapping: |
+      import "helpers.blobl"
+      root.sum = {"a": 3.apply("double"), "b": {}.apply("constant")}.apply("add")
+    output: {"sum": 48}
+
+  # --- Import with local maps ---
+
+  - name: "imported maps coexist with local maps"
+    mapping: |
+      import "helpers.blobl"
+      map triple { root = this * 3 }
+      root.v = 5.apply("double") + 2.apply("triple")
+    output: {"v": 16}
+
+  - name: "local map can call imported map"
+    mapping: |
+      import "helpers.blobl"
+      map quad { root = this.apply("double").apply("double") }
+      root.v = 3.apply("quad")
+    output: {"v": 12}
+
+  # --- Import with input data ---
+
+  - name: "imported map processes input data"
+    mapping: |
+      import "helpers.blobl"
+      root.v = this.x.apply("double")
+    input: {"x": 7}
+    output: {"v": 14}
+
+  # --- Error cases ---
+
+  - name: "calling non-existent map in namespace is error"
+    mapping: |
+      import "helpers.blobl"
+      root.v = 1.apply("nonexistent")
+    error: "map nonexistent was not found" # V1 resolves .apply() targets at runtime, not compile time
+
+  - name: "file not found is error"
+    mapping: |
+      import "missing.blobl"
+      root.v = 1.apply("foo")
+    compile_error: "missing"
+
+  - name: "statements in imported file are compile error"
+    skip: "V1 silently accepts top-level statements in imported files; `let x = 42` at file top level is imported but does not establish the binding for map bodies that reference $x at runtime, producing a runtime 'variable undefined' error rather than a compile error"
+
+  - name: "calling imported map without namespace is compile error"
+    skip: "V1 has no namespaces — imported maps are called by bare name via .apply(\"name\"); this test does not translate"
+
+  # --- Qualified map references in higher-order methods ---
+  # V1 maps are not first-class values — you cannot pass `double` as an argument to .map().
+  # The idiom is to wrap the call in a lambda that invokes .apply().
+
+  - name: "qualified map reference in .map()"
+    mapping: |
+      import "helpers.blobl"
+      root.v = [1, 2, 3].map_each(n -> n.apply("double"))
+    output: {"v": [2, 4, 6]}
+
+  - name: "qualified map reference in .filter()"
+    files:
+      "predicates.blobl": |
+        map is_positive { root = this > 0 }
+    mapping: |
+      import "predicates.blobl"
+      root.v = [-1, 2, -3, 4].filter(n -> n.apply("is_positive"))
+    output: {"v": [2, 4]}
+
+  - name: "qualified map reference in .sort_by()"
+    files:
+      "keys.blobl": |
+        map get_name { root = this.name }
+    mapping: |
+      import "keys.blobl"
+      let items = [{"name": "Charlie"}, {"name": "Alice"}, {"name": "Bob"}]
+      root.v = $items.sort_by(item -> item.apply("get_name")).map_each(x -> x.name)
+    output: {"v": ["Alice", "Bob", "Charlie"]}
+
+  - name: "qualified reference to non-existent namespace is compile error"
+    skip: "V1 has no namespaces — there is no ns::map syntax to fail to resolve"
+
+  - name: "qualified reference to non-existent map is compile error"
+    mapping: |
+      import "helpers.blobl"
+      root.v = [1, 2].map_each(n -> n.apply("nonexistent"))
+    error: "map nonexistent was not found" # V1 resolves .apply() targets at runtime, not compile time
