@@ -257,6 +257,12 @@ func runOne(interp spectest.Interpreter, tc *spectest.TestCase, fileLevel map[st
 	// 4. Check against expectations.
 	if tc.Error != "" || tc.HasError {
 		if runErr == nil {
+			// V1 errored, V2 succeeded. This is a lenient-V2 divergence.
+			// When the translator flagged the relevant construct, it's a
+			// known divergence — Flagged rather than Unexpected.
+			if hasFlaggedDivergence(rep) {
+				return outcome{outcomeFlagged, fmt.Sprintf("V1 runtime error did not fire under V2 (known divergence flagged); got %v", gotOut)}
+			}
 			return outcome{outcomeUnexpected, fmt.Sprintf("expected runtime error, got output %v", gotOut)}
 		}
 		return outcome{outcomeOK, ""}

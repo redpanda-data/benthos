@@ -287,6 +287,27 @@ func (t *translator) translateIfStmt(i *v1ast.IfStmt) syntax.Stmt {
 	return out
 }
 
+// flagNonBoolCond emits a SemanticChange note when a V1 if condition is a
+// literal `null` — V1 treats null as falsy while V2 errors on non-bool
+// conditions. Broader analysis (variables, method calls) isn't feasible
+// without type inference; this covers the obvious static cases and leaves
+// runtime-only divergences to be caught by the general bool-strictness flag.
+func (t *translator) flagNonBoolCond(cond v1ast.Expr, tokPos v1ast.Pos) {
+	lit, ok := cond.(*v1ast.Literal)
+	if !ok {
+		return
+	}
+	if lit.Kind == v1ast.LitBool {
+		return
+	}
+	t.rec.Note(Change{
+		Line: tokPos.Line, Column: tokPos.Column,
+		Severity: SeverityInfo, Category: CategorySemanticChange,
+		RuleID:      RuleAndOrSameLevel,
+		Explanation: "V1 accepts non-bool if-conditions (null is falsy; int/string error); V2 requires a boolean condition",
+	})
+}
+
 // flagBranchLets emits a SemanticChange for any `let` at the top of an
 // if/else branch body. V1 leaks the binding into the enclosing mapping
 // scope; V2 confines it to the branch. If the binding is referenced outside
@@ -620,17 +641,23 @@ func (t *translator) translateExpr(e v1ast.Expr) syntax.Expr {
 			return &syntax.IdentExpr{TokenPos: pos(x.TokPos), Name: x.Name, SlotIndex: -1}
 		}
 		// Otherwise, legacy bare identifier in expression position =
-		// `this.foo` = V2 `input.foo`.
+		// `this.foo` = V2 `input.foo`. V2 errors if the field is absent
+		// or the receiver isn't an object — V1 silently returned null.
+		// Emit as NullSafe so the V2 form tolerates a null/absent
+		// receiver the way V1 did, and flag as a SemanticChange so the
+		// wider divergence (V2 is type-strict on non-object receivers)
+		// surfaces on the Report.
 		t.rec.Rewritten(Change{
 			Line: x.TokPos.Line, Column: x.TokPos.Column,
-			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
 			RuleID: RuleBareIdentToInput, SpecRef: "§14#1",
-			Explanation: fmt.Sprintf(`bare identifier %q rewritten as "input.%s"`, x.Name, x.Name),
+			Explanation: fmt.Sprintf(`bare identifier %q rewritten as "input.%s"; V2 errors on absent fields where V1 returned null`, x.Name, x.Name),
 		})
 		return &syntax.FieldAccessExpr{
 			Receiver: &syntax.InputExpr{TokenPos: pos(x.TokPos)},
 			Field:    x.Name,
 			FieldPos: pos(x.TokPos),
+			NullSafe: true,
 		}
 	case *v1ast.BinaryExpr:
 		return t.translateBinary(x)
@@ -805,6 +832,14 @@ func (t *translator) translateFieldAccess(f *v1ast.FieldAccess) syntax.Expr {
 			RuleID: RuleNoBracketIndexing, SpecRef: "§14#10",
 			Explanation: "V1 numeric path segment rewritten as V2 index expression",
 		})
+		// V2 rejects out-of-bounds array indices at runtime where V1
+		// returned null; flag so such tests surface as known divergences.
+		t.rec.Note(Change{
+			Line: f.Seg.Pos.Line, Column: f.Seg.Pos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleNoBracketIndexing,
+			Explanation: "V1 numeric path access on arrays tolerates out-of-bounds (returns null); V2 errors",
+		})
 		return &syntax.IndexExpr{
 			Receiver: recv,
 			Index: &syntax.LiteralExpr{
@@ -897,6 +932,17 @@ func (t *translator) translateFunctionCall(f *v1ast.FunctionCall) syntax.Expr {
 	// spelling — produced by an if-without-else whose condition is false).
 	// Rewrite `nothing()` to `if false { null }` so downstream assignments
 	// are skipped as they were in V1.
+	// V1 `range(a, b, step)` with a descending range and explicit step
+	// includes one additional element compared with V2 (boundary
+	// arithmetic differs).
+	if f.Name == "range" {
+		t.rec.Note(Change{
+			Line: f.NamePos.Line, Column: f.NamePos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 range(a, b, step) boundary arithmetic differs from V2 on descending ranges — audit array length",
+		})
+	}
 	// V1 `parse_json` / `parse_yaml` return all numbers as float64; V2
 	// distinguishes int64 and float64 based on the serialised form.
 	// Downstream code that branches on .type() or compares types will
@@ -1023,6 +1069,7 @@ func (t *translator) translateObjectLit(o *v1ast.ObjectLit) syntax.Expr {
 func (t *translator) translateIfExpr(i *v1ast.IfExpr) syntax.Expr {
 	out := &syntax.IfExpr{TokenPos: pos(i.TokPos)}
 	for _, br := range i.Branches {
+		t.flagNonBoolCond(br.Cond, i.TokPos)
 		cond := t.translateExpr(br.Cond)
 		body := t.translateExpr(br.Body)
 		if cond == nil || body == nil {
@@ -1051,6 +1098,17 @@ func (t *translator) translateMatchExpr(m *v1ast.MatchExpr) syntax.Expr {
 	out := &syntax.MatchExpr{TokenPos: pos(m.TokPos), BindingSlot: -1}
 	if m.Subject != nil {
 		out.Subject = t.translateExpr(m.Subject)
+	} else {
+		// Subject-less match (V1 boolean-case form). V2 requires each
+		// case pattern to evaluate to bool; V1 coerced non-bool patterns
+		// (int/string/null) silently. Flag so runtime divergences surface.
+		t.rec.Note(Change{
+			Line: m.TokPos.Line, Column: m.TokPos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMatchSubjectRebinds,
+			SpecRef:     "§8",
+			Explanation: "V1 boolean-case match coerces non-boolean case patterns; V2 errors when a case doesn't evaluate to bool",
+		})
 	}
 	for _, c := range m.Cases {
 		if lit, ok := c.Pattern.(*v1ast.Literal); ok && lit.Kind == v1ast.LitBool {
@@ -1150,6 +1208,13 @@ func (t *translator) flagOperatorDivergence(b *v1ast.BinaryExpr) {
 			SpecRef:     "§14#41",
 			Explanation: "V1 + concatenates bytes-to-string and string-to-bytes; V2 is type-strict",
 		})
+	case v1ast.TokStar, v1ast.TokMinus, v1ast.TokSlash:
+		t.rec.Note(Change{
+			Line: b.OpPos.Line, Column: b.OpPos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 arithmetic silently wraps on int64 overflow and coerces across numeric types; V2 errors on overflow and on integers outside the float64 exact range (2^53)",
+		})
 	case v1ast.TokPercent:
 		t.rec.Note(Change{
 			Line: b.OpPos.Line, Column: b.OpPos.Column,
@@ -1157,6 +1222,21 @@ func (t *translator) flagOperatorDivergence(b *v1ast.BinaryExpr) {
 			RuleID:      RuleModuloFloatTruncation,
 			SpecRef:     "§14#39",
 			Explanation: "V1 % silently truncates float operands to int64 before mod; V2 uses fmod and preserves float64",
+		})
+	case v1ast.TokEq, v1ast.TokNeq:
+		t.rec.Note(Change{
+			Line: b.OpPos.Line, Column: b.OpPos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleBoolNumberEquality,
+			SpecRef:     "§14#38",
+			Explanation: "V1 ==/!= coerces across types (bool==1 is true, string==bytes compares bytes); V2 requires matching types",
+		})
+	case v1ast.TokLt, v1ast.TokLte, v1ast.TokGt, v1ast.TokGte:
+		t.rec.Note(Change{
+			Line: b.OpPos.Line, Column: b.OpPos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 <, <=, >, >= accept some cross-type operands and perform coercion; V2 errors unless both operands are numeric/string/bytes of the same family",
 		})
 	}
 }

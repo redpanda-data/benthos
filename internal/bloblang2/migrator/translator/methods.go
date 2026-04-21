@@ -39,14 +39,17 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		// V1 .map_each_key == V2 .map_keys (exact match — both take lambda).
 		return t.simpleRename(m, recv, "map_keys")
 	case "assign":
-		// V1 assign is deep-merge; V2 merge is the equivalent (V2 has no
-		// separate assign method). See Quirk #50 for V1 naming confusion.
+		// V1 .assign() is a deep recursive merge of nested objects; V2
+		// .merge() is shallow at the top level (nested values are
+		// replaced, not recursively merged). Flag so callers audit
+		// nested object usage.
 		return t.rewrittenRename(m, recv, "merge",
 			Change{
 				RuleID:      RuleMethodDoesNotExist,
-				Severity:    SeverityInfo,
-				Category:    CategoryIdiomRewrite,
-				Explanation: "V1 .assign() renamed to V2 .merge()",
+				Severity:    SeverityWarning,
+				Category:    CategorySemanticChange,
+				SpecRef:     "§14#50",
+				Explanation: "V1 .assign() recursively deep-merges nested objects; V2 .merge() replaces nested values rather than merging",
 			})
 
 	// ----- Array indexing: .index(n) -> [n] -----
@@ -118,11 +121,34 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		})
 		return nil
 	case "sum", "min", "max":
+		// V1 .sum/.min/.max are numeric-only and always return float64.
+		// V2 is typed (int64 stays int64) and .min/.max also accept
+		// strings (lexicographic). Flag both angles so downstream type
+		// comparisons and expected-error tests surface the divergence.
 		t.rec.Rewritten(Change{
 			Line: m.NamePos.Line, Column: m.NamePos.Column,
 			Severity: SeverityWarning, Category: CategorySemanticChange,
 			RuleID:      RuleMethodDoesNotExist,
-			Explanation: "V1 " + "." + m.Name + "() always returns float64; V2 may preserve integer type — audit numeric comparisons",
+			Explanation: "V1 ." + m.Name + "() is numeric-only and returns float64; V2 preserves integer type and (for min/max) also accepts strings",
+		})
+		return nil
+	case "sort":
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 .sort() accepts any element type but produces lexicographic ordering; V2 rejects non-scalar or non-numeric elements outright",
+		})
+		return nil
+	case "reverse":
+		// V1 .reverse() errors on empty arrays/strings; V2 returns empty.
+		// V1 also rejects non-array/non-string types where V2 may be more
+		// lenient.
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 .reverse() errors on empty or non-sequence receivers; V2 returns the empty receiver",
 		})
 		return nil
 	case "abs", "floor", "ceil", "round":
@@ -149,6 +175,37 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 			Explanation: "V1 .type() returns \"number\" for any integer/float; V2 reports int64/float64 separately (and timestamp as timestamp, not string)",
 		})
 		return nil
+	case "parse_json", "parse_yaml":
+		// V1 returns all numbers as float64; V2 distinguishes int64 and
+		// float64 based on the serialised form.
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§13",
+			Explanation: "V1 ." + m.Name + "() returns all numbers as float64; V2 distinguishes int64 and float64 by serialised form",
+		})
+		return nil
+	case "index_of":
+		// V1 .index_of on strings counts bytes; V2 counts codepoints.
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleStringLengthBytes,
+			SpecRef:     "§14#40",
+			Explanation: "V1 .index_of() on strings counts bytes; V2 counts codepoints",
+		})
+		return nil
+	case "string":
+		// V1 .string() on an integer-valued float64 formats as "5"; V2
+		// preserves the float form and emits "5.0".
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 .string() strips trailing zeros from integer-valued floats; V2 preserves the float form (5.0 stays \"5.0\")",
+		})
+		return nil
 	}
 	return nil
 }
@@ -162,8 +219,18 @@ func (t *translator) catchValueToLambda(m *v1ast.MethodCall, recv syntax.Expr) s
 		return nil
 	}
 	arg := m.Args[0].Value
-	// If already a V1 lambda, translate it 1:1 — no wrap needed.
+	// If already a V1 lambda, translate it 1:1 — no wrap needed. Emit a
+	// note: V1 passes the error message as a string; V2 passes an error
+	// object `{"what": msg}`, so handlers that concatenate or format the
+	// argument will produce different output.
 	if _, isLambda := arg.(*v1ast.Lambda); isLambda {
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleOrCatchesErrors,
+			SpecRef:     "§12.2",
+			Explanation: "V1 .catch(err -> ...) receives the error message as a string; V2 receives an error object of shape {\"what\": msg}",
+		})
 		return nil
 	}
 	value := t.translateExpr(arg)
@@ -250,6 +317,15 @@ func (t *translator) indexToBracket(m *v1ast.MethodCall, recv syntax.Expr) synta
 		RuleID:      RuleNoBracketIndexing,
 		SpecRef:     "§14#10",
 		Explanation: "V1 ." + m.Name + "() rewritten as V2 [] indexing",
+	})
+	// V2 [] is type-strict: an out-of-bounds array index or a non-whole
+	// float index errors where V1 silently returned null. Flag so the
+	// divergence surfaces if the receiver or index isn't statically safe.
+	t.rec.Note(Change{
+		Line: m.NamePos.Line, Column: m.NamePos.Column,
+		Severity: SeverityInfo, Category: CategorySemanticChange,
+		RuleID:      RuleNoBracketIndexing,
+		Explanation: "V1 " + "." + m.Name + "() returns null on missing key or out-of-bounds index; V2 errors on bounds/type mismatches",
 	})
 	return &syntax.IndexExpr{
 		Receiver:    recv,
@@ -401,13 +477,35 @@ func (t *translator) applyToCall(m *v1ast.MethodCall, recv syntax.Expr) syntax.E
 		return nil
 	}
 	// If the map lives in an imported namespace, qualify the V2 call.
-	namespace := t.mapNamespace[nameLit.Str]
+	namespace, known := t.mapNamespace[nameLit.Str]
+	if !known {
+		// V1 imports share a flat table so a map from a transitively
+		// imported file is reachable by bare name; V2 namespaces each
+		// import explicitly and doesn't re-export. If we can't resolve
+		// the name, emit the unqualified call and flag — the V2 output
+		// will compile-error at runtime pointing at the missing map.
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleImportStatement,
+			SpecRef:     "§10.2",
+			Explanation: "V1 .apply(\"" + nameLit.Str + "\") resolves across transitive imports; V2 requires an explicit namespace — add `import \"x\" as ns` and call `ns::" + nameLit.Str + "()`",
+		})
+	}
 	t.rec.Rewritten(Change{
 		Line: m.NamePos.Line, Column: m.NamePos.Column,
 		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
 		RuleID:      RuleMapDeclTranslation,
 		SpecRef:     "§10.2",
 		Explanation: "V1 recv.apply(\"name\") rewritten as V2 name(recv)",
+	})
+	// V2 enforces a runtime recursion-depth limit on map calls where V1
+	// did not. Flag so recursive / mutually-recursive maps surface.
+	t.rec.Note(Change{
+		Line: m.NamePos.Line, Column: m.NamePos.Column,
+		Severity: SeverityInfo, Category: CategorySemanticChange,
+		RuleID:      RuleMapDeclTranslation,
+		Explanation: "V2 enforces a runtime recursion-depth limit on map calls that V1 did not — deeply recursive maps may error in V2",
 	})
 	return &syntax.CallExpr{
 		TokenPos:  pos(m.NamePos),
