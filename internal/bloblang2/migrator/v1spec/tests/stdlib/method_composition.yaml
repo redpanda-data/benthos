@@ -26,7 +26,9 @@ tests:
   # --- Numeric + type chains ---
 
   - name: "abs then floor"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = (-3.7).abs().floor()
+    output: 3
 
   - name: "ceil then int64 conversion"
     skip: "V1 has no int64() method; use .number() instead (returns int64 or float64)"
@@ -85,7 +87,9 @@ tests:
     output: [9, 4, 1]
 
   - name: "array map abs then max"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = [-3, 1, -7, 4].map_each(v -> v.abs()).max()
+    output: 7.0
 
   - name: "split then unique then sort then join"
     mapping: |
@@ -120,7 +124,9 @@ tests:
     output: "HELLO"
 
   - name: "abs on parse_json result"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = "\"-42\"".parse_json().number().abs()
+    output: 42.0
 
   # --- Timestamp arithmetic composition ---
 
