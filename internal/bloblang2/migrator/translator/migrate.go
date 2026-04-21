@@ -62,25 +62,20 @@ func Migrate(v1Source string, opts Options) (*Report, error) {
 	return rep, nil
 }
 
-// translateFiles recursively migrates each file in the Files map from V1 to
-// V2 source, so that V2's import resolution reads V2 content. Returns nil if
-// the input is nil. Errors from nested Migrate calls are fatal — an imported
-// file that can't be migrated should surface, not silently disappear.
+// translateFiles migrates each file in the Files map from V1 to V2 source,
+// so V2's Parse sees V2 content wherever it resolves an import.
+//
+// Nested imports inside an imported file are not re-translated here (we pass
+// nil Files to the inner Migrate to avoid unbounded recursion on cycles);
+// they resolve at V2 Parse time against the already-translated outer map.
 func translateFiles(in map[string]string, outerOpts Options) (map[string]string, error) {
 	if len(in) == 0 {
 		return nil, nil
 	}
-	// Avoid infinite recursion if an imported file imports another file.
-	// The inner Migrate uses an empty Files map for its own translation —
-	// it only translates its own source text; nested imports are resolved
-	// at Parse time.
-	innerOpts := outerOpts
-	innerOpts.Files = nil
-	// Keep child coverage threshold out of the critical path; we don't
-	// want a tiny helper file's "low coverage" to fail the whole run.
-	innerOpts.MinCoverage = 0
-
 	out := make(map[string]string, len(in))
+	innerOpts := outerOpts
+	innerOpts.MinCoverage = 0
+	innerOpts.Files = nil
 	for path, src := range in {
 		rep, err := Migrate(src, innerOpts)
 		if err != nil {
