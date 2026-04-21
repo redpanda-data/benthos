@@ -15,31 +15,10 @@ This directory starts with the **specification** of V1 as its own deliverable. A
 
 ## Current contents
 
-- **`bloblang_v1_spec.md`** — the complete V1 reference specification. A single document describing lexical structure, types, literals, operators (with verified precedence), paths, statements, expressions, the two dialects (full mapping vs. `${!...}` interpolation), error model, extensibility, and a catalogue of 25 migration-critical quirks. Includes an informal EBNF and a file map back to the reference implementation.
-- **`tests/`** — V1 equivalents of every V2 conformance test under `../spec/tests/`. Same YAML schema (shared with the V2 spec runner), with one addition: a `skip: "<reason>"` field on tests that have no direct V1 equivalent. Same per-subdirectory layout as the V2 suite (`access/`, `case_studies/`, `control_flow/`, …).
-- **`interp.go`** — V1 adapter implementing `spectest.Interpreter` from `../go/spectest`. Uses `mapping.Executor.ExecOnto` directly so the raw mapped value is preserved (avoiding V1's bytes-round-trip quirk that would re-parse scalars like `"true"` as booleans).
-- **`runner.go`** — thin wrapper around `spectest.RunT` that pre-scans each YAML file for the `skip:` field and surfaces those tests through `t.Skip` instead of compiling them.
-- **`migrator_test.go`** — the Go test entrypoint: `TestBloblangV1Spec` runs every file under `tests/` against the V1 adapter.
+- **`bloblang_v1_spec.md`** — the complete V1 reference specification. A single document describing lexical structure, types, literals, operators (with verified precedence), paths, statements, expressions, the two dialects (full mapping vs. `${!...}` interpolation), error model, extensibility, and a catalogue of 25+ migration-critical quirks. Includes an informal EBNF and a file map back to the reference implementation.
+- **`v1spec/`** — spec-compliance test suite for V1. Not a test of the migrator (that doesn't exist yet); instead, a corpus of V1 mappings translated from the V2 spec tests (under `../spec/tests/`) together with a Go harness that runs them against the V1 interpreter and checks outputs match expectations. See [`v1spec/README.md`](v1spec/README.md) for running and contributing.
 
 Further tooling (parser, AST diff, rewriter, report generator) will be added alongside the spec.
-
-## Running the test suite
-
-From the `bloblang2/` directory:
-
-```sh
-task test:migrator               # run everything
-task test:migrator -- -v         # verbose output
-task test:migrator -- -run 'TestBloblangV1Spec/types/bool_null'   # single file
-```
-
-Or from the benthos repo root:
-
-```sh
-go test ./internal/bloblang2/migrator/... -run TestBloblangV1Spec
-```
-
-A test is PASS when the V1 interpreter produces the `output` / `deleted` / `error` the YAML expects, FAIL when it differs, and SKIP when the YAML entry has a `skip:` field. Failures are an expected outcome of this suite — they flag either (a) a V1-vs-V2 semantic divergence that the migrator tool will need to handle, (b) an over-eager translation from the V2 test, or (c) a `# FIXME-v1: verify` substring that was left for a real V1 run to confirm. The value of the suite is in the delta, not in a green bar.
 
 ## Sources used to produce the V1 spec
 

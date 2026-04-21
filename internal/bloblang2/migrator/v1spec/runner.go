@@ -1,4 +1,4 @@
-package migrator
+package v1spec
 
 import (
 	"fmt"
