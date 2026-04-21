@@ -787,13 +787,44 @@ func (t *translator) translateFieldAccess(f *v1ast.FieldAccess) syntax.Expr {
 			NullSafe:    true,
 		}
 	}
-	t.rec.Exact()
+	// Flag field accesses whose receiver can't be statically guaranteed
+	// to be an object. V1 returns null for field access on scalars and
+	// arrays (§12.5); V2 errors. The `?.` NullSafe modifier catches null
+	// but not wrong-type receivers — if the receiver's expected type
+	// isn't object-ish, emit a SemanticChange so the divergence is
+	// visible.
+	if !objectLikeReceiver(recv) {
+		t.rec.Rewritten(Change{
+			Line: f.Seg.Pos.Line, Column: f.Seg.Pos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID: RuleStringLengthBytes, SpecRef: "§12.5",
+			Explanation: "V1 path access on non-object returns null; V2 errors on wrong-type receivers (consider .catch(null))",
+		})
+	} else {
+		t.rec.Exact()
+	}
 	return &syntax.FieldAccessExpr{
 		Receiver: recv,
 		Field:    f.Seg.Name,
 		FieldPos: pos(f.Seg.Pos),
 		NullSafe: true,
 	}
+}
+
+// objectLikeReceiver returns true if the V2 receiver expression is guaranteed
+// (or very likely) to evaluate to an object. Currently we treat input/output
+// references and their chained field accesses as object-like (the common
+// case); method-call and index-expression results are NOT object-guaranteed.
+func objectLikeReceiver(e syntax.Expr) bool {
+	switch r := e.(type) {
+	case *syntax.InputExpr, *syntax.OutputExpr, *syntax.InputMetaExpr, *syntax.OutputMetaExpr:
+		return true
+	case *syntax.FieldAccessExpr:
+		return objectLikeReceiver(r.Receiver)
+	case *syntax.VarExpr, *syntax.IdentExpr:
+		return true
+	}
+	return false
 }
 
 // isAllDigits returns true when s is a non-empty string of ASCII digits.

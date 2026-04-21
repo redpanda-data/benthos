@@ -18,12 +18,25 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 
 	// ----- Simple renames (V2 name differs, same shape) -----
 	case "map_each":
-		return t.simpleRename(m, recv, "map")
+		// V1 .map_each accepts arrays and objects; V2 splits that: `.map`
+		// for arrays and `.map_values` for objects. Detect object-literal
+		// receivers at translate time; everything else defaults to `.map`
+		// with a SemanticChange flag so object-receiver cases surface in
+		// the Report.
+		if _, isObj := m.Recv.(*v1ast.ObjectLit); isObj {
+			return t.simpleRename(m, recv, "map_values")
+		}
+		return t.rewrittenRename(m, recv, "map", Change{
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 .map_each() accepts arrays and objects; V2 .map() is array-only — use .map_values() if the receiver is an object",
+		})
 	case "enumerated":
 		return t.simpleRename(m, recv, "enumerate")
 	case "key_values":
 		return t.simpleRename(m, recv, "iter")
 	case "map_each_key":
+		// V1 .map_each_key == V2 .map_keys (exact match — both take lambda).
 		return t.simpleRename(m, recv, "map_keys")
 	case "assign":
 		// V1 assign is deep-merge; V2 merge is the equivalent (V2 has no
@@ -96,7 +109,7 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 			Explanation: "V1 .merge() tolerates null receiver/arg; V2 errors. Audit whether operands can be null.",
 		})
 		return nil
-	case "filter", "map", "map_keys", "map_values", "filter_entries", "all", "any":
+	case "filter", "filter_entries", "all", "any":
 		t.rec.Rewritten(Change{
 			Line: m.NamePos.Line, Column: m.NamePos.Column,
 			Severity: SeverityWarning, Category: CategorySemanticChange,
