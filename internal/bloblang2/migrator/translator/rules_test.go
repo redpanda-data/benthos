@@ -37,7 +37,7 @@ func TestRuleUnits(t *testing.T) {
 		{
 			name:     "bare ident -> input.ident",
 			v1:       `root = foo`,
-			wantV2:   []string{"input.foo"},
+			wantV2:   []string{"input?.foo"},
 			wantRule: translator.RuleBareIdentToInput,
 		},
 		{
