@@ -33,25 +33,62 @@ func Migrate(v1Source string, opts Options) (*Report, error) {
 	}
 
 	// 2. Walk the V1 AST, producing a V2 AST plus Changes and Coverage.
-	tr := &translator{rec: newRecorder(opts)}
+	tr := &translator{rec: newRecorder(opts), files: opts.Files}
 	v2Prog := tr.translateProgram(prog)
 
 	// 3. Print the V2 AST.
 	v2Source := syntax.Print(v2Prog)
 
-	// 4. Sanity-check: the V2 output must compile. If it doesn't, that's a
+	// 4. Translate any imported files too — they're V1 source that V2's
+	// parser will read verbatim unless we convert them first.
+	files, err := translateFiles(opts.Files, opts)
+	if err != nil {
+		return nil, fmt.Errorf("migrator: translating imported file: %w", err)
+	}
+
+	// 5. Sanity-check: the V2 output must compile. If it doesn't, that's a
 	// translator bug — return a distinctive error rather than silently
 	// producing broken V2.
-	if _, errs := syntax.Parse(v2Source, "", nil); len(errs) > 0 {
+	if _, errs := syntax.Parse(v2Source, "", files); len(errs) > 0 {
 		return nil, fmt.Errorf("migrator: emitted V2 failed to parse (internal bug): %v\n\nemitted:\n%s", errs, v2Source)
 	}
 
-	// 5. Finalise the report and check coverage.
+	// 6. Finalise the report and check coverage.
 	rep := tr.rec.finalise(v2Source)
+	rep.V2Files = files
 	if cerr := checkCoverage(rep, opts.MinCoverage); cerr != nil {
 		return nil, cerr
 	}
 	return rep, nil
+}
+
+// translateFiles recursively migrates each file in the Files map from V1 to
+// V2 source, so that V2's import resolution reads V2 content. Returns nil if
+// the input is nil. Errors from nested Migrate calls are fatal — an imported
+// file that can't be migrated should surface, not silently disappear.
+func translateFiles(in map[string]string, outerOpts Options) (map[string]string, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	// Avoid infinite recursion if an imported file imports another file.
+	// The inner Migrate uses an empty Files map for its own translation —
+	// it only translates its own source text; nested imports are resolved
+	// at Parse time.
+	innerOpts := outerOpts
+	innerOpts.Files = nil
+	// Keep child coverage threshold out of the critical path; we don't
+	// want a tiny helper file's "low coverage" to fail the whole run.
+	innerOpts.MinCoverage = 0
+
+	out := make(map[string]string, len(in))
+	for path, src := range in {
+		rep, err := Migrate(src, innerOpts)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", path, err)
+		}
+		out[path] = rep.V2Mapping
+	}
+	return out, nil
 }
 
 
