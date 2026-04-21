@@ -6,8 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/spectest"
 	"gopkg.in/yaml.v3"
+
+	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/spectest"
 )
 
 // skipProbe is used to read just the `skip` field of each test case so we can

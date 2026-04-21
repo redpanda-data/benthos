@@ -279,7 +279,7 @@ root = $"has space"`, compileErr: "expected query",
 		// §7.3 — statement-form if with null condition errors (vs expression form)
 		{
 			spec: "§7.3", name: "statement-form if null errors",
-			mapping: `if null { root.x = 1 } else { root.x = 2 }`,
+			mapping:    `if null { root.x = 1 } else { root.x = 2 }`,
 			runtimeErr: "non-boolean",
 		},
 		{
