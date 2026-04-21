@@ -27,10 +27,12 @@ tests:
     skip: "V2-only _type negative-zero literal shorthand"
 
   - name: "string from float32"
-    skip: "V1 has no float32() method or distinct float32 type"
+    mapping: |
+      root = 3.14.float32().string()
+    output: "3.14"
 
   - name: "string from float32 whole number"
-    skip: "V1 has no float32() method or distinct float32 type"
+    skip: "V1-divergence: float32 values serialise as plain numbers; 5.0.float32().string() => \"5\" not \"5.0\""
 
   - name: "string from nan"
     skip: "V2-only _type NaN literal shorthand; V1 has no NaN literal"
@@ -150,7 +152,7 @@ tests:
   # --- .float32() ---
 
   - name: "float32 from int64"
-    skip: "V1 has no float32() method or distinct float32 type"
+    skip: "V1-divergence: float32() returns plain number; V2 {_type: \"float32\", value: \"42.0\"} wrapper has no V1 equivalent"
 
   - name: "float32 from float64"
     skip: "V1 has no float32() method"

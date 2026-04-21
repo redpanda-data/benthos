@@ -71,7 +71,7 @@ tests:
       let big = "18446744073709551615".uint64()
       root = $big + 1
     error: "uint64 value exceeds int64 range"
-    skip: "V2-only: V1 has no .uint64() distinct numeric-width conversion."
+    skip: "V1-divergence: uint64 + int silently wraps (produces 0) instead of erroring on exceeds int64 range"
 
   # --- Boundary: exactly 2^53 ---
 

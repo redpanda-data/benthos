@@ -4,33 +4,49 @@ tests:
   # --- abs: float64 ---
 
   - name: "abs positive float64 is identity"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = 3.14.abs()
+    output: 3.14
 
   - name: "abs negative float64"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = (-3.14).abs()
+    output: 3.14
 
   - name: "abs zero float64"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = 0.0.abs()
+    output: 0.0
 
   - name: "abs float64 returns float64"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = (-2.5).abs().type()
+    output: "number"
 
   # --- abs: int64 ---
 
   - name: "abs positive int64 is identity"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = 42.abs()
+    output: 42
 
   - name: "abs negative int64"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = (-42).abs()
+    output: 42
 
   - name: "abs zero int64"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = 0.abs()
+    output: 0
 
   - name: "abs int64 returns int64"
-    skip: "V1 has no abs() method"
+    mapping: |
+      root = (-5).abs().type()
+    output: "number"
 
   - name: "abs int64 min value overflows"
-    skip: "V1 has no abs() method"
+    skip: "V1-divergence: abs(int64-min) does not detect overflow; returns Go math.Abs-derived value"
 
   # --- abs: int32 ---
 
@@ -104,10 +120,10 @@ tests:
     output: "number"
 
   - name: "floor float32 returns float32"
-    skip: "V1 has no float32() method or distinct float32 type"
+    skip: "V1-divergence: floor() rejects typed float32 values (expected number value, got number from method float32)"
 
   - name: "floor float32 value"
-    skip: "V1 has no float32() method or distinct float32 type"
+    skip: "V1-divergence: floor() rejects typed float32 values (expected number value, got number from method float32)"
 
   # --- ceil ---
 
@@ -147,10 +163,10 @@ tests:
     output: "number"
 
   - name: "ceil float32 returns float32"
-    skip: "V1 has no float32() method or distinct float32 type"
+    skip: "V1-divergence: ceil() rejects typed float32 values (expected number value, got number from method float32)"
 
   - name: "ceil float32 value"
-    skip: "V1 has no float32() method or distinct float32 type"
+    skip: "V1-divergence: ceil() rejects typed float32 values (expected number value, got number from method float32)"
 
   # --- round: default (V1 rounds away from zero at .5, not half-even) ---
 
@@ -241,10 +257,10 @@ tests:
   # --- round: float32 ---
 
   - name: "round float32 returns float32"
-    skip: "V1 has no float32() method or distinct float32 type"
+    skip: "V1-divergence: round() rejects typed float32 values (expected number value, got number from method float32)"
 
   - name: "round float32 value"
-    skip: "V1 has no float32() method or distinct float32 type"
+    skip: "V1-divergence: round() rejects typed float32 values (expected number value, got number from method float32)"
 
   # --- round: explicit n=0 ---
 

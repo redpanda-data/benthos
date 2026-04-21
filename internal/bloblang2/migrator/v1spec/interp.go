@@ -14,6 +14,14 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/message"
 	"github.com/redpanda-data/benthos/v4/internal/value"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
+
+	// Side-effect import: registers the typed-numeric methods (int32, int64,
+	// uint32, uint64, float32, float64, abs, pow, round(N), etc.), the ts_*
+	// formatters, and other extension-only builtins that ship with Redpanda
+	// Connect but aren't in the bare public/bloblang environment. These are
+	// what most real V1 mappings depend on, so the spec-compliance suite
+	// should run against them.
+	_ "github.com/redpanda-data/benthos/v4/internal/impl/pure"
 )
 
 // V1Interp implements spectest.Interpreter using the public V1 Bloblang API.
