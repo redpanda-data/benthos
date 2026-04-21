@@ -16,6 +16,25 @@ type translator struct {
 	// legacy V1 bare-ident form (this.<name>). Each entry in a frame is
 	// the parameter name introduced by a lambda or .(name -> body).
 	scopes []scopeFrame
+	// thisRebindStack tracks names that V1 `this` should resolve to inside
+	// a V2 map body. When non-empty, the translator emits IdentExpr with
+	// the top of the stack instead of `input` for a V1 ThisExpr.
+	thisRebindStack []string
+}
+
+// pushThisRebind makes V1 `this` translate to the given V2 identifier name
+// (typically a map parameter) while the callback is active.
+func (t *translator) pushThisRebind(name string) { t.thisRebindStack = append(t.thisRebindStack, name) }
+func (t *translator) popThisRebind() {
+	if n := len(t.thisRebindStack); n > 0 {
+		t.thisRebindStack = t.thisRebindStack[:n-1]
+	}
+}
+func (t *translator) currentThisRebind() (string, bool) {
+	if n := len(t.thisRebindStack); n > 0 {
+		return t.thisRebindStack[n-1], true
+	}
+	return "", false
 }
 
 // scopeFrame is one level of named-context bindings.
@@ -283,38 +302,134 @@ func (t *translator) translateBareExpr(b *v1ast.BareExprStmt) syntax.Stmt {
 
 // translateMapDecl translates `map foo { ... }` to V2.
 //
-// V1 map bodies are statement lists producing a `root` value. V2 map bodies
-// are ExprBody: zero or more variable assignments followed by a single result
-// expression. The translator emits a best-effort ExprBody by:
-//  1. collecting all V1 `let` statements as var assignments,
-//  2. using the final `root = expr` as the result expression (if present).
+// V1 map bodies are statement lists that assemble a `root` value; the map's
+// implicit receiver is accessible as `this`. V2 map bodies are ExprBody:
+// zero or more variable assignments followed by a single result expression,
+// and parameters are explicit.
 //
-// This is not a perfect translation — V1 maps with multiple `root.x = …`
-// assignments cannot be represented as a single-result ExprBody without
-// constructing an object literal. We flag those cases as unsupported until a
-// dedicated rule is written.
+// The translation strategy:
+//  1. Give the V2 map a single parameter named "in" — the receiver.
+//  2. Rebind V1 `this` to that parameter inside the body.
+//  3. Translate V1 `let` statements to V2 VarAssigns, kept in order.
+//  4. Translate the last `root = expr` (or sole statement) as the Result.
+//  5. If the body contains multiple `root.x = ...` assignments, assemble
+//     them into an object literal as the Result.
+//  6. Otherwise (complex, unsupported shapes), flag and stub.
 func (t *translator) translateMapDecl(m *v1ast.MapDecl) *syntax.MapDecl {
-	t.rec.Rewritten(Change{
-		Line: m.Pos.Line, Column: m.Pos.Column,
-		Severity:    SeverityWarning,
-		Category:    CategoryUnsupported,
-		RuleID:      RuleMapDeclTranslation,
-		Explanation: "map declaration translation is not yet implemented; body emitted as placeholder",
-	})
-	// TODO: proper translation of V1 map bodies into V2 ExprBody.
-	// For now, emit a stub ExprBody with a null result so the V2 printer
-	// can at least serialise the declaration.
+	const paramName = "in"
+
+	t.pushScope(paramName)
+	t.pushThisRebind(paramName)
+	defer t.popScope()
+	defer t.popThisRebind()
+
+	body, ok := t.tryTranslateMapBody(m)
+	if !ok {
+		t.rec.Rewritten(Change{
+			Line: m.Pos.Line, Column: m.Pos.Column,
+			Severity: SeverityWarning, Category: CategoryUnsupported,
+			RuleID:      RuleMapDeclTranslation,
+			Explanation: "map body shape could not be translated; emitted stub returning input",
+		})
+		body = &syntax.ExprBody{
+			Result: &syntax.IdentExpr{
+				TokenPos:  pos(m.Pos),
+				Name:      paramName,
+				SlotIndex: -1,
+			},
+		}
+	} else {
+		t.rec.Exact()
+	}
+
 	return &syntax.MapDecl{
 		TokenPos: pos(m.Pos),
 		Name:     m.Name,
-		Body: &syntax.ExprBody{
-			Result: &syntax.LiteralExpr{
-				TokenPos:  pos(m.Pos),
-				TokenType: syntax.NULL,
-				Value:     "null",
-			},
-		},
+		Params:   []syntax.Param{{Name: paramName, Pos: pos(m.Pos), SlotIndex: -1}},
+		Body:     body,
 	}
+}
+
+// tryTranslateMapBody attempts to translate a V1 map body into a V2 ExprBody.
+// Returns (body, true) on success; (nil, false) when the body shape isn't
+// supported by the current rules (caller substitutes a stub).
+func (t *translator) tryTranslateMapBody(m *v1ast.MapDecl) (*syntax.ExprBody, bool) {
+	out := &syntax.ExprBody{}
+	var rootAssigns []*v1ast.Assignment
+	var finalResult syntax.Expr
+	for _, stmt := range m.Body {
+		switch s := stmt.(type) {
+		case *v1ast.LetStmt:
+			val := t.translateExpr(s.Value)
+			if val == nil {
+				return nil, false
+			}
+			out.Assignments = append(out.Assignments, &syntax.VarAssign{
+				TokenPos:  pos(s.Pos),
+				Name:      s.Name,
+				Value:     val,
+				SlotIndex: -1,
+			})
+		case *v1ast.Assignment:
+			// Only handle root-rooted assignments here. Other target kinds
+			// (meta, bare, this) aren't valid inside a map body per V1
+			// semantics (§10.1), but the V1 parser may have accepted them —
+			// bail.
+			if s.Target.Kind != v1ast.TargetRoot {
+				return nil, false
+			}
+			if len(s.Target.Path) == 0 {
+				// Whole-root replacement: `root = expr`. Becomes the result
+				// directly, superseding any previous field-level asserts.
+				v := t.translateExpr(s.Value)
+				if v == nil {
+					return nil, false
+				}
+				finalResult = v
+				rootAssigns = nil
+				continue
+			}
+			// Field-level assignment: accumulate for object-literal
+			// construction.
+			rootAssigns = append(rootAssigns, s)
+		default:
+			// Unsupported map body statement kind.
+			return nil, false
+		}
+	}
+
+	switch {
+	case finalResult != nil && len(rootAssigns) == 0:
+		out.Result = finalResult
+	case len(rootAssigns) > 0 && finalResult == nil:
+		// Build an object literal from the accumulated root.<path> = v
+		// assignments. Only one-level paths are supported here; deeper
+		// paths would require nested objects which a future rule can add.
+		obj := &syntax.ObjectLiteral{LBracePos: pos(m.Pos)}
+		for _, a := range rootAssigns {
+			if len(a.Target.Path) != 1 {
+				return nil, false
+			}
+			v := t.translateExpr(a.Value)
+			if v == nil {
+				return nil, false
+			}
+			key := &syntax.LiteralExpr{
+				TokenPos: pos(a.Target.Pos), TokenType: syntax.STRING,
+				Value: a.Target.Path[0].Name,
+			}
+			obj.Entries = append(obj.Entries, syntax.ObjectEntry{Key: key, Value: v})
+		}
+		out.Result = obj
+	case finalResult == nil && len(rootAssigns) == 0:
+		// Empty map body: return input unchanged.
+		out.Result = &syntax.IdentExpr{TokenPos: pos(m.Pos), Name: "in", SlotIndex: -1}
+	default:
+		// `root = X` mixed with `root.y = Y`: ambiguous. Bail.
+		return nil, false
+	}
+
+	return out, true
 }
 
 // translateImport translates `import "path"` to V2.
@@ -351,6 +466,13 @@ func (t *translator) translateExpr(e v1ast.Expr) syntax.Expr {
 	case *v1ast.Literal:
 		return t.translateLiteral(x)
 	case *v1ast.ThisExpr:
+		// Inside a V2 map body, V1 `this` refers to the map's receiver,
+		// which we surface as a named V2 parameter. Otherwise `this` is
+		// the top-level input.
+		if name, ok := t.currentThisRebind(); ok {
+			t.rec.Exact()
+			return &syntax.IdentExpr{TokenPos: pos(x.TokPos), Name: name, SlotIndex: -1}
+		}
 		t.rec.Rewritten(Change{
 			Line: x.TokPos.Line, Column: x.TokPos.Column,
 			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
