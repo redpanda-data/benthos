@@ -1,79 +1,147 @@
 # Bloblang V1 → V2 Migrator
 
-Tooling for mechanically migrating existing Bloblang V1 mappings to Bloblang V2. V2 is a redesign of the language with stricter semantics, explicit context management, and a formal specification (see `../spec/`). Existing V1 mappings in the wild — some of them large, some of them load-bearing — need a clear path forward, and the point of this directory is to build that path.
+A Go library that takes a Bloblang V1 mapping and produces an equivalent
+Bloblang V2 mapping plus a Report describing every semantic divergence it
+had to introduce. 100% fidelity is not a goal — V2 is a deliberate redesign
+that fixes V1 ambiguities, so some mappings will intentionally shift
+semantics. The migrator's job is to make every shift visible so a human can
+audit before cutover.
 
-## Goal
+## Usage
 
-Produce, over time, a set of tools that can:
+```go
+import "github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/translator"
 
-1. **Parse** V1 mappings (including their legacy/lenient forms) into a faithful AST.
-2. **Recognise** every V1 idiom that has a direct V2 counterpart, every idiom that needs rewriting, and every idiom that has no V2 equivalent yet.
-3. **Rewrite** mechanically where rewrites are safe, and **annotate** where human review is required.
-4. **Report** on the migration surface of a V1 mapping — what would change, what would not, what is ambiguous.
+rep, err := translator.Migrate(v1Source, translator.Options{
+    Verbose: true,                     // include Info-severity notes
+    Files:   imports,                  // optional virtual filesystem for imports
+})
+if err != nil {
+    // *CoverageError when the weighted translation ratio drops below
+    // Options.MinCoverage (default 0.75). The Report is still reachable
+    // via err.(*translator.CoverageError).Report.
+    return err
+}
 
-This directory starts with the **specification** of V1 as its own deliverable. A migration tool is only as correct as its understanding of the source language; writing the spec first forces us to catalogue every quirk up front rather than discover them as regressions later.
+fmt.Println(rep.V2Mapping)              // translated mapping
+for _, c := range rep.Changes {          // per-site divergences
+    fmt.Printf("%d:%d %s [%s %s] %s\n", c.Line, c.Column, c.Severity, c.Category, c.RuleID, c.Explanation)
+}
+fmt.Printf("coverage: %.2f (%d/%d translated exactly)\n",
+    rep.Coverage.Ratio, rep.Coverage.Translated, rep.Coverage.Total)
+```
 
-## Current contents
+A zero-valued `Options` means defaults (75% minimum coverage, terse
+reporting). Imports declared in the V1 source must be supplied via
+`Options.Files`; the migrator translates each imported file to V2 too and
+surfaces them on `Report.V2Files`.
 
-- **`bloblang_v1_spec.md`** — the complete V1 reference specification. A single document describing lexical structure, types, literals, operators (with verified precedence), paths, statements, expressions, the two dialects (full mapping vs. `${!...}` interpolation), error model, extensibility, and a catalogue of 25+ migration-critical quirks. Includes an informal EBNF and a file map back to the reference implementation.
-- **`v1spec/`** — spec-compliance test suite for V1. Not a test of the migrator (that doesn't exist yet); instead, a corpus of V1 mappings translated from the V2 spec tests (under `../spec/tests/`) together with a Go harness that runs them against the V1 interpreter and checks outputs match expectations. See [`v1spec/README.md`](v1spec/README.md) for running and contributing.
+## Pipeline
 
-Further tooling (parser, AST diff, rewriter, report generator) will be added alongside the spec.
+```
+V1 source
+  │
+  ├─► v1ast.Parse        — V1 parser (full reimplementation, handles the lenient
+  │                         grammar as it is, not as the docs describe it)
+  ├─► translator walk    — each V1 node → V2 node; every shift records a Change
+  ├─► syntax.Print       — V2 AST → V2 source text
+  └─► syntax.Parse       — non-fatal sanity check; failures become Changes
+                           tagged RuleEmittedInvalidV2 rather than errors
+                           (V1-invalid inputs produce V2-invalid outputs, and
+                           real translator bugs still surface at the caller's
+                           Compile)
+```
 
-## Sources used to produce the V1 spec
+## What is in the box
 
-The spec was reconciled from three primary sources, preferring the implementation wherever the documentation and implementation disagreed.
+| Path | What it holds |
+|---|---|
+| `bloblang_v1_spec.md` | Reference spec for V1 reconciled from the parser source, the config-test corpus, and the official docs. Includes a `§14` catalogue of migration-critical quirks. |
+| `v1ast/` | Self-contained V1 parser and AST. Exports `NodePos()` so translation rules can cite source positions on every Change. |
+| `v1spec/` | V1 spec-compliance corpus — V2 spec tests translated to V1, run against the V1 interpreter. Acts as a pin on V1 behaviour so the translator has a stable target. |
+| `translator/` | The migrator itself. `Migrate`, `Options`, `Report`, `Change`, `RuleID`. Translation rules live in `translate.go` (expression / statement walker) and `methods.go` (V2 method-shape rewrites). |
 
-### 1. Reference implementation
+## Testing
 
-`../../bloblang/` in this repository — the canonical V1 parser, evaluator, and built-in catalogue. Key files consulted:
+Five layers. Run with `task test` or `go test ./internal/bloblang2/migrator/...`.
 
-- `parser/mapping_parser.go` — statement dispatch, assignment targets, `let`, `map`, `import`, `from`.
-- `parser/query_parser.go` and `parser/query_function_parser.go` — expression primaries, path access, method/function dispatch, variable/metadata references.
-- `parser/query_arithmetic_parser.go` — flat arithmetic parse and unary minus handling.
-- `parser/query_expression_parser.go` — `if`, `match`, lambdas, bracketed map expressions.
-- `parser/query_literal_parser.go`, `parser/combinators.go` — literal grammars (number, string, triple-quoted, array, object).
-- `parser/field_parser.go` and `field/` — the `${!...}` interpolation dialect.
-- `parser/root_expression_parser.go` — root-level `if` / `else if` / `else`.
-- `query/arithmetic.go` — build-time precedence resolution (four-pass reduction), operator semantics, coalesce behaviour.
-- `query/functions*.go`, `query/methods*.go`, `query/function_set.go`, `query/method_set.go` — function/method registration.
-- `query/docs.go`, `query/params.go` — per-builtin metadata (status, category, named-args support).
-- `mapping/assignment.go`, `mapping/statement.go` — assignment target evaluation, delete/nothing sentinel handling.
-- `environment.go` — plugin API, import policies, purity restrictions.
+- **Layer 1 — V1 parser conformance** (`v1ast/parser_test.go`): parse every
+  non-skipped YAML case in `v1spec/tests/`, then re-print → re-parse to
+  check round-trip integrity.
+- **Layer 2 — Per-rule unit tests** (`translator/rules_test.go`): one case
+  per core RuleID. A regression here pinpoints the affected rule directly
+  rather than showing up as an anonymous corpus drop.
+- **Layer 3 — Contract tests** (`translator/migrate_test.go`,
+  `change_test.go`): the `Migrate` surface and `Change` serialisation.
+- **Layer 4 — End-to-end corpus regression**
+  (`translator/corpus_test.go`): translate every V1 mapping in
+  `v1spec/tests/`, compile the V2 output, run it through the V2
+  interpreter, compare against the test's expected output.
+  - **OK** — V2 matched V1's expected output.
+  - **Flagged** — V1 and V2 diverged, but the translator warned via a
+    `SemanticChange` or `Unsupported` Change, so the caller was told.
+  - **Unexpected** — V2 diverged silently. Test failure territory.
+  - Pass rate (OK + Flagged) is pinned via a floor in the test so real
+    regressions trip the gate.
+- **Layer 5 — Property tests** (`translator/property_test.go`):
+  never-panic on junk input, valid-V2 output always parses, Coverage.Ratio
+  always in [0,1], every Change has a non-zero position and non-empty
+  explanation.
 
-### 2. Conformance-ish corpus
+## Design choices worth knowing about
 
-`../../../config/test/bloblang/` — real mappings and expected outputs used as integration tests. These cover idioms that the implementation accepts but that the docs do not always advertise:
+- **Adopt V2, flag the shift**. Where V1 and V2 diverge, the translator
+  picks V2 semantics and records a `SemanticChange` Change pointing at the
+  `§14` anchor in the spec. Faithfully preserving V1 quirks (e.g. `.or()`
+  catching errors, `%` truncating floats, bare-ident shadowing) would mean
+  writing V2 code that exists to ape the old language's mistakes.
+- **Null-safe by default on bare paths**. V2 errors on field access over
+  non-object receivers; V1 returned null. Every bare-ident rewrite and
+  translated numeric path segment emits `?.` / `?[]` so V1's silent-null
+  behaviour carries over, and the divergence is still flagged for audits
+  where the receiver type matters.
+- **Non-fatal sanity parse**. The final `syntax.Parse` on the emitted V2
+  text is recorded as a Change rather than an error. Several V1 compile
+  errors (chained comparisons, missing imports, duplicate namespaces) echo
+  as V2 parse errors — treating them as translator bugs was noisy and
+  wrong.
+- **Fixpoint import translation**. Imported V1 files are translated in
+  dependency order so transitively imported files finish before their
+  dependants; cycles take a final pass with whatever siblings did
+  translate. Nested imports that aren't statically resolvable stay
+  unqualified and get a `RuleImportStatement` note — V2's namespaces don't
+  re-export transitively the way V1's flat map table did.
+- **`v1ast` is deliberately separate**. The official V1 parser is buried
+  in Benthos's `bloblang/parser/` and isn't easy to use as an AST source.
+  Reimplementing it as a standalone package here keeps the migrator
+  independent of runtime concerns and lets us round-trip V1 source
+  verbatim for printing.
 
-- `cities.blobl`, `csv_formatter.blobl`, `github_releases.blobl` — full mappings exercising `map`/`apply`, match patterns, `fold`, `map_each`, and string manipulation.
-- `*_test.yaml` files — input/output pairs for each `.blobl` mapping.
-- `boolean_operands.yaml`, `literals.yaml`, `csv.yaml`, `fans.yaml`, `env.yaml`, `message_expansion.yaml`, `walk_json.yaml`, `windowed.yaml` — focused tests for operator precedence, literal forms, environment access, batch handling, and meta manipulation.
+## Contributing
 
-Inline `*_test.go` files next to the parser and query packages were consulted for parse edge cases — these were the most valuable source for rejected syntax (what the parser *doesn't* accept):
+- **Spec corrections**: edit `bloblang_v1_spec.md` and cite the source
+  (`bloblang/parser/...` or a config-test fixture). The spec is authoritative
+  for the translator — if the spec is wrong, the translator encodes a bug.
+- **New rules**: add the RuleID to `translator/change.go` (append only; never
+  reuse values), emit the Change from the translation site, and add a case to
+  `translator/rules_test.go` asserting both the V2 substring and the RuleID.
+- **New V2 output behaviours**: update `go/pratt/syntax/print.go`, not the
+  translator — the translator emits V2 AST nodes, not text.
 
-- `parser/combinators_test.go` — pinpointed the number-literal grammar (digits required on both sides of the decimal), triple-quoted string edge cases, and the lenient comma rules for arrays/objects.
-- `parser/mapping_parser_test.go` — confirmed that two statements on one line are rejected, that `from` cannot be mixed with other statements, and the exact error message for the bare-expression-shorthand single-statement restriction.
-- `parser/query_literal_parser_test.go` — confirmed computed-key object syntax `{(expr): val}` and the rejection of non-string literal keys.
-- `parser/query_arithmetic_parser_test.go` — provided concrete inputs exercising `|` coalesce and `&&`/`||` chains that informed the precedence description.
-- `parser/query_expression_parser_test.go` — match separator flexibility (commas, newlines, both) and the literal-vs-expression classification of match patterns.
-- `parser/field_parser_test.go` — confirmed the `${{!...}}` literal-output escape form.
-- `query/arithmetic.go` + `query/arithmetic_test.go` — the four-pass precedence reduction and the `numberDegradationFunc` coercion rules.
-- `query/methods.go` — `.catch` / `.or` exact semantics; `.apply` variable-isolation reset; `iterator.go` for how `deleted()` and `nothing()` propagate through `.map_each`.
-- `query/type_helpers.go` — `IIsNull` treating `deleted()` / `nothing()` as null for coalesce purposes; `ICompare` for structural equality.
+## V1 spec provenance
 
-### 3. Official documentation
+The V1 spec was reconciled from three sources, with the implementation
+winning whenever the implementation and docs disagreed:
 
-From `docs.redpanda.com/redpanda-connect/`:
+1. **Reference implementation** — `../../bloblang/` in this repo. Key
+   files: `parser/mapping_parser.go`, `parser/query_*.go`,
+   `query/arithmetic.go`, `mapping/assignment.go`, `environment.go`.
+2. **Conformance-ish corpus** — `../../../config/test/bloblang/`: real
+   mappings and expected outputs. Inline `*_test.go` files next to the
+   parser packages were the best source for *rejected* syntax.
+3. **Official documentation** — `docs.redpanda.com/redpanda-connect/`
+   pages under `guides/bloblang/`. Treated as a strong prior, superseded
+   by the implementation where they differed.
 
-- `guides/bloblang/about/` — overview, assignment syntax, literals, control flow, coalesce, `.or()` vs `.catch()`, `deleted()` semantics.
-- `guides/bloblang/arithmetic/` — operator categories and operand typing (noted for its **absence** of a precedence table — the spec's precedence section is derived from the implementation).
-- `guides/bloblang/walkthrough/` — a tutorial that introduces idioms not mentioned on the main page, including the `.(name -> body)` bracketed named-capture form, the `without()` / `not_empty()` validators, and recursive `map`-definition patterns.
-- `guides/bloblang/advanced/` — map-parameter passing via object literals, stateful `count()`, `sort_by()`, `key_values()`, and recursive tree-walking idioms.
-- `configuration/interpolation/` — the `${!...}` dialect: what expression forms are permitted, the `${{!...}}` literal-output escape, multi-interpolation in a single field.
-- `guides/bloblang/functions/` and `guides/bloblang/methods/` — linked as the authoritative per-builtin reference rather than inlined.
-
-Documentation was treated as a strong prior, but superseded by the implementation where they differed. Disagreements are called out in the spec.
-
-## Contributing to the spec
-
-If you find a V1 construct that the spec does not cover, or a case where the spec contradicts the reference implementation, update `bloblang_v1_spec.md` and cite the source file and line. The spec is meant to be self-correcting over the life of the migration.
+Documentation disagreements with the implementation are called out in
+`bloblang_v1_spec.md` itself.

@@ -297,11 +297,6 @@ type Options struct {
 	// Migrate returns (nil, *CoverageError). Default 0.75.
 	MinCoverage float64
 
-	// PreserveComments attempts to keep V1 comments at the same statement
-	// position in the V2 output. Best-effort; comments mid-expression may
-	// be dropped.
-	PreserveComments bool
-
 	// Verbose emits Info-severity Changes. Without this, only Warning and
 	// Error Changes are recorded, keeping the report focused on items that
 	// need human attention.
@@ -324,8 +319,7 @@ type Options struct {
 // DefaultOptions returns reasonable defaults.
 func DefaultOptions() Options {
 	return Options{
-		MinCoverage:      0.75,
-		PreserveComments: true,
+		MinCoverage: 0.75,
 	}
 }
 
