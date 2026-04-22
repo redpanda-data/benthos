@@ -56,6 +56,8 @@ const (
 	DELETED
 	// THROW is the reserved function name "throw".
 	THROW
+	// VOID is the reserved function name "void".
+	VOID
 
 	// DOT is the "." operator.
 	DOT
@@ -144,6 +146,7 @@ var tokenNames = map[TokenType]string{
 	UNDERSCORE: "_",
 	DELETED:    "deleted",
 	THROW:      "throw",
+	VOID:       "void",
 	DOT:        ".",
 	QDOT:       "?.",
 	AT:         "@",
@@ -203,6 +206,7 @@ var keywords = map[string]TokenType{
 var reservedNames = map[string]TokenType{
 	"deleted": DELETED,
 	"throw":   THROW,
+	"void":    VOID,
 }
 
 // LookupIdent returns the token type for a word: keyword, reserved name,

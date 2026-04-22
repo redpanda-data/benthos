@@ -375,7 +375,7 @@ class Parser {
 
   private expectWord(): string {
     const tok = this.tok;
-    if (tok.type === TokenType.IDENT || isKeyword(tok.type) || tok.type === TokenType.DELETED || tok.type === TokenType.THROW) {
+    if (tok.type === TokenType.IDENT || isKeyword(tok.type) || tok.type === TokenType.DELETED || tok.type === TokenType.THROW || tok.type === TokenType.VOID) {
       this.advance();
       return tok.literal;
     }
@@ -591,6 +591,7 @@ class Parser {
 
       case TokenType.DELETED:
       case TokenType.THROW:
+      case TokenType.VOID:
         return this.parseReservedCall();
 
       case TokenType.UNDERSCORE:

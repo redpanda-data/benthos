@@ -67,17 +67,32 @@ export function stdlibNames(): {
 
   const methodInfos = new Map<string, MethodInfo>();
   for (const [name, spec] of methods) {
+    const methodAcceptsLambda = spec.lambdaFn !== null || spec.acceptsLambda === true;
     if (!spec.params) {
-      methodInfos.set(name, { required: 0, total: -1 });
+      methodInfos.set(name, {
+        required: 0,
+        total: -1,
+        acceptsLambda: methodAcceptsLambda,
+      });
       continue;
     }
     let required = 0;
     let total = 0;
-    for (const p of spec.params) {
+    const params = spec.params.map((p) => {
       total++;
       if (!p.hasDefault) required++;
-    }
-    methodInfos.set(name, { required, total });
+      return {
+        name: p.name,
+        hasDefault: p.hasDefault,
+        acceptsLambda: p.acceptsLambda === true,
+      };
+    });
+    methodInfos.set(name, {
+      required,
+      total,
+      acceptsLambda: methodAcceptsLambda,
+      params,
+    });
   }
 
   const functionInfos = new Map<string, FunctionInfo>();

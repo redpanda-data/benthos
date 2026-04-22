@@ -18,6 +18,40 @@ type MethodInfo struct {
 	// Total is the total number of parameters (required + optional).
 	// -1 means no arity checking (params not declared, validated at runtime).
 	Total int
+	// Params is per-parameter metadata, parallel to declared positions.
+	// Empty when the method doesn't declare params (variadic — e.g. .sort);
+	// in that case AcceptsLambda is the method-level fallback.
+	Params []MethodParamInfo
+	// AcceptsLambda is the method-level fallback used when Params is empty.
+	AcceptsLambda bool
+}
+
+// MethodParamInfo carries compile-time metadata about one method parameter.
+type MethodParamInfo struct {
+	Name          string
+	HasDefault    bool
+	AcceptsLambda bool
+}
+
+// ParamAcceptsLambda reports whether a lambda is accepted at the given
+// argument position. For named args, name selects the param; for positional
+// args, position is used.
+func (mi MethodInfo) ParamAcceptsLambda(position int, name string) bool {
+	if len(mi.Params) == 0 {
+		return mi.AcceptsLambda
+	}
+	if name != "" {
+		for _, p := range mi.Params {
+			if p.Name == name {
+				return p.AcceptsLambda
+			}
+		}
+		return false
+	}
+	if position < 0 || position >= len(mi.Params) {
+		return false
+	}
+	return mi.Params[position].AcceptsLambda
 }
 
 // ResolveOptions configures the semantic analysis pass.
@@ -273,10 +307,8 @@ func (r *resolver) resolveStmt(stmt Stmt) {
 }
 
 func (r *resolver) resolveAssignment(a *Assignment) {
-	// Lambdas cannot be stored in variables or assigned to output.
-	if _, ok := a.Value.(*LambdaExpr); ok {
-		r.error(a.TokenPos, "lambda expressions cannot be stored in a variable or assigned to output")
-	}
+	// Lambdas in any non-argument position are rejected by resolveExpr's
+	// *LambdaExpr case (spec Section 3.4). No additional check needed here.
 
 	// Map/function names cannot be stored in variables.
 	if ident, ok := a.Value.(*IdentExpr); ok {
@@ -359,9 +391,8 @@ func (r *resolver) resolveExprBody(body *ExprBody) {
 		return
 	}
 	for _, va := range body.Assignments {
-		if _, ok := va.Value.(*LambdaExpr); ok {
-			r.error(va.TokenPos, "lambda expressions cannot be stored as values")
-		}
+		// Lambdas in non-argument positions are caught by resolveExpr's
+		// *LambdaExpr case (spec Section 3.4).
 		r.resolveExpr(va.Value)
 		// Resolve expressions inside path segments (e.g., $acc[item.k] = ...).
 		for _, seg := range va.Path {
@@ -370,12 +401,13 @@ func (r *resolver) resolveExprBody(body *ExprBody) {
 			}
 		}
 		if len(va.Path) > 0 {
-			// Path assignment (e.g., $acc[$key] = val) mutates an existing
-			// variable — look it up rather than declaring/shadowing.
+			// Path assignment: mutate the existing variable if it's declared
+			// anywhere in scope, otherwise declare it in the current scope
+			// (Section 3.7: path assignment to undeclared is a declaration).
 			if slot, ok := r.scope.lookupSlot(va.Name); ok {
 				va.SlotIndex = slot
 			} else {
-				r.error(va.TokenPos, "undeclared variable $"+va.Name)
+				va.SlotIndex = r.scope.declareVar(va.Name)
 			}
 		} else {
 			va.SlotIndex = r.scope.declareVar(va.Name)
@@ -448,7 +480,8 @@ func (r *resolver) resolveExpr(expr Expr) {
 		r.resolveCall(e)
 	case *MethodCallExpr:
 		r.resolveExpr(e.Receiver)
-		if mi, ok := r.knownMethods[e.Method]; ok {
+		mi, miKnown := r.knownMethods[e.Method]
+		if miKnown {
 			r.checkMethodArity(e, mi)
 		}
 		if r.methodOpcodes != nil {
@@ -456,7 +489,7 @@ func (r *resolver) resolveExpr(expr Expr) {
 		}
 		saved := r.inMethodArg
 		r.inMethodArg = true
-		for _, arg := range e.Args {
+		for i, arg := range e.Args {
 			// Check map name references passed to higher-order methods.
 			if ident, ok := arg.Value.(*IdentExpr); ok {
 				if ident.Namespace != "" {
@@ -468,7 +501,8 @@ func (r *resolver) resolveExpr(expr Expr) {
 					r.checkMapRefArity(ident.TokenPos, ident.Name, m)
 				}
 			}
-			r.resolveExpr(arg.Value)
+			acceptsLambda := !miKnown || mi.ParamAcceptsLambda(i, arg.Name)
+			r.resolveArgValue(arg.Value, acceptsLambda, e.Method)
 		}
 		r.inMethodArg = saved
 	case *FieldAccessExpr:
@@ -490,6 +524,9 @@ func (r *resolver) resolveExpr(expr Expr) {
 	case *MatchExpr:
 		r.resolveMatchExpr(e)
 	case *LambdaExpr:
+		r.error(e.TokenPos, "lambda is only valid as a call argument (spec Section 3.4)")
+		// Still resolve the body so downstream passes don't see unresolved
+		// parameter slots. Errors already emitted will surface the issue.
 		r.resolveLambda(e)
 	case *PathExpr:
 		// Check map isolation for the path root.
@@ -527,7 +564,12 @@ func (r *resolver) resolveExpr(expr Expr) {
 			if len(seg.Args) > 0 {
 				saved := r.inMethodArg
 				r.inMethodArg = true
-				for _, arg := range seg.Args {
+				var segMi MethodInfo
+				segMiKnown := false
+				if seg.Kind == PathSegMethod {
+					segMi, segMiKnown = r.knownMethods[seg.Name]
+				}
+				for i, arg := range seg.Args {
 					if ident, ok := arg.Value.(*IdentExpr); ok {
 						if ident.Namespace != "" {
 							if m := r.findNamespacedMap(ident.Namespace, ident.Name); m != nil {
@@ -537,7 +579,8 @@ func (r *resolver) resolveExpr(expr Expr) {
 							r.checkMapRefArity(ident.TokenPos, ident.Name, m)
 						}
 					}
-					r.resolveExpr(arg.Value)
+					acceptsLambda := !segMiKnown || segMi.ParamAcceptsLambda(i, arg.Name)
+					r.resolveArgValue(arg.Value, acceptsLambda, seg.Name)
 				}
 				r.inMethodArg = saved
 			}
@@ -606,8 +649,24 @@ func (r *resolver) resolveCall(e *CallExpr) {
 	}
 
 	for _, arg := range e.Args {
-		r.resolveExpr(arg.Value)
+		// No function or user map accepts a lambda argument.
+		r.resolveArgValue(arg.Value, false, e.Name)
 	}
+}
+
+// resolveArgValue resolves a call argument's value. Lambdas are only legal
+// in this position (spec Section 3.4); they're rejected everywhere else by
+// resolveExpr's *LambdaExpr case. When acceptsLambda is false, a lambda
+// argument is rejected with a compile error that names the callee.
+func (r *resolver) resolveArgValue(value Expr, acceptsLambda bool, calleeName string) {
+	if lam, ok := value.(*LambdaExpr); ok {
+		if !acceptsLambda {
+			r.error(lam.TokenPos, calleeName+"() does not accept a lambda argument")
+		}
+		r.resolveLambda(lam)
+		return
+	}
+	r.resolveExpr(value)
 }
 
 // findNamespacedMap looks up a map by namespace and name.

@@ -72,7 +72,12 @@ export function registerLambdaMethods(interp: Interpreter): void {
     acceptsNull: false,
   });
 
-  const fnParam: MethodParam = { name: "fn", default_: null, hasDefault: false };
+  const fnParam: MethodParam = {
+    name: "fn",
+    default_: null,
+    hasDefault: false,
+    acceptsLambda: true,
+  };
 
   // --- filter ---
   interp.registerMethod(
@@ -330,7 +335,7 @@ export function registerLambdaMethods(interp: Interpreter): void {
         }
       }
       return mkArray(result);
-    }, [{ name: "fn", default_: null, hasDefault: true }]),
+    }, [{ name: "fn", default_: null, hasDefault: true, acceptsLambda: true }]),
   );
 
   // --- without_index ---
@@ -641,7 +646,7 @@ export function registerLambdaMethods(interp: Interpreter): void {
     fn: null,
     lambdaFn: null,
     intrinsic: true,
-    params: null,
+    params: [{ name: "fn", default_: null, hasDefault: false, acceptsLambda: true }],
     acceptsNull: false,
   });
 
@@ -649,7 +654,7 @@ export function registerLambdaMethods(interp: Interpreter): void {
     fn: null,
     lambdaFn: null,
     intrinsic: true,
-    params: null,
+    params: [{ name: "default", default_: null, hasDefault: false }],
     acceptsNull: false,
   });
 }

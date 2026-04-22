@@ -56,20 +56,22 @@ type MethodFunc func(receiver any, args []any) any
 
 // MethodParam describes a method parameter for named argument support.
 type MethodParam struct {
-	Name       string
-	Default    any // default value (nil means required)
-	HasDefault bool
+	Name          string
+	Default       any // default value (nil means required)
+	HasDefault    bool
+	AcceptsLambda bool // this position accepts a lambda argument
 }
 
 // MethodSpec bundles a method implementation with its behavioral metadata.
 // Metadata is colocated with the method definition so the interpreter dispatch
 // does not need hardcoded name lists.
 type MethodSpec struct {
-	Fn          MethodFunc       // regular method (mutually exclusive with LambdaFn)
-	LambdaFn    lambdaMethodFunc // lambda method (mutually exclusive with Fn)
-	Intrinsic   bool             // marks catch/or — dispatch handled inline, registered for name resolution only
-	Params      []MethodParam    // nil for methods with no named-arg support
-	AcceptsNull bool             // receiver can be nil (e.g., type, string, not_null)
+	Fn            MethodFunc       // regular method (mutually exclusive with LambdaFn)
+	LambdaFn      lambdaMethodFunc // lambda method (mutually exclusive with Fn)
+	Intrinsic     bool             // marks catch/or — dispatch handled inline, registered for name resolution only
+	Params        []MethodParam    // nil for methods with no named-arg support
+	AcceptsNull   bool             // receiver can be nil (e.g., type, string, not_null)
+	AcceptsLambda bool             // method accepts a lambda argument (implicit for LambdaFn-backed methods)
 }
 
 // lambdaMethodFunc is a method that receives unevaluated AST args (for lambda/map-ref arguments).
@@ -349,17 +351,21 @@ func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
 			if len(a.Target.Path) == 0 {
 				interp.stackSet(slot, value)
 			} else {
-				clone := DeepClone(interp.stackGet(slot))
+				existing := interp.stackGet(slot)
+				// Path assignment to an uninitialized variable declares it and
+				// auto-creates the root based on the first path segment (Section 3.7).
+				if _, uninit := existing.(uninitializedVal); uninit {
+					existing = nil
+				}
+				clone := DeepClone(existing)
 				interp.setPath(&clone, a.Target.Path, value)
 				interp.stackSet(slot, clone)
 			}
 		} else if len(a.Target.Path) == 0 {
 			interp.scope.set(a.Target.VarName, value)
 		} else {
-			existing, ok := interp.scope.get(a.Target.VarName)
-			if !ok {
-				panic(runtimeError{message: fmt.Sprintf("variable $%s not declared", a.Target.VarName)})
-			}
+			// Path assignment to an undeclared variable declares it here.
+			existing, _ := interp.scope.get(a.Target.VarName)
 			clone := DeepClone(existing)
 			interp.setPath(&clone, a.Target.Path, value)
 			interp.scope.set(a.Target.VarName, clone)
@@ -1194,7 +1200,11 @@ func (interp *Interpreter) evalExprBody(body *syntax.ExprBody) any {
 			if len(va.Path) == 0 {
 				interp.stackSet(slot, val)
 			} else {
-				clone := DeepClone(interp.stackGet(slot))
+				existing := interp.stackGet(slot)
+				if _, uninit := existing.(uninitializedVal); uninit {
+					existing = nil
+				}
+				clone := DeepClone(existing)
 				interp.setPath(&clone, va.Path, val)
 				interp.stackSet(slot, clone)
 			}
@@ -1202,10 +1212,7 @@ func (interp *Interpreter) evalExprBody(body *syntax.ExprBody) any {
 			if len(va.Path) == 0 {
 				interp.scope.set(va.Name, val)
 			} else {
-				existing, ok := interp.scope.get(va.Name)
-				if !ok {
-					return NewError(fmt.Sprintf("variable $%s not declared", va.Name))
-				}
+				existing, _ := interp.scope.get(va.Name)
 				clone := DeepClone(existing)
 				interp.setPath(&clone, va.Path, val)
 				interp.scope.set(va.Name, clone)
@@ -1389,7 +1396,7 @@ func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any 
 	if specOK && spec.Params != nil {
 		params = make([]namedArgParam, len(spec.Params))
 		for i, p := range spec.Params {
-			params[i] = namedArgParam(p)
+			params[i] = namedArgParam{Name: p.Name, Default: p.Default, HasDefault: p.HasDefault}
 		}
 	}
 	return interp.resolveNamedArgs(e.Args, params, "."+e.Method+"()")
