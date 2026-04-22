@@ -134,3 +134,30 @@ tests:
     mapping: |
       output = "hi".into((a, b) -> a)
     error: ""
+
+  # --- Special receivers: void, deleted(), error ---
+
+  - name: "into() on a void receiver is a runtime error"
+    mapping: |
+      output = (if false { 1 }).into(n -> n + 1)
+    error: "void"
+
+  - name: "into() on a void() receiver is a runtime error"
+    mapping: |
+      output = void().into(n -> "x")
+    error: "void"
+
+  - name: "into() on a deleted() receiver is a runtime error"
+    mapping: |
+      output = deleted().into(n -> "x")
+    error: "deleted"
+
+  - name: "into() passes errors through unchanged (catchable downstream)"
+    mapping: |
+      output = (1 / 0).into(n -> n).catch(_ -> "caught")
+    output: "caught"
+
+  - name: "rescue void before into() via .or()"
+    mapping: |
+      output = (if false { 1 }).or(0).into(n -> n + 1)
+    output: 1

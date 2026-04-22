@@ -190,6 +190,7 @@ output.result = match input.x {
 | Context | Behavior |
 |---------|----------|
 | Output field assignment (`output.x = void`) | Assignment skipped; prior value (if any) preserved |
+| Root output assignment (`output = void`) | Assignment skipped; prior value preserved (`{}` if no prior assignment) |
 | Variable declaration (`$x = void`) | Runtime error |
 | Variable reassignment (`$x = void`, `$x` exists) | Assignment skipped; prior value preserved |
 | Collection literal (`[1, void, 3]`) | Error |
@@ -297,6 +298,22 @@ output.label = if input.flag { "yes" } else { "no" }
 **Rationale for the boolean restriction:** In equality match, a case like `input.score >= 100` is almost always a mistake — the user meant to use `as` for boolean conditions, not compare the matched value against `true`/`false`. Rejecting boolean cases catches this common error. The trade-off is that you cannot equality-match on boolean values (`match input.flag { true => ..., false => ... }`). This is intentional: `if`/`else` handles the boolean case more clearly, and multi-way dispatch on a value that could be `true`, `false`, or a non-boolean is better expressed with `match ... as` or `if`/`else if`/`else` chains.
 
 **Compile-time vs runtime detection:** Boolean literals (`true`, `false`) as case expressions are caught at compile time as a convenience — their type is statically known. Dynamic expressions whose type is not known until runtime (e.g., `match x { $var => ... }` where `$var` happens to be boolean) produce the same error at runtime. In both cases, the fix is the same: use `match ... as` for boolean conditions, or `if`/`else` for boolean dispatch. The split in error timing reflects what the compiler can prove statically, not a semantic difference.
+
+**The runtime boolean-case check is lazy.** It only applies to cases that are actually evaluated. Cases in an equality match are evaluated in order, and the first one that matches selects the arm; subsequent case expressions are not evaluated and therefore do not trigger the boolean-case error. A later case that would have been boolean is only a runtime error if execution reaches it. The compile-time rejection of boolean *literals* is unaffected — literal `true`/`false` cases are rejected regardless of whether they would be reached at runtime.
+
+```bloblang
+$b = true
+output.v = match "x" {
+  "x" => "hit",   # matches; subsequent cases are not evaluated
+  $b  => "boom",   # never evaluated — no error thrown at runtime
+}
+# Result: output.v == "hit"
+
+output.w = match "y" {
+  "x" => "hit",   # does not match
+  $b  => "boom",   # evaluated — runtime error (boolean case in equality match)
+}
+```
 
 **2. Boolean match with `as` (`match expr as x { bool => ... }`):** The matched expression is evaluated **once** and bound to the variable. The `as` binding is available in case conditions, result expressions, and statement bodies (for match statements). It is block-scoped to the match — it cannot be referenced after the match closes. Each case must be a **boolean expression** (evaluated in order, first `true` wins). If a case evaluates to a non-boolean value, an error is thrown. The wildcard `_` is exempt from this requirement — it always matches unconditionally.
 

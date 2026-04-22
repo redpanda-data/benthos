@@ -125,7 +125,9 @@ null?.uppercase()           # null (short-circuited: value is null)
 - **Left-associative:** Arithmetic (`+`, `-`, `*`, `/`, `%`), Logical (`&&`, `||`)
 - **Non-associative:** Comparison (`>`, `>=`, `<`, `<=`), Equality (`==`, `!=`)
 
-**Lambda arrow (`->`):** The `->` token is not a binary operator and does not participate in the precedence hierarchy. A lambda is recognized by its distinct prefix — `identifier ->` or `(params) ->` — which the parser can identify before any precedence comparison. The arrow then consumes the entire right-hand side as the lambda body. For example, `x -> x + 1` parses as `x -> (x + 1)`, and `5 + x -> x * 2` parses as `5 + (x -> x * 2)` (an error, since a lambda is only valid as a method argument).
+**Lambda arrow (`->`):** The `->` token is not a binary operator and does not participate in the precedence hierarchy. A lambda is recognized by its distinct prefix — `identifier ->` or `(params) ->` — which the parser can identify before any precedence comparison. The arrow then consumes the entire right-hand side as the lambda body. For example, `x -> x + 1` parses as `x -> (x + 1)`.
+
+Lambdas are **not** general expressions — they appear only as arguments to function and method calls (positional or named). Using a lambda in any other expression position — assignment RHS (`$fn = x -> x`), collection literal element (`[x -> x]`), operator operand (`5 + x -> x * 2`), etc. — is a **parse error**. See Section 10 for the grammar.
 
 ```bloblang
 # Precedence examples
@@ -207,7 +209,9 @@ input.value.type()          # Works on any type including null
 
 ## 3.4 Lambda Expressions
 
-Lambdas are inline syntax for method arguments — they are not values that can be stored in variables. `$fn = x -> x * 2` is not valid. For reusable transforms, use named maps (Section 5).
+Lambdas are inline syntax for method and function call arguments — they are not values that can be stored in variables, embedded in collection literals, or used as operator operands. The grammar (Section 10) permits a lambda only in the `arg_value` position of positional or named arguments; any other position is a **parse error**. For example, `$fn = x -> x * 2`, `[x -> x]`, `{"a": x -> x}`, and `5 + x -> x * 2` are all parse errors. For reusable transforms, use named maps (Section 5).
+
+Whether a call actually accepts a lambda at a given argument position is a separate semantic check. Most standard library methods that accept a lambda document it explicitly (e.g., `.map()`, `.filter()`, `.sort_by()`). Passing a lambda to a method or function whose signature does not accept one (e.g., `.or(x -> x)`, `some_map(x -> x)`) is a **compile error**.
 
 Lambda parameters are **read-only** and available as bare identifiers within the lambda body.
 
@@ -384,6 +388,23 @@ $user.address.city = "London"         # Auto-creates intermediates
 $user.tags[0] = "admin"              # Index assignment
 $user.address = deleted()             # Removes the field from the object inside $user
 
+$val = "hello"
+$val.field = "x"                      # ERROR: cannot assign field on string
+```
+
+**Path assignment to an undeclared variable is a declaration.** If the variable does not yet exist in the current scope, the first path assignment introduces it and auto-creates its root value using the same type-inference rules as `output` auto-creation (Section 3.7): a field component (`.field`) creates an object, a numeric index (`[0]`, `[$idx]` where `$idx` is numeric) creates an array, and a string-valued dynamic index creates an object. This is a new declaration in the current scope — subsequent statements in the same scope refer to the same variable.
+
+```bloblang
+# Undeclared $user — path assignment auto-creates $user as {}
+$user.name = "Alice"                  # $user is {"name": "Alice"}
+$user.address.city = "London"         # $user is {"name": "Alice", "address": {"city": "London"}}
+output.u = $user
+
+# Undeclared $arr — numeric index auto-creates $arr as []
+$arr[0] = "first"                     # $arr is ["first"]
+$arr[2] = "third"                     # $arr is ["first", null, "third"]
+
+# Type collision still errors when the variable already exists with an incompatible type
 $val = "hello"
 $val.field = "x"                      # ERROR: cannot assign field on string
 ```

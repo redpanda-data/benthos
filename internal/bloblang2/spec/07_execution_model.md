@@ -170,16 +170,16 @@ Undefined metadata keys return `null`.
 
 **Context Access Permissions:**
 
-| Context | Read `input` | Read `output` | Write `output`/`output@` | Read/Write `$var` |
-|---------|--------------|---------------|--------------------------|-------------------|
-| Top-level mapping | ✅ | ✅ | ✅ | ✅ |
-| Map body | ❌ | ❌ | ❌ | ✅ (locally declared only) |
-| Expression context (top-level) | ✅ | ✅ | ❌ | ✅ |
-| Expression context (inside map) | ❌ | ❌ | ❌ | ✅ (map's local variables only) |
-| Match `as` binding (top-level) | ✅ | ✅ | ❌ | ✅ |
-| Match `as` binding (inside map) | ❌ | ❌ | ❌ | ✅ (map's local variables only) |
+| Context | Read `input` | Read `output` | Write `output`/`output@` | Read enclosing params | Read/Write `$var` |
+|---------|--------------|---------------|--------------------------|-----------------------|-------------------|
+| Top-level mapping | ✅ | ✅ | ✅ | n/a | ✅ |
+| Map body | ❌ | ❌ | ❌ | ✅ (own params) | ✅ (locally declared only) |
+| Expression context (top-level) | ✅ | ✅ | ❌ | n/a | ✅ |
+| Expression context (inside map) | ❌ | ❌ | ❌ | ✅ (enclosing map's params + own lambda params) | ✅ (enclosing map's local variables) |
+| Match `as` binding (top-level) | ✅ | ✅ | ❌ | n/a | ✅ |
+| Match `as` binding (inside map) | ❌ | ❌ | ❌ | ✅ (enclosing map's params) | ✅ (enclosing map's local variables) |
 
-**Key principle:** Map bodies cannot access `input`, `output`, or top-level `$variables` — the only data available inside a map is its parameters and variables declared within the map body. Inline lambdas and expressions at the top-level can read (but not write) `input` and `output`.
+**Key principle:** Map bodies cannot access `input`, `output`, or top-level `$variables` — the only data available inside a map is its parameters and variables declared within the map body. Inline lambdas and expressions at the top-level can read (but not write) `input` and `output`. Lambdas inherit the read permissions of their enclosing context (Section 3.4), which is why a lambda nested inside a map can still read that map's parameters and local variables (but cannot reach `input` / `output` / top-level `$var`).
 
 **Examples:**
 ```bloblang
@@ -305,7 +305,7 @@ Variable path assignment (`$var.field = expr`) is available in all contexts. In 
 ## 7.7 Evaluation Order
 
 Statements execute sequentially, top-to-bottom.
-Variables must be declared before use.
+Variables must be declared before being read. A variable is declared either by direct assignment (`$x = expr`) or by path assignment to an undeclared name (`$x.field = expr`, `$x[0] = expr`), which auto-creates the root value per Section 3.7's type-inference rules. Reading an undeclared variable (`output.y = $never`) is a compile-time error.
 **Map declarations are hoisted** — maps can be called before their declaration in the file. All maps are resolved before execution begins, so declaration order does not matter. Duplicate map names within the same file are a compile-time error.
 
 ```bloblang
