@@ -1,0 +1,158 @@
+description: >
+  String codepoint operations — indexing returns codepoints (int64),
+  .char() converts back, .length() counts codepoints, .split("") splits
+  by codepoint, and .reverse() reverses by codepoint.
+
+tests:
+  # --- String indexing returns codepoint values ---
+
+  - name: "ASCII character index returns codepoint"
+    mapping: |
+      root.v = "hello"[0]
+    output: {"v": 104}
+    skip: "V2-only: V1 has no bracket-indexing syntax (§14.10); strings are not indexable by int in V1."
+
+  - name: "second ASCII character"
+    mapping: |
+      root.v = "hello"[1]
+    output: {"v": 101}
+    skip: "V2-only: V1 has no bracket-indexing syntax and no codepoint indexing on strings."
+
+  - name: "space codepoint"
+    mapping: |
+      root.v = "a b"[1]
+    output: {"v": 32}
+    skip: "V2-only: V1 has no bracket-indexing syntax and no codepoint indexing on strings."
+
+  - name: "digit character codepoint"
+    mapping: |
+      root.v = "0"[0]
+    output: {"v": 48}
+    skip: "V2-only: V1 has no bracket-indexing syntax and no codepoint indexing on strings."
+
+  # --- .char() round-trip ---
+
+  - name: "char converts codepoint back to string"
+    mapping: |
+      root.v = 104.char()
+    output: {"v": "h"}
+    skip: "V2-only: V1 has no .char() method."
+
+  - name: "char round-trip from indexing"
+    mapping: |
+      root.v = "hello"[0].char()
+    output: {"v": "h"}
+    skip: "V2-only: V1 has no bracket-indexing and no .char() method."
+
+  - name: "char with emoji codepoint"
+    mapping: |
+      root.v = 128075.char()
+    output: {"v": "\U0001F44B"}
+    skip: "V2-only: V1 has no .char() method."
+
+  # --- .length() counts codepoints ---
+
+  - name: "ASCII string length"
+    mapping: |
+      root.v = "hello".length()
+    output: {"v": 5}
+
+  - name: "empty string length"
+    mapping: |
+      root.v = "".length()
+    output: {"v": 0}
+
+  - name: "unicode string length counts codepoints"
+    # V1 `.length()` on a string counts bytes. "café" is 5 bytes (é = 2 bytes).
+    mapping: |
+      root.v = "café".length()
+    output: {"v": 5}
+
+  # --- .split("") splits by codepoint ---
+
+  - name: "split empty delimiter splits by codepoint"
+    mapping: |
+      root.v = "abc".split("")
+    output: {"v": ["a", "b", "c"]}
+    # FIXME-v1: verify — V1 .split("") behaviour with empty separator is not guaranteed to match.
+
+  - name: "split empty delimiter on empty string"
+    mapping: |
+      root.v = "".split("")
+    output: {"v": []}
+    # FIXME-v1: verify.
+
+  - name: "split on normal delimiter"
+    mapping: |
+      root.v = "a,b,c".split(",")
+    output: {"v": ["a", "b", "c"]}
+
+  - name: "split on multi-char delimiter"
+    mapping: |
+      root.v = "a::b::c".split("::")
+    output: {"v": ["a", "b", "c"]}
+
+  # --- .reverse() reverses by codepoint ---
+
+  - name: "reverse ASCII string"
+    mapping: |
+      root.v = "hello".reverse()
+    output: {"v": "olleh"}
+    # FIXME-v1: verify — V1 .reverse() on strings may not be implemented or may behave differently.
+
+  - name: "reverse empty string"
+    mapping: |
+      root.v = "".reverse()
+    output: {"v": ""}
+    # FIXME-v1: verify — V1 .reverse() on strings may not be implemented.
+
+  - name: "reverse single character"
+    mapping: |
+      root.v = "a".reverse()
+    output: {"v": "a"}
+    # FIXME-v1: verify — V1 .reverse() on strings may not be implemented.
+
+  # --- Negative indexing ---
+
+  - name: "negative index -1 is last codepoint"
+    mapping: |
+      root.v = "hello"[-1]
+    output: {"v": 111}
+    skip: "V2-only: V1 has no bracket-indexing (§14.10) and no negative numeric path segments (§14.11)."
+
+  - name: "negative index -1 char round-trip"
+    mapping: |
+      root.v = "hello"[-1].char()
+    output: {"v": "o"}
+    skip: "V2-only: V1 has no bracket-indexing, no .char() method, and no negative path indexing."
+
+  # --- Slice on strings ---
+
+  - name: "string slice basic"
+    mapping: |
+      root.v = "hello world".slice(0, 5)
+    output: {"v": "hello"}
+
+  - name: "string slice from middle"
+    mapping: |
+      root.v = "hello world".slice(6, 11)
+    output: {"v": "world"}
+
+  - name: "string slice clamped to length"
+    mapping: |
+      root.v = "hi".slice(0, 100)
+    output: {"v": "hi"}
+    # FIXME-v1: verify — V1 .slice() out-of-range behaviour (clamp vs error) differs by version.
+
+  - name: "string slice with negative start"
+    mapping: |
+      root.v = "hello".slice(-3, 5)
+    output: {"v": "llo"}
+    # FIXME-v1: verify — V1 .slice() negative-index behaviour differs by version.
+
+  - name: "string slice empty range"
+    # V1 `.slice(low, high)` rejects `low >= high` at compile time (the check is a literal-bounds check
+    # performed when both bounds are literal integers).
+    mapping: |
+      root.v = "hello".slice(3, 3)
+    compile_error: "lower slice bound"

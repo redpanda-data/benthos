@@ -1,0 +1,173 @@
+description: "Lambda return values — void errors, deleted() omission, filter boolean requirement, catch handler semantics"
+
+tests:
+  # --- Void in .map() is error ---
+  # V1 does not have a "void" concept — `if` expressions without else return `null`.
+  # .map_each returning null keeps the element as null (it does not error).
+
+  - name: "map lambda returning void is error"
+    # V1: an if-without-else returns `nothing()` (not null). `.map_each` treats a `nothing()`
+    # return as "leave the element unchanged", so the input array is returned verbatim.
+    mapping: |
+      root.result = [1, 2, 3].map_each(x -> if x > 10 { x })
+    output: {"result": [1, 2, 3]}
+
+  - name: "map lambda void from match is error"
+    # V1: a non-exhaustive match yields `nothing()` (not null). `.map_each` treats `nothing()`
+    # as "leave the element unchanged", so the input array comes back verbatim.
+    mapping: |
+      root.result = [1, 2].map_each(x -> match x { 99 => "found" })
+    output: {"result": [1, 2]}
+
+  # --- Void in .filter() is error ---
+
+  - name: "filter lambda returning void is error"
+    mapping: |
+      root.result = [1, 2, 3].filter(x -> if x > 10 { true })
+    output: {"result": []}
+    # FIXME-v1: verify — V1 filter requires boolean true to keep an element; null is not true, so all are filtered out. No error is raised.
+
+  # --- Filter requires boolean ---
+  # V1: "if this query resolves to any value other than a boolean `true` the element will be removed" — no error.
+
+  - name: "filter lambda returning non-boolean is error"
+    mapping: |
+      root.result = [1, 2, 3].filter(x -> x * 2)
+    output: {"result": []}
+    # FIXME-v1: verify — V1 filter is tolerant: non-true values just cause the element to be dropped, no error
+
+  - name: "filter lambda returning string is error"
+    mapping: |
+      root.result = [1, 2, 3].filter(x -> "yes")
+    output: {"result": []}
+    # FIXME-v1: verify — V1 filter drops elements for non-true (no error on string)
+
+  - name: "filter lambda returning null is error"
+    mapping: |
+      root.result = [1, 2, 3].filter(x -> null)
+    output: {"result": []}
+    # FIXME-v1: verify — V1 filter drops elements for non-true (no error on null)
+
+  - name: "filter lambda returning boolean works"
+    mapping: |
+      root.result = [1, 2, 3, 4].filter(x -> x % 2 == 0)
+    output: {"result": [2, 4]}
+
+  # --- deleted() in .map() omits element ---
+
+  - name: "map lambda returning deleted omits element"
+    mapping: |
+      root.result = [1, -2, 3, -4].map_each(x -> if x > 0 { x } else { deleted() })
+    output: {"result": [1, 3]}
+
+  - name: "map lambda all deleted returns empty array"
+    mapping: |
+      root.result = [1, 2, 3].map_each(x -> deleted())
+    output: {"result": []}
+
+  - name: "map lambda deleted from match"
+    mapping: |
+      root.result = ["a", "bb", "c", "dd"].map_each(s -> match {
+        s.length() > 1 => s.uppercase(),
+        _ => deleted()
+      })
+    output: {"result": ["BB", "DD"]}
+
+  # --- deleted() in .map_values() omits entry ---
+  # V1 has no .map_values; use .map_each on the object (which yields {key,value} entries)
+  # and return deleted() to drop that entry.
+
+  - name: "map_values deleted omits entry"
+    mapping: |
+      root.result = {"a": 1, "b": -2, "c": 3}.map_each(item -> if item.value > 0 { item.value } else { deleted() })
+    output: {"result": {"a": 1, "c": 3}}
+
+  # --- .catch() handler returning deleted ---
+  # V1 .catch can take a lambda `err -> ...` where err is the error message string (not an object with .what).
+
+  - name: "catch handler returning deleted removes field"
+    mapping: |
+      root.value = "not a number".number().catch(err -> deleted())
+    output: {}
+
+  - name: "catch handler returning deleted with prior value"
+    mapping: |
+      root.value = "prior"
+      root.value = "not a number".number().catch(err -> deleted())
+    output: {}
+
+  # --- .catch() handler returning void ---
+  # V1 has no void; `if false { 0 }` returns null. Assigning null is not skipped like V2's nothing().
+  # To skip an assignment in V1 use `nothing()` explicitly.
+
+  - name: "catch handler returning void skips assignment"
+    # V1: if-without-else yields `nothing()`, not null. A `nothing()` RHS causes the entire
+    # assignment to be skipped, so the prior value is preserved.
+    mapping: |
+      root.value = "prior"
+      root.value = "not a number".number().catch(err -> if false { 0 })
+    output: {"value": "prior"}
+
+  - name: "catch handler void on fresh field leaves it absent"
+    # V1: the assignment is skipped (RHS is `nothing()`), so no `root` is written.
+    # With no input and no root assignment, the mapping preserves the (null) input.
+    mapping: |
+      root.value = "not a number".number().catch(err -> if false { 0 })
+    output: null
+
+  # --- .catch() handler normal value ---
+
+  - name: "catch handler provides fallback value"
+    mapping: |
+      root.value = "not a number".number().catch(err -> -1)
+    output: {"value": -1}
+    # V1 numbers are not typed (no int64 wrapper); -1 is just -1
+
+  - name: "catch handler can access error message"
+    # V1: the catch lambda's param is the error MESSAGE STRING (not an object).
+    mapping: |
+      root.msg = throw("custom error").catch(err -> err)
+    output: {"msg": "custom error"}
+    # FIXME-v1: verify — V1 err is the bare string; may include path prefix like "failed assignment: custom error"
+
+  # --- Void in .fold() is error ---
+
+  - name: "fold lambda returning void is error"
+    # V1: a `nothing()` return (from if-without-else) propagates through fold — the whole
+    # `root.result = ...` assignment is skipped. With no other root writes and null input,
+    # the mapping preserves the input (null).
+    mapping: |
+      root.result = [1, 2, 3].fold(0, item -> if item.value > 10 { item.tally + item.value })
+    output: null
+
+  # --- Void in .map_values() is error ---
+
+  - name: "map_values lambda returning void is error"
+    # V1: an if-without-else yields `nothing()`, and `.map_each` on an object treats a
+    # `nothing()` return as "leave the entry unchanged". So the value survives.
+    mapping: |
+      root.result = {"a": 1}.map_each(item -> if item.value > 10 { item.value })
+    output: {"result": {"a": 1}}
+
+  # --- Void in .sort_by() is error ---
+
+  - name: "sort_by lambda returning void is error"
+    mapping: |
+      root.result = [1, 2].sort_by(x -> if x > 10 { x })
+    error: "expected number or string value" # FIXME-v1: verify — V1 sort_by requires strings or numbers; null may error
+
+  # --- .catch() passes through on success ---
+
+  - name: "catch not triggered on success"
+    # V1 `.number()` on a string returns a float64 (not int64), so expect 42.0 here.
+    mapping: |
+      root.value = "42".number().catch(err -> -1)
+    output: {"value": 42.0}
+
+  # --- deleted() in filter is error (not boolean) ---
+
+  - name: "filter lambda returning deleted is error"
+    mapping: |
+      root.result = [1, 2, 3].filter(x -> deleted())
+    output: {"result": []}
+    # FIXME-v1: verify — V1 filter drops elements for non-true; deleted() is sentinel, not bool true, so all dropped (no error)

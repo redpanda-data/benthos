@@ -1,0 +1,156 @@
+description: "Variable declaration: basic usage, types, use-before-declare errors, void and deleted errors"
+
+tests:
+  # --- Basic declaration and use ---
+
+  - name: "declare and use integer variable"
+    mapping: |
+      let x = 42
+      root.v = $x
+    output: {"v": 42}
+
+  - name: "declare and use string variable"
+    mapping: |
+      let name = "hello"
+      root.v = $name
+    output: {"v": "hello"}
+
+  - name: "declare and use boolean variable"
+    mapping: |
+      let flag = true
+      root.v = $flag
+    output: {"v": true}
+
+  - name: "declare and use null variable"
+    mapping: |
+      let val = null
+      root.v = $val
+    output: {"v": null}
+
+  - name: "declare and use float variable"
+    mapping: |
+      let pi = 3.14
+      root.v = $pi
+    output: {"v": 3.14}
+
+  - name: "declare and use array variable"
+    mapping: |
+      let arr = [1, 2, 3]
+      root.v = $arr
+    output: {"v": [1, 2, 3]}
+
+  - name: "declare and use object variable"
+    mapping: |
+      let obj = {"a": 1, "b": 2}
+      root.v = $obj
+    output: {"v": {"a": 1, "b": 2}}
+
+  - name: "declare variable from expression"
+    mapping: |
+      let x = 10 + 5
+      root.v = $x
+    output: {"v": 15}
+
+  - name: "declare variable from input field"
+    input: {"name": "Alice"}
+    mapping: |
+      let n = this.name
+      root.v = $n
+    output: {"v": "Alice"}
+
+  - name: "declare variable from other variable"
+    mapping: |
+      let a = 100
+      let b = $a
+      root.v = $b
+    output: {"v": 100}
+
+  - name: "multiple independent variables"
+    mapping: |
+      let x = 1
+      let y = 2
+      let z = 3
+      root.sum = $x + $y + $z
+    output: {"sum": 6}
+
+  - name: "variable used in expression"
+    mapping: |
+      let base = 10
+      root.v = $base * 2 + 1
+    output: {"v": 21}
+
+  # --- Use before declare is compile error ---
+
+  - name: "use undeclared variable is compile error"
+    mapping: |
+      root.v = $x
+    error: "undefined" # FIXME-v1: verify — V1 raises a runtime error ("variable 'x' undefined") rather than a compile error
+
+  - name: "use variable before its declaration is compile error"
+    mapping: |
+      root.v = $x
+      let x = 42
+    error: "undefined" # FIXME-v1: verify — V1 evaluates let eagerly; read before let is a runtime undefined error
+
+  - name: "reference undeclared variable in expression is compile error"
+    mapping: |
+      let y = $x + 1
+    error: "undefined" # FIXME-v1: verify — V1 produces a runtime "variable 'x' undefined" error
+
+  # --- Void in declaration is runtime error ---
+
+  - name: "void from if-without-else in declaration is runtime error"
+    skip: "V1 if-expression without matching branch yields null, not a void/error; let binding accepts null"
+    mapping: |
+      let x = if false { 42 }
+    error: "void" # FIXME-v1: V1 produces null here, so no error is raised
+
+  - name: "void from non-exhaustive match in declaration is runtime error"
+    skip: "V1 match with no matching arm yields null, not an error"
+    mapping: |
+      let x = match "nope" {
+        "a" => 1,
+      }
+    error: "void" # FIXME-v1: V1 produces null
+
+  - name: "void from else-if chain without final else in declaration is runtime error"
+    skip: "V1 if-chain without matching branch yields null, not an error"
+    input: {"score": 10}
+    mapping: |
+      let tier = if false { "gold" } else if false { "silver" }
+    error: "void" # FIXME-v1: V1 produces null
+
+  # --- Deleted in declaration is runtime error ---
+
+  - name: "deleted in variable declaration is runtime error"
+    skip: "V1 treats `let x = deleted()` as a DELETE of the binding (no error); subsequent $x reads fail"
+    mapping: |
+      let x = deleted()
+    error: "deleted" # FIXME-v1: V1 silently deletes the var; no error at the let
+
+  # --- Void rescued with or is ok ---
+
+  - name: "or rescues void for variable declaration"
+    mapping: |
+      let x = (if false { 42 }).or(0)
+      root.v = $x
+    output: {"v": 0}
+
+  - name: "if-else provides value for variable declaration"
+    mapping: |
+      let x = if false { 42 } else { 0 }
+      root.v = $x
+    output: {"v": 0}
+
+  # --- Variable holds bytes ---
+
+  - name: "declare variable with bytes value"
+    mapping: |
+      let b = "hello".bytes()
+      root.v = $b
+    output: {"v": {_type: "bytes", value: "aGVsbG8="}}
+
+  # --- Variable holds timestamp ---
+
+  - name: "declare variable with timestamp value"
+    skip: "migrator V1 core env lacks ts_parse (lives in internal/impl/pure, not loaded by the test harness)"

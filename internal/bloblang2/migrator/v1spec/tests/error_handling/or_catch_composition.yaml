@@ -1,0 +1,129 @@
+description: >
+  Composing .or() and .catch() — order matters, short-circuit semantics,
+  null-safe operator interactions, and complex rescue chains.
+
+tests:
+  # --- .catch() first, .or() second ---
+
+  - name: "catch handles error, or not needed"
+    mapping: |
+      root.v = throw("x").catch(err -> "caught").or("default")
+    output: {"v": "caught"}
+
+  - name: "catch returns null, or rescues null"
+    mapping: |
+      root.v = throw("x").catch(err -> null).or("default")
+    output: {"v": "default"}
+
+  - name: "catch returns value, or passes through"
+    mapping: |
+      root.v = throw("x").catch(err -> 42).or(0)
+    output: {"v": 42}
+
+  # --- .or() first, .catch() second ---
+  # Note: V1 .or() catches errors too, so the .catch() below never fires.
+
+  - name: "or does not handle error, catch does"
+    input: {"zero": 0}
+    mapping: |
+      root.v = (5 / this.zero).or("ignored").catch(err -> "caught")
+    output: {"v": "ignored"} # V1 literal `5 / 0` fails at compile; use runtime operand. V1 .or() catches the divide-by-zero, so value is "ignored"
+
+  - name: "or rescues null, catch not needed"
+    mapping: |
+      root.v = null.or("default").catch(err -> "error")
+    output: {"v": "default"}
+
+  # --- .or() default can itself error, caught by .catch() ---
+
+  - name: "or default errors, caught by subsequent catch"
+    input: {"zero": 0}
+    mapping: |
+      root.v = null.or(5 / this.zero).catch(err -> "safe")
+    output: {"v": "safe"} # V1 literal `5 / 0` fails at compile; use runtime operand
+
+  # --- Chained rescue patterns ---
+  # V1 has no null-safe `?.` operator (§6.2 of the V1 spec). Path access into
+  # null naturally yields null in V1, so `.or(...)` alone is the idiom.
+
+  - name: "null-safe then or for nested field"
+    mapping: |
+      root.v = this.user.name.or("anonymous")
+    cases:
+      - name: "null user returns fallback"
+        input: {"user": null}
+        output: {"v": "anonymous"} # FIXME-v1: verify — V1 path access into null yields null; .or rescues
+      - name: "present user returns name"
+        input: {"user": {"name": "Alice"}}
+        output: {"v": "Alice"}
+
+  - name: "null-safe chain to null then catch for method error"
+    mapping: |
+      let v = null
+      root.v = $v.trim().or("empty")
+    output: {"v": "empty"} # FIXME-v1: verify — V1 .trim() on null errors; V1 .or() catches errors (unlike V2) so fallback is used
+
+  # --- Directly on input/variable with chaining ---
+
+  - name: "or on input then method chain"
+    input: null
+    mapping: |
+      root.v = this.or("hello").uppercase()
+    output: {"v": "HELLO"}
+
+  - name: "catch on input then or"
+    input: null
+    mapping: |
+      root.v = this.not_null().catch(err -> null).or("rescued")
+    output: {"v": "rescued"}
+
+  - name: "or on variable then catch"
+    input: {"zero": 0}
+    mapping: |
+      let v = null
+      root.v = $v.or(5 / this.zero).catch(err -> "safe")
+    output: {"v": "safe"} # V1 literal `5 / 0` fails at compile; use runtime operand
+
+  # --- .or() with deleted ---
+
+  - name: "or rescues deleted from conditional"
+    mapping: |
+      root.v = (if false { deleted() } else { deleted() }).or("rescued")
+    output: {"v": "rescued"}
+
+  # --- Error in or argument is only evaluated when needed ---
+
+  - name: "or short-circuits — error in argument not evaluated"
+    mapping: |
+      root.v = "present".or(throw("boom"))
+    output: {"v": "present"}
+
+  - name: "or evaluates argument on null — error propagates"
+    mapping: |
+      root.v = null.or(throw("boom"))
+    error: "boom"
+
+  # --- Triple chain: or, catch, or ---
+
+  - name: "triple rescue chain"
+    input: {"zero": 0}
+    mapping: |
+      root.v = null.or(5 / this.zero).catch(err -> null).or("final")
+    output: {"v": "final"} # V1 literal `5 / 0` fails at compile; use runtime operand
+
+  # --- not_null with catch ---
+
+  - name: "not_null error caught by catch"
+    mapping: |
+      root.v = null.not_null().catch(err -> "was null")
+    output: {"v": "was null"}
+
+  - name: "not_null passes through non-null"
+    mapping: |
+      root.v = "hello".not_null()
+    output: {"v": "hello"}
+
+  - name: "not_null error message contains context"
+    mapping: |
+      root.v = null.not_null().catch(err -> err)
+    output: {"v": "null literal: value is null"} # V1 err is a string (no .what); message is prefixed with the source expression context
