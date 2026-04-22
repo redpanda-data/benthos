@@ -150,6 +150,12 @@ var ruleCases = []ruleCase{
 		wantV2:    []string{"%"},
 		wantRules: []translator.RuleID{translator.RuleModuloFloatTruncation},
 	},
+	{
+		name:      "/ flags int-division-returns-float divergence",
+		v1:        `root = this.x / 2`,
+		wantV2:    []string{"/"},
+		wantRules: []translator.RuleID{translator.RuleIntDivReturnsFloat},
+	},
 
 	// -----------------------------------------------------------------
 	// Method rewrites & flags.
@@ -244,6 +250,17 @@ var ruleCases = []ruleCase{
 		name:      `from "file" is unsupported`,
 		v1:        `from "helper.blobl"`,
 		wantRules: []translator.RuleID{translator.RuleFromStatement},
+	},
+	{
+		name:      `import "file" -> namespaced V2 import`,
+		v1:        "import \"helper.blobl\"\nroot.v = 1",
+		wantRules: []translator.RuleID{translator.RuleImportStatement},
+	},
+	{
+		name:      "now() flags string-vs-timestamp divergence",
+		v1:        `root = now()`,
+		wantV2:    []string{"now()"},
+		wantRules: []translator.RuleID{translator.RuleNowReturnsString},
 	},
 
 	// -----------------------------------------------------------------
