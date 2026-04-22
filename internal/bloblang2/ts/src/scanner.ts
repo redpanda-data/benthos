@@ -6,6 +6,7 @@ import {
   type PosError,
   TokenType,
   lookupIdent,
+  isReservedName,
   suppressesFollowingNL,
   isPostfixContinuation,
 } from "./token.js";
@@ -382,9 +383,16 @@ export class Scanner {
       this.advance();
     }
 
+    const name = this.src.slice(start, this.pos);
+    if (isReservedName(name)) {
+      this.addError(
+        startPos,
+        `"${name}" is a reserved function name and cannot be used as a variable name`,
+      );
+    }
     return {
       type: TokenType.VAR,
-      literal: this.src.slice(start, this.pos),
+      literal: name,
       pos: startPos,
     };
   }

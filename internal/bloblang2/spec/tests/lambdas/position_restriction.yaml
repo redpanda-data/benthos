@@ -72,6 +72,29 @@ tests:
       output.v = throw(x -> x)
     compile_error: "lambda"
 
+  # --- Per-position: a lambda is rejected at a non-lambda param position
+  # even when the method accepts one elsewhere in its signature. ---
+
+  - name: "lambda at fold() initial position is a compile error"
+    mapping: |
+      output.v = [1, 2, 3].fold(x -> x, 0)
+    compile_error: "lambda"
+
+  - name: "lambda at fold() initial by name is a compile error"
+    mapping: |
+      output.v = [1, 2, 3].fold(initial: x -> x, fn: (a, b) -> a + b)
+    compile_error: "lambda"
+
+  - name: "lambda at slice() low position is a compile error"
+    mapping: |
+      output.v = [1, 2, 3].slice(x -> x, 2)
+    compile_error: "lambda"
+
+  - name: "valid lambda at fold() fn position (value at initial) still works"
+    mapping: |
+      output.total = [1, 2, 3, 4].fold(0, (tally, x) -> tally + x)
+    output: {"total": 10}
+
   # --- Positive cases: lambdas in legal argument positions ---
 
   - name: "lambda as positional method argument is valid"

@@ -32,6 +32,7 @@ export enum TokenType {
   // Reserved function names
   DELETED = "deleted",
   THROW = "throw",
+  VOID = "void",
 
   // Operators
   DOT = ".",
@@ -86,7 +87,12 @@ const keywords: Record<string, TokenType> = {
 const reservedNames: Record<string, TokenType> = {
   deleted: TokenType.DELETED,
   throw: TokenType.THROW,
+  void: TokenType.VOID,
 };
+
+export function isReservedName(name: string): boolean {
+  return name in reservedNames;
+}
 
 export function lookupIdent(word: string): TokenType {
   return keywords[word] ?? reservedNames[word] ?? TokenType.IDENT;

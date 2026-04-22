@@ -80,17 +80,29 @@ func (interp *Interpreter) RegisterStdlib() {
 }
 
 func methodSpecToInfo(spec MethodSpec) syntax.MethodInfo {
+	methodAcceptsLambda := spec.LambdaFn != nil || spec.AcceptsLambda
 	if spec.Params == nil {
-		return syntax.MethodInfo{Required: 0, Total: -1}
+		return syntax.MethodInfo{Required: 0, Total: -1, AcceptsLambda: methodAcceptsLambda}
 	}
 	required, total := 0, 0
-	for _, p := range spec.Params {
+	params := make([]syntax.MethodParamInfo, len(spec.Params))
+	for i, p := range spec.Params {
 		total++
 		if !p.HasDefault {
 			required++
 		}
+		params[i] = syntax.MethodParamInfo{
+			Name:          p.Name,
+			HasDefault:    p.HasDefault,
+			AcceptsLambda: p.AcceptsLambda,
+		}
 	}
-	return syntax.MethodInfo{Required: required, Total: total}
+	return syntax.MethodInfo{
+		Required:      required,
+		Total:         total,
+		AcceptsLambda: methodAcceptsLambda,
+		Params:        params,
+	}
 }
 
 // MethodInfos returns compile-time metadata for all registered methods,
@@ -412,8 +424,14 @@ func (interp *Interpreter) registerMethods() {
 
 	// Intrinsic methods — dispatch handled inline in evalMethodCall,
 	// registered here for name resolution only.
-	interp.RegisterMethod("catch", MethodSpec{Intrinsic: true})
-	interp.RegisterMethod("or", MethodSpec{Intrinsic: true})
+	interp.RegisterMethod("catch", MethodSpec{
+		Intrinsic: true,
+		Params:    []MethodParam{{Name: "fn", AcceptsLambda: true}},
+	})
+	interp.RegisterMethod("or", MethodSpec{
+		Intrinsic: true,
+		Params:    []MethodParam{{Name: "default"}},
+	})
 }
 
 // -----------------------------------------------------------------------

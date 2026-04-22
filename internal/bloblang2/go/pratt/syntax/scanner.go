@@ -366,6 +366,9 @@ func (s *scanner) scanVar() Token {
 	}
 
 	name := s.src[start:s.pos]
+	if _, reserved := reservedNames[name]; reserved {
+		s.addError(startPos, fmt.Sprintf("%q is a reserved function name and cannot be used as a variable name", name))
+	}
 	return Token{Type: VAR, Literal: name, Pos: startPos}
 }
 

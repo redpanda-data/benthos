@@ -393,7 +393,7 @@ func (p *parser) parsePathSegments() []PathSegment {
 // Quoted strings (."field with spaces") are also valid per spec Section 3.1.
 func (p *parser) expectWord() string {
 	tok := p.tok
-	if tok.Type == IDENT || tok.Type.IsKeyword() || tok.Type == DELETED || tok.Type == THROW {
+	if tok.Type == IDENT || tok.Type.IsKeyword() || tok.Type == DELETED || tok.Type == THROW || tok.Type == VOID {
 		p.advance()
 		return tok.Literal
 	}
@@ -648,7 +648,7 @@ func (p *parser) parsePrefix() Expr {
 	case IDENT:
 		return p.parseIdentOrCall()
 
-	case DELETED, THROW:
+	case DELETED, THROW, VOID:
 		return p.parseReservedCall()
 
 	case UNDERSCORE:
