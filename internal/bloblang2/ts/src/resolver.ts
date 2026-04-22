@@ -29,6 +29,44 @@ export interface MethodInfo {
   required: number;
   /** Total params (required + optional). -1 means no arity checking. */
   total: number;
+  /**
+   * Per-parameter metadata, parallel to declared positions. Empty when the
+   * method doesn't declare params (variadic — e.g. .sort); in that case
+   * `acceptsLambda` is the method-level fallback.
+   */
+  params?: MethodParamInfo[];
+  /**
+   * Method-level fallback used when `params` is empty. Methods not marked as
+   * lambda-accepting (e.g. .or()) reject lambdas at compile time
+   * (spec Section 3.4).
+   */
+  acceptsLambda?: boolean;
+}
+
+export interface MethodParamInfo {
+  name: string;
+  hasDefault: boolean;
+  acceptsLambda: boolean;
+}
+
+/** Reports whether a lambda is accepted at the given argument position. */
+export function paramAcceptsLambda(
+  mi: MethodInfo,
+  position: number,
+  name: string,
+): boolean {
+  const params = mi.params;
+  if (!params || params.length === 0) {
+    return mi.acceptsLambda === true;
+  }
+  if (name) {
+    for (const p of params) {
+      if (p.name === name) return p.acceptsLambda;
+    }
+    return false;
+  }
+  if (position < 0 || position >= params.length) return false;
+  return params[position]!.acceptsLambda;
 }
 
 export function resolve(
@@ -179,9 +217,8 @@ class Resolver {
   }
 
   private resolveAssignment(a: Assignment): void {
-    if (a.value.kind === "lambda") {
-      this.error(a.pos, "lambda expressions cannot be stored in a variable or assigned to output");
-    }
+    // Lambdas in non-argument positions are caught by resolveExpr's "lambda"
+    // case (spec Section 3.4).
     if (a.value.kind === "ident" && a.target.root === "var") {
       const isFn = this.knownFunctions.has(a.value.name);
       if (this.isKnownMap(a.value.name) || isFn) {
@@ -223,9 +260,8 @@ class Resolver {
 
   private resolveExprBody(body: ExprBody): void {
     for (const va of body.assignments) {
-      if (va.value.kind === "lambda") {
-        this.error(va.pos, "lambda expressions cannot be stored as values");
-      }
+      // Lambdas in non-argument positions are caught by resolveExpr's
+      // "lambda" case (spec Section 3.4).
       this.resolveExpr(va.value);
       if (!this.scope.isDeclared(va.name)) {
         this.scope.vars.add(va.name);
@@ -264,11 +300,12 @@ class Resolver {
       case "call":
         this.resolveCall(expr);
         break;
-      case "method_call":
+      case "method_call": {
         this.resolveExpr(expr.receiver);
         this.checkMethodCallArity(expr);
-        this.resolveMethodArgs(expr.args);
+        this.resolveMethodArgs(expr.args, this.methodInfo(expr.method), expr.method);
         break;
+      }
       case "field_access":
         this.resolveExpr(expr.receiver);
         break;
@@ -292,6 +329,9 @@ class Resolver {
         this.resolveMatchExpr(expr);
         break;
       case "lambda":
+        this.error(expr.pos, "lambda is only valid as a call argument (spec Section 3.4)");
+        // Still resolve the body so downstream passes don't see unresolved
+        // parameter bindings; the emitted error will surface the problem.
         this.resolveLambda(expr);
         break;
       case "path":
@@ -376,13 +416,30 @@ class Resolver {
       }
     }
 
-    for (const arg of e.args) this.resolveExpr(arg.value);
+    // No function or user map accepts a lambda argument.
+    for (const arg of e.args) this.resolveArgValue(arg.value, false, e.name);
   }
 
-  private resolveMethodArgs(args: { name: string; value: Expr }[]): void {
+  private resolveArgValue(value: Expr, acceptsLambda: boolean, calleeName: string): void {
+    if (value.kind === "lambda") {
+      if (!acceptsLambda) {
+        this.error(value.pos, `${calleeName}() does not accept a lambda argument`);
+      }
+      this.resolveLambda(value);
+      return;
+    }
+    this.resolveExpr(value);
+  }
+
+  private resolveMethodArgs(
+    args: { name: string; value: Expr }[],
+    mi: MethodInfo | null,
+    calleeName: string,
+  ): void {
     const saved = this.inMethodArg;
     this.inMethodArg = true;
-    for (const arg of args) {
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i]!;
       if (arg.value.kind === "ident") {
         const ident = arg.value;
         if (ident.namespace) {
@@ -393,7 +450,8 @@ class Resolver {
           if (m) this.checkMapRefArity(ident.pos, ident.name, m);
         }
       }
-      this.resolveExpr(arg.value);
+      const acceptsLambda = mi === null ? true : paramAcceptsLambda(mi, i, arg.name);
+      this.resolveArgValue(arg.value, acceptsLambda, calleeName);
     }
     this.inMethodArg = saved;
   }
@@ -403,7 +461,12 @@ class Resolver {
     pos: Pos;
     root: string;
     varName: string;
-    segments: { index: Expr | null; args: { name: string; value: Expr }[] }[];
+    segments: {
+      segKind: string;
+      name: string;
+      index: Expr | null;
+      args: { name: string; value: Expr }[];
+    }[];
   }): void {
     if (this.inMap) {
       if (expr.root === "input" || expr.root === "input_meta") {
@@ -418,7 +481,10 @@ class Resolver {
     }
     for (const seg of expr.segments) {
       if (seg.index) this.resolveExpr(seg.index);
-      if (seg.args.length > 0) this.resolveMethodArgs(seg.args);
+      if (seg.args.length > 0) {
+        const mi = seg.segKind === "method" ? this.methodInfo(seg.name) : null;
+        this.resolveMethodArgs(seg.args, mi, seg.name);
+      }
     }
   }
 

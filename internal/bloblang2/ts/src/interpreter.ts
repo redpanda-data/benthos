@@ -114,6 +114,8 @@ export interface MethodParam {
   name: string;
   default_: Value | null;
   hasDefault: boolean;
+  /** This parameter position accepts a lambda argument. */
+  acceptsLambda?: boolean;
 }
 
 export interface MethodSpec {
@@ -122,6 +124,8 @@ export interface MethodSpec {
   intrinsic: boolean;
   params: MethodParam[] | null;
   acceptsNull: boolean;
+  /** Method accepts a lambda argument (implicit for lambdaFn-backed methods). */
+  acceptsLambda?: boolean;
 }
 
 export interface FunctionParam {
@@ -356,13 +360,11 @@ export class Interpreter {
         if (a.target.path.length === 0) {
           this.scope.set(a.target.varName, deepClone(value));
         } else {
+          // Path assignment to an undeclared variable declares it and
+          // auto-creates the root based on the first path segment (spec
+          // Section 3.7).
           const existing = this.scope.get(a.target.varName);
-          if (existing === undefined) {
-            throw new RuntimeError(
-              `variable $${a.target.varName} not declared`,
-            );
-          }
-          const clone = deepClone(existing);
+          const clone = existing === undefined ? NULL : deepClone(existing);
           const ref: { v: Value } = { v: clone };
           this.assignPath(ref, a.target.path, value);
           this.scope.set(a.target.varName, ref.v);
@@ -1065,11 +1067,9 @@ export class Interpreter {
       if (va.path.length === 0) {
         this.scope.set(va.name, deepClone(val));
       } else {
+        // Path assignment to an undeclared variable declares it (Section 3.7).
         const existing = this.scope.get(va.name);
-        if (existing === undefined) {
-          return mkError(`variable $${va.name} not declared`);
-        }
-        const clone = deepClone(existing);
+        const clone = existing === undefined ? NULL : deepClone(existing);
         const ref: { v: Value } = { v: clone };
         this.assignPath(ref, va.path, val);
         this.scope.set(va.name, ref.v);

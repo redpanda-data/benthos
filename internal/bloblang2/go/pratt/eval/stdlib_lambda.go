@@ -16,7 +16,7 @@ func (interp *Interpreter) RegisterLambdaMethods() {
 	lm := func(fn lambdaMethodFunc, params ...MethodParam) MethodSpec {
 		return MethodSpec{LambdaFn: fn, Params: params}
 	}
-	fnParam := MethodParam{Name: "fn"}
+	fnParam := MethodParam{Name: "fn", AcceptsLambda: true}
 
 	interp.RegisterLambdaMethod("filter", lm(interp.methodFilter, fnParam))
 	interp.RegisterLambdaMethod("map", lm(interp.methodMap, fnParam))
@@ -26,7 +26,7 @@ func (interp *Interpreter) RegisterLambdaMethods() {
 	interp.RegisterLambdaMethod("all", lm(interp.methodAll, fnParam))
 	interp.RegisterLambdaMethod("find", lm(interp.methodFind, fnParam))
 	interp.RegisterLambdaMethod("fold", lm(interp.methodFold, MethodParam{Name: "initial"}, fnParam))
-	interp.RegisterLambdaMethod("unique", lm(interp.methodUnique, MethodParam{Name: "fn", HasDefault: true}))
+	interp.RegisterLambdaMethod("unique", lm(interp.methodUnique, MethodParam{Name: "fn", HasDefault: true, AcceptsLambda: true}))
 	interp.RegisterLambdaMethod("without_index", lm(interp.methodWithoutIndex, MethodParam{Name: "index"}))
 	interp.RegisterLambdaMethod("index_of", lm(interp.methodIndexOf, MethodParam{Name: "target"}))
 	interp.RegisterLambdaMethod("slice", lm(interp.methodSlice, MethodParam{Name: "low"}, MethodParam{Name: "high", HasDefault: true}))
