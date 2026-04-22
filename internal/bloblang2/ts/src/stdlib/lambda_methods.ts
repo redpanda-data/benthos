@@ -619,6 +619,23 @@ export function registerLambdaMethods(interp: Interpreter): void {
     }, [fnParam]),
   );
 
+  // --- into ---
+  // Pass the receiver to a single-parameter lambda and return the result.
+  // Errors / void / deleted() from the lambda propagate unchanged.
+  interp.registerMethod(
+    "into",
+    lm((interp, receiver, args) => {
+      const lambda = interp.extractLambdaOrMapRef(args);
+      if (lambda === null) return mkError("into() requires a lambda argument");
+      if (lambda.params.length !== 1) {
+        return mkError(
+          `into() requires a one-parameter lambda, got ${lambda.params.length} parameters`,
+        );
+      }
+      return interp.callLambda(lambda, [receiver]);
+    }, [fnParam]),
+  );
+
   // --- Intrinsic methods (registered for name resolution only) ---
   interp.registerMethod("catch", {
     fn: null,

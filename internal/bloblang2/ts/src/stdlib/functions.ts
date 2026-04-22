@@ -17,6 +17,7 @@ import {
   mkTimestamp,
   mkError,
   DELETED,
+  VOID,
   isString,
   isInt64,
   isUint64,
@@ -39,6 +40,11 @@ function toInt64(v: Value): bigint | null {
 export function registerFunctions(interp: Interpreter): void {
   interp.registerFunction("deleted", {
     fn: () => DELETED,
+    params: [],
+  });
+
+  interp.registerFunction("void", {
+    fn: () => VOID,
     params: [],
   });
 

@@ -148,6 +148,29 @@ Return a deletion marker. When assigned to a field or metadata key, removes it. 
 - **Returns:** deletion marker (not a runtime type)
 - **See:** Section 9.2
 
+### `void()`
+
+Return the void sentinel — the "no value was produced" signal normally emitted by an `if` without `else` or a non-exhaustive `match`. Provides an explicit spelling for the void value, useful when branching logic needs to "skip the assignment" in some cases without introducing a dummy `if false { x }` construct.
+
+Same rules as any other void: assigning `void()` to a field skips the assignment (leaves the target unchanged); `void()` inside a collection literal, as a variable declaration RHS, or as an operand to most methods/operators is a runtime error (use `deleted()` to omit from collections).
+
+- **Parameters:** none
+- **Returns:** void (not a runtime type)
+- **See:** Section 4.1 (void semantics), Section 9.2 (deleted vs void)
+
+```bloblang
+# Skip an assignment conditionally
+output.status = if input.override_status { input.override_status } else { void() }
+# Equivalent to the if-without-else form but explicit
+
+# Use inside a map result when no output is desired for some inputs
+map classify(val) {
+  if val > 0 { "positive" }
+  else if val < 0 { "negative" }
+  else { void() }                       # zero inputs produce no classification
+}
+```
+
 ---
 
 ## 13.2 Type Conversion Methods
@@ -1352,3 +1375,35 @@ Decode a string from the specified encoding scheme into bytes.
   "68656c6c6f".decode("hex")             # bytes("hello")
   "aGVsbG8=".decode("base64").string()   # "hello"
   ```
+
+---
+
+## 13.12 Pipeline Methods
+
+### `.into(fn)`
+
+Pass the receiver to a single-parameter lambda and return the lambda's result. Equivalent to binding the receiver to a name for use inside an expression-shaped body. Useful when a derived intermediate value is referenced multiple times in a transformation and extracting a full `let` statement or a named `map` would be heavier than warranted.
+
+- **Receiver:** any type (except error — errors short-circuit past `.into()` into `.catch()`)
+- **Parameters:** `fn` — lambda (one parameter: receiver → any)
+- **Returns:** whatever the lambda returns. If the lambda returns `deleted()`, `void()`, or an error, those propagate through `.into()` unchanged; the calling context decides how to handle them.
+- **Examples:**
+  ```bloblang
+  # Reuse a derived intermediate value without a separate let statement
+  output.summary = input.events
+    .filter(e -> e.kind == "purchase")
+    .into(purchases -> {
+      "count": purchases.length(),
+      "total": purchases.map(p -> p.amount).sum(),
+    })
+
+  # Chainable — behaves like any other method
+  output.normalized = input.name.trim().lowercase().into(s -> s.replace_all(" ", "_"))
+
+  # Equivalent to a match _ as name binding, but reads as a pipeline step
+  output.label = input.score.into(s -> if s > 90 { "A" } else if s > 80 { "B" } else { "C" })
+  ```
+- **Notes:**
+  - The lambda parameter is the only way to reference the receiver inside the body. `this` and `output` keep their normal meanings (outer assignment context — see Section 5.3 on lambda scoping).
+  - `.into()` runs its lambda exactly once. It is not an iteration method; for array/object transformations use `.map()` / `.map_values()` / `.map_entries()`.
+  - If the lambda returns void (e.g. an `if` with no matching case), `.into()`'s result is void — the caller handles it like any other void (assignment skipped, collection-literal error, etc.).

@@ -25,9 +25,15 @@ export interface FunctionInfo {
   total: number;
 }
 
+export interface MethodInfo {
+  required: number;
+  /** Total params (required + optional). -1 means no arity checking. */
+  total: number;
+}
+
 export function resolve(
   prog: Program,
-  knownMethods: Set<string>,
+  knownMethods: Set<string> | Map<string, MethodInfo>,
   knownFunctions: Map<string, FunctionInfo>,
 ): PosError[] {
   const r = new Resolver(prog, knownMethods, knownFunctions);
@@ -64,7 +70,7 @@ class ResolveScope {
 
 class Resolver {
   private prog: Program;
-  private knownMethods: Set<string>;
+  private knownMethods: Set<string> | Map<string, MethodInfo>;
   private knownFunctions: Map<string, FunctionInfo>;
   errors: PosError[] = [];
   private scope!: ResolveScope;
@@ -73,12 +79,28 @@ class Resolver {
 
   constructor(
     prog: Program,
-    knownMethods: Set<string>,
+    knownMethods: Set<string> | Map<string, MethodInfo>,
     knownFunctions: Map<string, FunctionInfo>,
   ) {
     this.prog = prog;
     this.knownMethods = knownMethods;
     this.knownFunctions = knownFunctions;
+  }
+
+  // methodInfo returns arity info for a known method, or null if the
+  // registry is the legacy Set<string> (no arity) form.
+  private methodInfo(name: string): MethodInfo | null {
+    const km = this.knownMethods;
+    if (km instanceof Map) {
+      return km.get(name) ?? null;
+    }
+    return null;
+  }
+
+  private hasMethod(name: string): boolean {
+    const km = this.knownMethods;
+    if (km instanceof Map) return km.has(name);
+    return km.has(name);
   }
 
   private mapIndex = new Map<string, MapDecl>();
@@ -244,6 +266,7 @@ class Resolver {
         break;
       case "method_call":
         this.resolveExpr(expr.receiver);
+        this.checkMethodCallArity(expr);
         this.resolveMethodArgs(expr.args);
         break;
       case "field_access":
@@ -515,6 +538,27 @@ class Resolver {
     }
     if (e.args.length > fi.total) {
       this.error(e.pos, `${e.name}() accepts at most ${fi.total} arguments, got ${e.args.length}`);
+    }
+  }
+
+  private checkMethodCallArity(e: {
+    method: string;
+    methodPos: Pos;
+    args: { name: string; value: Expr }[];
+  }): void {
+    const info = this.methodInfo(e.method);
+    if (!info || info.total < 0) return;
+    if (e.args.length < info.required) {
+      this.error(
+        e.methodPos,
+        `.${e.method}() requires at least ${info.required} arguments, got ${e.args.length}`,
+      );
+    }
+    if (e.args.length > info.total) {
+      this.error(
+        e.methodPos,
+        `.${e.method}() accepts at most ${info.total} arguments, got ${e.args.length}`,
+      );
     }
   }
 

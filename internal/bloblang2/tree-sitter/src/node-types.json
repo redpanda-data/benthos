@@ -587,6 +587,10 @@
           {
             "type": "throw",
             "named": false
+          },
+          {
+            "type": "void",
+            "named": false
           }
         ]
       }
@@ -4529,6 +4533,10 @@
   {
     "type": "variable",
     "named": true
+  },
+  {
+    "type": "void",
+    "named": false
   },
   {
     "type": "{",
