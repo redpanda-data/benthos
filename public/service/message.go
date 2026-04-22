@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/redpanda-data/benthos/v4/internal/batch"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/mapping"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/query"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -213,6 +214,32 @@ func (m *Message) WithContext(ctx context.Context) *Message {
 	return &Message{
 		part: message.WithContext(ctx, m.part),
 	}
+}
+
+// WithCollapsedCount returns a new message indicating that it is the result of
+// collapsing count messages into one. The count is accumulated: if a message
+// already has a collapsed count of 3 and WithCollapsedCount(2) is called, the
+// result has a collapsed count of 4 (the existing count plus count-1 to avoid
+// double-counting the message itself). The count parameter must be >= 1.
+//
+// This allows downstream components to know how many total messages were
+// combined, which is important for accurate output metrics (e.g. output_sent).
+// This is useful when implementing processors that combine multiple messages
+// into one (such as archive).
+func (m *Message) WithCollapsedCount(count int) *Message {
+	ctx := batch.CtxWithCollapsedCount(m.Context(), count)
+	return m.WithContext(ctx)
+}
+
+// CollapsedCount returns the actual number of messages that were collapsed into
+// the resulting message batch. This value could differ from len(batch) when
+// processors that archive batched message parts have been applied.
+func (b MessageBatch) CollapsedCount() int {
+	total := 0
+	for _, m := range b {
+		total += batch.CtxCollapsedCount(m.Context())
+	}
+	return total
 }
 
 // AsBytes returns the underlying byte array contents of a message or, if the
