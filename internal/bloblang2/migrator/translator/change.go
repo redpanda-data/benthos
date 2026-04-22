@@ -111,31 +111,19 @@ const (
 
 	// Operator rules.
 	RuleCoalescePrecedence    // `a + b | c` parens preserved (§14#4)
-	RuleAndOrSameLevel        // `a || b && c` V1=(a||b)&&c vs V2=a||(b&&c) (§14#3)
+	RuleAndOrSameLevel        // V1 &&/|| coerce non-bool operands (§14#48); V2 requires bool
 	RuleBoolNumberEquality    // `true == 1` / `1 == true` asymmetry (§14#38)
 	RuleModuloFloatTruncation // `%` silent float->int64 truncation (§14#39)
 	RuleIntDivReturnsFloat    // `/` on ints returns float64 (§14#5)
-	RuleLiteralConstantFold   // arithmetic/comparison literal folds at parse (§14#37)
 
 	// Sentinel and error-model rules.
-	RuleOrCatchesErrors   // V1 `.or()` catches errors; V2 `.or()` doesn't (§12.2)
-	RuleDeletedInMapEach  // deleted()/nothing() propagation in map_each (§14#34)
-	RuleSentinelInLiteral // sentinels in array/object literals elide (§9.4)
-
-	// Lambda and method rules.
-	RuleLambdaContextPop  // inside `x -> body`, `this` is outer (§14#35)
-	RuleIteratorRebinding // `.map_each(this.foo)` non-lambda rebinds `this` (§6.5)
-	RuleSortComparator    // `.sort(left > right)` implicit-param form
-	RuleFoldObjectParam   // `.fold(init, item -> ...)` with item={tally,value}
+	RuleOrCatchesErrors // V1 `.or()` catches errors; V2 `.or()` doesn't (§12.2)
 
 	// Control-flow rules.
 	RuleIfNoElseNothing     // `if cond { x }` no-else produces nothing sentinel (§14#44)
-	RuleMatchNoMatchNothing // match with no matching arm produces nothing (§8.4)
-	RuleMatchLiteralFold    // match pattern constant folding (§14#75)
 	RuleMatchSubjectRebinds // match arms rebind `this` to subject (§8.4)
 
 	// Path and indexing rules.
-	RuleNumericPathWrite  // path.0 = v creates object key (§14#46)
 	RuleNoBracketIndexing // `this[0]` not valid; use `.index(0)` (§14#10)
 
 	// String rules.
@@ -149,10 +137,6 @@ const (
 	RuleMapDeclTranslation // `map foo { body }` -> V2 `map foo { body }`
 	RuleImportStatement    // `import "path"` -> V2 equivalent
 	RuleFromStatement      // `from "path"` whole-mapping include (§10.5)
-
-	// Object and array literal rules.
-	RuleBareIdentObjectKey // `{a: 1}` -> `{(input.a): 1}` (§14#8)
-	RuleComputedKey        // `{(expr): v}` -> V2 equivalent
 
 	// RuleUnsupportedConstruct is the catch-all when no more specific rule
 	// applies.
@@ -202,32 +186,12 @@ func (r RuleID) String() string {
 		return "modulo-float-truncation"
 	case RuleIntDivReturnsFloat:
 		return "int-div-returns-float"
-	case RuleLiteralConstantFold:
-		return "literal-constant-fold"
 	case RuleOrCatchesErrors:
 		return "or-catches-errors"
-	case RuleDeletedInMapEach:
-		return "deleted-in-map-each"
-	case RuleSentinelInLiteral:
-		return "sentinel-in-literal"
-	case RuleLambdaContextPop:
-		return "lambda-context-pop"
-	case RuleIteratorRebinding:
-		return "iterator-rebinding"
-	case RuleSortComparator:
-		return "sort-comparator"
-	case RuleFoldObjectParam:
-		return "fold-object-param"
 	case RuleIfNoElseNothing:
 		return "if-no-else-nothing"
-	case RuleMatchNoMatchNothing:
-		return "match-no-match-nothing"
-	case RuleMatchLiteralFold:
-		return "match-literal-fold"
 	case RuleMatchSubjectRebinds:
 		return "match-subject-rebinds"
-	case RuleNumericPathWrite:
-		return "numeric-path-write"
 	case RuleNoBracketIndexing:
 		return "no-bracket-indexing"
 	case RuleStringLengthBytes:
@@ -242,10 +206,6 @@ func (r RuleID) String() string {
 		return "import-statement"
 	case RuleFromStatement:
 		return "from-statement"
-	case RuleBareIdentObjectKey:
-		return "bare-ident-object-key"
-	case RuleComputedKey:
-		return "computed-key"
 	case RuleUnsupportedConstruct:
 		return "unsupported-construct"
 	case RuleEmittedInvalidV2:
