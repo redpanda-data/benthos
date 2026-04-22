@@ -73,4 +73,38 @@ func TestApplyDefaults(t *testing.T) {
 	if opts.MinCoverage != 0.75 {
 		t.Fatalf("default MinCoverage should be 0.75, got %v", opts.MinCoverage)
 	}
+	if opts.Mode != ModeMutation {
+		t.Fatalf("default Mode should be ModeMutation, got %v", opts.Mode)
+	}
+}
+
+func TestMigrateModeMutationNoPrelude(t *testing.T) {
+	// Default mode: no `output = input` prelude.
+	rep, err := Migrate("root.v = 1", Options{Mode: ModeMutation})
+	if err != nil {
+		t.Fatalf("mutation-mode translation should succeed: %v", err)
+	}
+	if strings.Contains(rep.V2Mapping, "output = input") {
+		t.Fatalf("mutation mode must not inject `output = input`; got:\n%s", rep.V2Mapping)
+	}
+}
+
+func TestMigrateModeMappingInjectsPrelude(t *testing.T) {
+	// mapping mode: translator prepends `output = input` so the V2
+	// result starts as the input document (matching V1 mapping's
+	// pass-through default).
+	rep, err := Migrate("root.v = 1", Options{Mode: ModeMapping, Verbose: true})
+	if err != nil {
+		t.Fatalf("mapping-mode translation should succeed: %v", err)
+	}
+	if !strings.Contains(rep.V2Mapping, "output = input") {
+		t.Fatalf("mapping mode must inject `output = input`; got:\n%s", rep.V2Mapping)
+	}
+	// The prelude must be the *first* statement so subsequent field
+	// assignments build on top of the passed-through input.
+	idxPrelude := strings.Index(rep.V2Mapping, "output = input")
+	idxBody := strings.Index(rep.V2Mapping, "output.v")
+	if idxBody < idxPrelude {
+		t.Fatalf("prelude must precede the translated body; got:\n%s", rep.V2Mapping)
+	}
 }

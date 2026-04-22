@@ -154,7 +154,9 @@ func (t *translator) translateLet(l *v1ast.LetStmt) syntax.Stmt {
 	} else {
 		t.rec.Exact()
 	}
+	t.pushCtx(ctxVarDeclRHS)
 	value := t.translateExpr(l.Value)
+	t.popCtx()
 	if value == nil {
 		return nil
 	}
