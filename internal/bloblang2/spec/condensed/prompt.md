@@ -1,6 +1,0 @@
-Please read the bloblang v2 language spec in ./spec and then make a best attempt to condense it into the most compact form where it would still be feasible for an agent to implement the language based only on its contents. Write this condensed spec into ./spec/condensed/<x>/spec.md, where <x> is the next integer (there are existing condensed specs that you should ignore). Once finished please review the condensed spec and fix any ambiguities, inconsistencies or errors by referencing the proper spec.
-
-in ./spec/condensed you will find numbered directories, each containing a spec.md file, where you will find a condensed version of the bloblang2 spec. Please find the highest numbered directory (the latest version) and read the condensed spec within, and note any inconsistencies or ambigiuties you find, then compare the spec to the original at ./spec and note any further inconsistencies between the two versions that you find. Once finished perform further analysis on each issue noted and remove the ones that are false positives or only nit picks. Remaining issues should then be fixed but keeping in mind that this spec is meant to be minimal, and so fixes should keep the spec as compact as possible. Once your fixes are applied review the condensed spec one more time to ensure that you haven't introduced any inconsistencies, ambiguities or regressions.
-
-
-

@@ -8,7 +8,10 @@ All implementations must provide these functions and methods. This is the comple
 
 **Parameter type promotion:** When a method or function signature documents a specific numeric type (e.g., `int64`), any numeric type is accepted. Integer parameters accept any numeric value that is a whole number — float values like `2.0` are accepted but `1.5` is an error (consistent with indexing rules in Section 3.1). Float parameters accept any numeric type (integers are promoted to float using the standard promotion rules in Section 2.3). In all cases, checked promotion applies — values that cannot be represented exactly in the target type are a runtime error.
 
-**Lambda return values — void and `deleted()`:** Unless a method's documentation explicitly states otherwise, void and `deleted()` as lambda return values are runtime errors. Methods that support `deleted()` as a lambda return document this explicitly — see `.map()`, `.map_values()`, `.map_keys()`, `.map_entries()` (element/entry omitted from result), and `.catch()` (result flows to calling context with normal semantics).
+**Lambda return values — void and `deleted()`:** Unless a method's documentation explicitly states otherwise, void and `deleted()` as lambda return values are runtime errors. The bullets below describe what the listed methods do when their *lambda* returns void, `deleted()`, or an error — receiver behaviour is covered separately in each method's documentation. (As a rule, only `.or()` and `.catch()` accept void or `deleted()` as a *receiver*; every other method errors on such a receiver, `.into()` included.)
+
+- **Omit from collection:** `.map()`, `.map_values()`, `.map_keys()`, `.map_entries()` — a lambda returning `deleted()` omits the element/entry from the result.
+- **Lambda result flows to caller:** `.catch()`, `.into()` — the lambda's return value flows to the calling context with normal semantics. `deleted()`, void, and errors propagate unchanged and are handled where the method-call expression is consumed (field removal, assignment skipping, error propagation, etc.).
 
 **Regular expressions:** All regex parameters use [RE2 syntax](https://github.com/google/re2/wiki/Syntax). RE2 guarantees linear-time matching (no catastrophic backtracking). Notable exclusions from RE2: backreferences and lookahead/lookbehind assertions are not supported.
 
@@ -26,10 +29,10 @@ Generate a random UUID v4 string.
 
 ### `now()`
 
-Return the current timestamp. Each call returns a fresh timestamp — consecutive calls may return different values, including within `.map()` lambdas.
+Return the current timestamp. Each call returns a fresh timestamp — consecutive calls may return different values, including within `.map()` lambdas. The returned timestamp carries the **process's local zone** as its stored zone (Section 2.3). This matters only for rendering via `.ts_format()` / `.string()` without an explicit zone directive — instant-based operations (`.ts_unix*()`, comparison, subtraction) are unaffected by the stored zone. For deterministic, cross-platform output, always include `%z` in the format string (the default format does) or use `timestamp(...)` to construct a UTC-zoned timestamp explicitly.
 
 - **Parameters:** none
-- **Returns:** timestamp
+- **Returns:** timestamp (stored zone: process local)
 - **Example:** `now().ts_unix()` → `1709500000`
 
 ### `random_int(min, max)`
@@ -72,7 +75,7 @@ Construct a timestamp from individual components.
   - `second` (int64, 0–59, default `0`)
   - `nano` (int64, 0–999999999, default `0`)
   - `timezone` (string, IANA timezone name or `"UTC"`, default `"UTC"`)
-- **Returns:** timestamp
+- **Returns:** timestamp (stored zone is the `timezone` argument)
 - **Errors:** if any component is out of range, or if the timezone is not recognized
 - **Examples:**
   ```bloblang
@@ -82,6 +85,7 @@ Construct a timestamp from individual components.
   timestamp(year: 2024, month: 3, day: 1)                  # 2024-03-01T00:00:00Z
   timestamp(year: 2024, month: 12, day: 25, hour: 8)       # 2024-12-25T08:00:00Z
   ```
+- **Use this over `.ts_from_unix*()` or `now()` when deterministic cross-platform output is required** — the `timezone` argument makes the stored zone explicit.
 
 ### `second()`
 
@@ -1087,16 +1091,21 @@ Round a float to `n` decimal places using **half-even rounding** (banker's round
 
 Parse a string into a timestamp using the given format string. Defaults to RFC 3339 format when no format is specified.
 
+**Stored zone on the result:**
+- If the format string contains `%z` or `%Z` and the parsed input provides zone information, the result's stored zone is taken from the input (e.g., `+05:30` or `America/New_York`).
+- If the format string has no zone directive, or it has one but the input value matches an empty zone position, the result is **UTC** — the stored zone is set to UTC and all parsed clock components are interpreted as UTC wall-clock time.
+
 - **Receiver:** string
 - **Parameters:** `format` (string, default `"%Y-%m-%dT%H:%M:%S%f%z"` — strftime format)
 - **Returns:** timestamp
 - **Errors:** if the string does not match the format, or if the format string contains unrecognized directives
 - **Examples:**
   ```bloblang
-  "2024-03-01T12:00:00Z".ts_parse()                    # RFC 3339 (default format)
-  "2024-03-01T12:00:00.123Z".ts_parse()                # RFC 3339 with fractional seconds
-  "2024-03-01T12:00:00+05:30".ts_parse()               # RFC 3339 with offset
-  "2024-03-01".ts_parse("%Y-%m-%d")                    # explicit format
+  "2024-03-01T12:00:00Z".ts_parse()                    # UTC (Z in input, stored zone UTC)
+  "2024-03-01T12:00:00.123Z".ts_parse()                # UTC with fractional seconds
+  "2024-03-01T12:00:00+05:30".ts_parse()               # Stored zone +05:30
+  "2024-03-01".ts_parse("%Y-%m-%d")                    # No zone in format → UTC
+                                                         # (result is 2024-03-01T00:00:00Z)
   ```
 
 **Required strftime directives:** All implementations must support the following subset. Additional directives are implementation-defined.
@@ -1129,15 +1138,23 @@ Parse a string into a timestamp using the given format string. Defaults to RFC 3
 
 Format a timestamp as a string using the given format string. Defaults to RFC 3339 format when no format is specified. Supports the same required directives as `.ts_parse()`.
 
+**Output uses the receiver's stored zone** (Section 2.3). Clock components (`%Y`, `%m`, `%d`, `%H`, `%M`, `%S`, `%f`, `%I`, `%p`, `%j`, `%a`, `%A`, `%b`, `%B`) are rendered as they read in the stored zone, and `%z` / `%Z` emit that zone's offset / name. A timestamp produced by `now()` therefore renders in the process's local zone when the format string omits `%z`/`%Z` — include a zone directive (as the default format does) or construct timestamps explicitly via `timestamp(..., timezone: "UTC")` for deterministic output. Unrecognized directives in the format string are an error, matching `.ts_parse()`.
+
 - **Receiver:** timestamp
 - **Parameters:** `format` (string, default `"%Y-%m-%dT%H:%M:%S%f%z"` — strftime format)
 - **Returns:** string
 - **Examples:**
   ```bloblang
-  now().ts_format()              # "2024-03-01T12:00:00Z" (RFC 3339, default format)
-  now().ts_format("%Y-%m-%d")    # "2024-03-01"
+  timestamp(2024, 3, 1, 12).ts_format()                         # "2024-03-01T12:00:00Z" (UTC default on constructor)
+  timestamp(2024, 3, 1, 12).ts_format("%Y-%m-%d %H:%M:%S")      # "2024-03-01 12:00:00"
+  timestamp(2024, 3, 1, 12, 0, 0, 0, "America/New_York")
+    .ts_format()                                                  # "2024-03-01T12:00:00-05:00"
+  now().ts_format()                                                # RFC 3339 in process local zone
+                                                                   # (e.g., "2024-03-01T14:32:05+01:00")
+  now().ts_format("%Y-%m-%d")                                      # Local-zone date
+                                                                   # (host-dependent near midnight)
   ```
-- **Note:** `.ts_format()` with default arguments produces the same output as `.string()` on a timestamp. Both use RFC 3339 with shortest-precision fractional seconds.
+- **Note:** `.ts_format()` with default arguments produces the same output as `.string()` on a timestamp. Both use RFC 3339 with shortest-precision fractional seconds and the receiver's stored zone.
 
 ### `.ts_unix()`
 
@@ -1174,6 +1191,8 @@ Convert a timestamp to a Unix timestamp in nanoseconds.
 ### `.ts_from_unix()`
 
 Convert a Unix timestamp (seconds since epoch) to a timestamp. Integer receivers produce second-precision timestamps. Float receivers provide sub-second precision — the fractional part is interpreted as fractions of a second. **Precision note:** float64 has ~15-17 significant decimal digits. For current Unix timestamps (~10 integer digits), this leaves ~6-7 fractional digits of precision — sufficient for microseconds but not nanoseconds. For full nanosecond precision, use `.ts_from_unix_nano()` with an int64 value instead.
+
+**Stored zone:** the result's stored zone is the **process's local zone** (same convention as `now()`), affecting only `.ts_format()` / `.string()` output. This applies to `.ts_from_unix()`, `.ts_from_unix_milli()`, `.ts_from_unix_micro()`, and `.ts_from_unix_nano()`.
 
 - **Receiver:** any numeric type (integers are widened to int64; float32 is widened to float64). uint64 values exceeding int64 range are a runtime error, consistent with signed+unsigned promotion rules (Section 2.3)
 - **Returns:** timestamp
@@ -1384,9 +1403,9 @@ Decode a string from the specified encoding scheme into bytes.
 
 Pass the receiver to a single-parameter lambda and return the lambda's result. Equivalent to binding the receiver to a name for use inside an expression-shaped body. Useful when a derived intermediate value is referenced multiple times in a transformation and extracting a full `let` statement or a named `map` would be heavier than warranted.
 
-- **Receiver:** any type (except error — errors short-circuit past `.into()` into `.catch()`)
-- **Parameters:** `fn` — lambda (one parameter: receiver → any)
-- **Returns:** whatever the lambda returns. If the lambda returns `deleted()`, `void()`, or an error, those propagate through `.into()` unchanged; the calling context decides how to handle them.
+- **Receiver:** any value type. As with every method other than `.or()` and `.catch()`, void and `deleted()` receivers are a runtime error (see Section 4.1); errors on the receiver propagate through `.into()` unchanged — the lambda is not called — and reach any downstream `.catch()` with normal semantics.
+- **Parameters:** `fn` — lambda (one parameter: receiver → any). Arity must be exactly one; zero or multiple parameters is a compile-time error.
+- **Returns:** whatever the lambda returns. If the lambda returns `deleted()`, void, or an error, those propagate through `.into()` unchanged; the calling context decides how to handle them.
 - **Examples:**
   ```bloblang
   # Reuse a derived intermediate value without a separate let statement
@@ -1402,8 +1421,14 @@ Pass the receiver to a single-parameter lambda and return the lambda's result. E
 
   # Equivalent to a match _ as name binding, but reads as a pipeline step
   output.label = input.score.into(s -> if s > 90 { "A" } else if s > 80 { "B" } else { "C" })
+
+  # Rescue void *before* .into(), since .into() errors on a void receiver
+  output.status = input.last_event.find(e -> e.kind == "login").or(null).into(login ->
+    if login == null { "never" } else { "recent" }
+  )
   ```
 - **Notes:**
-  - The lambda parameter is the only way to reference the receiver inside the body. `this` and `output` keep their normal meanings (outer assignment context — see Section 5.3 on lambda scoping).
+  - The lambda parameter is the only way to reference the receiver inside the body. V2 has no implicit-receiver keyword: `input`, `output`, and outer variables keep their normal meanings (see Section 3 on lambda scoping).
   - `.into()` runs its lambda exactly once. It is not an iteration method; for array/object transformations use `.map()` / `.map_values()` / `.map_entries()`.
   - If the lambda returns void (e.g. an `if` with no matching case), `.into()`'s result is void — the caller handles it like any other void (assignment skipped, collection-literal error, etc.).
+  - If the receiver might be void or `deleted()` (e.g. from a `.find()` call or a non-exhaustive match), rescue it with `.or(...)` *before* `.into()`; calling `.into()` on a void or `deleted()` receiver errors just like any other method call would.

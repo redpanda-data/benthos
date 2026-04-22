@@ -91,3 +91,15 @@ See **Section 12: Implementation Guide** for:
 See **Section 13: Standard Library** for:
 - Complete reference of all required functions and methods
 
+## Contributing to the Spec
+
+**Behavioural and feature changes must be expressed as tests in `./tests`.** Prose in the Markdown files is guidance for humans; the YAML conformance suite is what implementations have to pass. A change that is only in the prose is effectively optional — implementations may or may not adopt it, and there is no mechanical way to detect drift.
+
+When you modify the spec:
+
+- **Add or update tests** in `./tests` that exercise the new or changed behaviour. The test should fail on an implementation that has not adopted the change and pass on one that has.
+- **Pure clarifications** (rewording, table reshaping, adding cross-references, resolving ambiguity in a way already consistent with existing tests) do not require new tests. Note this explicitly in the commit or PR so reviewers don't chase a missing test.
+- **Removing or loosening a constraint** still counts as a behaviour change — add a test that would have failed under the old constraint.
+
+See `./tests/README.md` for the test schema.
+

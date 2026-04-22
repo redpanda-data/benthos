@@ -174,3 +174,45 @@ tests:
         "dog" => "woof",
       }
     output: {"sound": "default"}
+
+  # --- Boolean-case runtime check is lazy (Section 4.2) ---
+  # Dynamic boolean cases in an equality match error only if actually
+  # evaluated. A preceding case that matches short-circuits and subsequent
+  # (potentially boolean) cases are never checked.
+
+  - name: "boolean case not evaluated when prior case matches (no error)"
+    mapping: |
+      $b = true
+      output.v = match "x" {
+        "x" => "hit",
+        $b  => "boom",
+      }
+    output: {"v": "hit"}
+
+  - name: "boolean case evaluated when prior cases miss is a runtime error"
+    mapping: |
+      $b = true
+      output.v = match "y" {
+        "x" => "hit",
+        $b  => "boom",
+      }
+    error: ""
+
+  - name: "boolean case order matters — earlier non-boolean hit saves the match"
+    mapping: |
+      $b = false
+      output.v = match 5 {
+        5 => "matched five",
+        $b => "never reached",
+      }
+    output: {"v": "matched five"}
+
+  - name: "wildcard after boolean case short-circuits before the boolean is reached"
+    mapping: |
+      $b = true
+      output.v = match "anything" {
+        "anything" => "direct hit",
+        $b => "never reached",
+        _ => "wildcard",
+      }
+    output: {"v": "direct hit"}

@@ -187,3 +187,61 @@ tests:
     mapping: |
       output.v = deleted().catch(err -> "caught")
     output: {}
+
+  # --- Deletion through a non-existent path (Section 9.2 auto-creation) ---
+
+  - name: "delete missing field auto-creates intermediates then no-ops"
+    mapping: |
+      output.a.b.c = deleted()
+    output: {"a": {"b": {}}}
+
+  - name: "delete missing intermediate field is a no-op at depth"
+    mapping: |
+      output.x.y = deleted()
+    output: {"x": {}}
+
+  - name: "delete existing field still removes it"
+    mapping: |
+      output.a = {"b": {"c": 1, "d": 2}}
+      output.a.b.c = deleted()
+    output: {"a": {"b": {"d": 2}}}
+
+  - name: "delete on variable auto-creates intermediates then no-ops"
+    mapping: |
+      $v = {}
+      $v.x.y = deleted()
+      output = $v
+    output: {"x": {}}
+
+  - name: "delete on variable existing field removes it"
+    mapping: |
+      $v = {"x": {"y": 1, "z": 2}}
+      $v.x.y = deleted()
+      output = $v
+    output: {"x": {"z": 2}}
+
+  - name: "delete index on auto-created empty array is out of bounds"
+    mapping: |
+      output.xs[0] = deleted()
+    error: ""
+
+  - name: "delete through a type collision is a runtime error"
+    mapping: |
+      output.a = "string"
+      output.a.b = deleted()
+    error: ""
+
+  - name: "delete missing metadata key auto-creates intermediate object"
+    mapping: |
+      output@.routing.region = deleted()
+      output.done = true
+    output: {"done": true}
+    output_metadata: {"routing": {}}
+
+  - name: "delete existing nested metadata key removes it"
+    mapping: |
+      output@ = {"routing": {"region": "us-west", "priority": 10}}
+      output@.routing.region = deleted()
+      output.done = true
+    output: {"done": true}
+    output_metadata: {"routing": {"priority": 10}}

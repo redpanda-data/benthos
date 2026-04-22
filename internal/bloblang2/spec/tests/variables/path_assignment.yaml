@@ -181,3 +181,55 @@ tests:
       $data.name = "Alice"
       output.v = $data
     output: {"v": {"scores": [90, 85], "name": "Alice"}}
+
+  # --- Path assignment to an undeclared variable is a declaration (Section 3.7) ---
+
+  - name: "field path on undeclared variable auto-creates as object"
+    mapping: |
+      $user.name = "Alice"
+      output.v = $user
+    output: {"v": {"name": "Alice"}}
+
+  - name: "nested field path on undeclared variable auto-creates intermediates"
+    mapping: |
+      $user.address.city = "London"
+      output.v = $user
+    output: {"v": {"address": {"city": "London"}}}
+
+  - name: "numeric index on undeclared variable auto-creates as array"
+    mapping: |
+      $arr[0] = "first"
+      output.v = $arr
+    output: {"v": ["first"]}
+
+  - name: "numeric index with gap on undeclared variable fills with null"
+    mapping: |
+      $arr[2] = "third"
+      output.v = $arr
+    output: {"v": [null, null, "third"]}
+
+  - name: "dynamic string index on undeclared variable auto-creates as object"
+    mapping: |
+      $key = "name"
+      $obj[$key] = "Alice"
+      output.v = $obj
+    output: {"v": {"name": "Alice"}}
+
+  - name: "dynamic int index on undeclared variable auto-creates as array"
+    mapping: |
+      $i = 0
+      $arr[$i] = "first"
+      output.v = $arr
+    output: {"v": ["first"]}
+
+  - name: "further path assignments refer to the same declared variable"
+    mapping: |
+      $record.name = "Alice"
+      $record.age = 30
+      output.v = $record
+    output: {"v": {"name": "Alice", "age": 30}}
+
+  - name: "reading an undeclared variable is a compile error"
+    mapping: |
+      output.v = $never
+    compile_error: "$never"

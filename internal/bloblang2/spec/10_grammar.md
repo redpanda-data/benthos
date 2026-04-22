@@ -70,8 +70,13 @@ param_list      := param (',' param)*
 param           := identifier | identifier '=' literal | '_'
 import_stmt     := 'import' string_literal 'as' identifier
 
-expression      := postfix_expr | binary_expr | unary_expr | lambda_expr
+expression      := postfix_expr | binary_expr | unary_expr
 control_expr    := if_expr | match_expr
+
+# Lambdas are NOT general expressions. They only appear as call arguments
+# (positional or named) — see `arg_value` below. A lambda in any other
+# expression position (assignment RHS, collection literal element, operator
+# operand, paren_expr, etc.) is a parse error.
 
 # Postfix expressions: a primary followed by zero or more field access, indexing, or method calls.
 # This unified production allows chaining any postfix operation on any expression result:
@@ -143,8 +148,9 @@ string_literal  := '"' string_char* '"' | '`' raw_char* '`'
 string_char     := [^"\\\n] | escape_seq
 escape_seq      := '\\' ( '"' | '\\' | 'n' | 't' | 'r' | 'u' hex hex hex hex | 'u{' hex+ '}' )
                    # \uXXXX: exactly 4 hex digits (BMP only, U+0000–U+FFFF)
-                   # \u{X...}: 1–6 hex digits (any valid Unicode codepoint, U+0000–U+10FFFF)
-                   # Surrogate codepoints (U+D800–U+DFFF) are invalid in both forms
+                   # \u{X...}: the grammar accepts 1+ hex digits; a semantic pass must reject
+                   # any value > U+10FFFF or any surrogate codepoint (U+D800–U+DFFF) as a
+                   # compile error. Surrogate codepoints are also invalid in the \uXXXX form.
 hex             := [0-9a-fA-F]
 raw_char        := [^`]
 array           := '[' [expression (',' expression)* ','?] ']'
@@ -152,18 +158,19 @@ object          := '{' NL? [key_value (',' NL? key_value)* ','?] NL? '}'
 key_value       := expression ':' expression
 
 arg_list        := positional_args | named_args
-positional_args := expression (',' expression)* ','?
-named_args      := identifier ':' expression (',' identifier ':' expression)* ','?
+positional_args := arg_value (',' arg_value)* ','?
+named_args      := identifier ':' arg_value (',' identifier ':' arg_value)* ','?
+arg_value       := expression | lambda_expr        # Lambdas are only valid here
 word            := [a-zA-Z_][a-zA-Z0-9_]*          # Raw lexical pattern (includes keywords and reserved names)
 identifier      := word - keyword - reserved_name    # Excludes keywords and reserved names; used for variable/map/param names
 keyword         := 'input' | 'output' | 'if' | 'else' | 'match' | 'as' | 'map' | 'import' | 'true' | 'false' | 'null' | '_'
-reserved_name   := 'deleted' | 'throw'              # Reserved function names (Section 1.3); cannot be used as identifiers
+reserved_name   := 'deleted' | 'throw' | 'void'     # Reserved function names (Section 1.3); cannot be used as identifiers
 ```
 
 ## Key Points
 
 - **Disambiguation of `match` with `{`:** After `match`, if the next token is `{`, it is always the match body (boolean match without expression), never an object literal as the matched expression. This eliminates the ambiguity between `match { cases... }` and `match <object_literal> { cases... }`. In practice, matching on a literal is dead code — the matched expression should always be dynamic. If parenthesization is ever needed for clarity, `match (expr) { ... }` works for any expression.
-- **Disambiguation of `call_expr` vs `context_root`:** Both productions can start with `identifier` (or `qualified_name`). The parser must use one token of lookahead after the identifier (or after the second identifier in `qualified_name`) to check for `(`: if present, it is a `call_expr`; otherwise, it is a `context_root`. Reserved names (`deleted`, `throw`) always require `(` — they appear in `call_expr` but not `context_root`, so they can only be called, not used as bare values. This is standard LL(1) lookahead — the grammar is unambiguous but implementers should be aware of the need for it.
+- **Disambiguation of `call_expr` vs `context_root`:** Both productions can start with `identifier` (or `qualified_name`). The parser must use one token of lookahead after the identifier (or after the second identifier in `qualified_name`) to check for `(`: if present, it is a `call_expr`; otherwise, it is a `context_root`. Reserved names (`deleted`, `throw`, `void`) always require `(` — they appear in `call_expr` but not `context_root`, so they can only be called, not used as bare values. This is standard LL(1) lookahead — the grammar is unambiguous but implementers should be aware of the need for it.
 - **Unified postfix chains:** The `postfix_expr` production unifies field access, indexing, and method calls into a single chain. Any expression result can be followed by any combination of `.field`, `[index]`, and `.method()` operations. This means `func().field`, `expr.method()[0]`, and `literal["key"]` are all valid.
 - **Top-level only:** Map declarations (`map_decl`) and imports (`import_stmt`) can only appear at the top level of a program, not inside statement bodies. Control flow statements (`if_stmt`, `match_stmt`) can be nested.
 - **Variables:** `$var` for declaration and reference. The grammar has two assignment productions that reflect context restrictions: `assignment` (used in statement contexts: top-level, if/match statement bodies) can target `output`, `output@`, or `$variables`; `var_assignment` (used in expression contexts: map bodies, lambda blocks, if/match expressions) can only target `$variables`. Both support path assignment (`$var.field = expr`, `$var[0] = expr`) with the same field access, indexing, and auto-creation semantics as `output`.
@@ -182,7 +189,7 @@ reserved_name   := 'deleted' | 'throw'              # Reserved function names (S
 - **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`). Discard parameters (`_`) cannot have defaults.
 - **Discard parameters:** `_` is allowed as a parameter in maps and lambdas. It accepts an argument but does not bind it — `_` cannot be referenced in the body. Multiple `_` parameters are allowed. Maps or lambdas with `_` parameters can only be called positionally (named calls are a compile error).
 - **Arity:** Positional calls must provide at least the required parameter count and at most the total count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
-- **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, discard `_ -> expr` or `(_, b) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body. `_` parameters are not bound and cannot be referenced.
+- **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, discard `_ -> expr` or `(_, b) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body. `_` parameters are not bound and cannot be referenced. **Position restriction:** lambdas only appear as the `arg_value` of a positional or named argument — they are not general expressions. Any other position (assignment RHS, collection literal, operator operand, paren_expr, etc.) is a parse error. Whether a specific callee accepts a lambda at a given argument position is enforced by a semantic pass against the callee's signature.
 - **Side effects:**
   - Expressions cannot assign to `output` or `output@`
   - Lambda blocks: Variable assignments + final expression (no `output` side effects)
@@ -193,7 +200,7 @@ reserved_name   := 'deleted' | 'throw'              # Reserved function names (S
   - `if_stmt` / `match_stmt`: Standalone statements, contain `stmt_body` (may assign to `output`)
   - `expr_body`: Variable assignments + final expression (no `output` side effects)
   - `stmt_body`: Zero or more statements (no trailing expression). Empty bodies are valid (no-op).
-- **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises from if-expressions without `else` when the condition is false, or from match expressions without `_` when no case matches. Void is a purely runtime semantic: if void reaches a variable declaration (the first assignment to a name in a scope), it is a **runtime error** (Section 4.1). This ensures every declared variable always has a value.
+- **Void:** Not represented in the grammar — void is a semantic concept (absence of a value), not a syntactic form. It arises implicitly from if-expressions without `else` when the condition is false, from match expressions without `_` when no case matches, and from stdlib calls with no result (e.g. `.find()` on an array where no element matches); it can also be produced explicitly by the `void()` builtin (Section 13.1). Void is a purely runtime semantic: if void reaches a variable declaration (the first assignment to a name in a scope), it is a **runtime error** (Section 4.1). This ensures every declared variable always has a value.
 - **Type coercion:** `+` requires same type family (no cross-family implicit conversion). Numeric types are promoted using promotion rules; non-numeric types require exact type match.
 - **Operator precedence and associativity:** The `binary_expr` production is a simplified flat rule. Implementations must apply the precedence, associativity, and non-associativity rules from Section 3.2. Precedence (high to low): postfix operations (field access, indexing, method calls) > unary > multiplicative > additive > comparison > equality > logical AND > logical OR. Arithmetic and logical operators are left-associative; comparison and equality operators are non-associative (chaining is a parse error).
 - **`{}` disambiguation:** In contexts where `{}` could be either an empty object literal or an empty block (e.g., inside a map body or lambda block), it is parsed as an empty object literal. Blocks (`expr_body`, `lambda_block`) require at least one expression, so an empty `{}` cannot be a valid block.

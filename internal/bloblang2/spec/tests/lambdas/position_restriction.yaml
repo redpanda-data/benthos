@@ -1,0 +1,105 @@
+description: "Lambda position restriction — lambdas only appear as call arguments, never as general expressions (Sections 3.4 and 10)"
+
+tests:
+  # --- Parse errors: lambda in non-argument positions ---
+
+  - name: "lambda as variable declaration RHS is a parse/compile error"
+    mapping: |
+      $fn = x -> x * 2
+      output.v = 1
+    compile_error: "lambda"
+
+  - name: "lambda as output assignment RHS is a parse/compile error"
+    mapping: |
+      output.fn = x -> x * 2
+    compile_error: "lambda"
+
+  - name: "lambda in array literal is a parse/compile error"
+    mapping: |
+      output.xs = [1, x -> x, 3]
+    compile_error: "lambda"
+
+  - name: "lambda as object value is a parse/compile error"
+    mapping: |
+      output.obj = {"a": 1, "b": x -> x}
+    compile_error: "lambda"
+
+  - name: "lambda as operator operand is a parse/compile error"
+    mapping: |
+      output.v = 5 + x -> x * 2
+    compile_error: "lambda"
+
+  - name: "lambda as unary operand is a parse/compile error"
+    mapping: |
+      output.v = !(x -> x)
+    compile_error: "lambda"
+
+  - name: "lambda in paren_expr is a parse/compile error"
+    mapping: |
+      output.fn = (x -> x * 2)
+    compile_error: "lambda"
+
+  - name: "lambda in if branch is a parse/compile error"
+    mapping: |
+      output.fn = if true { x -> x } else { x -> x }
+    compile_error: "lambda"
+
+  - name: "lambda in match arm is a parse/compile error"
+    mapping: |
+      output.fn = match input.k {
+        "a" => x -> x,
+        _ => x -> x,
+      }
+    input: {"k": "a"}
+    compile_error: "lambda"
+
+  # --- Semantic errors: lambda passed to a callee that doesn't accept one ---
+
+  - name: "lambda passed to .or() is a compile error"
+    mapping: |
+      output.v = input.name.or(x -> x)
+    input: {"name": null}
+    compile_error: "lambda"
+
+  - name: "lambda passed to a user map is a compile error"
+    mapping: |
+      map wrap(v) { v + 1 }
+      output.v = wrap(x -> x)
+    compile_error: "lambda"
+
+  - name: "lambda passed to throw() is a compile error"
+    mapping: |
+      output.v = throw(x -> x)
+    compile_error: "lambda"
+
+  # --- Positive cases: lambdas in legal argument positions ---
+
+  - name: "lambda as positional method argument is valid"
+    mapping: |
+      output.xs = [1, 2, 3].map(x -> x * 2)
+    output: {"xs": [2, 4, 6]}
+
+  - name: "lambda as named method argument is valid"
+    mapping: |
+      output.xs = [1, 2, 3].map(fn: x -> x * 2)
+    output: {"xs": [2, 4, 6]}
+
+  - name: "multi-line lambda block as method argument is valid"
+    mapping: |
+      output.xs = [1, 2, 3].map(x -> {
+        $y = x * 10
+        $y + 1
+      })
+    output: {"xs": [11, 21, 31]}
+
+  - name: "multi-param lambda as method argument is valid"
+    mapping: |
+      output.total = [1, 2, 3, 4].fold(0, (tally, x) -> tally + x)
+    output: {"total": 10}
+
+  # --- Distinguishing lambda params from paren_expr at parser level ---
+
+  - name: "parens around a single param for lambda are valid"
+    mapping: |
+      output.xs = [1, 2].map((x) -> x + 1)
+    output: {"xs": [2, 3]}

@@ -93,10 +93,11 @@ Optimize repeated concatenation:
 - **`.catch(err -> expr)`** — Must intercept errors from the left-hand expression chain. Normal methods are skipped when the receiver is an error; `.catch()` is the opposite — it activates only on errors and passes through successful values unchanged. See Section 8.2.
 - **`.or(default)`** — Must use short-circuit evaluation. Normal methods eagerly evaluate all arguments; `.or()` must *not* evaluate its argument unless the receiver is null, void, or `deleted()`. Additionally, `.or()` and `.catch()` are the only methods that can be called on void or `deleted()` — all other methods error on void and `deleted()` receivers. `.catch()` passes void and `deleted()` through unchanged (they are not errors); `.or()` actively rescues them. This matters when the argument has side effects or throws (e.g., `.or(throw("required"))`). See Section 8.3.
 
-Similarly, `throw()` and `deleted()` are parsed as regular function calls but require special handling:
+Similarly, `throw()`, `deleted()`, and `void()` are parsed as regular function calls but their return values require special downstream tracking:
 
 - **`throw(message)`** — Produces a runtime error with the given message. Must be recognized so that short-circuit evaluation in `.or(throw("required"))` works correctly (the argument is only evaluated when `.or()` activates). See Section 8.4.
 - **`deleted()`** — Produces a special deletion marker, not a normal value. Must be tracked through assignments and collection literals to trigger field removal, element omission, or message dropping. See Section 9.2.
+- **`void()`** — Produces the void sentinel, the same value an `if` without `else` (or a non-exhaustive match) produces implicitly. Must flow through the same runtime paths as any other void-producing expression: assignment sites skip, collection literals and variable declarations error, `.or()` rescues, `.catch()` passes through. See Sections 4.1 and 13.1.
 
 Implementations should recognize these intrinsic methods and functions during compilation/interpretation and emit specialized instructions rather than routing them through the general dispatch path.
 

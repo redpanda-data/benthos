@@ -228,6 +228,33 @@ $arr[99] = deleted()       # ERROR: index out of bounds
 output.items[0] = deleted() # Removes first element, shifts remaining down
 ```
 
+**Deletion through a non-existent path:** When the target path does not fully exist, deletion follows the same auto-creation rules as assignment (Section 3.7). Missing object intermediates are auto-created as empty objects; missing array intermediates are auto-created as empty arrays (based on index type); the final deletion is then applied to the auto-created structure. For object field deletion the final step is a no-op if the field is absent (deletion is idempotent). For array index deletion the final step still requires the index to be in bounds — deleting from an auto-created empty array is a runtime error, consistent with the array edge-case rules above.
+
+```bloblang
+# output is {}
+output.a.b.c = deleted()        # Auto-creates output.a = {} and output.a.b = {};
+                                # deleting "c" from {} is a no-op.
+                                # Result: output = {"a": {"b": {}}}
+
+# output is {"a": {"b": {"c": 1, "d": 2}}}
+output.a.b.c = deleted()        # output = {"a": {"b": {"d": 2}}}
+
+# Variable paths — same auto-creation + idempotent-delete behavior
+$v = {}
+$v.x.y = deleted()              # $v = {"x": {}} (auto-created, nothing to delete)
+
+# Array index deletion still errors on out-of-bounds, including freshly
+# auto-created empty arrays
+output.xs[0] = deleted()        # output.xs auto-created as []; deleting [0] is
+                                # a runtime error (out of bounds)
+
+# Type collision on an intermediate is still a runtime error (Section 3.7)
+output.a = "string"
+output.a.b = deleted()          # ERROR: output.a is a string, not an object
+```
+
+Metadata path deletion (`output@.a.b = deleted()`) follows the same rules — intermediate metadata objects are auto-created, and the final delete is a no-op if the key is absent.
+
 **Routing messages instead of dropping them:**
 
 To route failed/spam messages to a dead letter topic (rather than dropping them), the output document must exist:
