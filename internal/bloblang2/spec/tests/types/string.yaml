@@ -65,6 +65,28 @@ tests:
       output = "\u{1F600}"
     output: "\U0001F600"
 
+  # --- Unicode escape range + surrogate rejection (Section 10) ---
+
+  - name: "unicode escape above U+10FFFF is a compile error"
+    mapping: |
+      output = "\u{110000}"
+    compile_error: "unicode"
+
+  - name: "unicode escape of a high surrogate is a compile error"
+    mapping: |
+      output = "\u{D800}"
+    compile_error: "surrogate"
+
+  - name: "unicode escape of a low surrogate is a compile error"
+    mapping: |
+      output = "\u{DFFF}"
+    compile_error: "surrogate"
+
+  - name: "fixed-width unicode escape of a surrogate is a compile error"
+    mapping: |
+      output = "\uD800"
+    compile_error: "surrogate"
+
   - name: "multiple escapes in one string"
     mapping: |
       output = "a\tb\nc\\d\"e"

@@ -244,6 +244,72 @@ tests:
       output = $s.ts_parse().ts_format()
     output: "2024-01-15T10:30:00.123Z"
 
+  # --- Stored zone behavior (Section 13.9) ---
+  # Parsing without a zone directive yields UTC; parsing with a zone stores
+  # that zone. Formatting uses the stored zone. These tests avoid `now()`
+  # and `.ts_from_unix*` because their stored zone is the process's local
+  # zone (implementation-defined and host-dependent).
+
+  - name: "ts_parse no zone directive yields UTC stored zone"
+    mapping: |
+      $ts = "2024-03-01T12:00:00".ts_parse("%Y-%m-%dT%H:%M:%S")
+      output = $ts.ts_format()
+    output: "2024-03-01T12:00:00Z"
+
+  - name: "ts_parse date-only yields UTC midnight"
+    mapping: |
+      $ts = "2024-03-01".ts_parse("%Y-%m-%d")
+      output = $ts.ts_format()
+    output: "2024-03-01T00:00:00Z"
+
+  - name: "ts_parse explicit UTC offset preserves Z on format"
+    mapping: |
+      $ts = "2024-03-01T12:00:00Z".ts_parse()
+      output = $ts.ts_format()
+    output: "2024-03-01T12:00:00Z"
+
+  - name: "ts_parse explicit positive offset preserves offset on format"
+    mapping: |
+      $ts = "2024-03-01T12:00:00+05:30".ts_parse()
+      output = $ts.ts_format()
+    output: "2024-03-01T12:00:00+05:30"
+
+  - name: "ts_parse explicit negative offset preserves offset on format"
+    mapping: |
+      $ts = "2024-03-01T12:00:00-08:00".ts_parse()
+      output = $ts.ts_format()
+    output: "2024-03-01T12:00:00-08:00"
+
+  - name: "timestamp constructor UTC default formats with Z"
+    mapping: |
+      output = timestamp(2024, 3, 1, 12, 0, 0).ts_format()
+    output: "2024-03-01T12:00:00Z"
+
+  - name: "timestamp constructor with explicit zone formats with that offset"
+    mapping: |
+      output = timestamp(2024, 3, 1, 12, 0, 0, 0, "America/New_York").ts_format()
+    output: "2024-03-01T12:00:00-05:00"
+
+  - name: "ts_format without zone directive uses stored zone clock"
+    mapping: |
+      $ts = timestamp(2024, 3, 1, 12, 0, 0, 0, "America/New_York")
+      output = $ts.ts_format("%Y-%m-%d %H:%M:%S")
+    output: "2024-03-01 12:00:00"
+
+  - name: "different stored zones with same instant compare equal"
+    mapping: |
+      $a = "2024-03-01T12:00:00Z".ts_parse()
+      $b = "2024-03-01T07:00:00-05:00".ts_parse()
+      output = $a == $b
+    output: true
+
+  - name: "ts_unix is instant-based and ignores stored zone"
+    mapping: |
+      $a = "2024-03-01T12:00:00Z".ts_parse()
+      $b = "2024-03-01T07:00:00-05:00".ts_parse()
+      output = $a.ts_unix() == $b.ts_unix()
+    output: true
+
   # --- ts_add ---
 
   - name: "ts_add one second"

@@ -182,13 +182,13 @@ null == 0            # false (null vs numeric)
 
 **Object key ordering:** Object key ordering is **not preserved**. Programs must not depend on iteration order in `.iter()`, JSON serialization order, or any other context where keys are enumerated. Object equality compares keys and values regardless of order.
 
-**Timestamp semantics:** Timestamps represent a point in time with nanosecond precision. They support:
+**Timestamp semantics:** Timestamps represent a point in time with nanosecond precision. In addition to the instant, each timestamp carries a **stored zone** that controls how it is rendered as a string. Comparison, subtraction, and `.ts_unix*()` methods operate on the instant (the stored zone is not consulted); `.ts_format()` and `.string()` use the stored zone to produce the displayed clock and offset (Section 13.9). They support:
 
-- **Equality and comparison:** Timestamps can be compared with `==`, `!=`, `<`, `>`, `<=`, `>=`. Earlier times are less than later times.
+- **Equality and comparison:** Timestamps can be compared with `==`, `!=`, `<`, `>`, `<=`, `>=`. Earlier times are less than later times. Equality ignores the stored zone — two timestamps representing the same instant are equal even if their stored zones differ.
 - **Arithmetic:** `timestamp - timestamp` returns an int64 (duration in nanoseconds). All other arithmetic involving timestamps is an error — including `timestamp + timestamp`, `timestamp + number`, `timestamp - number`, `number - timestamp`, and any use of `*`, `/`, or `%` with a timestamp operand. Use `.ts_add(nanos)` to offset a timestamp by a duration, or `.ts_unix()` and related methods for numeric conversions. **Note:** int64 nanoseconds can represent approximately ±292 years; subtracting timestamps further apart than this is an integer overflow error (Section 2.3).
 - **Methods:** `.ts_format()`, `.ts_add()`, `.ts_unix()`, `.ts_unix_milli()`, `.ts_unix_micro()`, `.ts_unix_nano()`, `.type()`, `.string()`.
 - **Construction from numeric:** `.ts_from_unix()` on any numeric type (integers for second precision; floats for sub-second precision, limited by float64's ~15-17 significant digits). For exact sub-second precision, use `.ts_from_unix_milli()`, `.ts_from_unix_micro()`, or `.ts_from_unix_nano()` on int64 values. See Section 13.9.
-- **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings. When converted with `.string()`, the result is also RFC 3339. Trailing fractional zeros are trimmed (e.g., `.500000000` becomes `.5`; whole-second timestamps omit the fractional part entirely).
+- **Serialization:** When serialized to JSON, timestamps are formatted as RFC 3339 strings using the stored zone. When converted with `.string()`, the result is also RFC 3339. Trailing fractional zeros are trimmed (e.g., `.500000000` becomes `.5`; whole-second timestamps omit the fractional part entirely). See Section 13.9 for which construction paths produce UTC-zoned versus local-zoned timestamps.
 
 ```bloblang
 $a = now()
@@ -197,7 +197,8 @@ $a < $b                    # true (earlier < later)
 $a == $a                   # true
 $b - $a                    # int64: nanoseconds between the two timestamps
 $a + 1                     # ERROR: cannot add timestamp and int64
-$a.string()                # "2024-03-01T12:00:00Z" (RFC 3339, trailing zeros trimmed)
+$a.string()                # RFC 3339 using $a's stored zone (e.g., "2024-03-01T14:32:05+01:00"
+                           # in Europe/London summer, or "2024-03-01T12:00:00Z" if stored UTC)
 ```
 
 ## 2.4 Null Handling

@@ -15,6 +15,30 @@ tests:
       output.v = void()
     output: {"v": "pending"}
 
+  - name: "void() as root output RHS with no prior is skipped (stays {})"
+    mapping: |
+      output = void()
+    output: {}
+
+  - name: "void() as root output RHS preserves prior root assignment"
+    mapping: |
+      output = {"kept": true}
+      output = void()
+    output: {"kept": true}
+
+  - name: "void() as root output RHS preserves prior field assignments"
+    mapping: |
+      output.a = 1
+      output.b = 2
+      output = void()
+    output: {"a": 1, "b": 2}
+
+  - name: "void() as root output via if-without-else is skipped"
+    mapping: |
+      output.keep = 1
+      output = if false { "replace" }
+    output: {"keep": 1}
+
   - name: "void() in if branch skips assignment"
     mapping: |
       output.status = if input.ready { "done" } else { void() }
@@ -128,3 +152,53 @@ tests:
     mapping: |
       output.v = void(1)
     compile_error: "void"
+
+  # --- void is a reserved name (Section 1.3) ---
+  # Mirrors the restrictions on `deleted` and `throw`: cannot be a variable,
+  # map, or parameter name. Field names are unaffected (they use `word`).
+
+  - name: "void cannot be used as a variable name"
+    mapping: |
+      $void = 1
+      output.v = $void
+    compile_error: "void"
+
+  - name: "void cannot be used as a map name"
+    mapping: |
+      map void(x) { x + 1 }
+      output.v = void(1)
+    compile_error: "void"
+
+  - name: "void cannot be used as a map parameter name"
+    mapping: |
+      map wrap(void) { void }
+      output.v = wrap(1)
+    compile_error: "void"
+
+  - name: "void cannot be used as a lambda parameter name"
+    mapping: |
+      output.xs = [1, 2, 3].map(void -> void + 1)
+    compile_error: "void"
+
+  - name: "void cannot be used as a match as binding"
+    mapping: |
+      output.v = match input.x as void {
+        void > 0 => "pos",
+        _ => "other",
+      }
+    input: {"x": 1}
+    compile_error: "void"
+
+  - name: "void is valid as a field name after ."
+    mapping: |
+      output.void = input.void
+    input: {"void": 42}
+    output: {"void": 42}
+
+  - name: "void is valid as a metadata key"
+    mapping: |
+      output@.void = "routed"
+      output.x = input@.void
+    input_metadata: {"void": "inbound"}
+    output: {"x": "inbound"}
+    output_metadata: {"void": "routed"}
