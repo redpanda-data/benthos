@@ -902,6 +902,15 @@
           },
           "named": true,
           "value": "identifier"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "STRING",
+            "value": "void"
+          },
+          "named": true,
+          "value": "identifier"
         }
       ]
     },
@@ -932,6 +941,10 @@
                 {
                   "type": "STRING",
                   "value": "throw"
+                },
+                {
+                  "type": "STRING",
+                  "value": "void"
                 }
               ]
             }

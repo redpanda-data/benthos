@@ -155,6 +155,7 @@ func (interp *Interpreter) registerFunctions() {
 	f := func(fn FunctionFunc) FunctionSpec { return FunctionSpec{Fn: fn} }
 
 	interp.RegisterFunction("deleted", FunctionSpec{Fn: func(_ []any) any { return Deleted }})
+	interp.RegisterFunction("void", FunctionSpec{Fn: func(_ []any) any { return Void }})
 	interp.RegisterFunction("throw", FunctionSpec{
 		Fn: func(args []any) any {
 			if len(args) != 1 {

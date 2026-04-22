@@ -110,7 +110,7 @@ output.user = {
 # If email not verified, field "email" is removed from object
 ```
 
-**`deleted()` vs void:** These are different concepts. `deleted()` is an active deletion marker — it expresses intentional removal. Void means "no value was produced" — it typically indicates a missing code path. This distinction is enforced: `deleted()` is accepted in contexts where removal makes sense (collection literals, `.map()` lambdas), while void is an error in those same contexts, catching the likely bug of a missing `else` branch or `_` case.
+**`deleted()` vs void:** These are different concepts. `deleted()` is an active deletion marker — it expresses intentional removal. Void means "no value was produced" — it typically indicates a missing code path. Void is produced implicitly (an `if` without `else`, a non-exhaustive `match`, `.find()` with no result), or explicitly via the `void()` builtin. The distinction is enforced: `deleted()` is accepted in contexts where removal makes sense (collection literals, `.map()` lambdas), while void is an error in those same contexts, catching the likely bug of a missing `else` branch or `_` case.
 ```bloblang
 # In collection literals
 output.items = [1, deleted(), 3]          # [1, 3] — deleted: intentional removal

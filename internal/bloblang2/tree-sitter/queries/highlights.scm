@@ -35,6 +35,7 @@
     name: (identifier) @function.call))
 "deleted" @function.builtin
 "throw" @function.builtin
+"void" @function.builtin
 
 ; Method calls
 (method_call
