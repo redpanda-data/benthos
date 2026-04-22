@@ -37,6 +37,44 @@ type translator struct {
 	// translator so translateImport can parse imported file contents to
 	// learn the map names they declare.
 	files map[string]string
+	// ctxStack tracks the nearest enclosing construct that changes how
+	// sentinel values (nothing(), deleted()) should be emitted in V2.
+	// The top of the stack wins. See ctxKind for the enumerated contexts.
+	ctxStack []ctxKind
+}
+
+// ctxKind is a translator-side marker for the kind of position we're
+// currently rendering into. Used by nothing() rewrites to choose between
+// void() (skip assignment) and deleted() (elide from collection).
+type ctxKind int
+
+const (
+	// ctxCollectionLit is pushed while translating an element of an
+	// array or an object-entry value — positions where V1's nothing()
+	// silently elided in V1 and V2's deleted() serves the same role.
+	ctxCollectionLit ctxKind = iota + 1
+	// ctxVarDeclRHS is pushed while translating the RHS of a `let $x = …`
+	// binding. V1 deletes the variable on nothing(); V2 errors on void
+	// in a var-decl RHS — there is no semantic-preserving translation.
+	ctxVarDeclRHS
+)
+
+// pushCtx pushes a translation context kind. Pair with popCtx.
+func (t *translator) pushCtx(k ctxKind) { t.ctxStack = append(t.ctxStack, k) }
+
+// popCtx removes the innermost context.
+func (t *translator) popCtx() {
+	if n := len(t.ctxStack); n > 0 {
+		t.ctxStack = t.ctxStack[:n-1]
+	}
+}
+
+// currentCtx returns the innermost context, or 0 if none.
+func (t *translator) currentCtx() ctxKind {
+	if n := len(t.ctxStack); n > 0 {
+		return t.ctxStack[n-1]
+	}
+	return 0
 }
 
 // pushThisRebind makes V1 `this` translate to the given V2 identifier name
@@ -104,6 +142,29 @@ func (t *translator) translateProgram(p *v1ast.Program) *syntax.Program {
 	}
 
 	out := &syntax.Program{}
+
+	// ModeMapping prelude: V1 `mapping` starts `root` as the input
+	// document, whereas V2 `output` starts as `{}`. Prepend an explicit
+	// `output = input` so a V1 mapping whose statements only tweak
+	// individual fields continues to pass the input through.
+	if t.rec.opts.Mode == ModeMapping {
+		t.rec.Rewritten(Change{
+			Line:        1,
+			Column:      1,
+			Severity:    SeverityInfo,
+			Category:    CategoryIdiomRewrite,
+			RuleID:      RuleRootToOutput,
+			Explanation: "ModeMapping: prepended `output = input` to preserve V1 mapping pass-through default",
+		})
+		out.Stmts = append(out.Stmts, &syntax.Assignment{
+			TokenPos: syntax.Pos{Line: 1, Column: 1},
+			Target: syntax.AssignTarget{
+				Pos:  syntax.Pos{Line: 1, Column: 1},
+				Root: syntax.AssignOutput,
+			},
+			Value: &syntax.InputExpr{TokenPos: syntax.Pos{Line: 1, Column: 1}},
+		})
+	}
 
 	// Translate statements in original order, routing map decls and imports
 	// to the dedicated slices while keeping everything else in Stmts.

@@ -298,9 +298,24 @@ var ruleCases = []ruleCase{
 	// Sentinels.
 	// -----------------------------------------------------------------
 	{
-		name:   "nothing() -> void-producing if false { null }",
+		name:   "nothing() at statement RHS -> V2 void()",
 		v1:     `root = if this.x > 0 { this.x } else { nothing() }`,
-		wantV2: []string{"if false", "null"},
+		wantV2: []string{"void()"},
+	},
+	{
+		name:   "nothing() inside array literal -> V2 deleted()",
+		v1:     `root.xs = [1, nothing(), 3]`,
+		wantV2: []string{"deleted()"},
+	},
+	{
+		name:   "nothing() inside object literal value -> V2 deleted()",
+		v1:     `root.obj = {"a": 1, "b": nothing()}`,
+		wantV2: []string{"deleted()"},
+	},
+	{
+		name:      "nothing() inside let binding -> Unsupported (no V2 equivalent)",
+		v1:        "let a = nothing()\nroot.v = 1",
+		wantRules: []translator.RuleID{translator.RuleUnsupportedConstruct},
 	},
 
 	// -----------------------------------------------------------------

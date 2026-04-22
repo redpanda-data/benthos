@@ -499,26 +499,56 @@ func (t *translator) translateFunctionCall(f *v1ast.FunctionCall) syntax.Expr {
 			Explanation: "V1 deleted() is widely tolerated; V2 errors when deleted() appears in variable assignments, comparisons, or as a method receiver",
 		})
 	}
-	// V1 `nothing()` is a sentinel that produces the "skip assignment"
-	// value. V2 expresses the same idea via the void type (no literal
-	// spelling — produced by an if-without-else whose condition is false).
-	// Rewrite `nothing()` to `if false { null }` so downstream assignments
-	// are skipped as they were in V1.
+	// V1 `nothing()` is a sentinel that means different things in
+	// different positions. V2 split the concepts: `void()` for
+	// "skip this assignment", `deleted()` for "omit from this
+	// collection". The translator disambiguates by looking at the
+	// current rendering context (see ctxKind) and emitting the V2
+	// form that matches V1's intent at each site.
 	if f.Name == "nothing" && len(f.Args) == 0 && !f.Named {
+		switch t.currentCtx() {
+		case ctxCollectionLit:
+			t.rec.Rewritten(Change{
+				Line: f.NamePos.Line, Column: f.NamePos.Column,
+				Severity:    SeverityInfo,
+				Category:    CategoryIdiomRewrite,
+				RuleID:      RuleMethodDoesNotExist,
+				SpecRef:     "§14#71",
+				Explanation: "V1 `nothing()` inside a collection literal rewritten as V2 `deleted()` (both elide the entry)",
+			})
+			return &syntax.CallExpr{
+				TokenPos: pos(f.NamePos),
+				Name:     "deleted",
+			}
+		case ctxVarDeclRHS:
+			// V1 `let $x = nothing()` deletes $x. V2 errors on
+			// void in a variable declaration and has no equivalent
+			// delete-a-variable construct. Emit `void()` so the V2
+			// runtime fires the documented error at the right site,
+			// and flag Error-severity so the migrator user sees that
+			// manual rewrite is required.
+			t.rec.Unsupported(Change{
+				Line: f.NamePos.Line, Column: f.NamePos.Column,
+				RuleID:      RuleUnsupportedConstruct,
+				SpecRef:     "§14#17",
+				Explanation: "V1 `let $x = nothing()` deletes the variable; V2 has no equivalent — emitted `void()` which will error at runtime. Rewrite this `let` by hand.",
+			})
+			return &syntax.CallExpr{
+				TokenPos: pos(f.NamePos),
+				Name:     "void",
+			}
+		}
 		t.rec.Rewritten(Change{
 			Line: f.NamePos.Line, Column: f.NamePos.Column,
 			Severity:    SeverityInfo,
 			Category:    CategoryIdiomRewrite,
 			RuleID:      RuleMethodDoesNotExist,
 			SpecRef:     "§14#36",
-			Explanation: "V1 `nothing()` sentinel rewritten as V2 void-producing `if false { null }`",
+			Explanation: "V1 `nothing()` sentinel rewritten as V2 `void()`",
 		})
-		return &syntax.IfExpr{
+		return &syntax.CallExpr{
 			TokenPos: pos(f.NamePos),
-			Branches: []syntax.IfExprBranch{{
-				Cond: &syntax.LiteralExpr{TokenPos: pos(f.NamePos), TokenType: syntax.FALSE, Value: "false"},
-				Body: &syntax.ExprBody{Result: &syntax.LiteralExpr{TokenPos: pos(f.NamePos), TokenType: syntax.NULL, Value: "null"}},
-			}},
+			Name:     "void",
 		}
 	}
 	args := t.translateArgs(f.Args)
@@ -572,11 +602,16 @@ func (t *translator) translateLambda(l *v1ast.Lambda) syntax.Expr {
 	}
 }
 
-// translateArrayLit rewrites `[elem, ...]`.
+// translateArrayLit rewrites `[elem, ...]`. Pushes ctxCollectionLit
+// while translating each element so nested `nothing()` calls lower to
+// V2 `deleted()` (which elides from the array, matching V1) rather
+// than V2 `void()` (which would error in array-literal position).
 func (t *translator) translateArrayLit(a *v1ast.ArrayLit) syntax.Expr {
 	out := &syntax.ArrayLiteral{LBracketPos: pos(a.TokPos)}
 	for _, elem := range a.Elems {
+		t.pushCtx(ctxCollectionLit)
 		v := t.translateExpr(elem)
+		t.popCtx()
 		if v != nil {
 			out.Elements = append(out.Elements, v)
 		}
@@ -585,12 +620,17 @@ func (t *translator) translateArrayLit(a *v1ast.ArrayLit) syntax.Expr {
 	return out
 }
 
-// translateObjectLit rewrites `{key: value, ...}`.
+// translateObjectLit rewrites `{key: value, ...}`. Pushes ctxCollectionLit
+// while translating each entry's value for the same reason arrays do.
+// Keys are translated without the context — a sentinel as an object key
+// would be malformed in either language.
 func (t *translator) translateObjectLit(o *v1ast.ObjectLit) syntax.Expr {
 	out := &syntax.ObjectLiteral{LBracePos: pos(o.TokPos)}
 	for _, entry := range o.Entries {
 		key := t.translateExpr(entry.Key)
+		t.pushCtx(ctxCollectionLit)
 		value := t.translateExpr(entry.Value)
+		t.popCtx()
 		if key == nil || value == nil {
 			continue
 		}
@@ -601,6 +641,13 @@ func (t *translator) translateObjectLit(o *v1ast.ObjectLit) syntax.Expr {
 }
 
 // translateIfExpr rewrites `if/else if/else` expression form.
+//
+// V1 without `else` produces a `nothing` sentinel, which silently elided
+// from collection literals and skipped assignments. V2 produces void,
+// which errors in collection literals. When we're translating an
+// if-without-else inside a collection-literal context, synthesize an
+// explicit `else { deleted() }` so the resulting V2 expression elides
+// the entry rather than erroring.
 func (t *translator) translateIfExpr(i *v1ast.IfExpr) syntax.Expr {
 	out := &syntax.IfExpr{TokenPos: pos(i.TokPos)}
 	for _, br := range i.Branches {
@@ -616,6 +663,17 @@ func (t *translator) translateIfExpr(i *v1ast.IfExpr) syntax.Expr {
 		if body := t.translateExpr(i.Else); body != nil {
 			out.Else = &syntax.ExprBody{Result: body}
 		}
+	} else if t.currentCtx() == ctxCollectionLit {
+		t.rec.Rewritten(Change{
+			Line: i.TokPos.Line, Column: i.TokPos.Column,
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID: RuleIfNoElseNothing, SpecRef: "§14#71",
+			Explanation: "V1 if-without-else inside a collection literal elides the entry; V2 errors — synthesized `else { deleted() }` to preserve the elision",
+		})
+		out.Else = &syntax.ExprBody{Result: &syntax.CallExpr{
+			TokenPos: pos(i.TokPos),
+			Name:     "deleted",
+		}}
 	} else {
 		t.rec.Rewritten(Change{
 			Line: i.TokPos.Line, Column: i.TokPos.Column,
@@ -666,7 +724,11 @@ func (t *translator) translateMatchExpr(m *v1ast.MatchExpr) syntax.Expr {
 			Explanation: "V1 boolean-case match coerces non-boolean case patterns; V2 errors when a case doesn't evaluate to bool",
 		})
 	}
+	hasWildcard := false
 	for _, c := range m.Cases {
+		if c.Wildcard {
+			hasWildcard = true
+		}
 		if lit, ok := c.Pattern.(*v1ast.Literal); ok && lit.Kind == v1ast.LitBool {
 			t.rec.Note(Change{
 				Line: lit.TokPos.Line, Column: lit.TokPos.Column,
@@ -688,23 +750,92 @@ func (t *translator) translateMatchExpr(m *v1ast.MatchExpr) syntax.Expr {
 		}
 		out.Cases = append(out.Cases, mc)
 	}
+	// A V1 match without a wildcard that produces void inside a
+	// collection literal would elide the entry; V2 errors. Synthesize
+	// `_ => deleted()` so the elision carries over.
+	if !hasWildcard && t.currentCtx() == ctxCollectionLit {
+		t.rec.Rewritten(Change{
+			Line: m.TokPos.Line, Column: m.TokPos.Column,
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§14#71",
+			Explanation: "V1 match-without-wildcard inside a collection literal elides the entry on no match; V2 errors — synthesized `_ => deleted()` to preserve the elision",
+		})
+		out.Cases = append(out.Cases, syntax.MatchCase{
+			Wildcard: true,
+			Body: &syntax.CallExpr{
+				TokenPos: pos(m.TokPos),
+				Name:     "deleted",
+			},
+		})
+	}
 	t.rec.Exact()
 	return out
 }
 
 // translateMapExpr rewrites the path-scoped `recv.(expr)` form.
+//
+// V1 has two shapes:
+//   - `recv.(name -> body)` — bind name to recv, `this` unchanged.
+//   - `recv.(body)`          — rebind `this` to recv inside body.
+//
+// V2's .into(lambda) method (§13.12) maps cleanly onto the named form:
+// `recv.(name -> body)` → `recv.into(name -> body)`. The un-named form
+// rebinds `this`, which V2 lambdas don't do directly — we synthesize a
+// named param and rewrite references to `this` inside the body to that
+// name (handled by pushThisRebind during translation of the body).
 func (t *translator) translateMapExpr(m *v1ast.MapExpr) syntax.Expr {
-	// V2 has no `.(expr)` map-scoped form. Rewrite as a call to `.apply` on
-	// the receiver — not semantically identical (apply is by-map-name) but
-	// the closest V2 equivalent is an explicit let+body rewrite which we
-	// don't yet support.
-	t.rec.Unsupported(Change{
+	recv := t.translateExpr(m.Recv)
+	if recv == nil {
+		return nil
+	}
+	if lambda, ok := m.Body.(*v1ast.Lambda); ok {
+		translatedLambda := t.translateLambda(lambda)
+		if translatedLambda == nil {
+			return nil
+		}
+		t.rec.Rewritten(Change{
+			Line: m.TokPos.Line, Column: m.TokPos.Column,
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§5.4",
+			Explanation: "V1 recv.(name -> body) rewritten as V2 recv.into(name -> body)",
+		})
+		return &syntax.MethodCallExpr{
+			Receiver:  recv,
+			Method:    "into",
+			MethodPos: pos(m.TokPos),
+			Args:      []syntax.CallArg{{Value: translatedLambda}},
+		}
+	}
+	// Un-named form: synthesize a lambda that rebinds `this` to a fresh
+	// name while the body is translated, then wrap as .into($name -> body).
+	const paramName = "__this"
+	t.pushScope(paramName)
+	t.pushThisRebind(paramName)
+	body := t.translateExpr(m.Body)
+	t.popThisRebind()
+	t.popScope()
+	if body == nil {
+		return nil
+	}
+	t.rec.Rewritten(Change{
 		Line: m.TokPos.Line, Column: m.TokPos.Column,
-		RuleID:      RuleUnsupportedConstruct,
+		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+		RuleID:      RuleMethodDoesNotExist,
 		SpecRef:     "§5.4",
-		Explanation: "V1 .(expr) map-scoped subexpression has no direct V2 equivalent",
+		Explanation: "V1 recv.(body) (un-named, this-rebinding) rewritten as V2 recv.into(__this -> body) with `this` references replaced",
 	})
-	return nil
+	return &syntax.MethodCallExpr{
+		Receiver:  recv,
+		Method:    "into",
+		MethodPos: pos(m.TokPos),
+		Args: []syntax.CallArg{{Value: &syntax.LambdaExpr{
+			TokenPos: pos(m.TokPos),
+			Params:   []syntax.Param{{Name: paramName, Pos: pos(m.TokPos), SlotIndex: -1}},
+			Body:     &syntax.ExprBody{Result: body},
+		}}},
+	}
 }
 
 // translateArgs translates call arguments.

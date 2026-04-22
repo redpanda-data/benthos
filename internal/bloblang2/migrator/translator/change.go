@@ -274,6 +274,49 @@ type Options struct {
 	// importer), so this field is presently consumed only by the final V2
 	// parse verifier. Future work may thread it through more deeply.
 	Files map[string]string
+
+	// Mode selects how the V1 mapping's implicit root is treated.
+	//
+	// V1 ships two Bloblang-executing processors with different root
+	// defaults:
+	//   - `mapping`  — `root` starts as the *input* document; a mapping
+	//                  that makes no assignments passes the input
+	//                  through unchanged.
+	//   - `mutation` — `root` starts as `{}`; a mapping that makes no
+	//                  assignments emits an empty object.
+	//
+	// V2's `output` always starts as `{}`, matching V1's `mutation`. To
+	// preserve V1 `mapping` semantics the translator prepends an
+	// `output = input` statement to the V2 output when Mode is
+	// ModeMapping. When Mode is ModeMutation (or unset — the safe
+	// default), no prelude is inserted.
+	Mode Mode
+}
+
+// Mode classifies the V1 execution context the translated mapping will
+// replace. See Options.Mode.
+type Mode int
+
+const (
+	// ModeMutation is the default: V1 `mutation` processor semantics.
+	// `root` starts empty; no prelude injected by the translator.
+	ModeMutation Mode = iota
+
+	// ModeMapping selects V1 `mapping` processor semantics. `root`
+	// starts as the input document; the translator prepends
+	// `output = input` so the V2 output behaves the same way.
+	ModeMapping
+)
+
+// String satisfies fmt.Stringer for ergonomic test/log output.
+func (m Mode) String() string {
+	switch m {
+	case ModeMutation:
+		return "mutation"
+	case ModeMapping:
+		return "mapping"
+	}
+	return fmt.Sprintf("mode(%d)", m)
 }
 
 // DefaultOptions returns reasonable defaults.
