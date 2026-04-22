@@ -227,6 +227,7 @@ module.exports = grammar({
         alias("null", $.identifier),
         alias("deleted", $.identifier),
         alias("throw", $.identifier),
+        alias("void", $.identifier),
       ),
 
     // --- Function/method calls ---
@@ -235,7 +236,7 @@ module.exports = grammar({
       prec(
         PREC.postfix,
         seq(
-          field("name", choice($.identifier, $.qualified_name, "deleted", "throw")),
+          field("name", choice($.identifier, $.qualified_name, "deleted", "throw", "void")),
           "(",
           optional($.argument_list),
           ")",

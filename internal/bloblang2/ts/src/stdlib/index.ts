@@ -1,7 +1,7 @@
 // Stdlib entry point: registers all functions, methods, and lambda methods.
 
 import type { Interpreter, MethodSpec, FunctionSpec } from "../interpreter.js";
-import type { FunctionInfo } from "../resolver.js";
+import type { FunctionInfo, MethodInfo } from "../resolver.js";
 
 import { registerFunctions } from "./functions.js";
 import { registerTypeConversion } from "./type_conversion.js";
@@ -34,12 +34,17 @@ export function registerStdlib(interp: Interpreter): void {
 }
 
 /**
- * Return the set of method names and function info map for the resolver.
+ * Return the method and function registries needed by the resolver.
  * This creates a lightweight stub with just the registration surface,
  * avoiding a dependency on the full Interpreter constructor.
+ *
+ * Method infos carry arity (required / total). `required === 0` with
+ * `total === -1` is used for methods that declare no params array
+ * (e.g. intrinsic methods like `.catch` / `.or` whose arity is
+ * handled specially at call sites).
  */
 export function stdlibNames(): {
-  methods: Set<string>;
+  methods: Map<string, MethodInfo>;
   functions: Map<string, FunctionInfo>;
 } {
   // Minimal stub that satisfies registerStdlib's registration calls.
@@ -60,9 +65,19 @@ export function stdlibNames(): {
 
   registerStdlib(stub);
 
-  const methodNames = new Set<string>();
-  for (const name of methods.keys()) {
-    methodNames.add(name);
+  const methodInfos = new Map<string, MethodInfo>();
+  for (const [name, spec] of methods) {
+    if (!spec.params) {
+      methodInfos.set(name, { required: 0, total: -1 });
+      continue;
+    }
+    let required = 0;
+    let total = 0;
+    for (const p of spec.params) {
+      total++;
+      if (!p.hasDefault) required++;
+    }
+    methodInfos.set(name, { required, total });
   }
 
   const functionInfos = new Map<string, FunctionInfo>();
@@ -76,5 +91,5 @@ export function stdlibNames(): {
     functionInfos.set(name, { required, total });
   }
 
-  return { methods: methodNames, functions: functionInfos };
+  return { methods: methodInfos, functions: functionInfos };
 }

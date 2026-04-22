@@ -34,6 +34,23 @@ func (interp *Interpreter) RegisterLambdaMethods() {
 	interp.RegisterLambdaMethod("map_keys", lm(interp.methodMapKeys, fnParam))
 	interp.RegisterLambdaMethod("map_entries", lm(interp.methodMapEntries, fnParam))
 	interp.RegisterLambdaMethod("filter_entries", lm(interp.methodFilterEntries, fnParam))
+	interp.RegisterLambdaMethod("into", lm(interp.methodInto, fnParam))
+}
+
+// methodInto invokes the lambda with the receiver as its single argument
+// and returns the lambda's result. Errors, void, and deleted() from the
+// lambda propagate through unchanged — the calling context decides what
+// to do with them.
+func (interp *Interpreter) methodInto(receiver any, args []syntax.CallArg) any {
+	lambda := interp.extractLambdaOrMapRef(args)
+	if lambda == nil {
+		return NewError("into() requires a lambda argument")
+	}
+	if len(lambda.Params) != 1 {
+		return NewError(fmt.Sprintf("into() requires a one-parameter lambda, got %d parameters", len(lambda.Params)))
+	}
+	argBuf := [1]any{receiver}
+	return interp.callLambda(lambda, argBuf[:])
 }
 
 func (interp *Interpreter) methodFilter(receiver any, args []syntax.CallArg) any {

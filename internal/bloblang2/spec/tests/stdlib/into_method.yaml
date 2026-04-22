@@ -1,0 +1,136 @@
+description: ".into(lambda) pipeline method — invoke lambda with receiver, return result (Section 13.12)"
+
+tests:
+  # --- Basic semantics ---
+
+  - name: "into() passes receiver to lambda and returns result"
+    mapping: |
+      output = "hello".into(s -> s.uppercase())
+    output: "HELLO"
+
+  - name: "into() with a literal receiver"
+    mapping: |
+      output = 5.into(n -> n * 2)
+    output: 10
+
+  - name: "into() chainable after other methods"
+    mapping: |
+      output = input.name.trim().lowercase().into(s -> s + "_id")
+    input: {"name": "  Alice  "}
+    output: "alice_id"
+
+  - name: "into() chainable before other methods"
+    mapping: |
+      output = input.n.into(x -> x + 1).string()
+    input: {"n": 41}
+    output: "42"
+
+  # --- Lambda binding ---
+
+  - name: "into() lambda param references the receiver"
+    mapping: |
+      output = {"a": 1, "b": 2}.into(obj -> obj.a + obj.b)
+    output: 3
+
+  - name: "into() lambda can use the param multiple times"
+    mapping: |
+      output = input.items.filter(x -> x > 0).into(pos -> {
+        "count": pos.length(),
+        "sum": pos.fold(0, (tally, x) -> tally + x),
+      })
+    input: {"items": [1, -2, 3, -4, 5]}
+    output: {"count": 3, "sum": 9}
+
+  - name: "into() lambda param shadowing in nested into()"
+    mapping: |
+      output = 10.into(x -> 20.into(x -> x))
+    output: 20
+
+  # --- Scoping: this and output ---
+
+  - name: "into() lambda sees outer input via input keyword"
+    mapping: |
+      output = input.n.into(_ -> input.m)
+    input: {"n": 1, "m": 42}
+    output: 42
+
+  - name: "into() lambda sees outer variables"
+    mapping: |
+      $factor = 3
+      output = 10.into(n -> n * $factor)
+    output: 30
+
+  # --- Sentinel returns ---
+
+  - name: "into() lambda returning deleted() in field position removes the field"
+    mapping: |
+      output.a = 1
+      output.b = input.val.into(v -> if v > 0 { v } else { deleted() })
+      output.c = 3
+    input: {"val": -5}
+    output: {"a": 1, "c": 3}
+
+  - name: "into() lambda returning void() skips the assignment"
+    mapping: |
+      output.status = "pending"
+      output.status = input.val.into(v -> if v > 0 { v.string() } else { void() })
+    input: {"val": -5}
+    output: {"status": "pending"}
+
+  - name: "into() lambda returning void in array literal is an error"
+    mapping: |
+      output.items = [1, "x".into(_ -> void()), 3]
+    error: ""
+
+  # --- Error propagation ---
+
+  - name: "error in receiver propagates (into() not called)"
+    mapping: |
+      output = (1 / 0).into(n -> n + 1).catch(_ -> "caught")
+    output: "caught"
+
+  - name: "error from lambda propagates and is caught"
+    mapping: |
+      output = 5.into(_ -> throw("boom")).catch(err -> err.what)
+    output: "boom"
+
+  # --- Nested and complex pipelines ---
+
+  - name: "nested into() chains work"
+    mapping: |
+      output = input.raw
+        .split(",")
+        .into(parts -> {
+          "head": parts[0],
+          "tail": parts.slice(1),
+        })
+        .into(split -> split.head + ":" + split.tail.length().string())
+    input: {"raw": "a,b,c,d"}
+    output: "a:3"
+
+  - name: "into() with match in the lambda body"
+    mapping: |
+      output = input.kind.into(k -> match k {
+        "http" => 80,
+        "https" => 443,
+        _ => 0,
+      })
+    input: {"kind": "https"}
+    output: 443
+
+  # --- Arity / compile-time rules ---
+
+  - name: "into() without a lambda argument is a compile error"
+    mapping: |
+      output = "hi".into()
+    compile_error: "into"
+
+  - name: "into() with a non-lambda argument is a runtime error"
+    mapping: |
+      output = "hi".into("not a lambda")
+    error: ""
+
+  - name: "into() with a two-parameter lambda is a runtime error"
+    mapping: |
+      output = "hi".into((a, b) -> a)
+    error: ""
