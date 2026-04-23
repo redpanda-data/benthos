@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Bloblang V1→V2 Migrator Demo</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            background: #1e1e2e;
+            color: #cdd6f4;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+            overflow: hidden;
+        }
+
+        #app {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            height: 100vh;
+            gap: 2px;
+            background: #11111b;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            background: #1e1e2e;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 12px;
+            background: #181825;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #a6adc8;
+            border-bottom: 1px solid #313244;
+            flex-shrink: 0;
+        }
+
+        .panel-header .label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .panel-header .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #a6e3a1;
+        }
+
+        .panel-header .dot.error { background: #f38ba8; }
+        .panel-header .dot.runtime-error { background: #fab387; }
+
+        .editor-wrap { flex: 1; overflow: hidden; }
+        .editor-wrap .cm-editor { height: 100%; }
+        .editor-wrap .cm-scroller { overflow: auto; }
+
+        #output-wrap { flex: 1; overflow: auto; padding: 8px 12px; }
+
+        #output {
+            font-family: inherit;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            color: #cdd6f4;
+        }
+
+        #output.error { color: #f38ba8; }
+        #output.runtime-error { color: #fab387; }
+
+        /* Tree-sitter highlight classes (catppuccin mocha). */
+        .cm-line .ts-keyword { color: #cba6f7; font-weight: 600; }
+        .cm-line .ts-keyword-builtin { color: #f38ba8; font-weight: 600; }
+        .cm-line .ts-constant-builtin { color: #fab387; font-weight: 600; }
+        .cm-line .ts-number { color: #fab387; }
+        .cm-line .ts-string { color: #a6e3a1; }
+        .cm-line .ts-string-escape { color: #94e2d5; }
+        .cm-line .ts-variable { color: #f2cdcd; }
+        .cm-line .ts-variable-builtin { color: #f5c2e7; }
+        .cm-line .ts-variable-parameter { color: #eba0ac; font-style: italic; }
+        .cm-line .ts-function { color: #89b4fa; }
+        .cm-line .ts-function-call { color: #89b4fa; }
+        .cm-line .ts-function-method { color: #74c7ec; }
+        .cm-line .ts-function-builtin { color: #89dceb; font-weight: 600; }
+        .cm-line .ts-property { color: #89dceb; }
+        .cm-line .ts-module { color: #f9e2af; }
+        .cm-line .ts-attribute { color: #f9e2af; font-style: italic; }
+        .cm-line .ts-operator { color: #89dceb; font-weight: 600; }
+        .cm-line .ts-punctuation { color: #6c7086; }
+        .cm-line .ts-comment { color: #6c7086; font-style: italic; }
+
+        /* Engine toggle (segmented control) */
+        .engine-toggle {
+            display: inline-flex;
+            border: 1px solid #313244;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .engine-toggle button {
+            background: none;
+            border: none;
+            color: #585b70;
+            font-family: inherit;
+            font-size: 10px;
+            padding: 2px 10px;
+            cursor: pointer;
+            transition: color 0.15s, background-color 0.15s;
+        }
+        .engine-toggle button:hover { color: #a6adc8; }
+        .engine-toggle button.active {
+            background: #313244;
+            color: #a6e3a1;
+        }
+        .engine-toggle button + button { border-left: 1px solid #313244; }
+
+        /* Vim toggle */
+        .vim-toggle {
+            background: none;
+            border: 1px solid #313244;
+            border-radius: 3px;
+            color: #585b70;
+            font-family: inherit;
+            font-size: 10px;
+            padding: 1px 6px;
+            cursor: pointer;
+            line-height: 1.4;
+            transition: color 0.15s, border-color 0.15s;
+        }
+        .vim-toggle:hover { color: #a6adc8; border-color: #45475a; }
+        .vim-toggle.active { color: #a6e3a1; border-color: #a6e3a1; }
+
+        /* Translation notes strip (below V2 pane header). */
+        #v2-notes {
+            padding: 4px 12px;
+            background: #181825;
+            border-bottom: 1px solid #313244;
+            font-size: 10px;
+            color: #a6adc8;
+            max-height: 60px;
+            overflow-y: auto;
+            display: none;
+        }
+        #v2-notes.has-notes { display: block; }
+        #v2-notes .note { display: flex; gap: 8px; padding: 1px 0; }
+        #v2-notes .note .sev { text-transform: uppercase; font-weight: 600; }
+        #v2-notes .note.info .sev { color: #89b4fa; }
+        #v2-notes .note.warning .sev { color: #f9e2af; }
+        #v2-notes .note.error .sev { color: #f38ba8; }
+        #v2-notes .note .rule { color: #6c7086; font-style: italic; }
+
+        /* cm-vim status bar */
+        .cm-vim-panel { background: #181825 !important; color: #a6adc8 !important; font-size: 11px; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="panel" id="input-panel">
+            <div class="panel-header">
+                <span class="label"><span class="dot"></span> Input</span>
+                <span style="display:flex;align-items:center;gap:8px">
+                    <button class="vim-toggle" id="input-vim-toggle">vim</button>
+                    <span style="color:#585b70;font-size:10px">JSON</span>
+                </span>
+            </div>
+            <div class="editor-wrap" id="input-editor"></div>
+        </div>
+        <div class="panel" id="output-panel">
+            <div class="panel-header">
+                <span class="label"><span class="dot" id="output-dot"></span> Output</span>
+                <span style="display:flex;align-items:center;gap:8px">
+                    <span id="output-status" style="color:#585b70;font-size:10px"></span>
+                    <span class="engine-toggle" id="engine-toggle">
+                        <button data-engine="v1" class="active" title="Run the V1 mapping with the official engine">V1 engine</button>
+                        <button data-engine="v2" title="Run the translated V2 mapping with the Go pratt interpreter">V2 engine</button>
+                    </span>
+                </span>
+            </div>
+            <div id="output-wrap">
+                <pre id="output"></pre>
+            </div>
+        </div>
+        <div class="panel" id="v1-mapping-panel">
+            <div class="panel-header">
+                <span class="label"><span class="dot" id="v1-dot"></span> V1 Mapping</span>
+                <span style="display:flex;align-items:center;gap:8px">
+                    <button class="vim-toggle" id="v1-vim-toggle">vim</button>
+                    <span style="color:#585b70;font-size:10px">editable</span>
+                </span>
+            </div>
+            <div class="editor-wrap" id="v1-editor"></div>
+        </div>
+        <div class="panel" id="v2-mapping-panel">
+            <div class="panel-header">
+                <span class="label"><span class="dot" id="v2-dot"></span> V2 Mapping (generated)</span>
+                <span style="color:#585b70;font-size:10px">read-only</span>
+            </div>
+            <div id="v2-notes"></div>
+            <div class="editor-wrap" id="v2-editor"></div>
+        </div>
+    </div>
+
+    <!-- web-tree-sitter: browser build loaded via script tag (sets window.TreeSitter) -->
+    <script src="https://cdn.jsdelivr.net/npm/web-tree-sitter@0.24.7/tree-sitter.js"></script>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "codemirror": "https://esm.sh/codemirror@6.0.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@codemirror/commands,@codemirror/search,@codemirror/autocomplete,@codemirror/lint",
+            "@codemirror/state": "https://esm.sh/@codemirror/state@6.5.2",
+            "@codemirror/view": "https://esm.sh/@codemirror/view@6.36.5?external=@codemirror/state",
+            "@codemirror/language": "https://esm.sh/@codemirror/language@6.10.8?external=@codemirror/state,@codemirror/view",
+            "@codemirror/commands": "https://esm.sh/@codemirror/commands@6.8.0?external=@codemirror/state,@codemirror/view,@codemirror/language",
+            "@codemirror/search": "https://esm.sh/@codemirror/search@6.5.8?external=@codemirror/state,@codemirror/view",
+            "@codemirror/autocomplete": "https://esm.sh/@codemirror/autocomplete@6.18.6?external=@codemirror/state,@codemirror/view,@codemirror/language",
+            "@codemirror/lint": "https://esm.sh/@codemirror/lint@6.8.5?external=@codemirror/state,@codemirror/view",
+            "@codemirror/lang-json": "https://esm.sh/@codemirror/lang-json@6.0.1?external=@codemirror/state,@codemirror/view,@codemirror/language",
+            "@codemirror/theme-one-dark": "https://esm.sh/@codemirror/theme-one-dark@6.1.2?external=@codemirror/state,@codemirror/view,@codemirror/language",
+            "@replit/codemirror-vim": "https://esm.sh/@replit/codemirror-vim@6.2.1?external=@codemirror/state,@codemirror/view,@codemirror/language,@codemirror/commands,@codemirror/search"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import {EditorView, basicSetup} from "codemirror";
+        import {EditorState, StateField, StateEffect, RangeSetBuilder, Compartment} from "@codemirror/state";
+        import {json} from "@codemirror/lang-json";
+        import {oneDark} from "@codemirror/theme-one-dark";
+        import {setDiagnostics} from "@codemirror/lint";
+        import {keymap, Decoration, ViewPlugin} from "@codemirror/view";
+        import {indentWithTab} from "@codemirror/commands";
+        import {vim} from "@replit/codemirror-vim";
+
+        // ==============================================================
+        // 1. Tree-sitter (for the read-only V2 pane)
+        // ==============================================================
+
+        const TreeSitter = window.TreeSitter;
+        let tsParser = null;
+        let highlightQuery = null;
+
+        try {
+            await TreeSitter.init();
+            tsParser = new TreeSitter();
+            const lang = await TreeSitter.Language.load("/tree-sitter-bloblang2.wasm");
+            tsParser.setLanguage(lang);
+            const scm = await (await fetch("/highlights.scm")).text();
+            highlightQuery = lang.query(scm);
+        } catch (err) {
+            console.error("tree-sitter init failed:", err);
+        }
+
+        const CAPTURE_CLASS = {
+            "keyword": "ts-keyword", "keyword.builtin": "ts-keyword-builtin",
+            "constant.builtin": "ts-constant-builtin",
+            "number": "ts-number", "number.float": "ts-number",
+            "string": "ts-string", "string.escape": "ts-string-escape",
+            "variable": "ts-variable", "variable.builtin": "ts-variable-builtin",
+            "variable.parameter": "ts-variable-parameter",
+            "function": "ts-function", "function.call": "ts-function-call",
+            "function.method": "ts-function-method", "function.builtin": "ts-function-builtin",
+            "property": "ts-property", "module": "ts-module",
+            "attribute": "ts-attribute", "operator": "ts-operator",
+            "punctuation.delimiter": "ts-punctuation", "punctuation.bracket": "ts-punctuation",
+            "comment": "ts-comment",
+        };
+        const DECO_CACHE = {};
+        for (const [cap, cls] of Object.entries(CAPTURE_CLASS)) {
+            DECO_CACHE[cap] = Decoration.mark({class: cls});
+        }
+
+        const setHighlights = StateEffect.define();
+        const highlightField = StateField.define({
+            create: () => Decoration.none,
+            update(decos, tr) {
+                for (const e of tr.effects) {
+                    if (e.is(setHighlights)) return e.value;
+                }
+                if (tr.docChanged) return decos.map(tr.changes);
+                return decos;
+            },
+            provide: f => EditorView.decorations.from(f),
+        });
+
+        function computeHighlights(doc) {
+            if (!tsParser || !highlightQuery) return Decoration.none;
+            const text = doc.toString();
+            const tree = tsParser.parse(text);
+            const captures = highlightQuery.captures(tree.rootNode);
+            captures.sort((a, b) => a.node.startIndex - b.node.startIndex);
+            const builder = new RangeSetBuilder();
+            let lastEnd = 0;
+            for (const {name, node} of captures) {
+                const from = node.startIndex, to = node.endIndex;
+                if (from >= to || from < lastEnd) continue;
+                const deco = DECO_CACHE[name];
+                if (!deco) continue;
+                builder.add(from, to, deco);
+                lastEnd = to;
+            }
+            tree.delete();
+            return builder.finish();
+        }
+
+        function applyHighlights(view) {
+            view.dispatch({effects: setHighlights.of(computeHighlights(view.state.doc))});
+        }
+
+        const tsHighlighter = ViewPlugin.fromClass(class {
+            constructor(view) { this._timer = setTimeout(() => applyHighlights(view), 0); }
+            update(update) {
+                if (update.docChanged) {
+                    clearTimeout(this._timer);
+                    this._timer = setTimeout(() => applyHighlights(update.view), 30);
+                }
+            }
+            destroy() { clearTimeout(this._timer); }
+        });
+
+        // ==============================================================
+        // 2. Theme
+        // ==============================================================
+
+        const bgTheme = EditorView.theme({
+            "&": {backgroundColor: "#1e1e2e"},
+            ".cm-gutters": {backgroundColor: "#181825", borderRight: "1px solid #313244"},
+            ".cm-activeLineGutter": {backgroundColor: "#1e1e2e"},
+        });
+
+        // ==============================================================
+        // 3. Editors
+        // ==============================================================
+
+        const inputVimCompartment = new Compartment();
+        const v1VimCompartment = new Compartment();
+
+        const inputEditor = new EditorView({
+            doc: JSON.stringify({message: "hello world"}, null, 2),
+            extensions: [
+                basicSetup, json(), oneDark, bgTheme,
+                keymap.of([indentWithTab]),
+                inputVimCompartment.of([]),
+                EditorView.updateListener.of(v => { if (v.docChanged) scheduleExecute(); }),
+            ],
+            parent: document.getElementById("input-editor"),
+        });
+
+        const v1Editor = new EditorView({
+            doc: "root.message = this.message.uppercase()",
+            extensions: [
+                basicSetup, oneDark, bgTheme,
+                keymap.of([indentWithTab]),
+                v1VimCompartment.of([]),
+                EditorView.updateListener.of(v => { if (v.docChanged) scheduleExecute(); }),
+            ],
+            parent: document.getElementById("v1-editor"),
+        });
+
+        const v2Editor = new EditorView({
+            doc: "",
+            extensions: [
+                basicSetup, oneDark, bgTheme,
+                EditorState.readOnly.of(true),
+                EditorView.editable.of(false),
+                highlightField,
+                tsHighlighter,
+            ],
+            parent: document.getElementById("v2-editor"),
+        });
+
+        // ==============================================================
+        // 4. Vim-mode toggles (input + V1 only; V2 is read-only)
+        // ==============================================================
+
+        function wireVimToggle(buttonId, editor, compartment) {
+            const btn = document.getElementById(buttonId);
+            let active = false;
+            btn.addEventListener("click", () => {
+                active = !active;
+                btn.classList.toggle("active", active);
+                editor.dispatch({effects: compartment.reconfigure(active ? vim() : [])});
+                editor.focus();
+            });
+        }
+
+        wireVimToggle("input-vim-toggle", inputEditor, inputVimCompartment);
+        wireVimToggle("v1-vim-toggle", v1Editor, v1VimCompartment);
+
+        // ==============================================================
+        // 5. Engine toggle
+        // ==============================================================
+
+        let engine = "v1";
+        const engineToggle = document.getElementById("engine-toggle");
+        engineToggle.addEventListener("click", (e) => {
+            const btn = e.target.closest("button[data-engine]");
+            if (!btn) return;
+            engine = btn.dataset.engine;
+            for (const b of engineToggle.querySelectorAll("button")) {
+                b.classList.toggle("active", b === btn);
+            }
+            scheduleExecute();
+        });
+
+        // ==============================================================
+        // 6. Execute pipeline
+        // ==============================================================
+
+        const outputEl = document.getElementById("output");
+        const outputDot = document.getElementById("output-dot");
+        const outputStatus = document.getElementById("output-status");
+        const v1Dot = document.getElementById("v1-dot");
+        const v2Dot = document.getElementById("v2-dot");
+        const v2NotesEl = document.getElementById("v2-notes");
+
+        let debounceTimer, requestId = 0;
+
+        function scheduleExecute() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(execute, 300);
+        }
+
+        async function execute() {
+            const id = ++requestId;
+            try {
+                const res = await fetch("/execute", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                        v1_mapping: v1Editor.state.doc.toString(),
+                        input: inputEditor.state.doc.toString(),
+                        engine,
+                    }),
+                });
+                if (id !== requestId) return;
+                const data = await res.json();
+
+                updateV2Pane(data.v2_mapping || "", data.translate_notes || []);
+                applyV2ParseErrors(data.v2_parse_errors || []);
+                applyV1ParseErrors(data.v1_parse_errors || []);
+
+                if (data.v1_parse_errors?.length) {
+                    showParseErrors(data.v1_parse_errors, "v1");
+                } else if (data.v2_parse_errors?.length) {
+                    showParseErrors(data.v2_parse_errors, "v2");
+                } else if (data.runtime_error) {
+                    showRuntimeError(data.runtime_error);
+                } else {
+                    showResult(data.result || "null");
+                }
+            } catch (err) {
+                if (id !== requestId) return;
+                showRuntimeError("Request failed: " + err.message);
+            }
+        }
+
+        function updateV2Pane(v2Source, notes) {
+            // Only dispatch a change when the text actually differs — preserves
+            // scroll position and highlight cache when translation is stable.
+            if (v2Editor.state.doc.toString() !== v2Source) {
+                v2Editor.dispatch({
+                    changes: {from: 0, to: v2Editor.state.doc.length, insert: v2Source},
+                });
+            }
+            renderNotes(notes);
+        }
+
+        function renderNotes(notes) {
+            v2NotesEl.innerHTML = "";
+            const worth = notes.filter(n => n.severity !== "info");
+            if (worth.length === 0) {
+                v2NotesEl.classList.remove("has-notes");
+                return;
+            }
+            for (const n of worth) {
+                const row = document.createElement("div");
+                row.className = "note " + n.severity;
+                row.innerHTML = `<span class="sev">${n.severity}</span><span class="rule">${n.rule_id}</span><span>${escapeHtml(n.message)}</span>`;
+                v2NotesEl.appendChild(row);
+            }
+            v2NotesEl.classList.add("has-notes");
+        }
+
+        function escapeHtml(s) {
+            return s.replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"}[c]));
+        }
+
+        function showResult(text) {
+            outputEl.textContent = text;
+            outputEl.className = "";
+            outputDot.className = "dot";
+            outputStatus.textContent = `via ${engine} engine`;
+            outputStatus.style.color = "#585b70";
+        }
+
+        function showParseErrors(errors, kind) {
+            outputEl.textContent = errors.map(e => `line ${e.line}, col ${e.column}: ${e.message}`).join("\n");
+            outputEl.className = "error";
+            outputDot.className = "dot error";
+            outputStatus.textContent = `${errors.length} ${kind} parse error${errors.length > 1 ? "s" : ""}`;
+            outputStatus.style.color = "#f38ba8";
+        }
+
+        function showRuntimeError(msg) {
+            outputEl.textContent = msg;
+            outputEl.className = "runtime-error";
+            outputDot.className = "dot runtime-error";
+            outputStatus.textContent = `runtime error (${engine})`;
+            outputStatus.style.color = "#fab387";
+        }
+
+        // ==============================================================
+        // 7. Inline diagnostics on the mapping editors
+        // ==============================================================
+
+        function lineColToPos(doc, line, col) {
+            line = Math.max(1, Math.min(line, doc.lines));
+            const lineObj = doc.line(line);
+            return lineObj.from + Math.max(0, Math.min(col - 1, lineObj.length));
+        }
+
+        function pushDiagnostics(editor, errors) {
+            const doc = editor.state.doc;
+            editor.dispatch(setDiagnostics(editor.state, errors.map(e => {
+                const from = lineColToPos(doc, e.line, e.column);
+                const to = Math.max(from, doc.line(Math.max(1, Math.min(e.line, doc.lines))).to);
+                return {from, to, severity: "error", message: e.message};
+            })));
+        }
+
+        function applyV1ParseErrors(errors) {
+            v1Dot.className = "dot" + (errors.length ? " error" : "");
+            pushDiagnostics(v1Editor, errors);
+        }
+
+        function applyV2ParseErrors(errors) {
+            v2Dot.className = "dot" + (errors.length ? " error" : "");
+            pushDiagnostics(v2Editor, errors);
+        }
+
+        // ==============================================================
+        // 8. Go
+        // ==============================================================
+
+        execute();
+    </script>
+</body>
+</html>

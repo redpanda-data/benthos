@@ -55,6 +55,13 @@ tasks:
     cmds:
       - go run ./internal/bloblang2/demo
 
+  migrator-demo:
+    desc: Run the V1→V2 migrator demo playground (reuses shared demo assets)
+    deps: [build:demo]
+    dir: "{{.BENTHOS_ROOT}}"
+    cmds:
+      - go run ./internal/bloblang2/migrator/demo
+
   clean:
     desc: Remove all build artifacts
     cmds:
