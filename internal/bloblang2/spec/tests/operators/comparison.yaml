@@ -1,0 +1,209 @@
+description: "Comparison operators (>, >=, <, <=) for numeric, string, timestamp, bytes; cross-family errors, null errors, NaN"
+
+tests:
+  # --- Numeric comparisons (int64) ---
+
+  - name: "int64 less than true"
+    mapping: |
+      output.result = 3 < 5
+    output: {"result": true}
+
+  - name: "int64 less than false"
+    mapping: |
+      output.result = 5 < 3
+    output: {"result": false}
+
+  - name: "int64 greater than"
+    mapping: |
+      output.result = 10 > 3
+    output: {"result": true}
+
+  - name: "int64 greater than or equal (equal case)"
+    mapping: |
+      output.result = 5 >= 5
+    output: {"result": true}
+
+  - name: "int64 less than or equal (less case)"
+    mapping: |
+      output.result = 4 <= 5
+    output: {"result": true}
+
+  - name: "int64 less than or equal false"
+    mapping: |
+      output.result = 6 <= 5
+    output: {"result": false}
+
+  # --- Numeric with promotion ---
+
+  - name: "int32 < int64 with promotion"
+    mapping: |
+      output.result = 3.int32() < 5
+    output: {"result": true}
+
+  - name: "int64 > float64 with promotion"
+    mapping: |
+      output.result = 5 > 4.5
+    output: {"result": true}
+
+  - name: "float32 <= float64 with promotion"
+    mapping: |
+      output.result = 3.0.float32() <= 3.0
+    output: {"result": true}
+
+  - name: "uint32 >= int32 with promotion to int64"
+    mapping: |
+      output.result = 10.uint32() >= 10.int32()
+    output: {"result": true}
+
+  # --- String comparisons (lexicographic by codepoint) ---
+
+  - name: "string less than lexicographic"
+    mapping: |
+      output.result = "apple" < "banana"
+    output: {"result": true}
+
+  - name: "string equal not less than"
+    mapping: |
+      output.result = "hello" <= "hello"
+    output: {"result": true}
+
+  - name: "string prefix is less than longer string"
+    mapping: |
+      output.result = "abc" < "abcd"
+    output: {"result": true}
+
+  - name: "string uppercase A < lowercase a (codepoint ordering)"
+    mapping: |
+      output.result = "A" < "a"
+    output: {"result": true}
+
+  # --- Bytes comparisons (lexicographic by byte) ---
+
+  - name: "bytes less than"
+    mapping: |
+      output.result = "abc".bytes() < "abd".bytes()
+    output: {"result": true}
+
+  - name: "bytes greater than"
+    mapping: |
+      output.result = "xyz".bytes() > "abc".bytes()
+    output: {"result": true}
+
+  - name: "bytes prefix is less than longer bytes"
+    mapping: |
+      output.result = "ab".bytes() < "abc".bytes()
+    output: {"result": true}
+
+  # --- Timestamp comparisons ---
+
+  - name: "earlier timestamp less than later"
+    input:
+      a: {_type: "timestamp", value: "2024-01-01T00:00:00Z"}
+      b: {_type: "timestamp", value: "2024-06-15T00:00:00Z"}
+    mapping: |
+      output.result = input.a < input.b
+    output: {"result": true}
+
+  - name: "same timestamp greater than or equal"
+    input:
+      a: {_type: "timestamp", value: "2024-01-01T00:00:00Z"}
+    mapping: |
+      output.result = input.a >= input.a
+    output: {"result": true}
+
+  # --- Cross-family comparisons: error (not just false) ---
+
+  - name: "int64 < string is error"
+    mapping: |
+      output.result = 5 < "hello"
+    error: "cannot compare"
+
+  - name: "string > int64 is error"
+    mapping: |
+      output.result = "hello" > 5
+    error: "cannot compare"
+
+  - name: "int64 < bool is error"
+    mapping: |
+      output.result = 5 < true
+    error: "cannot compare"
+
+  - name: "string < bytes is error"
+    mapping: |
+      output.result = "hello" < "hello".bytes()
+    error: "cannot compare"
+
+  - name: "timestamp < int64 is error"
+    input:
+      a: {_type: "timestamp", value: "2024-01-01T00:00:00Z"}
+    mapping: |
+      output.result = input.a < 5
+    error: "cannot compare"
+
+  - name: "bool < bool is error (not comparable)"
+    mapping: |
+      output.result = true < false
+    error: "cannot compare"
+
+  - name: "array < array is error (not comparable)"
+    mapping: |
+      output.result = [1, 2] < [3, 4]
+    error: "cannot compare"
+
+  # --- Null in comparison: error ---
+
+  - name: "null < int64 is error"
+    mapping: |
+      output.result = null < 5
+    error: "cannot compare"
+
+  - name: "int64 > null is error"
+    mapping: |
+      output.result = 5 > null
+    error: "cannot compare"
+
+  - name: "null <= null is error"
+    mapping: |
+      output.result = null <= null
+    error: "cannot compare"
+
+  # --- NaN comparisons: all return false ---
+
+  - name: "NaN < float64 is false"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      output.result = input.val < 1.0
+    output: {"result": false}
+
+  - name: "NaN > float64 is false"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      output.result = input.val > 1.0
+    output: {"result": false}
+
+  - name: "NaN >= NaN is false"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      output.result = input.val >= input.val
+    output: {"result": false}
+
+  # --- Infinity comparisons ---
+
+  - name: "Infinity > float64"
+    input: {val: {_type: "float64", value: "Infinity"}}
+    mapping: |
+      output.result = input.val > 999999.0
+    output: {"result": true}
+
+  - name: "negative Infinity < float64"
+    input: {val: {_type: "float64", value: "-Infinity"}}
+    mapping: |
+      output.result = input.val < -999999.0
+    output: {"result": true}
+
+  # --- Non-associative chaining is compile error ---
+
+  - name: "chained comparison is compile error"
+    mapping: |
+      output.result = 1 < 2 < 3
+    compile_error: "cannot chain"

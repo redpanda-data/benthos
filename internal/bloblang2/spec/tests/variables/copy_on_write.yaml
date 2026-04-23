@@ -1,0 +1,185 @@
+description: "Copy-on-write semantics: independence from input, from output, between variables, nested mutation independence"
+
+tests:
+  # --- Independence from input ---
+
+  - name: "variable copy from input is independent"
+    input: {"user": {"name": "Alice", "age": 30}}
+    mapping: |
+      $data = input.user
+      $data.name = "Bob"
+      output.var_name = $data.name
+      output.input_name = input.user.name
+    output: {"var_name": "Bob", "input_name": "Alice"}
+
+  - name: "variable copy from input nested field is independent"
+    input: {"config": {"settings": {"theme": "dark", "lang": "en"}}}
+    mapping: |
+      $settings = input.config.settings
+      $settings.theme = "light"
+      output.var_theme = $settings.theme
+      output.input_theme = input.config.settings.theme
+    output: {"var_theme": "light", "input_theme": "dark"}
+
+  - name: "variable copy from input array is independent"
+    input: {"items": [1, 2, 3]}
+    mapping: |
+      $arr = input.items
+      $arr[0] = 99
+      output.var_first = $arr[0]
+      output.input_first = input.items[0]
+    output: {"var_first": 99, "input_first": 1}
+
+  - name: "variable copy from entire input is independent"
+    input: {"a": 1, "b": 2}
+    mapping: |
+      $copy = input
+      $copy.a = 100
+      output.var_a = $copy.a
+      output.input_a = input.a
+    output: {"var_a": 100, "input_a": 1}
+
+  # --- Independence from output ---
+
+  - name: "variable snapshot of output is independent from later output changes"
+    mapping: |
+      output.user.name = "Alice"
+      $snap = output.user
+      output.user.name = "Bob"
+      output.snap_name = $snap.name
+    output: {"user": {"name": "Bob"}, "snap_name": "Alice"}
+
+  - name: "mutating variable snapshot does not affect output"
+    mapping: |
+      output.data = {"x": 1, "y": 2}
+      $snap = output.data
+      $snap.x = 99
+      output.snap_x = $snap.x
+      output.original_x = output.data.x
+    output: {"data": {"x": 1, "y": 2}, "snap_x": 99, "original_x": 1}
+
+  - name: "variable snapshot of output array is independent"
+    mapping: |
+      output.items = [10, 20, 30]
+      $snap = output.items
+      output.items[0] = 99
+      output.snap_first = $snap[0]
+    output: {"items": [99, 20, 30], "snap_first": 10}
+
+  # --- Independence between variables ---
+
+  - name: "copy between variables is independent"
+    mapping: |
+      $a = {"x": 1}
+      $b = $a
+      $b.x = 2
+      output.a = $a.x
+      output.b = $b.x
+    output: {"a": 1, "b": 2}
+
+  - name: "copy between variables reverse mutation"
+    mapping: |
+      $a = {"x": 1}
+      $b = $a
+      $a.x = 99
+      output.a = $a.x
+      output.b = $b.x
+    output: {"a": 99, "b": 1}
+
+  - name: "multiple copies from same source are independent"
+    mapping: |
+      $source = {"val": 0}
+      $copy1 = $source
+      $copy2 = $source
+      $copy1.val = 1
+      $copy2.val = 2
+      output.source = $source.val
+      output.c1 = $copy1.val
+      output.c2 = $copy2.val
+    output: {"source": 0, "c1": 1, "c2": 2}
+
+  - name: "chain of copies are all independent"
+    mapping: |
+      $a = {"v": "a"}
+      $b = $a
+      $b.v = "b"
+      $c = $b
+      $c.v = "c"
+      output.a = $a.v
+      output.b = $b.v
+      output.c = $c.v
+    output: {"a": "a", "b": "b", "c": "c"}
+
+  - name: "array copy between variables is independent"
+    mapping: |
+      $a = [1, 2, 3]
+      $b = $a
+      $b[0] = 99
+      output.a = $a
+      output.b = $b
+    output: {"a": [1, 2, 3], "b": [99, 2, 3]}
+
+  # --- Nested mutation independence ---
+
+  - name: "nested object mutation independent from input"
+    input: {"record": {"address": {"city": "London", "zip": "SW1"}}}
+    mapping: |
+      $rec = input.record
+      $rec.address.city = "Paris"
+      output.var_city = $rec.address.city
+      output.input_city = input.record.address.city
+    output: {"var_city": "Paris", "input_city": "London"}
+
+  - name: "nested array mutation independent between variables"
+    mapping: |
+      $a = {"items": [1, 2, 3]}
+      $b = $a
+      $b.items[0] = 99
+      output.a_first = $a.items[0]
+      output.b_first = $b.items[0]
+    output: {"a_first": 1, "b_first": 99}
+
+  - name: "deeply nested mutation independent between variables"
+    mapping: |
+      $a = {"level1": {"level2": {"level3": "original"}}}
+      $b = $a
+      $b.level1.level2.level3 = "modified"
+      output.a_val = $a.level1.level2.level3
+      output.b_val = $b.level1.level2.level3
+    output: {"a_val": "original", "b_val": "modified"}
+
+  - name: "nested array in object mutation independent from output"
+    mapping: |
+      output.data = {"tags": ["a", "b", "c"]}
+      $snap = output.data
+      output.data.tags[0] = "z"
+      output.snap_tag = $snap.tags[0]
+    output: {"data": {"tags": ["z", "b", "c"]}, "snap_tag": "a"}
+
+  - name: "adding nested field to copy does not affect source"
+    mapping: |
+      $a = {"user": {"name": "Alice"}}
+      $b = $a
+      $b.user.email = "alice@example.com"
+      output.a_email = $a.user.email
+      output.b_email = $b.user.email
+    output: {"a_email": null, "b_email": "alice@example.com"}
+
+  - name: "deleting nested field in copy does not affect source"
+    mapping: |
+      $a = {"user": {"name": "Alice", "age": 30}}
+      $b = $a
+      $b.user.age = deleted()
+      output.a = $a.user
+      output.b = $b.user
+    output: {"a": {"name": "Alice", "age": 30}, "b": {"name": "Alice"}}
+
+  # --- Independence with whole-document copies ---
+
+  - name: "output = input then mutate output leaves input unchanged"
+    input: {"name": "Alice", "score": 100}
+    mapping: |
+      output = input
+      output.name = "Bob"
+      output.original_name = input.name
+    output: {"name": "Bob", "score": 100, "original_name": "Alice"}
