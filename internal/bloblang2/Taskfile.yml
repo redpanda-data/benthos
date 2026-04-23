@@ -1,27 +1,37 @@
 version: "3"
 
+# Component Taskfiles are included as implementation details — their tasks
+# stay invocable (e.g. `task ts:bundle`, shown via `task --list-all`) but are
+# hidden from the default `task --list` output. The canonical surface for
+# users lives in this file and is organised action-first: `build:X`,
+# `test:X`, `clean:X`, `demo:X`.
 includes:
   tree-sitter:
     taskfile: tree-sitter/Taskfile.yml
     dir: tree-sitter
+    internal: true
   ts:
     taskfile: ts/Taskfile.yml
     dir: ts
+    internal: true
   nvim:
     taskfile: plugins/nvim/Taskfile.yml
     dir: plugins/nvim
+    internal: true
 
 vars:
   # Go tests must run from the benthos repo root for module resolution.
   BENTHOS_ROOT: "{{.TASKFILE_DIR}}/../.."
 
 tasks:
+  # --- Tests ---------------------------------------------------------------
+
   test:
     desc: Run all tests (Go, TypeScript, tree-sitter)
     cmds:
       - task: test:go
-      - task: ts:test
-      - task: tree-sitter:test
+      - task: test:ts
+      - task: test:tree-sitter
 
   test:go:
     desc: Run Go spec conformance and unit tests
@@ -29,41 +39,102 @@ tasks:
     cmds:
       - go test ./internal/bloblang2/...
 
+  test:ts:
+    desc: Run the TypeScript spec conformance and unit tests
+    cmds:
+      - task: ts:test
+
+  test:tree-sitter:
+    desc: Run the tree-sitter corpus tests
+    cmds:
+      - task: tree-sitter:test
+
   test:v1spec:
     desc: Run V1 mappings under ./migrator/v1spec/tests against the V1 interpreter
     dir: "{{.BENTHOS_ROOT}}"
     cmds:
       - go test ./internal/bloblang2/migrator/v1spec/... -run TestBloblangV1Spec {{.CLI_ARGS}}
 
+  # --- Build ---------------------------------------------------------------
+
   build:
-    desc: Build all artifacts
+    desc: Build all artifacts (tree-sitter WASM, TS bundle, Neovim plugin)
     cmds:
-      - task: tree-sitter:all
-      - task: ts:bundle
-      - task: nvim:default
+      - task: build:tree-sitter
+      - task: build:ts
+      - task: build:nvim
 
   build:demo:
-    desc: Build everything the demo needs (tree-sitter WASM + TS bundle)
+    desc: Build shared assets consumed by the demo playgrounds (tree-sitter WASM + TS bundle)
     cmds:
       - task: tree-sitter:sync-demo
       - task: ts:bundle
 
+  build:ts:
+    desc: Compile and bundle the TypeScript implementation
+    cmds:
+      - task: ts:bundle
+
+  build:tree-sitter:
+    desc: Generate the grammar, run corpus tests, build WASM, and sync into the demo
+    cmds:
+      - task: tree-sitter:all
+
+  build:tree-sitter:generate:
+    desc: Regenerate the tree-sitter parser from grammar.js
+    cmds:
+      - task: tree-sitter:generate
+
+  build:tree-sitter:wasm:
+    desc: Compile the tree-sitter grammar to WASM (requires Docker or emscripten)
+    cmds:
+      - task: tree-sitter:build-wasm
+
+  build:nvim:
+    desc: Build the Neovim tree-sitter parser and bloblang2-lsp binary
+    cmds:
+      - task: nvim:default
+
+  build:nvim:lsp:
+    desc: Build the bloblang2-lsp binary (output at plugins/nvim/bin/bloblang2-lsp)
+    cmds:
+      - task: nvim:lsp
+
+  build:nvim:parser:
+    desc: Compile the tree-sitter parser into a shared library for Neovim
+    cmds:
+      - task: nvim:parser
+
+  # --- Demo playgrounds ----------------------------------------------------
+
   demo:
-    desc: Run the demo web playground
+    desc: Run the Bloblang V2 playground on http://localhost:4195
     deps: [build:demo]
     dir: "{{.BENTHOS_ROOT}}"
     cmds:
       - go run ./internal/bloblang2/demo
 
-  migrator-demo:
-    desc: Run the V1→V2 migrator demo playground (reuses shared demo assets)
+  demo:migrator:
+    desc: Run the V1→V2 migrator playground on http://localhost:4196
     deps: [build:demo]
     dir: "{{.BENTHOS_ROOT}}"
     cmds:
       - go run ./internal/bloblang2/migrator/demo
 
+  # --- Housekeeping --------------------------------------------------------
+
   clean:
     desc: Remove all build artifacts
     cmds:
+      - task: clean:ts
+      - task: clean:nvim
+
+  clean:ts:
+    desc: Remove TypeScript build artifacts
+    cmds:
       - task: ts:clean
+
+  clean:nvim:
+    desc: Remove Neovim plugin build artifacts
+    cmds:
       - task: nvim:clean
