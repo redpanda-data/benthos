@@ -13,11 +13,14 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
 
 	_ "embed"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/eval"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
@@ -270,6 +273,77 @@ func handleCompletions(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(cachedCompletions)
 }
 
+// caseStudiesDir returns the absolute path to the V1 corpus case studies,
+// derived from this file's location so `go run` works from any cwd.
+func caseStudiesDir() string {
+	_, thisFile, _, _ := runtime.Caller(0)
+	return filepath.Join(filepath.Dir(thisFile), "..", "v1spec", "tests", "case_studies")
+}
+
+type caseStudySpec struct {
+	Description string          `yaml:"description"`
+	Tests       []caseStudyTest `yaml:"tests"`
+}
+
+type caseStudyTest struct {
+	Name    string `yaml:"name"`
+	Mapping string `yaml:"mapping"`
+	Input   any    `yaml:"input"`
+}
+
+type caseStudyItem struct {
+	File        string `json:"file"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Mapping     string `json:"mapping"`
+	Input       string `json:"input"`
+}
+
+func handleCaseStudies(w http.ResponseWriter, r *http.Request) {
+	dir := caseStudiesDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		http.Error(w, "case studies not found", http.StatusNotFound)
+		return
+	}
+
+	var items []caseStudyItem
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		var spec caseStudySpec
+		if err := yaml.Unmarshal(data, &spec); err != nil {
+			continue
+		}
+		for _, t := range spec.Tests {
+			if t.Mapping == "" {
+				continue
+			}
+			inputJSON, err := json.MarshalIndent(t.Input, "", "  ")
+			if err != nil {
+				continue
+			}
+			items = append(items, caseStudyItem{
+				File:        entry.Name(),
+				Name:        t.Name,
+				Description: strings.TrimSpace(spec.Description),
+				Mapping:     t.Mapping,
+				Input:       string(inputJSON),
+			})
+		}
+	}
+
+	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(items)
+}
+
 func posErrorsFromSyntax(errs []syntax.PosError) []posError {
 	out := make([]posError, len(errs))
 	for i, e := range errs {
@@ -324,6 +398,7 @@ func main() {
 	})
 	mux.HandleFunc("/execute", handleExecute)
 	mux.HandleFunc("/completions", handleCompletions)
+	mux.HandleFunc("/case-studies", handleCaseStudies)
 	mux.HandleFunc("/tree-sitter-bloblang2.wasm", serveSharedAsset("tree-sitter-bloblang2.wasm", "application/wasm"))
 	mux.HandleFunc("/highlights.scm", serveSharedAsset("highlights.scm", "text/plain; charset=utf-8"))
 	mux.HandleFunc("/bloblang2.mjs", serveSharedAsset("bloblang2.mjs", "application/javascript; charset=utf-8"))
