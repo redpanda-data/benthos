@@ -30,44 +30,146 @@ func Parse(src string) (*Program, error) {
 type parser struct {
 	toks []Token
 	pos  int
+
+	// Trivia collection. Comment tokens are transparently skipped by peek()
+	// and advance() so existing non-trivia parsing logic is unchanged; the
+	// skipped comments + blank-line markers land in one of two buckets:
+	//   - pendingTrailing: a comment on the same line as the preceding
+	//     significant token. Drained into the just-finished statement's
+	//     Trailing set.
+	//   - pendingLeading: a comment on its own line, or a blank-line marker.
+	//     Drained into the next statement's Leading set.
+	pendingTrailing []Trivia
+	pendingLeading  []Trivia
+	// newlinesBuffered counts consecutive TokNewline advances since the
+	// last leading-trivia decision. A run of 2+ produces a blank-line
+	// marker inserted at the exact chronological moment (before the next
+	// leading comment, or before returning to a significant token).
+	newlinesBuffered int
+	// lastSigLine tracks the line of the last consumed significant token,
+	// used to classify a comment as trailing-vs-leading.
+	lastSigLine int
 }
 
 //
 // Token cursor helpers
 //
 
+// peek returns the next significant token, transparently skipping and
+// stashing any comment tokens encountered.
 func (p *parser) peek() Token {
+	p.stashComments()
 	return p.toks[p.pos]
 }
 
+// peekAt returns the i-th significant token ahead of the current position,
+// skipping over any comment tokens in its count.
 func (p *parser) peekAt(i int) Token {
-	if p.pos+i >= len(p.toks) {
+	p.stashComments()
+	j := p.pos
+	for n := 0; n < i; n++ {
+		j++
+		if j >= len(p.toks) {
+			return p.toks[len(p.toks)-1]
+		}
+		for j < len(p.toks) && p.toks[j].Kind == TokComment {
+			j++
+		}
+	}
+	if j >= len(p.toks) {
 		return p.toks[len(p.toks)-1]
 	}
-	return p.toks[p.pos+i]
+	return p.toks[j]
 }
 
+// advance consumes the current significant token and returns it.
 func (p *parser) advance() Token {
+	p.stashComments()
 	t := p.toks[p.pos]
+	switch t.Kind {
+	case TokNewline:
+		p.newlinesBuffered++
+	case TokEOF:
+		// leave counters alone
+	default:
+		p.newlinesBuffered = 0
+		p.lastSigLine = t.Pos.Line
+	}
 	if p.pos < len(p.toks)-1 {
 		p.pos++
 	}
 	return t
 }
 
+// stashComments consumes TokComment tokens at the current cursor position,
+// routing each into pendingTrailing (same-line as previous significant
+// token, no newline between) or pendingLeading (own-line). Before stashing
+// a leading comment, any pending blank-line marker is emitted so the
+// trivia list stays in source order.
+func (p *parser) stashComments() {
+	for p.pos < len(p.toks) && p.toks[p.pos].Kind == TokComment {
+		tok := p.toks[p.pos]
+		tri := Trivia{Kind: TriviaComment, Text: tok.Text, Pos: tok.Pos}
+		if p.newlinesBuffered == 0 && p.lastSigLine != 0 && tok.Pos.Line == p.lastSigLine {
+			p.pendingTrailing = append(p.pendingTrailing, tri)
+		} else {
+			p.flushBlankLine()
+			p.pendingLeading = append(p.pendingLeading, tri)
+			// The comment itself occupies a line; subsequent newlines count
+			// afresh toward a possible next blank-line marker.
+			p.newlinesBuffered = 0
+		}
+		p.pos++
+	}
+}
+
+// flushBlankLine emits a BlankLine marker into pendingLeading if
+// newlinesBuffered is 2+ (meaning two or more consecutive newlines have
+// passed without any content on one of the intervening lines).
+// Collapses consecutive runs into a single marker and resets the counter.
+func (p *parser) flushBlankLine() {
+	if p.newlinesBuffered < 2 {
+		return
+	}
+	if len(p.pendingLeading) == 0 || p.pendingLeading[len(p.pendingLeading)-1].Kind != TriviaBlankLine {
+		p.pendingLeading = append(p.pendingLeading, Trivia{Kind: TriviaBlankLine})
+	}
+	p.newlinesBuffered = 0
+}
+
+// flushLeading returns and clears the pendingLeading buffer.
+func (p *parser) flushLeading() []Trivia {
+	out := p.pendingLeading
+	p.pendingLeading = nil
+	return out
+}
+
+// flushTrailing returns and clears the pendingTrailing buffer.
+func (p *parser) flushTrailing() []Trivia {
+	out := p.pendingTrailing
+	p.pendingTrailing = nil
+	return out
+}
+
 func (p *parser) errAt(pos Pos, format string, args ...any) *ParseError {
 	return &ParseError{Pos: pos, Msg: fmt.Sprintf(format, args...)}
 }
 
-// skipNewlines discards newline tokens (blank lines between statements).
+// skipNewlines discards newline tokens at a statement boundary. A run of
+// two or more newlines produces a blank-line trivia entry, flushed either
+// when a leading comment is stashed mid-run (see stashComments) or here,
+// before the next significant token begins.
 func (p *parser) skipNewlines() {
 	for p.peek().Kind == TokNewline {
 		p.advance()
 	}
+	p.flushBlankLine()
 }
 
 // skipInlineNewlines is used in contexts where a newline is tolerated
-// (inside brackets, braces, after an operator/arrow, etc.).
+// (inside brackets, braces, after an operator/arrow, etc.). Does not
+// record blank-line trivia — the newlines here are expression continuation
+// whitespace, not structural blank lines between statements.
 func (p *parser) skipInlineNewlines() {
 	for p.peek().Kind == TokNewline {
 		p.advance()
@@ -95,11 +197,17 @@ func (p *parser) parseProgram() (*Program, error) {
 	// top-level item is not an obvious statement start AND nothing follows,
 	// interpret as bare expression.
 	for p.peek().Kind != TokEOF {
+		leading := p.flushLeading()
 		stmt, err := p.parseStmt()
 		if err != nil {
 			return nil, err
 		}
 		if stmt != nil {
+			// Leading trivia accumulated before the statement, trailing
+			// stashed during its parse (same-line comment, if any).
+			tri := stmt.Trivia()
+			tri.Leading = append(tri.Leading, leading...)
+			tri.Trailing = append(tri.Trailing, p.flushTrailing()...)
 			prog.Stmts = append(prog.Stmts, stmt)
 			switch s := stmt.(type) {
 			case *MapDecl:
@@ -232,11 +340,15 @@ func (p *parser) parseMapDecl() (Stmt, error) {
 	p.skipNewlines()
 	var body []Stmt
 	for p.peek().Kind != TokRBrace && p.peek().Kind != TokEOF {
+		leading := p.flushLeading()
 		st, err := p.parseStmt()
 		if err != nil {
 			return nil, err
 		}
 		if st != nil {
+			tri := st.Trivia()
+			tri.Leading = append(tri.Leading, leading...)
+			tri.Trailing = append(tri.Trailing, p.flushTrailing()...)
 			body = append(body, st)
 		}
 		if p.peek().Kind == TokNewline {
@@ -310,11 +422,15 @@ func (p *parser) parseStmtBlock() ([]Stmt, error) {
 	p.skipNewlines()
 	var out []Stmt
 	for p.peek().Kind != TokRBrace && p.peek().Kind != TokEOF {
+		leading := p.flushLeading()
 		st, err := p.parseStmt()
 		if err != nil {
 			return nil, err
 		}
 		if st != nil {
+			tri := st.Trivia()
+			tri.Leading = append(tri.Leading, leading...)
+			tri.Trailing = append(tri.Trailing, p.flushTrailing()...)
 			out = append(out, st)
 		}
 		if p.peek().Kind == TokNewline {

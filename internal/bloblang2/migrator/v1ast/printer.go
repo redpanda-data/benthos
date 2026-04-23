@@ -51,6 +51,7 @@ func (pr *printer) indent(level int) string {
 
 func (pr *printer) printStmt(st Stmt, indent int) {
 	ind := pr.indent(indent)
+	pr.printLeadingTrivia(st.Trivia().Leading, ind)
 	switch s := st.(type) {
 	case *Assignment:
 		pr.write(ind)
@@ -117,6 +118,29 @@ func (pr *printer) printStmt(st Stmt, indent int) {
 		pr.printExpr(s.Expr)
 	default:
 		pr.err = fmt.Errorf("printer: unknown statement type %T", st)
+	}
+	for _, t := range st.Trivia().Trailing {
+		if t.Kind == TriviaComment {
+			pr.write("  #")
+			pr.write(t.Text)
+		}
+	}
+}
+
+// printLeadingTrivia emits blank lines and standalone comments preceding a
+// statement. Blank-line trivia becomes an empty line; comments render as
+// `<indent># <text>` on their own lines.
+func (pr *printer) printLeadingTrivia(tri []Trivia, ind string) {
+	for _, t := range tri {
+		switch t.Kind {
+		case TriviaBlankLine:
+			pr.write("\n")
+		case TriviaComment:
+			pr.write(ind)
+			pr.write("#")
+			pr.write(t.Text)
+			pr.write("\n")
+		}
 	}
 }
 

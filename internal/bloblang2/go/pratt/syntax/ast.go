@@ -12,10 +12,51 @@ type Expr interface {
 }
 
 // Stmt is the interface implemented by all statement nodes.
+//
+// Every Stmt carries a TriviaSet — this is how comments and blank lines
+// survive a V1→V2 translation round-trip. The V2 parser leaves these empty
+// (it doesn't attempt trivia preservation on V2 source); translators
+// populate them; the printer renders them.
 type Stmt interface {
 	Node
 	stmtNode()
+	// Trivia returns the statement's leading+trailing trivia bucket. The
+	// returned pointer is the statement's own storage — mutation sticks.
+	Trivia() *TriviaSet
 }
+
+// TriviaKind identifies the kind of a trivia entry.
+type TriviaKind int
+
+// Trivia kinds.
+const (
+	// TriviaComment is a `# ...` line comment. Text excludes the leading
+	// `#` and the trailing newline, verbatim otherwise.
+	TriviaComment TriviaKind = iota
+	// TriviaBlankLine marks an empty line between statements.
+	TriviaBlankLine
+)
+
+// Trivia is a single entry in a TriviaSet.
+type Trivia struct {
+	Kind TriviaKind
+	// Text is the comment text (without `#` or trailing newline). Empty
+	// for blank-line trivia.
+	Text string
+	Pos  Pos
+}
+
+// TriviaSet groups leading and trailing trivia for a node. Leading trivia
+// is what appears before the statement (own-line comments, blank lines);
+// trailing trivia is a same-line comment after the statement.
+type TriviaSet struct {
+	Leading  []Trivia
+	Trailing []Trivia
+}
+
+// Trivia returns the set itself so *TriviaSet satisfies the Stmt contract
+// when embedded on a concrete statement type.
+func (t *TriviaSet) Trivia() *TriviaSet { return t }
 
 //
 // Top-level structures
@@ -40,6 +81,7 @@ func (p *Program) nodePos() Pos {
 
 // MapDecl is a user-defined function declaration.
 type MapDecl struct {
+	TriviaSet
 	TokenPos   Pos
 	Name       string
 	Params     []Param
@@ -61,6 +103,7 @@ type Param struct {
 
 // ImportStmt is an import declaration.
 type ImportStmt struct {
+	TriviaSet
 	TokenPos  Pos
 	Path      string // the import path string
 	Namespace string // the alias (as name)
@@ -81,6 +124,7 @@ type ExprBody struct {
 
 // VarAssign is a variable assignment within an expression body.
 type VarAssign struct {
+	TriviaSet
 	TokenPos  Pos
 	Name      string        // variable name (without $)
 	Path      []PathSegment // optional path components ($var.field[0] = ...)
@@ -96,6 +140,7 @@ func (v *VarAssign) nodePos() Pos { return v.TokenPos }
 
 // Assignment is an assignment to output, output metadata, or a variable.
 type Assignment struct {
+	TriviaSet
 	TokenPos Pos
 	Target   AssignTarget
 	Value    Expr
@@ -126,6 +171,7 @@ const (
 
 // IfStmt is a standalone if statement containing output assignments.
 type IfStmt struct {
+	TriviaSet
 	TokenPos Pos
 	Branches []IfBranch // first is the if, rest are else-if
 	Else     []Stmt     // else body (nil if no else)
@@ -142,6 +188,7 @@ type IfBranch struct {
 
 // MatchStmt is a standalone match statement containing output assignments.
 type MatchStmt struct {
+	TriviaSet
 	TokenPos    Pos
 	Subject     Expr        // nil for boolean match without expression
 	Binding     string      // as-binding name (empty if no as)

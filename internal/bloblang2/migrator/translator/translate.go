@@ -167,15 +167,18 @@ func (t *translator) translateProgram(p *v1ast.Program) *syntax.Program {
 	}
 
 	// Translate statements in original order, routing map decls and imports
-	// to the dedicated slices while keeping everything else in Stmts.
+	// to the dedicated slices while keeping everything else in Stmts. Each
+	// V2 node inherits its V1 source's leading/trailing trivia.
 	for _, stmt := range p.Stmts {
 		switch s := stmt.(type) {
 		case *v1ast.MapDecl:
 			if m := t.translateMapDecl(s); m != nil {
+				copyTriviaTo(s, m)
 				out.Maps = append(out.Maps, m)
 			}
 		case *v1ast.ImportStmt:
 			if i := t.translateImport(s); i != nil {
+				copyTriviaTo(s, i)
 				out.Imports = append(out.Imports, i)
 			}
 		case *v1ast.FromStmt:
@@ -189,7 +192,9 @@ func (t *translator) translateProgram(p *v1ast.Program) *syntax.Program {
 				Explanation: `V1 "from" replaces the whole mapping — inline the imported file manually`,
 			})
 		default:
-			if v2 := t.translateStmt(stmt); v2 != nil {
+			v2 := t.translateStmt(stmt)
+			if v2 != nil {
+				copyTrivia(stmt, v2)
 				out.Stmts = append(out.Stmts, v2)
 			}
 		}

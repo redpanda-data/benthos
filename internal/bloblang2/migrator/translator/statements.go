@@ -28,11 +28,14 @@ func (t *translator) translateStmt(stmt v1ast.Stmt) syntax.Stmt {
 	}
 }
 
-// translateStmts maps a slice of V1 statements to V2.
+// translateStmts maps a slice of V1 statements to V2. Each V2 node inherits
+// the V1 source's leading/trailing trivia (comments + blank lines).
 func (t *translator) translateStmts(stmts []v1ast.Stmt) []syntax.Stmt {
 	var out []syntax.Stmt
 	for _, s := range stmts {
-		if v2 := t.translateStmt(s); v2 != nil {
+		v2 := t.translateStmt(s)
+		if v2 != nil {
+			copyTrivia(s, v2)
 			out = append(out, v2)
 		}
 	}
@@ -303,12 +306,14 @@ func (t *translator) tryTranslateMapBody(m *v1ast.MapDecl) (*syntax.ExprBody, bo
 			if val == nil {
 				return nil, false
 			}
-			out.Assignments = append(out.Assignments, &syntax.VarAssign{
+			va := &syntax.VarAssign{
 				TokenPos:  pos(s.Pos),
 				Name:      s.Name,
 				Value:     val,
 				SlotIndex: -1,
-			})
+			}
+			copyTriviaTo(s, va)
+			out.Assignments = append(out.Assignments, va)
 		case *v1ast.Assignment:
 			// Only handle root-rooted assignments here. Other target kinds
 			// (meta, bare, this) aren't valid inside a map body per V1

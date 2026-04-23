@@ -62,28 +62,41 @@ func (p *printer) printProgram(prog *Program) {
 		if wrote {
 			p.newline()
 		}
+		p.printLeadingTrivia(imp.Trivia().Leading)
 		p.printImport(imp)
+		p.printTrailingTrivia(imp.Trivia().Trailing)
 		wrote = true
 	}
 
-	// Blank line before maps if we had imports.
-	if len(prog.Maps) > 0 && wrote {
+	// Blank line before maps if we had imports — unless the first map
+	// already carries a user-supplied blank line in its leading trivia.
+	if len(prog.Maps) > 0 && wrote && !leadingStartsWithBlank(prog.Maps[0]) {
 		p.newline()
+		p.newline()
+	} else if len(prog.Maps) > 0 && wrote {
 		p.newline()
 	}
 
 	for i, m := range prog.Maps {
 		if i > 0 {
-			p.newline()
-			p.newline()
+			if leadingStartsWithBlank(m) {
+				p.newline()
+			} else {
+				p.newline()
+				p.newline()
+			}
 		}
+		p.printLeadingTrivia(m.Trivia().Leading)
 		p.printMapDecl(m)
+		p.printTrailingTrivia(m.Trivia().Trailing)
 		wrote = true
 	}
 
 	// Blank line before top-level statements.
-	if len(prog.Stmts) > 0 && wrote {
+	if len(prog.Stmts) > 0 && wrote && !leadingStartsWithBlank(prog.Stmts[0]) {
 		p.newline()
+		p.newline()
+	} else if len(prog.Stmts) > 0 && wrote {
 		p.newline()
 	}
 
@@ -91,13 +104,54 @@ func (p *printer) printProgram(prog *Program) {
 		if i > 0 {
 			p.newline()
 		}
+		p.printLeadingTrivia(s.Trivia().Leading)
 		p.writeIndent()
 		p.printStmt(s)
+		p.printTrailingTrivia(s.Trivia().Trailing)
 	}
 
 	if wrote || len(prog.Stmts) > 0 {
 		p.newline()
 	}
+}
+
+// printLeadingTrivia emits a node's leading trivia: blank-line markers
+// become a bare newline, comments become `<indent># <text>\n`.
+func (p *printer) printLeadingTrivia(tri []Trivia) {
+	for _, t := range tri {
+		switch t.Kind {
+		case TriviaBlankLine:
+			p.newline()
+		case TriviaComment:
+			p.writeIndent()
+			p.write("#")
+			p.write(t.Text)
+			p.newline()
+		}
+	}
+}
+
+// printTrailingTrivia emits a node's trailing trivia — a same-line comment
+// appended after the statement's last character (before the newline the
+// caller adds).
+func (p *printer) printTrailingTrivia(tri []Trivia) {
+	for _, t := range tri {
+		if t.Kind == TriviaComment {
+			p.write("  #")
+			p.write(t.Text)
+		}
+	}
+}
+
+// leadingStartsWithBlank reports whether a statement-like node's leading
+// trivia starts with a blank-line marker, so we can suppress auto-inserted
+// blank separators in favour of the user's version.
+func leadingStartsWithBlank(s interface{ Trivia() *TriviaSet }) bool {
+	tri := s.Trivia()
+	if tri == nil || len(tri.Leading) == 0 {
+		return false
+	}
+	return tri.Leading[0].Kind == TriviaBlankLine
 }
 
 func (p *printer) printImport(imp *ImportStmt) {
@@ -194,13 +248,7 @@ func (p *printer) printIfStmt(s *IfStmt) {
 		}
 		p.newline()
 		p.indent++
-		for j, st := range b.Body {
-			if j > 0 {
-				p.newline()
-			}
-			p.writeIndent()
-			p.printStmt(st)
-		}
+		p.printNestedStmts(b.Body)
 		p.indent--
 		p.newline()
 		p.writeIndent()
@@ -214,17 +262,25 @@ func (p *printer) printIfStmt(s *IfStmt) {
 		}
 		p.newline()
 		p.indent++
-		for j, st := range s.Else {
-			if j > 0 {
-				p.newline()
-			}
-			p.writeIndent()
-			p.printStmt(st)
-		}
+		p.printNestedStmts(s.Else)
 		p.indent--
 		p.newline()
 		p.writeIndent()
 		p.write("}")
+	}
+}
+
+// printNestedStmts emits a list of statements one per line, rendering the
+// leading/trailing trivia on each.
+func (p *printer) printNestedStmts(stmts []Stmt) {
+	for j, st := range stmts {
+		if j > 0 {
+			p.newline()
+		}
+		p.printLeadingTrivia(st.Trivia().Leading)
+		p.writeIndent()
+		p.printStmt(st)
+		p.printTrailingTrivia(st.Trivia().Trailing)
 	}
 }
 
@@ -275,13 +331,7 @@ func (p *printer) printMatchCase(c MatchCase, isStmt bool) {
 		}
 		p.newline()
 		p.indent++
-		for i, st := range body {
-			if i > 0 {
-				p.newline()
-			}
-			p.writeIndent()
-			p.printStmt(st)
-		}
+		p.printNestedStmts(body)
 		p.indent--
 		p.newline()
 		p.writeIndent()
@@ -339,8 +389,10 @@ func (p *printer) printExprBody(body *ExprBody) {
 		if i > 0 {
 			p.newline()
 		}
+		p.printLeadingTrivia(va.Trivia().Leading)
 		p.writeIndent()
 		p.printVarAssign(va)
+		p.printTrailingTrivia(va.Trivia().Trailing)
 	}
 	if len(body.Assignments) > 0 {
 		p.newline()

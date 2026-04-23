@@ -28,6 +28,7 @@ type TokenKind int
 const (
 	TokEOF TokenKind = iota
 	TokNewline
+	TokComment   // # to end-of-line (text excludes the # and trailing newline)
 	TokIdent     // lenient: [A-Za-z0-9_]+
 	TokInt       // digits (no sign)
 	TokFloat     // digits "." digits
@@ -66,7 +67,7 @@ const (
 )
 
 var tokenNames = map[TokenKind]string{
-	TokEOF: "EOF", TokNewline: "NEWLINE", TokIdent: "IDENT",
+	TokEOF: "EOF", TokNewline: "NEWLINE", TokComment: "COMMENT", TokIdent: "IDENT",
 	TokInt: "INT", TokFloat: "FLOAT", TokString: "STRING", TokRawString: "RAW_STRING",
 	TokDollar: "$", TokAt: "@", TokLParen: "(", TokRParen: ")",
 	TokLBracket: "[", TokRBracket: "]", TokLBrace: "{", TokRBrace: "}",
@@ -179,6 +180,8 @@ func (s *Scanner) All() ([]Token, error) {
 
 // skipInlineWhitespace consumes spaces, tabs, and \r (treating \r\n as a
 // newline at \n). It stops at \n, # (comment), or a non-whitespace rune.
+// Comments are NOT consumed here — Next() emits them as TokComment tokens
+// so the parser can collect them as trivia.
 // Returns whether any inline space was seen.
 func (s *Scanner) skipInlineWhitespace() bool {
 	sawSpace := false
@@ -195,11 +198,6 @@ func (s *Scanner) skipInlineWhitespace() bool {
 			}
 			s.advance()
 			sawSpace = true
-		case '#':
-			// Line comment — consume to EOL but do NOT consume the newline.
-			for s.offset < len(s.src) && s.src[s.offset] != '\n' {
-				s.advance()
-			}
 		default:
 			return sawSpace
 		}
@@ -213,6 +211,24 @@ func (s *Scanner) Next() (Token, error) {
 	sawSpace := s.skipInlineWhitespace()
 	if sawSpace {
 		s.precSpace = true
+	}
+
+	// Line comment — emit as a TokComment trivia token, preserving the text
+	// verbatim (without the leading '#' or the trailing newline).
+	if s.offset < len(s.src) && s.src[s.offset] == '#' {
+		p := s.pos()
+		s.advance() // skip '#'
+		start := s.offset
+		for s.offset < len(s.src) && s.src[s.offset] != '\n' {
+			s.advance()
+		}
+		tok := Token{
+			Kind: TokComment, Text: string(s.src[start:s.offset]), Pos: p,
+			PrecededBySpace: s.precSpace, PrecededByNewline: s.precNL,
+		}
+		// Comments do not reset precSpace/precNL; whatever the next token
+		// sees is whatever the comment was preceded by. Newlines bubble on.
+		return tok, nil
 	}
 
 	// Handle newlines as tokens.

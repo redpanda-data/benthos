@@ -13,10 +13,55 @@ type Expr interface {
 }
 
 // Stmt is implemented by every statement node.
+//
+// Every Stmt carries a TriviaSet so that comments and blank lines collected
+// by the parser survive the round trip to the V1→V2 translator. Use
+// Leading() / Trailing() to read; the parser sets them via the embedded
+// TriviaSet on each concrete type.
 type Stmt interface {
 	Node
 	stmtNode()
+	// Trivia returns the statement's leading+trailing trivia bucket.
+	// The returned pointer is the statement's own storage — mutation sticks.
+	Trivia() *TriviaSet
 }
+
+// TriviaKind identifies the kind of a trivia entry.
+type TriviaKind int
+
+// Trivia kinds.
+const (
+	// TriviaComment is a `# ...` line comment. Text excludes the leading `#`
+	// and the trailing newline, verbatim otherwise.
+	TriviaComment TriviaKind = iota
+	// TriviaBlankLine marks a run of two or more consecutive newlines with
+	// no content between them — i.e. an empty line in the source.
+	TriviaBlankLine
+)
+
+// Trivia is a single entry in a TriviaSet.
+type Trivia struct {
+	Kind TriviaKind
+	// Text is the comment text (without `#` or trailing newline). Empty for
+	// blank-line trivia.
+	Text string
+	Pos  Pos
+}
+
+// TriviaSet groups leading and trailing trivia for a node.
+//
+// Leading trivia is everything between the previous statement's end and
+// this statement's start (standalone comment lines, blank lines).
+// Trailing trivia is a comment that appears on the same line as the
+// statement's last significant token.
+type TriviaSet struct {
+	Leading  []Trivia
+	Trailing []Trivia
+}
+
+// Trivia returns the set itself so *TriviaSet satisfies the Stmt contract
+// when embedded.
+func (t *TriviaSet) Trivia() *TriviaSet { return t }
 
 // Program is the root of a V1 mapping AST. Maps and imports live alongside
 // regular statements. The original source ordering is preserved on `Stmts`
@@ -38,6 +83,7 @@ func (p *Program) NodePos() Pos { return p.Pos }
 
 // Assignment is `<target> = <expr>` at statement position.
 type Assignment struct {
+	TriviaSet
 	Target AssignTarget
 	Value  Expr
 	Pos    Pos
@@ -85,6 +131,7 @@ type PathSegment struct {
 
 // LetStmt is `let <name> = <expr>` or `let "<name>" = <expr>`.
 type LetStmt struct {
+	TriviaSet
 	Name       string
 	NameQuoted bool
 	NamePos    Pos
@@ -98,6 +145,7 @@ func (l *LetStmt) stmtNode()    {}
 
 // MapDecl is `map <name> { ... }`.
 type MapDecl struct {
+	TriviaSet
 	Name    string
 	NamePos Pos
 	Body    []Stmt
@@ -110,6 +158,7 @@ func (m *MapDecl) stmtNode()    {}
 
 // ImportStmt is `import "path"`.
 type ImportStmt struct {
+	TriviaSet
 	Path Expr // string literal
 	Pos  Pos
 }
@@ -120,6 +169,7 @@ func (i *ImportStmt) stmtNode()    {}
 
 // FromStmt is `from "path"`.
 type FromStmt struct {
+	TriviaSet
 	Path Expr
 	Pos  Pos
 }
@@ -130,6 +180,7 @@ func (f *FromStmt) stmtNode()    {}
 
 // IfStmt is the statement form of `if / else if / else { ... }`.
 type IfStmt struct {
+	TriviaSet
 	Branches []IfBranch // first is the if, rest are else-if
 	Else     []Stmt     // may be nil if no else clause
 	Pos      Pos
@@ -149,6 +200,7 @@ type IfBranch struct {
 // BareExprStmt is a lone expression acting as the whole mapping (shorthand
 // for `root = expr`). Legal only when it is the sole statement.
 type BareExprStmt struct {
+	TriviaSet
 	Expr Expr
 	Pos  Pos
 }
