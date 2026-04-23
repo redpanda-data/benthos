@@ -82,6 +82,10 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	case "find":
 		return t.findValueToLambda(m, recv)
 
+	// ----- V1 .fold single-param ctx-object lambda -> V2 two-param (tally, value) lambda
+	case "fold":
+		return t.foldContextToTwoParam(m, recv)
+
 	// ----- .exists(path) -> (path != null).catch(false) -----
 	case "exists":
 		return t.existsToNullCheck(m, recv)
@@ -95,23 +99,13 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		t.flagMethodDivergence(m, "V1 .length() on strings counts bytes; V2 counts codepoints (§14#40)")
 		return nil
 	case "or":
-		t.rec.Rewritten(Change{
-			Line: m.NamePos.Line, Column: m.NamePos.Column,
-			Severity: SeverityWarning, Category: CategorySemanticChange,
-			RuleID: RuleOrCatchesErrors, SpecRef: "§12.2",
-			Explanation: "V1 .or() catches errors AND nulls; V2 .or() catches nulls only — consider .catch(_ -> x) for error fallbacks",
-		})
-		return nil
+		return t.orToOrPlusCatch(m, recv)
 
-	// ----- V2 is stricter about receiver type; flag and pass through -----
+	// ----- V1 .merge is polymorphic (object OR array); V2 splits:
+	//       .merge for objects, .concat for arrays. Detect array shape from
+	//       the receiver / arg and rewrite; otherwise pass through + warn.
 	case "merge":
-		t.rec.Rewritten(Change{
-			Line: m.NamePos.Line, Column: m.NamePos.Column,
-			Severity: SeverityWarning, Category: CategorySemanticChange,
-			RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
-			Explanation: "V1 .merge() tolerates null receiver/arg; V2 errors. Audit whether operands can be null.",
-		})
-		return nil
+		return t.mergePolymorphicRewrite(m, recv)
 	case "filter", "filter_entries", "all", "any":
 		t.rec.Rewritten(Change{
 			Line: m.NamePos.Line, Column: m.NamePos.Column,
@@ -513,4 +507,310 @@ func (t *translator) applyToCall(m *v1ast.MethodCall, recv syntax.Expr) syntax.E
 		Namespace: namespace,
 		Args:      []syntax.CallArg{{Value: recv}},
 	}
+}
+
+// foldContextToTwoParam rewrites V1 `.fold(init, ctx -> ...ctx.tally...ctx.value...)`
+// into V2 `.fold(init, (tally, value) -> ...)`.
+//
+// V1's fold lambda receives a single context object with `.tally` and
+// `.value` fields; V2 takes two explicit parameters. We walk the V1 body
+// and replace `<paramName>.tally` / `<paramName>.value` field accesses
+// with bare identifiers that resolve to the new V2 parameters, then
+// assemble a two-param V2 lambda. If the body references the context
+// parameter directly (not via .tally / .value) the shape isn't safely
+// mechanical — we fall through to the default translation with a warning
+// so the caller knows the V2 output will error at runtime.
+func (t *translator) foldContextToTwoParam(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+	if len(m.Args) != 2 {
+		return nil
+	}
+	lam, ok := m.Args[1].Value.(*v1ast.Lambda)
+	if !ok || lam.Discard {
+		// Map-ref or discard param — V1 also supports these but the shape
+		// isn't recognisable from here. Pass through; translator will emit
+		// V2 that errors and the warning surfaces the issue.
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§13",
+			Explanation: "V1 .fold() second argument must be a one-param lambda for automatic V1→V2 rewrite; manually convert to V2 .fold(init, (tally, value) -> ...)",
+		})
+		return nil
+	}
+
+	paramName := lam.Param
+	rewritten, unsafeRef := rewriteFoldContext(lam.Body, paramName)
+	if unsafeRef {
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§13",
+			Explanation: "V1 .fold() lambda references its context param outside .tally/.value; V2 has no single-value accessor — rewrite manually to use (tally, value) params",
+		})
+		return nil
+	}
+
+	// Translate the initial value and the rewritten body. The two synthetic
+	// V2 param names are pushed onto the scope stack so the rewritten bare
+	// `tally` / `value` idents resolve as lambda-param references rather
+	// than the default V1 bare-ident-to-input rewrite.
+	initial := t.translateExpr(m.Args[0].Value)
+	if initial == nil {
+		return nil
+	}
+	t.pushScope("tally", "value")
+	v2Body := t.translateExpr(rewritten)
+	t.popScope()
+	if v2Body == nil {
+		return nil
+	}
+
+	t.rec.Rewritten(Change{
+		Line: m.NamePos.Line, Column: m.NamePos.Column,
+		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+		RuleID:      RuleMethodDoesNotExist,
+		SpecRef:     "§13",
+		Explanation: "V1 .fold(init, ctx -> ...ctx.tally...ctx.value...) rewritten as V2 .fold(init, (tally, value) -> ...)",
+	})
+
+	lamPos := pos(lam.ParamPos)
+	return &syntax.MethodCallExpr{
+		Receiver:  recv,
+		Method:    "fold",
+		MethodPos: pos(m.NamePos),
+		Args: []syntax.CallArg{
+			{Value: initial},
+			{Value: &syntax.LambdaExpr{
+				TokenPos: lamPos,
+				Params: []syntax.Param{
+					{Name: "tally", Pos: lamPos, SlotIndex: -1},
+					{Name: "value", Pos: lamPos, SlotIndex: -1},
+				},
+				Body: &syntax.ExprBody{Result: v2Body},
+			}},
+		},
+	}
+}
+
+// orToOrPlusCatch rewrites V1 `.or(x)` (which catches null AND errors) as
+// V2 `.or(x).catch(_ -> x)` so both branches are preserved. Mirrors the
+// `|` coalesce rewrite in translateBinary.
+func (t *translator) orToOrPlusCatch(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+	if len(m.Args) != 1 {
+		return nil
+	}
+	fallback := t.translateExpr(m.Args[0].Value)
+	if fallback == nil {
+		return nil
+	}
+	t.rec.Rewritten(Change{
+		Line: m.NamePos.Line, Column: m.NamePos.Column,
+		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+		RuleID:      RuleOrCatchesErrors,
+		SpecRef:     "§12.2",
+		Explanation: "V1 .or() catches null AND errors; rewritten as V2 .or(x).catch(_ -> x) to preserve both paths",
+	})
+	orCall := &syntax.MethodCallExpr{
+		Receiver:  recv,
+		Method:    "or",
+		MethodPos: pos(m.NamePos),
+		Args:      []syntax.CallArg{{Value: fallback}},
+	}
+	catchLambda := &syntax.LambdaExpr{
+		TokenPos: pos(m.NamePos),
+		Params:   []syntax.Param{{Discard: true, Pos: pos(m.NamePos), SlotIndex: -1}},
+		Body:     &syntax.ExprBody{Result: fallback},
+	}
+	return &syntax.MethodCallExpr{
+		Receiver:  orCall,
+		Method:    "catch",
+		MethodPos: pos(m.NamePos),
+		Args:      []syntax.CallArg{{Value: catchLambda}},
+	}
+}
+
+// mergePolymorphicRewrite handles V1 .merge(). V1 is polymorphic:
+//
+//   - Object receiver + object arg  → object-level merge (V2 .merge)
+//   - Array receiver + array arg    → array concatenation (V2 .concat)
+//
+// V2 splits these into separate methods. When both the V1 receiver and
+// the V1 argument have a statically-visible array shape (array literal
+// or a known array-returning method call), we rewrite to `.concat`.
+// Otherwise we leave the call as `.merge` and emit a warning.
+func (t *translator) mergePolymorphicRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+	if len(m.Args) == 1 && isArrayExpr(m.Recv) && isArrayExpr(m.Args[0].Value) {
+		// Rewrite to V2 .concat(arg).
+		arg := t.translateExpr(m.Args[0].Value)
+		if arg == nil {
+			return nil
+		}
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§14#50",
+			Explanation: "V1 .merge() on array receiver+arg rewritten as V2 .concat() (V2 .merge is object-only)",
+		})
+		return &syntax.MethodCallExpr{
+			Receiver:  recv,
+			Method:    "concat",
+			MethodPos: pos(m.NamePos),
+			Args:      []syntax.CallArg{{Value: arg}},
+		}
+	}
+	// Default: pass through as .merge() with a warning.
+	t.rec.Rewritten(Change{
+		Line: m.NamePos.Line, Column: m.NamePos.Column,
+		Severity: SeverityWarning, Category: CategorySemanticChange,
+		RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
+		Explanation: "V1 .merge() is polymorphic (objects AND arrays); V2 .merge is object-only — use .concat(other) for arrays",
+	})
+	return nil
+}
+
+// isArrayExpr reports whether a V1 expression is statically known to
+// produce an array value. Used by merge-polymorphic dispatch and any
+// future receiver-shape rules.
+func isArrayExpr(e v1ast.Expr) bool {
+	switch n := e.(type) {
+	case *v1ast.ArrayLit:
+		return true
+	case *v1ast.MethodCall:
+		switch n.Name {
+		case "map_each", "map", "filter", "filter_entries",
+			"sort", "sort_by", "unique", "reverse", "without",
+			"slice", "values", "keys", "enumerated", "flatten",
+			"find_all", "find_all_by", "collapse", "explode",
+			"concat":
+			return true
+		case "split":
+			// .split() on a string returns an array of strings.
+			return true
+		}
+	case *v1ast.FunctionCall:
+		if n.Name == "range" {
+			return true
+		}
+	case *v1ast.ParenExpr:
+		return isArrayExpr(n.Inner)
+	case *v1ast.IfExpr:
+		// Both branches must be arrays.
+		for _, b := range n.Branches {
+			if !isArrayExpr(b.Body) {
+				return false
+			}
+		}
+		if n.Else != nil && !isArrayExpr(n.Else) {
+			return false
+		}
+		return true
+	}
+	return false
+}
+
+// rewriteFoldContext walks the V1 expression tree and replaces every
+// `<paramName>.tally` / `<paramName>.value` field access with bare
+// `tally` / `value` identifiers. The walk is in-place but the caller
+// owns the V1 AST by this point (it's being discarded after translation).
+// Returns (rewritten, unsafeRef) where unsafeRef is true when we found a
+// reference to `<paramName>` outside the .tally/.value pattern — the
+// caller should bail on the rewrite in that case.
+func rewriteFoldContext(e v1ast.Expr, paramName string) (v1ast.Expr, bool) {
+	unsafe := false
+	var walk func(v1ast.Expr) v1ast.Expr
+	walk = func(e v1ast.Expr) v1ast.Expr {
+		if e == nil {
+			return nil
+		}
+		switch n := e.(type) {
+		case *v1ast.Ident:
+			// Bare reference to the context param — cannot safely rewrite.
+			if n.Name == paramName {
+				unsafe = true
+			}
+			return n
+		case *v1ast.FieldAccess:
+			if id, ok := n.Recv.(*v1ast.Ident); ok && id.Name == paramName {
+				switch n.Seg.Name {
+				case "tally":
+					return &v1ast.Ident{Name: "tally", TokPos: id.TokPos}
+				case "value":
+					return &v1ast.Ident{Name: "value", TokPos: id.TokPos}
+				default:
+					// <paramName>.something_else — unexpected, bail.
+					unsafe = true
+					return n
+				}
+			}
+			n.Recv = walk(n.Recv)
+			return n
+		case *v1ast.MethodCall:
+			n.Recv = walk(n.Recv)
+			for i := range n.Args {
+				n.Args[i].Value = walk(n.Args[i].Value)
+			}
+			return n
+		case *v1ast.FunctionCall:
+			for i := range n.Args {
+				n.Args[i].Value = walk(n.Args[i].Value)
+			}
+			return n
+		case *v1ast.MapExpr:
+			n.Recv = walk(n.Recv)
+			n.Body = walk(n.Body)
+			return n
+		case *v1ast.Lambda:
+			// A nested lambda shadowing paramName binds a fresh value; don't
+			// descend into it (the param inside is a different variable).
+			if n.Param == paramName {
+				return n
+			}
+			n.Body = walk(n.Body)
+			return n
+		case *v1ast.BinaryExpr:
+			n.Left = walk(n.Left)
+			n.Right = walk(n.Right)
+			return n
+		case *v1ast.UnaryExpr:
+			n.Operand = walk(n.Operand)
+			return n
+		case *v1ast.ParenExpr:
+			n.Inner = walk(n.Inner)
+			return n
+		case *v1ast.ArrayLit:
+			for i := range n.Elems {
+				n.Elems[i] = walk(n.Elems[i])
+			}
+			return n
+		case *v1ast.ObjectLit:
+			for i := range n.Entries {
+				n.Entries[i].Key = walk(n.Entries[i].Key)
+				n.Entries[i].Value = walk(n.Entries[i].Value)
+			}
+			return n
+		case *v1ast.MetaCall:
+			n.Key = walk(n.Key)
+			return n
+		case *v1ast.IfExpr:
+			for i := range n.Branches {
+				n.Branches[i].Cond = walk(n.Branches[i].Cond)
+				n.Branches[i].Body = walk(n.Branches[i].Body)
+			}
+			n.Else = walk(n.Else)
+			return n
+		case *v1ast.MatchExpr:
+			n.Subject = walk(n.Subject)
+			for i := range n.Cases {
+				n.Cases[i].Pattern = walk(n.Cases[i].Pattern)
+				n.Cases[i].Body = walk(n.Cases[i].Body)
+			}
+			return n
+		}
+		// Literal, ThisExpr, RootExpr, VarRef, MetaRef — no child Expr to rewrite.
+		return e
+	}
+	return walk(e), unsafe
 }
