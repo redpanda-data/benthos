@@ -12,13 +12,14 @@ See [`spec/PROPOSAL.md`](spec/PROPOSAL.md) for the motivation and design rationa
 - **`ts/`** — TypeScript implementation (scanner, parser, optimizer, resolver, interpreter, stdlib)
 - **`tree-sitter/`** — Tree-sitter grammar for editor tooling (syntax highlighting, code folding)
 - **`plugins/nvim/`** — Neovim plugin (filetype detection, tree-sitter highlighting, LSP client)
+- **`migrator/`** — V1→V2 translator library, V1 AST package, and a side-by-side playground
 - **`demo/`** — Interactive web playground with live execution and syntax highlighting
 
 ## Spec (`spec/`)
 
 The specification is split across 13 numbered markdown files covering the full language — from lexical structure and type system through to the standard library. Start with [`spec/README.md`](spec/README.md) for the table of contents and a quick syntax reference.
 
-The `spec/tests/` directory contains ~95 YAML test files organized into subdirectories by topic (types, operators, control flow, maps, lambdas, error handling, stdlib, edge cases, etc.). These are the canonical conformance tests — any correct implementation must pass them all. See [`spec/tests/README.md`](spec/tests/README.md) for the test schema.
+The `spec/tests/` directory contains ~130 YAML test files organized into subdirectories by topic (types, operators, control flow, maps, lambdas, error handling, stdlib, edge cases, etc.). These are the canonical conformance tests — any correct implementation must pass them all. See [`spec/tests/README.md`](spec/tests/README.md) for the test schema.
 
 ## Go Implementation (`go/`)
 
@@ -51,7 +52,7 @@ A minimal LSP server that wraps the Go compiler pipeline (Parse, Optimize, Resol
 
 **Completions** — context-aware: methods after `.`, variables after `$`, keywords + stdlib functions + user-defined maps otherwise.
 
-Build the binary with `task nvim:lsp` (output at `plugins/nvim/bin/bloblang2-lsp`). Point any LSP client at it with stdio transport — no arguments needed.
+Build the binary with `task build:nvim:lsp` (output at `plugins/nvim/bin/bloblang2-lsp`). Point any LSP client at it with stdio transport — no arguments needed.
 
 ## Neovim Plugin (`plugins/nvim/`)
 
@@ -68,8 +69,8 @@ lua require("bloblang2").setup()
 **Build prerequisites** (run once, and after grammar changes):
 
 ```sh
-task nvim:parser   # Compile tree-sitter .so
-task nvim:lsp      # Build LSP binary
+task build:nvim:parser   # Compile tree-sitter .so
+task build:nvim:lsp      # Build LSP binary
 ```
 
 **Verify:** open a `.blobl2` file and run `:checkhealth bloblang2`.
@@ -81,20 +82,28 @@ A full tree-sitter grammar for Bloblang V2, suitable for syntax highlighting, co
 Build tasks (requires `node_modules/tree-sitter-cli`):
 
 ```sh
-task tree-sitter:generate    # Generate parser from grammar.js
-task tree-sitter:test        # Run corpus tests
-task tree-sitter:build-wasm  # Compile to WASM
-task tree-sitter:sync-demo   # Copy WASM + highlights into demo/
-task tree-sitter:all         # Full rebuild
+task build:tree-sitter:generate    # Generate parser from grammar.js
+task test:tree-sitter              # Run corpus tests
+task build:tree-sitter:wasm        # Compile to WASM
+task build:tree-sitter             # Full rebuild (generate, test, WASM, sync into demo)
 ```
 
-## Demo (`demo/`)
+## Demo Playgrounds
 
-A local web playground that lets you write Bloblang V2 mappings with tree-sitter-powered syntax highlighting and autocomplete, execute them against JSON input, and see results live. An engine selector lets you choose between browser-side execution (via the TypeScript interpreter) and server-side execution (via the Go interpreter).
+Two local web playgrounds are available. Both share the tree-sitter WASM and TypeScript bundle built by `task build:demo`.
+
+**`demo/` — V2 playground.** Write V2 mappings with tree-sitter-powered syntax highlighting and autocomplete, execute them against JSON input, and see results live. An engine selector toggles between browser-side execution (via the TypeScript interpreter) and server-side execution (via the Go interpreter).
 
 ```sh
 task demo
 # Builds demo assets then opens http://localhost:4195 in your browser
+```
+
+**`migrator/demo/` — V1→V2 migrator playground.** Write a V1 mapping in the bottom-left editor and see the translator's V2 output appear in the bottom-right. A toggle picks whether the top-right output pane runs the V1 mapping (official Redpanda Connect engine) or the translated V2 mapping (Go Pratt interpreter).
+
+```sh
+task demo:migrator
+# Opens http://localhost:4196 in your browser
 ```
 
 ## Performance
@@ -123,32 +132,6 @@ Run the benchmarks with `task test:go` or directly:
 go test ./... -bench=. -benchtime=3s -run='^$'
 ```
 
-## Spec Agent (`specagent/`)
-
-A utility for testing a coding agent's comprehension of the Bloblang V2 specification. It generates isolated "clean rooms" from the spec test suite, invokes an agent, and scores the results.
-
-Two challenges are generated:
-
-- **Predict Output** — agent receives a mapping + input and must predict the output
-- **Predict Mapping** — agent receives an input + output and must write a mapping that produces it
-
-Each clean room contains only the spec prose and test files — no implementation code, examples, or other reference material. The agent gets a fresh context per clean room.
-
-```sh
-# 1. Generate clean rooms
-task specagent:prepare -- --output /tmp/specagent
-
-# 2. Run the agent in each clean room (uses claude CLI by default)
-task specagent:run -- --dir /tmp/specagent
-
-# 3. Score results
-task specagent:evaluate -- --dir /tmp/specagent --verbose
-```
-
-Evaluation for predict-output compares JSON outputs directly. Evaluation for predict-mapping compiles and executes the agent's mapping through the real Bloblang V2 interpreter — any correct mapping passes, not just the original. Results are printed as a table broken down by test category.
-
-Run `task specagent -- <subcommand> --help` for all available flags (model selection, mode filtering, max turns, etc.).
-
 ## Building & Testing
 
 All build and test tasks are managed via [go-task](https://taskfile.dev) from the `bloblang2/` directory. Run `task --list` for the full list. Key tasks:
@@ -156,12 +139,13 @@ All build and test tasks are managed via [go-task](https://taskfile.dev) from th
 ```sh
 task test              # Run all tests (Go + TypeScript + tree-sitter)
 task test:go           # Go spec conformance and unit tests only
-task ts:test           # TypeScript spec conformance and unit tests only
-task tree-sitter:test  # Tree-sitter corpus tests only
+task test:ts           # TypeScript spec conformance and unit tests only
+task test:tree-sitter  # Tree-sitter corpus tests only
 
 task build             # Build all artifacts (tree-sitter, TS bundle, nvim plugin)
 task build:demo        # Build just the demo assets (tree-sitter WASM + TS bundle)
-task demo              # Build demo assets and launch the playground
+task demo              # Build demo assets and launch the V2 playground
+task demo:migrator     # Launch the V1→V2 migrator playground
 
 task clean             # Remove all build artifacts
 ```
