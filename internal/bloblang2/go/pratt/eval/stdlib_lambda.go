@@ -34,7 +34,15 @@ func (interp *Interpreter) RegisterLambdaMethods() {
 	interp.RegisterLambdaMethod("map_keys", lm(interp.methodMapKeys, fnParam))
 	interp.RegisterLambdaMethod("map_entries", lm(interp.methodMapEntries, fnParam))
 	interp.RegisterLambdaMethod("filter_entries", lm(interp.methodFilterEntries, fnParam))
-	interp.RegisterLambdaMethod("into", lm(interp.methodInto, fnParam))
+	// .into accepts any value type (including null) — the lambda sees
+	// the receiver verbatim and decides what to do with it. Only void/
+	// deleted/error receivers are rejected, per spec §13.12.
+	interp.RegisterLambdaMethod("into", MethodSpec{
+		LambdaFn:      interp.methodInto,
+		Params:        []MethodParam{fnParam},
+		AcceptsNull:   true,
+		AcceptsLambda: true,
+	})
 }
 
 // methodInto invokes the lambda with the receiver as its single argument
