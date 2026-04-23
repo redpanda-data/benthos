@@ -141,6 +141,23 @@
         .vim-toggle:hover { color: #a6adc8; border-color: #45475a; }
         .vim-toggle.active { color: #a6e3a1; border-color: #a6e3a1; }
 
+        /* Case study dropdown */
+        .case-study-select {
+            background: #181825;
+            border: 1px solid #313244;
+            border-radius: 3px;
+            color: #a6adc8;
+            font-family: inherit;
+            font-size: 10px;
+            padding: 1px 6px;
+            cursor: pointer;
+            max-width: 280px;
+            text-overflow: ellipsis;
+        }
+        .case-study-select:hover { border-color: #45475a; }
+        .case-study-select:focus { outline: none; border-color: #89b4fa; }
+        .case-study-select option { background: #181825; color: #cdd6f4; }
+
         /* Translation notes strip (below V2 pane header). */
         #v2-notes {
             padding: 4px 12px;
@@ -195,6 +212,9 @@
             <div class="panel-header">
                 <span class="label"><span class="dot" id="v1-dot"></span> V1 Mapping</span>
                 <span style="display:flex;align-items:center;gap:8px">
+                    <select class="case-study-select" id="case-study-select">
+                        <option value="">Case Studies...</option>
+                    </select>
                     <button class="vim-toggle" id="v1-vim-toggle">vim</button>
                     <span style="color:#585b70;font-size:10px">editable</span>
                 </span>
@@ -396,6 +416,38 @@
 
         wireVimToggle("input-vim-toggle", inputEditor, inputVimCompartment);
         wireVimToggle("v1-vim-toggle", v1Editor, v1VimCompartment);
+
+        // ==============================================================
+        // 4b. Case study dropdown (V1 corpus)
+        // ==============================================================
+
+        let caseStudies = [];
+        const caseStudySelect = document.getElementById("case-study-select");
+
+        try {
+            caseStudies = await (await fetch("/case-studies")).json();
+            for (const cs of caseStudies) {
+                const opt = document.createElement("option");
+                opt.value = cs.name;
+                opt.textContent = cs.name;
+                opt.title = cs.description;
+                caseStudySelect.appendChild(opt);
+            }
+        } catch (err) {
+            console.error("failed to fetch case studies:", err);
+        }
+
+        caseStudySelect.addEventListener("change", () => {
+            const cs = caseStudies.find(c => c.name === caseStudySelect.value);
+            if (!cs) return;
+
+            v1Editor.dispatch({
+                changes: {from: 0, to: v1Editor.state.doc.length, insert: cs.mapping},
+            });
+            inputEditor.dispatch({
+                changes: {from: 0, to: inputEditor.state.doc.length, insert: cs.input},
+            });
+        });
 
         // ==============================================================
         // 5. Engine toggle
