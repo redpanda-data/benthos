@@ -22,10 +22,14 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang/mapping"
+	"github.com/redpanda-data/benthos/v4/internal/bloblang/query"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/eval"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/translator"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/v1ast"
+	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/internal/value"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
 )
 
@@ -186,26 +190,59 @@ func v1ParseErrorsOf(err error) []posError {
 	return []posError{{Line: 1, Column: 1, Message: err.Error()}}
 }
 
-func executeV1(mapping string, input any, resp *executeResponse) {
-	if strings.TrimSpace(mapping) == "" {
+func executeV1(mappingSrc string, input any, resp *executeResponse) {
+	if strings.TrimSpace(mappingSrc) == "" {
 		resp.Result = "null"
 		return
 	}
-	exe, err := bloblang.Parse(mapping)
+	exe, err := bloblang.Parse(mappingSrc)
 	if err != nil {
 		resp.V1ParseErrors = v1ParseErrorsOf(err)
 		return
 	}
-	out, err := exe.Query(input)
-	if err != nil {
-		if errors.Is(err, bloblang.ErrRootDeleted) {
-			resp.Result = "< message deleted >"
-			return
-		}
+	// bloblang.Executor.Query uses an empty batch and passes a nil
+	// AssignmentContext.Meta — any `meta x = y` in the mapping therefore
+	// errors with "unable to assign metadata in the current context".
+	// Reach through XUnwrapper and drive the internal executor against a
+	// real message.Part so metadata writes succeed. The output metadata is
+	// discarded because the demo only renders the payload.
+	uw, ok := exe.XUnwrapper().(interface{ Unwrap() *mapping.Executor })
+	if !ok {
+		resp.RuntimeError = "internal: executor does not expose unwrapper"
+		return
+	}
+	part := message.NewPart(nil)
+	if input != nil {
+		part.SetStructured(input)
+	}
+	vars := map[string]any{}
+	var newValue any = value.Nothing(nil)
+	ctx := query.FunctionContext{
+		Maps:     uw.Unwrap().Maps(),
+		Vars:     vars,
+		Index:    0,
+		MsgBatch: message.Batch{part},
+		NewMeta:  part,
+		NewValue: &newValue,
+	}.WithValue(input)
+	if err := uw.Unwrap().ExecOnto(ctx, mapping.AssignmentContext{
+		Vars:  vars,
+		Meta:  part,
+		Value: &newValue,
+	}); err != nil {
 		resp.RuntimeError = err.Error()
 		return
 	}
-	resp.Result = jsonIndent(out, resp)
+	switch newValue.(type) {
+	case value.Delete:
+		resp.Result = "< message deleted >"
+		return
+	case value.Nothing:
+		// Mapping made no payload assignment — pass through input unchanged,
+		// matching V1's `mapping` processor default.
+		newValue = input
+	}
+	resp.Result = jsonIndent(newValue, resp)
 }
 
 func executeV2(v2Source string, input any, resp *executeResponse) {
