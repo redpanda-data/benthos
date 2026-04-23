@@ -276,8 +276,23 @@ func runOne(interp spectest.Interpreter, tc *spectest.TestCase, fileLevel map[st
 		return outcome{outcomeUnexpected, "expected deletion, got output"}
 	}
 	if runErr != nil {
-		if hasFlaggedDivergence(rep) {
-			return outcome{outcomeFlagged, fmt.Sprintf("runtime error, known divergence flagged: %v", runErr)}
+		// Runtime errors in V2 where V1 succeeded need splitting into two
+		// classes:
+		//
+		//   1. V2 strictness errors — V2 deliberately errors where V1
+		//      silently coerced (non-boolean `&&`, non-whole-number
+		//      indexing, etc.). These are documented V1↔V2 divergences
+		//      and are allowed to count as Flagged when the translator
+		//      recorded *any* divergence note.
+		//
+		//   2. Everything else — almost always a translator bug. A warning
+		//      elsewhere in the mapping does NOT excuse an unrelated
+		//      runtime failure. These count as Unexpected. This was the
+		//      hole that masked the V1→V2 .fold lambda-shape bug: a
+		//      merge-null warning elsewhere was giving unrelated fold
+		//      failures a free pass.
+		if isV2StrictnessError(runErr.Error()) && hasFlaggedDivergence(rep) {
+			return outcome{outcomeFlagged, fmt.Sprintf("V2 strictness error, divergence flagged: %v", runErr)}
 		}
 		return outcome{outcomeUnexpected, fmt.Sprintf("unexpected runtime error: %v", runErr)}
 	}
@@ -306,6 +321,67 @@ func runOne(interp spectest.Interpreter, tc *spectest.TestCase, fileLevel map[st
 func hasFlaggedDivergence(rep *translator.Report) bool {
 	for _, c := range rep.Changes {
 		if c.Category == translator.CategorySemanticChange || c.Category == translator.CategoryUnsupported {
+			return true
+		}
+	}
+	return false
+}
+
+// isV2StrictnessError reports whether a V2 runtime error message matches
+// one of the well-known patterns for V2 being deliberately stricter than
+// V1 (type coercion, non-whole-number indexing, null/boolean checks,
+// etc.). These divergences are legitimate V1↔V2 differences; the
+// translator cannot rewrite V1 coercion semantics into V2's stricter
+// checks, and the corresponding V1 test is effectively testing V1-only
+// behaviour. The corpus test allows these to count as Flagged when the
+// translator recorded a divergence note elsewhere; other runtime errors
+// are treated as Unexpected (probable translator bugs).
+//
+// Keep the list conservative: it's better to surface a false positive
+// (a new test failure the author must investigate) than to mask a real
+// regression.
+func isV2StrictnessError(msg string) bool {
+	patterns := []string{
+		// --- Type-strictness (V1 coerced / returned null; V2 errors) ---
+		"requires boolean",
+		"must be boolean",
+		"must return bool",
+		"must evaluate to bool",
+		"cannot add",
+		"not numeric",
+		"cannot convert",
+		"must be a whole number",
+		"requires array",
+		"requires object",
+		"requires number",
+		"requires string",
+		"is not a sortable type",
+		"non-string index on object",
+		// --- Null/void/deleted handling (V2 stricter) ---
+		"cannot call method on void",
+		"cannot call method on null",
+		"cannot call method on deleted",
+		"does not support null",
+		"cannot access field",
+		"cannot index",
+		"cannot compare",
+		"returned void",
+		"deleted value in expression",
+		"cannot assign deleted",
+		"cannot delete metadata",
+		// --- Resource / arithmetic limits (V2 enforces) ---
+		"maximum recursion depth",
+		"int64 overflow",
+		"exceeds float64 exact range",
+		"index out of bounds",
+		// --- Scoping (V1 let leaks out of branches; V2 block-scopes) ---
+		"undefined variable",
+		// --- V1-only stdlib (no V2 equivalent) ---
+		"unknown method",
+		"unknown function",
+	}
+	for _, p := range patterns {
+		if strings.Contains(msg, p) {
 			return true
 		}
 	}

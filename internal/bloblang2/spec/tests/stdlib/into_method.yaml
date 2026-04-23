@@ -161,3 +161,13 @@ tests:
     mapping: |
       output = (if false { 1 }).or(0).into(n -> n + 1)
     output: 1
+
+  - name: "into() on a null receiver passes null to the lambda"
+    mapping: |
+      output = null.into(n -> n)
+    output: null
+
+  - name: "into() on a null receiver, lambda can null-check"
+    mapping: |
+      output = null.into(n -> if n == null { "was null" } else { "was value" })
+    output: "was null"

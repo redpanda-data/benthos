@@ -169,21 +169,34 @@ func (t *translator) translateBinary(b *v1ast.BinaryExpr) syntax.Expr {
 	if left == nil || right == nil {
 		return nil
 	}
-	// `|` coalesce: V2 has no direct binary operator for this. Rewrite to
-	// `left.or(right)`. Not bit-exact because V1 `.or` also catches errors
-	// where V2 doesn't, but the closest idiom.
+	// `|` coalesce: V1 catches BOTH null and errors on the left side; V2
+	// `.or` catches null only, and `.catch` catches errors only. Emit
+	// `left.or(right).catch(_ -> right)` so both V1 paths are covered —
+	// important for patterns like `arr.N | null` where V2 errors on
+	// out-of-bounds index.
 	if b.Op == v1ast.TokPipe {
 		t.rec.Rewritten(Change{
 			Line: b.OpPos.Line, Column: b.OpPos.Column,
 			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
 			RuleID: RuleCoalescePrecedence, SpecRef: "§14#4",
-			Explanation: "V1 `|` coalesce rewritten as V2 `.or(...)`",
+			Explanation: "V1 `|` coalesce rewritten as V2 `.or(x).catch(_ -> x)` (covers V1's combined null + error coalesce)",
 		})
-		return &syntax.MethodCallExpr{
+		orCall := &syntax.MethodCallExpr{
 			Receiver:  left,
 			Method:    "or",
 			MethodPos: pos(b.OpPos),
 			Args:      []syntax.CallArg{{Value: right}},
+		}
+		catchLambda := &syntax.LambdaExpr{
+			TokenPos: pos(b.OpPos),
+			Params:   []syntax.Param{{Discard: true, Pos: pos(b.OpPos), SlotIndex: -1}},
+			Body:     &syntax.ExprBody{Result: right},
+		}
+		return &syntax.MethodCallExpr{
+			Receiver:  orCall,
+			Method:    "catch",
+			MethodPos: pos(b.OpPos),
+			Args:      []syntax.CallArg{{Value: catchLambda}},
 		}
 	}
 	op, ok := mapV1BinaryOp(b.Op)
@@ -789,52 +802,52 @@ func (t *translator) translateMapExpr(m *v1ast.MapExpr) syntax.Expr {
 	if recv == nil {
 		return nil
 	}
+	var lam *syntax.LambdaExpr
+	var explanation string
 	if lambda, ok := m.Body.(*v1ast.Lambda); ok {
 		translatedLambda := t.translateLambda(lambda)
 		if translatedLambda == nil {
 			return nil
 		}
-		t.rec.Rewritten(Change{
-			Line: m.TokPos.Line, Column: m.TokPos.Column,
-			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
-			RuleID:      RuleMethodDoesNotExist,
-			SpecRef:     "§5.4",
-			Explanation: "V1 recv.(name -> body) rewritten as V2 recv.into(name -> body)",
-		})
-		return &syntax.MethodCallExpr{
-			Receiver:  recv,
-			Method:    "into",
-			MethodPos: pos(m.TokPos),
-			Args:      []syntax.CallArg{{Value: translatedLambda}},
+		var asLam *syntax.LambdaExpr
+		asLam, ok = translatedLambda.(*syntax.LambdaExpr)
+		if !ok {
+			return nil
 		}
+		lam = asLam
+		explanation = "V1 recv.(name -> body) rewritten as V2 recv.into(name -> body)"
+	} else {
+		// Un-named form: synthesize a lambda that rebinds `this` to a fresh
+		// name while the body is translated, then wrap as .into($name -> body).
+		const paramName = "__this"
+		t.pushScope(paramName)
+		t.pushThisRebind(paramName)
+		body := t.translateExpr(m.Body)
+		t.popThisRebind()
+		t.popScope()
+		if body == nil {
+			return nil
+		}
+		lam = &syntax.LambdaExpr{
+			TokenPos: pos(m.TokPos),
+			Params:   []syntax.Param{{Name: paramName, Pos: pos(m.TokPos), SlotIndex: -1}},
+			Body:     &syntax.ExprBody{Result: body},
+		}
+		explanation = "V1 recv.(body) (un-named, this-rebinding) rewritten as V2 recv.into(__this -> body) with `this` references replaced"
 	}
-	// Un-named form: synthesize a lambda that rebinds `this` to a fresh
-	// name while the body is translated, then wrap as .into($name -> body).
-	const paramName = "__this"
-	t.pushScope(paramName)
-	t.pushThisRebind(paramName)
-	body := t.translateExpr(m.Body)
-	t.popThisRebind()
-	t.popScope()
-	if body == nil {
-		return nil
-	}
+
 	t.rec.Rewritten(Change{
 		Line: m.TokPos.Line, Column: m.TokPos.Column,
 		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
 		RuleID:      RuleMethodDoesNotExist,
 		SpecRef:     "§5.4",
-		Explanation: "V1 recv.(body) (un-named, this-rebinding) rewritten as V2 recv.into(__this -> body) with `this` references replaced",
+		Explanation: explanation,
 	})
 	return &syntax.MethodCallExpr{
 		Receiver:  recv,
 		Method:    "into",
 		MethodPos: pos(m.TokPos),
-		Args: []syntax.CallArg{{Value: &syntax.LambdaExpr{
-			TokenPos: pos(m.TokPos),
-			Params:   []syntax.Param{{Name: paramName, Pos: pos(m.TokPos), SlotIndex: -1}},
-			Body:     &syntax.ExprBody{Result: body},
-		}}},
+		Args:      []syntax.CallArg{{Value: lam}},
 	}
 }
 
