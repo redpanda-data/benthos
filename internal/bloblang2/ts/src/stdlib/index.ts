@@ -73,6 +73,7 @@ export function stdlibNames(): {
         required: 0,
         total: -1,
         acceptsLambda: methodAcceptsLambda,
+        argFolder: spec.argFolder,
       });
       continue;
     }
@@ -92,6 +93,7 @@ export function stdlibNames(): {
       total,
       acceptsLambda: methodAcceptsLambda,
       params,
+      argFolder: spec.argFolder,
     });
   }
 
@@ -103,7 +105,7 @@ export function stdlibNames(): {
       total++;
       if (!p.hasDefault) required++;
     }
-    functionInfos.set(name, { required, total });
+    functionInfos.set(name, { required, total, argFolder: spec.argFolder });
   }
 
   return { methods: methodInfos, functions: functionInfos };

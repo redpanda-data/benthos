@@ -3,6 +3,9 @@
 // repeat, re_match, re_find_all, re_replace_all, parse_int.
 
 import type { Interpreter, MethodSpec } from "../interpreter.js";
+import type { ArgFolder } from "../resolver.js";
+import type { CallArg } from "../ast.js";
+import { TokenType } from "../token.js";
 
 /**
  * Convert Go regex replacement syntax to JS replacement syntax.
@@ -50,6 +53,7 @@ import {
   isUint64,
   isFloat32,
   isFloat64,
+  isFolded,
   typeName,
 } from "../value.js";
 
@@ -83,6 +87,56 @@ function requireStringArg(
     return mkError(`${methodName}() argument must be string`);
   }
   return arg.value;
+}
+
+/**
+ * foldRegexPattern is the ArgFolder shared by re_match, re_find_all,
+ * and re_replace_all. If arg 0 is a string literal, it's compiled into
+ * a RegExp at parse time (using `flags` — "" for re_match, "g" for the
+ * two find/replace variants). Dynamic patterns (e.g. `.re_match($pat)`)
+ * are left untouched and compile on every call, matching the previous
+ * behaviour. Also applies the Go-to-JS syntax mapping for named
+ * capture groups: `(?P<name>...)` -> `(?<name>...)`.
+ */
+function foldRegexPattern(flags: string): ArgFolder {
+  return (args: CallArg[]): Array<unknown | null> => {
+    const out: Array<unknown | null> = new Array(args.length).fill(null);
+    if (args.length === 0) return out;
+    const lit = args[0]!.value;
+    if (lit.kind !== "literal") return out;
+    if (lit.tokenType !== TokenType.STRING && lit.tokenType !== TokenType.RAW_STRING) {
+      return out;
+    }
+    const jsPattern = String(lit.value).replace(/\(\?P</g, "(?<");
+    try {
+      out[0] = new RegExp(jsPattern, flags);
+    } catch (e) {
+      throw new Error(`invalid regex pattern ${JSON.stringify(lit.value)}: ${(e as Error).message}`);
+    }
+    return out;
+  };
+}
+
+/**
+ * resolveRegex extracts a RegExp from a pattern argument that may
+ * already be precompiled (via foldRegexPattern) or still be a raw
+ * string. Shared by the three re_* methods. Returns a RegExp on
+ * success, or a Value (error) on failure.
+ */
+function resolveRegex(methodName: string, arg: Value, flags: string): RegExp | Value {
+  if (isFolded(arg)) {
+    if (arg.value instanceof RegExp) return arg.value;
+    return mkError(`${methodName}() received folded value of unexpected type`);
+  }
+  if (!isString(arg)) {
+    return mkError(`${methodName}() argument must be string`);
+  }
+  try {
+    const jsPattern = arg.value.replace(/\(\?P</g, "(?<");
+    return new RegExp(jsPattern, flags);
+  } catch (e) {
+    return mkError(`${methodName}() invalid pattern: ${(e as Error).message}`);
+  }
 }
 
 export function registerStringMethods(interp: Interpreter): void {
@@ -224,74 +278,72 @@ export function registerStringMethods(interp: Interpreter): void {
 
   interp.registerMethod(
     "re_match",
-    m((_i, recv, args) => {
-      const s = requireString("re_match", recv);
-      if (typeof s !== "string") return s;
-      if (args.length !== 1) return mkError("re_match() requires one argument");
-      const pattern = requireStringArg("re_match", args, 0);
-      if (typeof pattern !== "string") return pattern;
-      try {
-        const re = new RegExp(pattern);
+    {
+      fn: (_i, recv, args) => {
+        const s = requireString("re_match", recv);
+        if (typeof s !== "string") return s;
+        if (args.length !== 1) return mkError("re_match() requires one argument");
+        const re = resolveRegex("re_match", args[0]!, "");
+        if (!(re instanceof RegExp)) return re;
         return mkBool(re.test(s));
-      } catch (e) {
-        return mkError(
-          "re_match() invalid pattern: " + (e as Error).message,
-        );
-      }
-    }),
+      },
+      lambdaFn: null,
+      intrinsic: false,
+      params: null,
+      acceptsNull: false,
+      argFolder: foldRegexPattern(""),
+    },
   );
 
   interp.registerMethod(
     "re_find_all",
-    m((_i, recv, args) => {
-      const s = requireString("re_find_all", recv);
-      if (typeof s !== "string") return s;
-      if (args.length !== 1) {
-        return mkError("re_find_all() requires one argument");
-      }
-      const pattern = requireStringArg("re_find_all", args, 0);
-      if (typeof pattern !== "string") return pattern;
-      try {
-        const re = new RegExp(pattern, "g");
+    {
+      fn: (_i, recv, args) => {
+        const s = requireString("re_find_all", recv);
+        if (typeof s !== "string") return s;
+        if (args.length !== 1) {
+          return mkError("re_find_all() requires one argument");
+        }
+        const re = resolveRegex("re_find_all", args[0]!, "g");
+        if (!(re instanceof RegExp)) return re;
         const matches = s.match(re);
         if (matches === null) return mkArray([]);
         return mkArray(matches.map(mkString));
-      } catch (e) {
-        return mkError(
-          "re_find_all() invalid pattern: " + (e as Error).message,
-        );
-      }
-    }),
+      },
+      lambdaFn: null,
+      intrinsic: false,
+      params: null,
+      acceptsNull: false,
+      argFolder: foldRegexPattern("g"),
+    },
   );
 
   interp.registerMethod(
     "re_replace_all",
-    m((_i, recv, args) => {
-      const s = requireString("re_replace_all", recv);
-      if (typeof s !== "string") return s;
-      if (args.length !== 2) {
-        return mkError(
-          "re_replace_all() requires pattern and replacement arguments",
-        );
-      }
-      const pattern = requireStringArg("re_replace_all", args, 0);
-      if (typeof pattern !== "string") return pattern;
-      const replacement = requireStringArg("re_replace_all", args, 1);
-      if (typeof replacement !== "string") return replacement;
-      try {
-        // Convert Go regex syntax to JS: (?P<name>...) → (?<name>...)
-        const jsPattern = pattern.replace(/\(\?P</g, "(?<");
-        const re = new RegExp(jsPattern, "g");
+    {
+      fn: (_i, recv, args) => {
+        const s = requireString("re_replace_all", recv);
+        if (typeof s !== "string") return s;
+        if (args.length !== 2) {
+          return mkError(
+            "re_replace_all() requires pattern and replacement arguments",
+          );
+        }
+        const re = resolveRegex("re_replace_all", args[0]!, "g");
+        if (!(re instanceof RegExp)) return re;
+        const replacement = requireStringArg("re_replace_all", args, 1);
+        if (typeof replacement !== "string") return replacement;
         // Convert Go replacement syntax to JS:
         // $0 → $& (whole match), ${name} → $<name> (named group)
-        let jsReplacement = goReplacementToJS(replacement);
+        const jsReplacement = goReplacementToJS(replacement);
         return mkString(s.replace(re, jsReplacement));
-      } catch (e) {
-        return mkError(
-          "re_replace_all() invalid pattern: " + (e as Error).message,
-        );
-      }
-    }),
+      },
+      lambdaFn: null,
+      intrinsic: false,
+      params: null,
+      acceptsNull: false,
+      argFolder: foldRegexPattern("g"),
+    },
   );
 
   interp.registerMethod(

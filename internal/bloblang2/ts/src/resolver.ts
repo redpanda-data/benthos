@@ -16,13 +16,36 @@ import type {
   IfExpr,
   MatchExpr,
   CallExpr,
+  CallArg,
   IdentExpr,
+  PathSegment,
 } from "./ast.js";
+
+/**
+ * ArgFolder performs parse-time evaluation of a stdlib call's arguments
+ * so the runtime can skip repeat work. The folder inspects the AST args
+ * (typically checking for string-literal shapes) and returns a same-
+ * length array of folded values, using null/undefined for argument
+ * positions that aren't eligible for folding. On success the resolver
+ * writes each non-null entry onto the matching CallArg.folded field,
+ * and the interpreter substitutes the folded value for the arg at
+ * runtime.
+ *
+ * Throwing an error surfaces as a resolver diagnostic anchored at the
+ * call site — used e.g. to reject an invalid regex pattern at parse
+ * time rather than on first call.
+ */
+export type ArgFolder = (args: CallArg[]) => Array<unknown | null>;
 
 export interface FunctionInfo {
   required: number;
   /** Total params (required + optional). -1 means no arity checking. */
   total: number;
+  /**
+   * argFolder, if set, is invoked by the resolver to precompute literal
+   * arguments (see ArgFolder docs).
+   */
+  argFolder?: ArgFolder;
 }
 
 export interface MethodInfo {
@@ -41,6 +64,11 @@ export interface MethodInfo {
    * (spec Section 3.4).
    */
   acceptsLambda?: boolean;
+  /**
+   * argFolder, if set, is invoked by the resolver to precompute literal
+   * arguments (see ArgFolder docs).
+   */
+  argFolder?: ArgFolder;
 }
 
 export interface MethodParamInfo {
@@ -303,7 +331,9 @@ class Resolver {
       case "method_call": {
         this.resolveExpr(expr.receiver);
         this.checkMethodCallArity(expr);
-        this.resolveMethodArgs(expr.args, this.methodInfo(expr.method), expr.method);
+        const mi = this.methodInfo(expr.method);
+        this.applyArgFolder(mi?.argFolder, expr.args, expr.methodPos, `.${expr.method}()`);
+        this.resolveMethodArgs(expr.args, mi, expr.method);
         break;
       }
       case "field_access":
@@ -394,7 +424,9 @@ class Resolver {
       if (m) {
         this.checkMapArity(e, m);
       } else if (this.knownFunctions.has(e.name)) {
-        this.checkFunctionArity(e, this.knownFunctions.get(e.name)!);
+        const fi = this.knownFunctions.get(e.name)!;
+        this.checkFunctionArity(e, fi);
+        this.applyArgFolder(fi.argFolder, e.args, e.pos, `${e.name}()`);
       } else {
         this.error(e.pos, `unknown function or map "${e.name}"`);
       }
@@ -432,7 +464,7 @@ class Resolver {
   }
 
   private resolveMethodArgs(
-    args: { name: string; value: Expr }[],
+    args: CallArg[],
     mi: MethodInfo | null,
     calleeName: string,
   ): void {
@@ -461,12 +493,7 @@ class Resolver {
     pos: Pos;
     root: string;
     varName: string;
-    segments: {
-      segKind: string;
-      name: string;
-      index: Expr | null;
-      args: { name: string; value: Expr }[];
-    }[];
+    segments: PathSegment[];
   }): void {
     if (this.inMap) {
       if (expr.root === "input" || expr.root === "input_meta") {
@@ -483,7 +510,34 @@ class Resolver {
       if (seg.index) this.resolveExpr(seg.index);
       if (seg.args.length > 0) {
         const mi = seg.segKind === "method" ? this.methodInfo(seg.name) : null;
+        if (mi?.argFolder) {
+          this.applyArgFolder(mi.argFolder, seg.args, seg.pos, `.${seg.name}()`);
+        }
         this.resolveMethodArgs(seg.args, mi, seg.name);
+      }
+    }
+  }
+
+  /**
+   * applyArgFolder runs folder against args and, on success, attaches
+   * non-null folded values to the matching CallArg.folded field. A
+   * folder throwing an error is recorded as a resolver diagnostic at
+   * pos. Silently tolerates folder-returned arrays of the wrong length
+   * (contract violation we don't want to block compilation for).
+   */
+  private applyArgFolder(folder: ArgFolder | undefined, args: CallArg[], pos: Pos, calleeLabel: string): void {
+    if (!folder || args.length === 0) return;
+    let folded: Array<unknown | null>;
+    try {
+      folded = folder(args);
+    } catch (e) {
+      this.error(pos, `${calleeLabel}: ${(e as Error).message}`);
+      return;
+    }
+    if (folded.length !== args.length) return;
+    for (let i = 0; i < args.length; i++) {
+      if (folded[i] !== null && folded[i] !== undefined) {
+        args[i]!.folded = folded[i];
       }
     }
   }

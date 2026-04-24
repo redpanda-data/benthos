@@ -206,6 +206,14 @@ export interface CallExpr {
 export interface CallArg {
   name: string;
   value: Expr;
+  // folded is the parse-time-precomputed form of this argument,
+  // populated by the resolver when the receiving method/function
+  // exposes an ArgFolder and the argument shape allows folding
+  // (typically: the value is a string literal). When present, the
+  // interpreter substitutes folded for the evaluated value verbatim,
+  // skipping repeat work on every call. Used for e.g. compiling regex
+  // patterns once at parse time rather than on every invocation.
+  folded?: unknown;
 }
 
 export interface MethodCallExpr {
