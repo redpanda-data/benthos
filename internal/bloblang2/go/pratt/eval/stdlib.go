@@ -79,6 +79,19 @@ func (interp *Interpreter) RegisterStdlib() {
 	interp.registerMethods()
 }
 
+// MethodSpecToInfo converts a MethodSpec into the compile-time MethodInfo
+// consumed by the resolver. Exported so external packages (notably the
+// public plugin surface in public/bloblang2) can extend the compiler's
+// view of known methods with their own registrations.
+func MethodSpecToInfo(spec MethodSpec) syntax.MethodInfo {
+	return methodSpecToInfo(spec)
+}
+
+// FunctionSpecToInfo is the FunctionSpec analogue of MethodSpecToInfo.
+func FunctionSpecToInfo(spec FunctionSpec) syntax.FunctionInfo {
+	return functionSpecToInfo(spec)
+}
+
 func methodSpecToInfo(spec MethodSpec) syntax.MethodInfo {
 	methodAcceptsLambda := spec.LambdaFn != nil || spec.AcceptsLambda
 	if spec.Params == nil {
@@ -87,6 +100,7 @@ func methodSpecToInfo(spec MethodSpec) syntax.MethodInfo {
 			Total:         -1,
 			AcceptsLambda: methodAcceptsLambda,
 			ArgFolder:     spec.ArgFolder,
+			CallFolder:    spec.CallFolder,
 		}
 	}
 	required, total := 0, 0
@@ -108,6 +122,7 @@ func methodSpecToInfo(spec MethodSpec) syntax.MethodInfo {
 		AcceptsLambda: methodAcceptsLambda,
 		Params:        params,
 		ArgFolder:     spec.ArgFolder,
+		CallFolder:    spec.CallFolder,
 	}
 }
 
@@ -122,9 +137,10 @@ func functionSpecToInfo(spec FunctionSpec) syntax.FunctionInfo {
 		}
 	}
 	return syntax.FunctionInfo{
-		Required:  required,
-		Total:     total,
-		ArgFolder: spec.ArgFolder,
+		Required:   required,
+		Total:      total,
+		ArgFolder:  spec.ArgFolder,
+		CallFolder: spec.CallFolder,
 	}
 }
 

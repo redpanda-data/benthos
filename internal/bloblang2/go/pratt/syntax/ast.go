@@ -260,6 +260,9 @@ func (u *UnaryExpr) nodePos() Pos { return u.OpPos }
 func (u *UnaryExpr) exprNode()    {}
 
 // CallExpr is a function call (name(args) or namespace::name(args)).
+//
+// Prebound: see MethodCallExpr.Prebound — same mechanism, applied to
+// functions.
 type CallExpr struct {
 	TokenPos       Pos
 	Name           string // function name
@@ -267,6 +270,7 @@ type CallExpr struct {
 	Args           []CallArg
 	Named          bool   // true if using named arguments
 	FunctionOpcode uint16 // resolver-assigned opcode for stdlib functions (0 = user map or unresolved)
+	Prebound       any
 }
 
 func (c *CallExpr) nodePos() Pos { return c.TokenPos }
@@ -289,6 +293,12 @@ type CallArg struct {
 }
 
 // MethodCallExpr is a method call on a receiver (receiver.method(args)).
+//
+// Prebound, if non-nil, is the parse-time-bound dispatch target populated by
+// the resolver when the receiving method exposes a CallFolder (see
+// MethodInfo). The interpreter uses it in place of the normal spec lookup,
+// skipping per-call constructor invocation. Currently this mechanism
+// underpins the public plugin surface's static-args optimisation.
 type MethodCallExpr struct {
 	Receiver     Expr
 	Method       string
@@ -297,6 +307,7 @@ type MethodCallExpr struct {
 	Named        bool   // true if using named arguments
 	NullSafe     bool   // true for ?.method()
 	MethodOpcode uint16 // resolver-assigned opcode for stdlib methods (0 = intrinsic or unresolved)
+	Prebound     any
 }
 
 func (m *MethodCallExpr) nodePos() Pos { return m.Receiver.nodePos() }
@@ -456,7 +467,9 @@ type PathExpr struct {
 func (p *PathExpr) nodePos() Pos { return p.TokenPos }
 func (p *PathExpr) exprNode()    {}
 
-// PathSegment is a single segment in a path expression.
+// PathSegment is a single segment in a path expression. Prebound, for a
+// method segment, mirrors MethodCallExpr.Prebound and lets plugin methods
+// cache a constructor's result at parse time.
 type PathSegment struct {
 	Kind         PathSegmentKind
 	Name         string    // for FieldAccess and MethodCall
@@ -466,6 +479,7 @@ type PathSegment struct {
 	NullSafe     bool
 	Pos          Pos
 	MethodOpcode uint16 // resolver-assigned opcode for method segments (0 = unresolved)
+	Prebound     any    // for MethodCall: parse-time-bound dispatch target (plugin methods)
 }
 
 // PathSegmentKind is the type of a path segment.
