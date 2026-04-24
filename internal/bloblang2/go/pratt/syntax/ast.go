@@ -273,9 +273,19 @@ func (c *CallExpr) nodePos() Pos { return c.TokenPos }
 func (c *CallExpr) exprNode()    {}
 
 // CallArg is a single argument in a function or method call.
+//
+// Folded is the parse-time-precomputed form of this argument, populated
+// by the resolver when the receiving method/function exposes an
+// ArgFolder (see MethodInfo / FunctionInfo) and the argument shape
+// allows folding (typically: the Value is a string literal). When set,
+// the interpreter substitutes Folded for the evaluated Value verbatim,
+// skipping repeat work on every call. This is how e.g. regex patterns
+// get compiled once at parse time rather than on every invocation.
+// When nil, the argument is evaluated normally at runtime.
 type CallArg struct {
-	Name  string // empty for positional args
-	Value Expr
+	Name   string // empty for positional args
+	Value  Expr
+	Folded any
 }
 
 // MethodCallExpr is a method call on a receiver (receiver.method(args)).
