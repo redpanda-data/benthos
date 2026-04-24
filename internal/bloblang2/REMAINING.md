@@ -26,3 +26,7 @@ Work outstanding to reach parity with the V1 integration in `public/service`.
 ## CLI surface
 
 - `internal/cli/studio/sync_schema.go` still builds the schema from the V1 env only. Extend once the V2 schema hook above exists.
+
+## Interpreter value types
+
+- `eval.Interpreter` does not yet handle `json.Number` in comparison or arithmetic operators; benthos decodes JSON with `UseNumber = true` by default, so structured messages arrive with `json.Number` leaves. `internal/impl/pure/processor_bloblang_v2.go` normalises to `int64` / `float64` at the processor boundary as a workaround — fixing this at the eval layer would let any V2 caller pass a benthos-decoded value without pre-processing.
