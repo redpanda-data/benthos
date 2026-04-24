@@ -72,6 +72,10 @@ type MethodSpec struct {
 	Params        []MethodParam    // nil for methods with no named-arg support
 	AcceptsNull   bool             // receiver can be nil (e.g., type, string, not_null)
 	AcceptsLambda bool             // method accepts a lambda argument (implicit for LambdaFn-backed methods)
+	// ArgFolder, if set, is surfaced on the MethodInfo so the resolver
+	// runs parse-time folding on literal arguments (e.g. precompiling
+	// regex patterns). See syntax.ArgFolder.
+	ArgFolder syntax.ArgFolder
 }
 
 // lambdaMethodFunc is a method that receives unevaluated AST args (for lambda/map-ref arguments).
@@ -84,6 +88,9 @@ type FunctionFunc func(args []any) any
 type FunctionSpec struct {
 	Fn     FunctionFunc
 	Params []FunctionParam // for compile-time arity checking
+	// ArgFolder, if set, is surfaced on the FunctionInfo so the resolver
+	// runs parse-time folding on literal arguments. See syntax.ArgFolder.
+	ArgFolder syntax.ArgFolder
 }
 
 // FunctionParam describes a function parameter for compile-time validation
@@ -1461,6 +1468,14 @@ func reorderNamedCallArgs(args []syntax.CallArg, params []MethodParam) []syntax.
 func (interp *Interpreter) evalArgs(args []syntax.CallArg) []any {
 	result := make([]any, len(args))
 	for i, a := range args {
+		// Parse-time-folded values (e.g. precompiled regex patterns
+		// produced by the resolver's ArgFolder hook) substitute for the
+		// AST expression verbatim, skipping re-evaluation. See
+		// syntax.CallArg.Folded.
+		if a.Folded != nil {
+			result[i] = a.Folded
+			continue
+		}
 		v := interp.evalExpr(a.Value)
 		if IsVoid(v) {
 			result[i] = NewError("void passed as argument (use .or() to provide a default)")

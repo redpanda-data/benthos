@@ -2,6 +2,20 @@ package syntax
 
 import "fmt"
 
+// ArgFolder performs parse-time evaluation of a stdlib call's arguments
+// so the runtime can skip repeat work. The folder inspects the AST args
+// (typically checking for string-literal shapes) and returns a
+// same-length slice of folded values, using nil for argument positions
+// that aren't eligible for folding. On success the resolver writes
+// each non-nil entry onto the corresponding CallArg.Folded, and the
+// interpreter substitutes the folded value for the arg at runtime.
+//
+// Returning a non-nil error surfaces as a resolver diagnostic anchored
+// at the call site. That's the right behaviour for cases like an
+// invalid regex pattern — the caller learns about the problem at
+// parse time rather than on first call.
+type ArgFolder func(args []CallArg) (folded []any, err error)
+
 // FunctionInfo carries compile-time metadata about a stdlib function.
 type FunctionInfo struct {
 	// Required is the number of required parameters.
@@ -9,6 +23,9 @@ type FunctionInfo struct {
 	// Total is the total number of parameters (required + optional).
 	// -1 means no arity checking (variadic or handled at runtime).
 	Total int
+	// ArgFolder, if set, is invoked by the resolver to precompute
+	// literal arguments (see ArgFolder docs).
+	ArgFolder ArgFolder
 }
 
 // MethodInfo carries compile-time metadata about a stdlib method.
@@ -24,6 +41,9 @@ type MethodInfo struct {
 	Params []MethodParamInfo
 	// AcceptsLambda is the method-level fallback used when Params is empty.
 	AcceptsLambda bool
+	// ArgFolder, if set, is invoked by the resolver to precompute
+	// literal arguments (see ArgFolder docs).
+	ArgFolder ArgFolder
 }
 
 // MethodParamInfo carries compile-time metadata about one method parameter.
@@ -483,6 +503,7 @@ func (r *resolver) resolveExpr(expr Expr) {
 		mi, miKnown := r.knownMethods[e.Method]
 		if miKnown {
 			r.checkMethodArity(e, mi)
+			r.applyArgFolder(mi.ArgFolder, e.Args, e.MethodPos, "."+e.Method+"()")
 		}
 		if r.methodOpcodes != nil {
 			e.MethodOpcode = r.methodOpcodes[e.Method]
@@ -556,6 +577,7 @@ func (r *resolver) resolveExpr(expr Expr) {
 			if seg.Kind == PathSegMethod {
 				if mi, ok := r.knownMethods[seg.Name]; ok {
 					r.checkMethodArityAt(seg.Pos, seg.Name, len(seg.Args), mi)
+					r.applyArgFolder(mi.ArgFolder, seg.Args, seg.Pos, "."+seg.Name+"()")
 				}
 				if r.methodOpcodes != nil {
 					seg.MethodOpcode = r.methodOpcodes[seg.Name]
@@ -612,6 +634,7 @@ func (r *resolver) resolveCall(e *CallExpr) {
 			r.checkMapArity(e, m)
 		} else if fi, ok := r.knownFunctions[e.Name]; ok {
 			r.checkFunctionArity(e, fi)
+			r.applyArgFolder(fi.ArgFolder, e.Args, e.TokenPos, e.Name+"()")
 			if r.functionOpcodes != nil {
 				e.FunctionOpcode = r.functionOpcodes[e.Name]
 			}
@@ -651,6 +674,30 @@ func (r *resolver) resolveCall(e *CallExpr) {
 	for _, arg := range e.Args {
 		// No function or user map accepts a lambda argument.
 		r.resolveArgValue(arg.Value, false, e.Name)
+	}
+}
+
+// applyArgFolder runs folder against args and, on success, attaches
+// non-nil folded values to the matching CallArg.Folded field. A folder
+// error is recorded as a resolver diagnostic anchored at pos. Silently
+// tolerates folder-returned slices of the wrong length (a contract
+// violation we don't want to block compilation for).
+func (r *resolver) applyArgFolder(folder ArgFolder, args []CallArg, pos Pos, calleeLabel string) {
+	if folder == nil || len(args) == 0 {
+		return
+	}
+	folded, err := folder(args)
+	if err != nil {
+		r.error(pos, calleeLabel+": "+err.Error())
+		return
+	}
+	if len(folded) != len(args) {
+		return
+	}
+	for i := range args {
+		if folded[i] != nil {
+			args[i].Folded = folded[i]
+		}
 	}
 }
 
