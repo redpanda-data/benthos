@@ -82,7 +82,12 @@ func (interp *Interpreter) RegisterStdlib() {
 func methodSpecToInfo(spec MethodSpec) syntax.MethodInfo {
 	methodAcceptsLambda := spec.LambdaFn != nil || spec.AcceptsLambda
 	if spec.Params == nil {
-		return syntax.MethodInfo{Required: 0, Total: -1, AcceptsLambda: methodAcceptsLambda}
+		return syntax.MethodInfo{
+			Required:      0,
+			Total:         -1,
+			AcceptsLambda: methodAcceptsLambda,
+			ArgFolder:     spec.ArgFolder,
+		}
 	}
 	required, total := 0, 0
 	params := make([]syntax.MethodParamInfo, len(spec.Params))
@@ -102,6 +107,24 @@ func methodSpecToInfo(spec MethodSpec) syntax.MethodInfo {
 		Total:         total,
 		AcceptsLambda: methodAcceptsLambda,
 		Params:        params,
+		ArgFolder:     spec.ArgFolder,
+	}
+}
+
+// functionSpecToInfo converts a FunctionSpec into the compile-time
+// FunctionInfo the resolver consumes. Mirrors methodSpecToInfo.
+func functionSpecToInfo(spec FunctionSpec) syntax.FunctionInfo {
+	required, total := 0, 0
+	for _, p := range spec.Params {
+		total++
+		if !p.HasDefault {
+			required++
+		}
+	}
+	return syntax.FunctionInfo{
+		Required:  required,
+		Total:     total,
+		ArgFolder: spec.ArgFolder,
 	}
 }
 
@@ -123,14 +146,7 @@ func (interp *Interpreter) MethodInfos() map[string]syntax.MethodInfo {
 func (interp *Interpreter) FunctionInfos() map[string]syntax.FunctionInfo {
 	infos := make(map[string]syntax.FunctionInfo, len(interp.staticFunctions))
 	for name, spec := range interp.staticFunctions {
-		required, total := 0, 0
-		for _, p := range spec.Params {
-			total++
-			if !p.HasDefault {
-				required++
-			}
-		}
-		infos[name] = syntax.FunctionInfo{Required: required, Total: total}
+		infos[name] = functionSpecToInfo(spec)
 	}
 	return infos
 }
@@ -150,15 +166,7 @@ func StdlibNames() (methods map[string]syntax.MethodInfo, functions map[string]s
 	}
 	functions = make(map[string]syntax.FunctionInfo, len(functionNameToOpcode))
 	for name, opcode := range functionNameToOpcode {
-		spec := functionTable[opcode]
-		required, total := 0, 0
-		for _, p := range spec.Params {
-			total++
-			if !p.HasDefault {
-				required++
-			}
-		}
-		functions[name] = syntax.FunctionInfo{Required: required, Total: total}
+		functions[name] = functionSpecToInfo(functionTable[opcode])
 	}
 	return
 }
@@ -355,9 +363,9 @@ func (interp *Interpreter) registerMethods() {
 	interp.RegisterMethod("split", m(methodSplit))
 	interp.RegisterMethod("replace_all", m(methodReplaceAll))
 	interp.RegisterMethod("repeat", m(methodRepeat))
-	interp.RegisterMethod("re_match", m(methodReMatch))
-	interp.RegisterMethod("re_find_all", m(methodReFindAll))
-	interp.RegisterMethod("re_replace_all", m(methodReReplaceAll))
+	interp.RegisterMethod("re_match", MethodSpec{Fn: methodReMatch, ArgFolder: foldRegexPattern})
+	interp.RegisterMethod("re_find_all", MethodSpec{Fn: methodReFindAll, ArgFolder: foldRegexPattern})
+	interp.RegisterMethod("re_replace_all", MethodSpec{Fn: methodReReplaceAll, ArgFolder: foldRegexPattern})
 
 	// Numeric methods.
 	interp.RegisterMethod("abs", m(methodAbs))
@@ -1005,6 +1013,50 @@ func methodRepeat(receiver any, args []any) any {
 	return strings.Repeat(s, int(count))
 }
 
+// foldRegexPattern is the ArgFolder shared by re_match, re_find_all,
+// and re_replace_all. If the first argument is a string literal it
+// gets compiled at parse time; the resulting *regexp.Regexp flows
+// through to the runtime method via CallArg.Folded. Dynamic patterns
+// (e.g. `.re_match($pattern)`) are left untouched and compile on every
+// call, matching the previous behaviour.
+func foldRegexPattern(args []syntax.CallArg) ([]any, error) {
+	if len(args) == 0 {
+		return nil, nil
+	}
+	out := make([]any, len(args))
+	lit, ok := args[0].Value.(*syntax.LiteralExpr)
+	if !ok {
+		return out, nil
+	}
+	if lit.TokenType != syntax.STRING && lit.TokenType != syntax.RAW_STRING {
+		return out, nil
+	}
+	re, err := regexp.Compile(lit.Value)
+	if err != nil {
+		return nil, fmt.Errorf("invalid regex pattern %q: %v", lit.Value, err)
+	}
+	out[0] = re
+	return out, nil
+}
+
+// resolveRegex extracts a *regexp.Regexp from a pattern argument that
+// may already be precompiled (via foldRegexPattern) or still be a raw
+// string. Shared by all three re_* methods.
+func resolveRegex(arg any, callerLabel string) (*regexp.Regexp, any) {
+	switch p := arg.(type) {
+	case *regexp.Regexp:
+		return p, nil
+	case string:
+		re, err := regexp.Compile(p)
+		if err != nil {
+			return nil, NewError(callerLabel + " invalid pattern: " + err.Error())
+		}
+		return re, nil
+	default:
+		return nil, NewError(callerLabel + " argument must be string")
+	}
+}
+
 func methodReMatch(receiver any, args []any) any {
 	s, ok := receiver.(string)
 	if !ok {
@@ -1013,15 +1065,11 @@ func methodReMatch(receiver any, args []any) any {
 	if len(args) != 1 {
 		return NewError("re_match() requires one argument")
 	}
-	pattern, ok := args[0].(string)
-	if !ok {
-		return NewError("re_match() argument must be string")
+	re, errV := resolveRegex(args[0], "re_match()")
+	if errV != nil {
+		return errV
 	}
-	matched, err := regexp.MatchString(pattern, s)
-	if err != nil {
-		return NewError("re_match() invalid pattern: " + err.Error())
-	}
-	return matched
+	return re.MatchString(s)
 }
 
 func methodReFindAll(receiver any, args []any) any {
@@ -1032,13 +1080,9 @@ func methodReFindAll(receiver any, args []any) any {
 	if len(args) != 1 {
 		return NewError("re_find_all() requires one argument")
 	}
-	pattern, ok := args[0].(string)
-	if !ok {
-		return NewError("re_find_all() argument must be string")
-	}
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return NewError("re_find_all() invalid pattern: " + err.Error())
+	re, errV := resolveRegex(args[0], "re_find_all()")
+	if errV != nil {
+		return errV
 	}
 	matches := re.FindAllString(s, -1)
 	result := make([]any, len(matches))
@@ -1056,14 +1100,13 @@ func methodReReplaceAll(receiver any, args []any) any {
 	if len(args) != 2 {
 		return NewError("re_replace_all() requires pattern and replacement arguments")
 	}
-	pattern, ok1 := args[0].(string)
-	replacement, ok2 := args[1].(string)
-	if !ok1 || !ok2 {
-		return NewError("re_replace_all() arguments must be strings")
+	re, errV := resolveRegex(args[0], "re_replace_all()")
+	if errV != nil {
+		return errV
 	}
-	re, err := regexp.Compile(pattern)
-	if err != nil {
-		return NewError("re_replace_all() invalid pattern: " + err.Error())
+	replacement, ok := args[1].(string)
+	if !ok {
+		return NewError("re_replace_all() replacement must be string")
 	}
 	return re.ReplaceAllString(s, replacement)
 }
