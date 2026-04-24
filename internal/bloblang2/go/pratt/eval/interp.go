@@ -76,6 +76,11 @@ type MethodSpec struct {
 	// runs parse-time folding on literal arguments (e.g. precompiling
 	// regex patterns). See syntax.ArgFolder.
 	ArgFolder syntax.ArgFolder
+	// CallFolder, if set, is surfaced on the MethodInfo so the resolver
+	// can precompute a parse-time dispatch target. When the folder returns
+	// a non-nil PreboundMethod, the interpreter uses it directly and skips
+	// spec.Fn. See syntax.CallFolder and PreboundMethod.
+	CallFolder syntax.CallFolder
 }
 
 // lambdaMethodFunc is a method that receives unevaluated AST args (for lambda/map-ref arguments).
@@ -91,7 +96,19 @@ type FunctionSpec struct {
 	// ArgFolder, if set, is surfaced on the FunctionInfo so the resolver
 	// runs parse-time folding on literal arguments. See syntax.ArgFolder.
 	ArgFolder syntax.ArgFolder
+	// CallFolder, if set, is surfaced on the FunctionInfo so the resolver
+	// can precompute a parse-time dispatch target. See PreboundFunction.
+	CallFolder syntax.CallFolder
 }
+
+// PreboundMethod is the shape the interpreter expects to find in
+// syntax.MethodCallExpr.Prebound / syntax.PathSegment.Prebound. When set
+// by a CallFolder, it is invoked in place of the normal spec dispatch.
+type PreboundMethod func(receiver any) any
+
+// PreboundFunction is the shape the interpreter expects to find in
+// syntax.CallExpr.Prebound. It is invoked in place of spec.Fn dispatch.
+type PreboundFunction func() any
 
 // FunctionParam describes a function parameter for compile-time validation
 // and named argument resolution.
@@ -690,6 +707,22 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 		return nil
 	}
 
+	// Parse-time-bound dispatch: a CallFolder populated e.Prebound with a
+	// ready-to-run closure. We still honour receiver null and void/deleted
+	// rules, but skip spec lookup and the per-call constructor path.
+	if pb, ok := e.Prebound.(PreboundMethod); ok {
+		if receiver == nil && !e.NullSafe {
+			return NewError(fmt.Sprintf(".%s() does not support null", e.Method))
+		}
+		if IsVoid(receiver) {
+			return NewError("cannot call method on void")
+		}
+		if IsDeleted(receiver) {
+			return NewError("cannot call method on deleted value")
+		}
+		return pb(receiver)
+	}
+
 	// Look up the method via opcode (fast path) or name (fallback).
 	var spec MethodSpec
 	if opc := e.MethodOpcode; opc != 0 {
@@ -846,6 +879,11 @@ func (interp *Interpreter) evalCall(e *syntax.CallExpr) any {
 	// Check for user-defined map.
 	if m, ok := interp.maps[e.Name]; ok {
 		return interp.callMap(m, e)
+	}
+
+	// Parse-time-bound function: plugin CallFolder stashed a ready Function.
+	if pb, ok := e.Prebound.(PreboundFunction); ok {
+		return pb()
 	}
 
 	// Check stdlib functions via opcode (fast path) or name (fallback).
@@ -1282,6 +1320,20 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 		case syntax.PathSegMethod:
 			if seg.NullSafe && current == nil {
 				return nil
+			}
+			// Parse-time-bound plugin method: skip spec lookup entirely.
+			if pb, ok := seg.Prebound.(PreboundMethod); ok {
+				if current == nil && !seg.NullSafe {
+					return NewError(fmt.Sprintf(".%s() does not support null", seg.Name))
+				}
+				if IsVoid(current) {
+					return NewError("cannot call method on void")
+				}
+				if IsDeleted(current) {
+					return NewError("cannot call method on deleted value")
+				}
+				current = pb(current)
+				continue
 			}
 			var spec MethodSpec
 			if opc := seg.MethodOpcode; opc != 0 {

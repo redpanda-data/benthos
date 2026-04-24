@@ -16,6 +16,19 @@ import "fmt"
 // parse time rather than on first call.
 type ArgFolder func(args []CallArg) (folded []any, err error)
 
+// CallFolder is the per-call-site analogue of ArgFolder. Where ArgFolder
+// precomputes individual argument values, CallFolder precomputes a dispatch
+// target for the call as a whole. The returned value (when non-nil) is
+// written to the call node's Prebound slot and consulted by the interpreter
+// before normal dispatch.
+//
+// The primary consumer is the public plugin surface: when every argument
+// at a call site is a literal, the plugin's constructor can be invoked once
+// at parse time and the resulting closure cached on the AST, eliminating
+// per-call constructor overhead. Runs after ArgFolder so it can see already-
+// folded values.
+type CallFolder func(args []CallArg) (prebound any, err error)
+
 // FunctionInfo carries compile-time metadata about a stdlib function.
 type FunctionInfo struct {
 	// Required is the number of required parameters.
@@ -26,6 +39,9 @@ type FunctionInfo struct {
 	// ArgFolder, if set, is invoked by the resolver to precompute
 	// literal arguments (see ArgFolder docs).
 	ArgFolder ArgFolder
+	// CallFolder, if set, is invoked by the resolver to precompute a
+	// call-site dispatch target (see CallFolder docs).
+	CallFolder CallFolder
 }
 
 // MethodInfo carries compile-time metadata about a stdlib method.
@@ -44,6 +60,9 @@ type MethodInfo struct {
 	// ArgFolder, if set, is invoked by the resolver to precompute
 	// literal arguments (see ArgFolder docs).
 	ArgFolder ArgFolder
+	// CallFolder, if set, is invoked by the resolver to precompute a
+	// call-site dispatch target (see CallFolder docs).
+	CallFolder CallFolder
 }
 
 // MethodParamInfo carries compile-time metadata about one method parameter.
@@ -526,6 +545,9 @@ func (r *resolver) resolveExpr(expr Expr) {
 			r.resolveArgValue(arg.Value, acceptsLambda, e.Method)
 		}
 		r.inMethodArg = saved
+		if miKnown {
+			e.Prebound = r.applyCallFolder(mi.CallFolder, e.Args, e.MethodPos, "."+e.Method+"()")
+		}
 	case *FieldAccessExpr:
 		r.resolveExpr(e.Receiver)
 	case *IndexExpr:
@@ -606,6 +628,11 @@ func (r *resolver) resolveExpr(expr Expr) {
 				}
 				r.inMethodArg = saved
 			}
+			if seg.Kind == PathSegMethod {
+				if mi, ok := r.knownMethods[seg.Name]; ok {
+					seg.Prebound = r.applyCallFolder(mi.CallFolder, seg.Args, seg.Pos, "."+seg.Name+"()")
+				}
+			}
 		}
 	}
 }
@@ -638,6 +665,7 @@ func (r *resolver) resolveCall(e *CallExpr) {
 			if r.functionOpcodes != nil {
 				e.FunctionOpcode = r.functionOpcodes[e.Name]
 			}
+			e.Prebound = r.applyCallFolder(fi.CallFolder, e.Args, e.TokenPos, e.Name+"()")
 		} else {
 			r.error(e.TokenPos, fmt.Sprintf("unknown function or map %q", e.Name))
 		}
@@ -675,6 +703,21 @@ func (r *resolver) resolveCall(e *CallExpr) {
 		// No function or user map accepts a lambda argument.
 		r.resolveArgValue(arg.Value, false, e.Name)
 	}
+}
+
+// applyCallFolder runs a CallFolder against the call site's args and
+// returns the Prebound value (or nil if the folder declined to fold).
+// Folder errors are recorded as resolver diagnostics anchored at pos.
+func (r *resolver) applyCallFolder(folder CallFolder, args []CallArg, pos Pos, calleeLabel string) any {
+	if folder == nil {
+		return nil
+	}
+	prebound, err := folder(args)
+	if err != nil {
+		r.error(pos, calleeLabel+": "+err.Error())
+		return nil
+	}
+	return prebound
 }
 
 // applyArgFolder runs folder against args and, on success, attaches
