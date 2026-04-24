@@ -276,7 +276,7 @@ func buildMethodSpec(name string, spec *PluginSpec, ctor MethodConstructor) eval
 		},
 		Params: params,
 		CallFolder: func(callArgs []syntax.CallArg) (any, error) {
-			parsed, ok, err := foldLiteralArgs(name, spec, callArgs)
+			parsed, ok, err := foldLiteralArgs(spec, callArgs)
 			if err != nil {
 				return nil, err
 			}
@@ -285,7 +285,7 @@ func buildMethodSpec(name string, spec *PluginSpec, ctor MethodConstructor) eval
 			}
 			fn, err := ctor(parsed)
 			if err != nil {
-				return nil, fmt.Errorf("%s(): %s", name, err.Error())
+				return nil, err
 			}
 			return eval.PreboundMethod(func(receiver any) any {
 				return runMethod(receiver, fn)
@@ -318,7 +318,7 @@ func buildFunctionSpec(name string, spec *PluginSpec, ctor FunctionConstructor) 
 		},
 		Params: params,
 		CallFolder: func(callArgs []syntax.CallArg) (any, error) {
-			parsed, ok, err := foldLiteralArgs(name, spec, callArgs)
+			parsed, ok, err := foldLiteralArgs(spec, callArgs)
 			if err != nil {
 				return nil, err
 			}
@@ -327,7 +327,7 @@ func buildFunctionSpec(name string, spec *PluginSpec, ctor FunctionConstructor) 
 			}
 			fn, err := ctor(parsed)
 			if err != nil {
-				return nil, fmt.Errorf("%s(): %s", name, err.Error())
+				return nil, err
 			}
 			return eval.PreboundFunction(func() any {
 				return runFunction(fn)
@@ -342,7 +342,9 @@ func buildFunctionSpec(name string, spec *PluginSpec, ctor FunctionConstructor) 
 // dynamic or when the shape isn't eligible for folding (e.g. named args).
 // Returns (nil, false, err) when the literal values don't satisfy the spec
 // (missing required, wrong type) so the resolver can surface the problem.
-func foldLiteralArgs(name string, spec *PluginSpec, args []syntax.CallArg) (*ParsedParams, bool, error) {
+// The returned error is raw (no callee prefix) — the resolver prepends the
+// call-site label when attaching it as a diagnostic.
+func foldLiteralArgs(spec *PluginSpec, args []syntax.CallArg) (*ParsedParams, bool, error) {
 	for _, a := range args {
 		if a.Name != "" {
 			// Named arguments aren't folded in Phase 1.
@@ -362,7 +364,7 @@ func foldLiteralArgs(name string, spec *PluginSpec, args []syntax.CallArg) (*Par
 	}
 	parsed, err := newParsedParams(spec, raw)
 	if err != nil {
-		return nil, false, fmt.Errorf("%s(): %s", name, err.Error())
+		return nil, false, err
 	}
 	return parsed, true, nil
 }
