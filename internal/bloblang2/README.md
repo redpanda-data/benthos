@@ -12,8 +12,9 @@ See [`spec/PROPOSAL.md`](spec/PROPOSAL.md) for the motivation and design rationa
 - **`ts/`** — TypeScript implementation (scanner, parser, optimizer, resolver, interpreter, stdlib)
 - **`tree-sitter/`** — Tree-sitter grammar for editor tooling (syntax highlighting, code folding)
 - **`plugins/nvim/`** — Neovim plugin (filetype detection, tree-sitter highlighting, LSP client)
-- **`migrator/`** — V1→V2 translator library, V1 AST package, and a side-by-side playground
-- **`demo/`** — Interactive web playground with live execution and syntax highlighting
+- **`migrator/`** — V1→V2 translator library, V1 AST + corpus packages, and a side-by-side playground (see [`migrator/README.md`](migrator/README.md) for the full details)
+- **`demo/`** — Interactive web playground for V2 with live execution and syntax highlighting
+- **`speccondenser/`** — Developer tool that runs prompt-based agent exams against the V2 spec to measure its "condenseability" for downstream tooling
 
 ## Spec (`spec/`)
 
@@ -88,6 +89,25 @@ task build:tree-sitter:wasm        # Compile to WASM
 task build:tree-sitter             # Full rebuild (generate, test, WASM, sync into demo)
 ```
 
+## Migrator (`migrator/`)
+
+A Go library + playground that translates V1 Bloblang mappings to V2, flagging every point at which the semantics have to shift. 100% fidelity isn't the goal — V2 is a deliberate redesign that fixes V1 ambiguities — but every shift the translator introduces is recorded on a `Report` so a human can audit before cutover.
+
+Key pieces:
+
+- **`migrator/v1ast/`** — self-contained V1 parser and AST. Preserves source positions on every node and carries standalone comments + blank lines as trivia so they survive the round trip.
+- **`migrator/v1spec/`** — V2 spec tests translated to V1, run against the official V1 interpreter. Acts as a pin on V1 behaviour for the translator to target.
+- **`migrator/translator/`** — `Migrate(v1Source, Options) (*Report, error)`. Rewrite rules live in `methods.go`; the statement/expression walker lives in `translate.go`. V1 comments and blank lines propagate to the V2 output via a `TriviaSet` embedded on each AST node.
+
+```go
+rep, err := translator.Migrate(v1Source, translator.Options{Verbose: true, Files: imports})
+// rep.V2Mapping — translated text
+// rep.Changes   — per-site divergence notes (Severity, RuleID, SpecRef, Explanation)
+// rep.Coverage  — exact vs rewritten vs unsupported node counts
+```
+
+Testing is layered: V1 parser roundtrip, per-rule unit tests, per-method translation audit (explicit V1→V2 assertions with no warning-as-free-pass escape hatch), contract tests, end-to-end corpus regression (translate → V2-compile → V2-execute → diff against V1's expected output), and property tests. See [`migrator/README.md`](migrator/README.md) for the full write-up.
+
 ## Demo Playgrounds
 
 Two local web playgrounds are available. Both share the tree-sitter WASM and TypeScript bundle built by `task build:demo`.
@@ -99,7 +119,7 @@ task demo
 # Builds demo assets then opens http://localhost:4195 in your browser
 ```
 
-**`migrator/demo/` — V1→V2 migrator playground.** Write a V1 mapping in the bottom-left editor and see the translator's V2 output appear in the bottom-right. A toggle picks whether the top-right output pane runs the V1 mapping (official Redpanda Connect engine) or the translated V2 mapping (Go Pratt interpreter).
+**`migrator/demo/` — V1→V2 migrator playground.** Four panes: JSON input top-left, output top-right (with a V1-engine / V2-engine toggle), V1 mapping bottom-left (editable), translated V2 mapping bottom-right (read-only, tree-sitter-highlighted). A case-study dropdown loads any of the real-world V1 mappings from `migrator/v1spec/tests/case_studies/` (GA4 clickstream, Stripe invoice, OTLP traces, GitHub webhook, …) straight into the editor. A notes strip under the V2 pane surfaces every translation warning the migrator recorded (method-does-not-exist, semantic shifts, scoping differences, etc.), and comments + blank lines from the V1 source round-trip into the V2 output.
 
 ```sh
 task demo:migrator
@@ -141,6 +161,8 @@ task test              # Run all tests (Go + TypeScript + tree-sitter)
 task test:go           # Go spec conformance and unit tests only
 task test:ts           # TypeScript spec conformance and unit tests only
 task test:tree-sitter  # Tree-sitter corpus tests only
+task test:v1spec       # Run the V1 corpus against the official V1 interpreter
+                       #   (the migrator's ground-truth pin for V1 semantics)
 
 task build             # Build all artifacts (tree-sitter, TS bundle, nvim plugin)
 task build:demo        # Build just the demo assets (tree-sitter WASM + TS bundle)
