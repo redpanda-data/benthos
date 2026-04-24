@@ -45,6 +45,7 @@ import {
   mkArray,
   mkObject,
   mkError,
+  mkFolded,
   NULL,
   VOID,
   DELETED,
@@ -126,6 +127,12 @@ export interface MethodSpec {
   acceptsNull: boolean;
   /** Method accepts a lambda argument (implicit for lambdaFn-backed methods). */
   acceptsLambda?: boolean;
+  /**
+   * argFolder, if set, is surfaced on the MethodInfo so the resolver
+   * runs parse-time folding on literal arguments (see
+   * resolver.ArgFolder).
+   */
+  argFolder?: import("./resolver.js").ArgFolder;
 }
 
 export interface FunctionParam {
@@ -137,6 +144,11 @@ export interface FunctionParam {
 export interface FunctionSpec {
   fn: FunctionFunc;
   params: FunctionParam[];
+  /**
+   * argFolder, if set, is surfaced on the FunctionInfo so the resolver
+   * runs parse-time folding on literal arguments.
+   */
+  argFolder?: import("./resolver.js").ArgFolder;
 }
 
 // ---------------------------------------------------------------------------
@@ -1191,6 +1203,10 @@ export class Interpreter {
       // No parameter metadata — evaluate named args by name order.
       const args: Value[] = [];
       for (const arg of callArgs) {
+        if (arg.folded !== undefined) {
+          args.push(mkFolded(arg.folded));
+          continue;
+        }
         const v = this.evalExpr(arg.value);
         if (isError(v)) return v;
         args.push(v);
@@ -1201,7 +1217,9 @@ export class Interpreter {
     // Build named arg map.
     const named = new Map<string, Value>();
     for (const arg of callArgs) {
-      const v = this.evalExpr(arg.value);
+      const v: Value = arg.folded !== undefined
+        ? mkFolded(arg.folded)
+        : this.evalExpr(arg.value);
       if (isError(v)) return v;
       named.set(arg.name, v);
     }
@@ -1267,7 +1285,16 @@ export class Interpreter {
   evalArgs(args: CallArg[]): Value[] {
     const result: Value[] = new Array(args.length);
     for (let i = 0; i < args.length; i++) {
-      const v = this.evalExpr(args[i]!.value);
+      const a = args[i]!;
+      // Parse-time-folded values (e.g. precompiled regex patterns
+      // produced by the resolver's ArgFolder hook) substitute for the
+      // AST expression verbatim, skipping re-evaluation and the
+      // void/deleted checks.
+      if (a.folded !== undefined) {
+        result[i] = mkFolded(a.folded);
+        continue;
+      }
+      const v = this.evalExpr(a.value);
       if (isVoid(v)) {
         result[i] = mkError(
           "void passed as argument (use .or() to provide a default)",

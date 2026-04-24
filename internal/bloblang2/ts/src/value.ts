@@ -22,7 +22,8 @@ export type Value =
   | TimestampValue
   | VoidValue
   | DeletedValue
-  | ErrorValue;
+  | ErrorValue
+  | FoldedValue;
 
 export interface NullValue {
   tag: "null";
@@ -87,6 +88,20 @@ export interface DeletedValue {
 export interface ErrorValue {
   tag: "error";
   message: string;
+}
+/**
+ * FoldedValue carries a parse-time-precomputed native value (e.g. a
+ * compiled RegExp) through the arg-evaluation path. Produced by the
+ * interpreter when a CallArg has .folded set; consumed by the specific
+ * method/function that opted into folding via its ArgFolder hook.
+ * Methods that don't know about a folded value naturally reject it
+ * with a type error, which is the correct behaviour — an argFolder
+ * should only be registered on methods that can consume the folded
+ * form.
+ */
+export interface FoldedValue {
+  tag: "folded";
+  value: unknown;
 }
 
 // --- Singletons ---
@@ -200,6 +215,12 @@ export function isDeleted(v: Value): v is DeletedValue {
 }
 export function isError(v: Value): v is ErrorValue {
   return v.tag === "error";
+}
+export function isFolded(v: Value): v is FoldedValue {
+  return v.tag === "folded";
+}
+export function mkFolded(value: unknown): FoldedValue {
+  return { tag: "folded", value };
 }
 
 export function isNumeric(v: Value): boolean {

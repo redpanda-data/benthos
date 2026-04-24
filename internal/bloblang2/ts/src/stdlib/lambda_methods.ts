@@ -627,18 +627,27 @@ export function registerLambdaMethods(interp: Interpreter): void {
   // --- into ---
   // Pass the receiver to a single-parameter lambda and return the result.
   // Errors / void / deleted() from the lambda propagate unchanged.
+  // Accepts null receivers (any value type is valid per spec §13.12);
+  // only void / deleted / error receivers are rejected, which the
+  // interpreter's dispatch already handles before the method runs.
   interp.registerMethod(
     "into",
-    lm((interp, receiver, args) => {
-      const lambda = interp.extractLambdaOrMapRef(args);
-      if (lambda === null) return mkError("into() requires a lambda argument");
-      if (lambda.params.length !== 1) {
-        return mkError(
-          `into() requires a one-parameter lambda, got ${lambda.params.length} parameters`,
-        );
-      }
-      return interp.callLambda(lambda, [receiver]);
-    }, [fnParam]),
+    {
+      fn: null,
+      lambdaFn: (interp, receiver, args) => {
+        const lambda = interp.extractLambdaOrMapRef(args);
+        if (lambda === null) return mkError("into() requires a lambda argument");
+        if (lambda.params.length !== 1) {
+          return mkError(
+            `into() requires a one-parameter lambda, got ${lambda.params.length} parameters`,
+          );
+        }
+        return interp.callLambda(lambda, [receiver]);
+      },
+      intrinsic: false,
+      params: [fnParam],
+      acceptsNull: true,
+    },
   );
 
   // --- Intrinsic methods (registered for name resolution only) ---
