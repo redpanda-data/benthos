@@ -1,6 +1,6 @@
 // Copyright 2026 Redpanda Data, Inc.
 
-package bloblang2
+package bloblangv2
 
 // pluginStatus captures the lifecycle stage of a plugin (stable, experimental,
 // etc.). Used for documentation only; it has no effect on parsing or execution.

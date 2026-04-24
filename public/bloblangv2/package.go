@@ -1,6 +1,6 @@
 // Copyright 2026 Redpanda Data, Inc.
 
-// Package bloblang2 provides the public API for parsing and executing
+// Package bloblangv2 provides the public API for parsing and executing
 // Bloblang V2 mappings, and for extending the language with user-defined
 // methods and functions.
 //
@@ -25,4 +25,4 @@
 //     receiver type-checks by hand.
 //
 // See the examples for a walkthrough of registering a plugin method.
-package bloblang2
+package bloblangv2

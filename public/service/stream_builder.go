@@ -872,6 +872,7 @@ func (s *StreamBuilder) buildWithEnv(env *bundle.Environment) (*Stream, error) {
 		manager.OptSetLogger(logger),
 		manager.OptSetEnvironment(env),
 		manager.OptSetBloblangEnvironment(s.env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(s.env.getBloblangV2ParserEnv()),
 	)
 	if err != nil {
 		return nil, err
@@ -917,6 +918,7 @@ func (s *StreamBuilder) buildWithEnv(env *bundle.Environment) (*Stream, error) {
 		manager.OptSetTracer(tracer),
 		manager.OptSetEnvironment(env),
 		manager.OptSetBloblangEnvironment(s.env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(s.env.getBloblangV2ParserEnv()),
 		manager.OptSetFS(s.env.fs),
 	)
 	if err != nil {
