@@ -27,6 +27,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/manager"
 	"github.com/redpanda-data/benthos/v4/internal/stream"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 )
 
 type noopStopper struct{}
@@ -54,12 +55,13 @@ const defaultCloseDeadline = time.Second * 30
 // reallocations, or config changes and attempt to reflect those changes in the
 // running stream.
 type PullRunner struct {
-	secretLookupFn   func(context.Context, string) (string, bool)
-	bloblEnvironment *ibloblang.Environment
-	environment      *bundle.Environment
-	confReaderSpec   docs.FieldSpecs
-	confReader       *config.Reader
-	sessionTracker   *sessionTracker
+	secretLookupFn     func(context.Context, string) (string, bool)
+	bloblEnvironment   *ibloblang.Environment
+	bloblV2Environment *bloblangv2.Environment
+	environment        *bundle.Environment
+	confReaderSpec     docs.FieldSpecs
+	confReader         *config.Reader
+	sessionTracker     *sessionTracker
 
 	// Controls disabled deployment rotations
 	isDisabled     bool
@@ -109,6 +111,7 @@ func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string
 	r := &PullRunner{
 		secretLookupFn:     cliOpts.SecretAccessFn,
 		bloblEnvironment:   cliOpts.BloblEnvironment,
+		bloblV2Environment: cliOpts.BloblV2Environment,
 		environment:        cliOpts.Environment,
 		confReaderSpec:     cliOpts.MainConfigSpecCtor(),
 		metricsFlushPeriod: time.Second * 30,
@@ -314,6 +317,7 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 		r.cliContext, r.cliOpts, r.logger, false, conf,
 		manager.OptSetEnvironment(tmpEnv),
 		manager.OptSetBloblangEnvironment(bloblEnv),
+		manager.OptSetBloblV2Environment(r.bloblV2Environment),
 		manager.OptSetFS(sessFS))
 	if err != nil {
 		return fmt.Errorf("failed to create manager from bootstrap config: %w", err)
