@@ -24,6 +24,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 )
 
 // Manager provides a mock benthos manager that components can use to test
@@ -179,6 +180,11 @@ func (m *Manager) Environment() *bundle.Environment {
 // BloblEnvironment always returns the global environment.
 func (m *Manager) BloblEnvironment() *bloblang.Environment {
 	return bloblang.GlobalEnvironment()
+}
+
+// BloblV2Environment always returns the global Bloblang V2 environment.
+func (m *Manager) BloblV2Environment() *bloblangv2.Environment {
+	return bloblangv2.GlobalEnvironment()
 }
 
 // ProbeCache returns true if a cache resource exists under the provided name.

@@ -30,6 +30,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 )
 
 const (
@@ -98,8 +99,9 @@ type Type struct {
 	consumeTriggered *atomic.Bool
 
 	// Collections of component constructors
-	env      *bundle.Environment
-	bloblEnv *bloblang.Environment
+	env        *bundle.Environment
+	bloblEnv   *bloblang.Environment
+	bloblV2Env *bloblangv2.Environment
 
 	logger log.Modular
 	stats  *metrics.Namespaced
@@ -179,6 +181,14 @@ func OptSetBloblangEnvironment(env *bloblang.Environment) OptFunc {
 	}
 }
 
+// OptSetBloblV2Environment determines the environment from which the manager
+// parses Bloblang V2 mappings. This option is for internal use only.
+func OptSetBloblV2Environment(env *bloblangv2.Environment) OptFunc {
+	return func(t *Type) {
+		t.bloblV2Env = env
+	}
+}
+
 // OptSetStreamsMode marks the manager as being created for running streams mode
 // resources. This ensures that a label "stream" is added to metrics.
 func OptSetStreamsMode(b bool) OptFunc {
@@ -211,8 +221,9 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 		rateLimits: newLiveResources[ratelimit.V1](),
 
 		// Environment defaults to global (everything that was imported).
-		env:      bundle.GlobalEnvironment,
-		bloblEnv: bloblang.GlobalEnvironment(),
+		env:        bundle.GlobalEnvironment,
+		bloblEnv:   bloblang.GlobalEnvironment(),
+		bloblV2Env: bloblangv2.GlobalEnvironment(),
 
 		logger: log.Noop(),
 		stats:  metrics.Noop(),
@@ -493,6 +504,12 @@ func (t *Type) Environment() *bundle.Environment {
 // for internal use only.
 func (t *Type) BloblEnvironment() *bloblang.Environment {
 	return t.bloblEnv
+}
+
+// BloblV2Environment returns the Bloblang V2 environment used by the manager
+// to parse V2 mapping fields. This is for internal use only.
+func (t *Type) BloblV2Environment() *bloblangv2.Environment {
+	return t.bloblV2Env
 }
 
 //------------------------------------------------------------------------------

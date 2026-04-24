@@ -1,6 +1,6 @@
 // Copyright 2026 Redpanda Data, Inc.
 
-package bloblang2
+package bloblangv2
 
 import (
 	"fmt"

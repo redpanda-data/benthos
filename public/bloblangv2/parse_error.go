@@ -1,6 +1,6 @@
 // Copyright 2026 Redpanda Data, Inc.
 
-package bloblang2
+package bloblangv2
 
 import (
 	"strings"
@@ -22,7 +22,7 @@ type ParseError struct {
 // Error returns a multi-line error string listing every diagnostic.
 func (p *ParseError) Error() string {
 	if len(p.errs) == 0 {
-		return "bloblang2: unknown parse error"
+		return "bloblangv2: unknown parse error"
 	}
 	var b strings.Builder
 	for i, e := range p.errs {

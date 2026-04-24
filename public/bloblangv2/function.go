@@ -1,6 +1,6 @@
 // Copyright 2026 Redpanda Data, Inc.
 
-package bloblang2
+package bloblangv2
 
 // Function is the runtime closure implementing a plugin function. It takes
 // no receiver — plugins that operate on a value should be registered as a

@@ -32,6 +32,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 )
 
 var (
@@ -57,6 +58,7 @@ type NewManagement interface {
 	FS() ifs.FS
 	Environment() *Environment
 	BloblEnvironment() *bloblang.Environment
+	BloblV2Environment() *bloblangv2.Environment
 
 	RegisterEndpoint(path, desc string, h http.HandlerFunc)
 

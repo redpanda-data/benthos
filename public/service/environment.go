@@ -27,6 +27,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/internal/template"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 )
 
 // Environment is a collection of Benthos component plugins that can be used in
@@ -35,15 +36,17 @@ import (
 // authors do not need to create an Environment and can simply use the global
 // environment.
 type Environment struct {
-	internal    *bundle.Environment
-	bloblangEnv *bloblang.Environment
-	fs          ifs.FS
+	internal      *bundle.Environment
+	bloblangEnv   *bloblang.Environment
+	bloblangV2Env *bloblangv2.Environment
+	fs            ifs.FS
 }
 
 var globalEnvironment = &Environment{
-	internal:    bundle.GlobalEnvironment,
-	bloblangEnv: bloblang.GlobalEnvironment(),
-	fs:          ifs.OS(),
+	internal:      bundle.GlobalEnvironment,
+	bloblangEnv:   bloblang.GlobalEnvironment(),
+	bloblangV2Env: bloblangv2.GlobalEnvironment(),
+	fs:            ifs.OS(),
 }
 
 // GlobalEnvironment returns a reference to the global environment, adding
@@ -62,9 +65,10 @@ func NewEnvironment() *Environment {
 // NewEmptyEnvironment creates a new environment with zero registered plugins.
 func NewEmptyEnvironment() *Environment {
 	return &Environment{
-		internal:    bundle.NewEnvironment(),
-		bloblangEnv: bloblang.NewEmptyEnvironment(),
-		fs:          ifs.OS(),
+		internal:      bundle.NewEnvironment(),
+		bloblangEnv:   bloblang.NewEmptyEnvironment(),
+		bloblangV2Env: bloblangv2.NewEmptyEnvironment(),
+		fs:            ifs.OS(),
 	}
 }
 
@@ -72,9 +76,10 @@ func NewEmptyEnvironment() *Environment {
 // that can be modified independently of the source.
 func (e *Environment) Clone() *Environment {
 	return &Environment{
-		internal:    e.internal.Clone(),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.Clone(),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -82,9 +87,10 @@ func (e *Environment) Clone() *Environment {
 // plugin names excluded from the resulting environment.
 func (e *Environment) Without(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.Without(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.Without(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -92,9 +98,10 @@ func (e *Environment) Without(names ...string) *Environment {
 // plugin names included from the resulting environment.
 func (e *Environment) With(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.With(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.With(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -102,6 +109,13 @@ func (e *Environment) With(names ...string) *Environment {
 // components constructed with it to a specific Bloblang environment.
 func (e *Environment) UseBloblangEnvironment(bEnv *bloblang.Environment) {
 	e.bloblangEnv = bEnv
+}
+
+// UseBloblangV2Environment configures the service environment to restrict
+// components constructed with it to a specific Bloblang V2 environment, which
+// controls the functions and methods available to V2 mapping fields.
+func (e *Environment) UseBloblangV2Environment(bEnv *bloblangv2.Environment) {
+	e.bloblangV2Env = bEnv
 }
 
 // UseFS configures the service environment to use an instantiation of *FS as
@@ -130,6 +144,13 @@ func (e *Environment) getBloblangParserEnv() *ibloblang.Environment {
 		return unwrapper.Unwrap()
 	}
 	return ibloblang.GlobalEnvironment()
+}
+
+func (e *Environment) getBloblangV2ParserEnv() *bloblangv2.Environment {
+	if e.bloblangV2Env == nil {
+		return bloblangv2.GlobalEnvironment()
+	}
+	return e.bloblangV2Env
 }
 
 //------------------------------------------------------------------------------
@@ -707,9 +728,10 @@ func XFormatConfigJSON() ([]byte, error) {
 // buffers, where only the specified plugins are included.
 func (e *Environment) WithBuffers(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.WithBuffers(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.WithBuffers(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -717,9 +739,10 @@ func (e *Environment) WithBuffers(names ...string) *Environment {
 // caches, where only the specified plugins are included.
 func (e *Environment) WithCaches(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.WithCaches(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.WithCaches(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -727,9 +750,10 @@ func (e *Environment) WithCaches(names ...string) *Environment {
 // inputs, where only the specified plugins are included.
 func (e *Environment) WithInputs(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.WithInputs(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.WithInputs(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -737,9 +761,10 @@ func (e *Environment) WithInputs(names ...string) *Environment {
 // outputs, where only the specified plugins are included.
 func (e *Environment) WithOutputs(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.WithOutputs(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.WithOutputs(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -747,9 +772,10 @@ func (e *Environment) WithOutputs(names ...string) *Environment {
 // of processors, where only the specified plugins are included.
 func (e *Environment) WithProcessors(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.WithProcessors(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.WithProcessors(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -757,9 +783,10 @@ func (e *Environment) WithProcessors(names ...string) *Environment {
 // of rate limits, where only the specified plugins are included.
 func (e *Environment) WithRateLimits(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.WithRateLimits(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.WithRateLimits(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -767,9 +794,10 @@ func (e *Environment) WithRateLimits(names ...string) *Environment {
 // metrics, where only the specified plugins are included.
 func (e *Environment) WithMetrics(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.WithMetrics(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.WithMetrics(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -777,9 +805,10 @@ func (e *Environment) WithMetrics(names ...string) *Environment {
 // tracers, where only the specified plugins are included.
 func (e *Environment) WithTracers(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.WithTracers(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.WithTracers(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }
 
@@ -787,8 +816,9 @@ func (e *Environment) WithTracers(names ...string) *Environment {
 // of scanners, where only the specified plugins are included.
 func (e *Environment) WithScanners(names ...string) *Environment {
 	return &Environment{
-		internal:    e.internal.WithScanners(names...),
-		bloblangEnv: e.bloblangEnv.Clone(),
-		fs:          e.fs,
+		internal:      e.internal.WithScanners(names...),
+		bloblangEnv:   e.bloblangEnv.Clone(),
+		bloblangV2Env: e.bloblangV2Env.Clone(),
+		fs:            e.fs,
 	}
 }

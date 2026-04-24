@@ -404,6 +404,7 @@ func (r *ResourceBuilder) buildNotStarted() (*manager.Type, error) {
 		manager.OptSetEngineVersion(engVer),
 		manager.OptSetEnvironment(r.env.internal),
 		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(r.env.getBloblangV2ParserEnv()),
 	)
 	if err != nil {
 		return nil, err
@@ -436,6 +437,7 @@ func (r *ResourceBuilder) buildNotStarted() (*manager.Type, error) {
 		manager.OptSetAPIReg(r.apiMut),
 		manager.OptSetEnvironment(r.env.internal),
 		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(r.env.getBloblangV2ParserEnv()),
 		manager.OptSetFS(r.env.fs),
 	}
 

@@ -17,6 +17,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 )
 
 // StreamInitFunc is an optional func to be called when a stream (or streams
@@ -39,9 +40,10 @@ type CLIOpts struct {
 
 	ConfigSearchPaths []string
 
-	Environment      *bundle.Environment
-	BloblEnvironment *bloblang.Environment
-	SecretAccessFn   func(context.Context, string) (string, bool)
+	Environment        *bundle.Environment
+	BloblEnvironment   *bloblang.Environment
+	BloblV2Environment *bloblangv2.Environment
+	SecretAccessFn     func(context.Context, string) (string, bool)
 
 	MainConfigSpecCtor   func() docs.FieldSpecs // TODO: This becomes a service.Environment
 	OnManagerInitialised func(mgr bundle.NewManagement, pConf *docs.ParsedConfig) error
@@ -75,8 +77,9 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 			"/etc/benthos/config.yaml",
 			"/etc/benthos.yaml",
 		},
-		Environment:      bundle.GlobalEnvironment,
-		BloblEnvironment: bloblang.GlobalEnvironment(),
+		Environment:        bundle.GlobalEnvironment,
+		BloblEnvironment:   bloblang.GlobalEnvironment(),
+		BloblV2Environment: bloblangv2.GlobalEnvironment(),
 		SecretAccessFn: func(ctx context.Context, key string) (string, bool) {
 			return os.LookupEnv(key)
 		},

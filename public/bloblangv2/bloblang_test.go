@@ -1,6 +1,6 @@
 // Copyright 2026 Redpanda Data, Inc.
 
-package bloblang2_test
+package bloblangv2_test
 
 import (
 	"errors"
@@ -10,11 +10,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/redpanda-data/benthos/v4/public/bloblang2"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 )
 
 func TestBasicParseAndQuery(t *testing.T) {
-	env := bloblang2.NewEnvironment()
+	env := bloblangv2.NewEnvironment()
 	exec, err := env.Parse(`output = input.uppercase()`)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -29,11 +29,11 @@ func TestBasicParseAndQuery(t *testing.T) {
 }
 
 func TestParseErrorSurfacesLineAndColumn(t *testing.T) {
-	_, err := bloblang2.Parse(`root = nope(`)
+	_, err := bloblangv2.Parse(`root = nope(`)
 	if err == nil {
 		t.Fatal("expected parse error")
 	}
-	var pErr *bloblang2.ParseError
+	var pErr *bloblangv2.ParseError
 	if !errors.As(err, &pErr) {
 		t.Fatalf("expected *ParseError, got %T", err)
 	}
@@ -43,10 +43,10 @@ func TestParseErrorSurfacesLineAndColumn(t *testing.T) {
 }
 
 func TestRegisterZeroArgMethod(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	err := env.RegisterMethod("bang", bloblang2.NewPluginSpec(),
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
-			return bloblang2.StringMethod(func(s string) (any, error) {
+	env := bloblangv2.NewEmptyEnvironment()
+	err := env.RegisterMethod("bang", bloblangv2.NewPluginSpec(),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			return bloblangv2.StringMethod(func(s string) (any, error) {
 				return s + "!", nil
 			}), nil
 		})
@@ -68,13 +68,13 @@ func TestRegisterZeroArgMethod(t *testing.T) {
 }
 
 func TestRegisterMethodWithParams(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	spec := bloblang2.NewPluginSpec().
+	env := bloblangv2.NewEmptyEnvironment()
+	spec := bloblangv2.NewPluginSpec().
 		Description("Append n copies of a string").
-		Param(bloblang2.NewStringParam("suffix").Description("the text to append")).
-		Param(bloblang2.NewInt64Param("count").Default(int64(1)))
+		Param(bloblangv2.NewStringParam("suffix").Description("the text to append")).
+		Param(bloblangv2.NewInt64Param("count").Default(int64(1)))
 
-	err := env.RegisterMethod("append_n", spec, func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+	err := env.RegisterMethod("append_n", spec, func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 		suffix, err := args.GetString("suffix")
 		if err != nil {
 			return nil, err
@@ -83,7 +83,7 @@ func TestRegisterMethodWithParams(t *testing.T) {
 		if err != nil {
 			return nil, err
 		}
-		return bloblang2.StringMethod(func(s string) (any, error) {
+		return bloblangv2.StringMethod(func(s string) (any, error) {
 			return s + strings.Repeat(suffix, int(count)), nil
 		}), nil
 	})
@@ -105,16 +105,16 @@ func TestRegisterMethodWithParams(t *testing.T) {
 }
 
 func TestRegisterMethodDefaultApplied(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	spec := bloblang2.NewPluginSpec().
-		Param(bloblang2.NewInt64Param("times").Default(int64(2)))
+	env := bloblangv2.NewEmptyEnvironment()
+	spec := bloblangv2.NewPluginSpec().
+		Param(bloblangv2.NewInt64Param("times").Default(int64(2)))
 
-	err := env.RegisterMethod("repeat_value", spec, func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+	err := env.RegisterMethod("repeat_value", spec, func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 		times, err := args.GetInt64("times")
 		if err != nil {
 			return nil, err
 		}
-		return bloblang2.StringMethod(func(s string) (any, error) {
+		return bloblangv2.StringMethod(func(s string) (any, error) {
 			return strings.Repeat(s, int(times)), nil
 		}), nil
 	})
@@ -136,11 +136,11 @@ func TestRegisterMethodDefaultApplied(t *testing.T) {
 }
 
 func TestRegisterFunction(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	spec := bloblang2.NewPluginSpec().
-		Param(bloblang2.NewStringParam("greeting"))
+	env := bloblangv2.NewEmptyEnvironment()
+	spec := bloblangv2.NewPluginSpec().
+		Param(bloblangv2.NewStringParam("greeting"))
 
-	err := env.RegisterFunction("greet", spec, func(args *bloblang2.ParsedParams) (bloblang2.Function, error) {
+	err := env.RegisterFunction("greet", spec, func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
 		g, err := args.GetString("greeting")
 		if err != nil {
 			return nil, err
@@ -165,9 +165,9 @@ func TestRegisterFunction(t *testing.T) {
 }
 
 func TestRegisterRejectsStdlibShadow(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	err := env.RegisterMethod("uppercase", bloblang2.NewPluginSpec(),
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+	env := bloblangv2.NewEmptyEnvironment()
+	err := env.RegisterMethod("uppercase", bloblangv2.NewPluginSpec(),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 			return func(v any) (any, error) { return v, nil }, nil
 		})
 	if err == nil {
@@ -176,9 +176,9 @@ func TestRegisterRejectsStdlibShadow(t *testing.T) {
 }
 
 func TestRegisterRejectsInvalidName(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	err := env.RegisterMethod("NotSnakeCase", bloblang2.NewPluginSpec(),
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+	env := bloblangv2.NewEmptyEnvironment()
+	err := env.RegisterMethod("NotSnakeCase", bloblangv2.NewPluginSpec(),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 			return func(v any) (any, error) { return v, nil }, nil
 		})
 	if err == nil {
@@ -187,9 +187,9 @@ func TestRegisterRejectsInvalidName(t *testing.T) {
 }
 
 func TestRegisterRejectsNilSpec(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
+	env := bloblangv2.NewEmptyEnvironment()
 	err := env.RegisterMethod("noop", nil,
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 			return func(v any) (any, error) { return v, nil }, nil
 		})
 	if err == nil {
@@ -198,13 +198,13 @@ func TestRegisterRejectsNilSpec(t *testing.T) {
 }
 
 func TestRegisterRejectsVariadicWithParams(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	spec := bloblang2.NewPluginSpec().
+	env := bloblangv2.NewEmptyEnvironment()
+	spec := bloblangv2.NewPluginSpec().
 		Variadic().
-		Param(bloblang2.NewStringParam("x"))
+		Param(bloblangv2.NewStringParam("x"))
 
 	err := env.RegisterMethod("bad", spec,
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 			return func(v any) (any, error) { return v, nil }, nil
 		})
 	if err == nil {
@@ -213,10 +213,10 @@ func TestRegisterRejectsVariadicWithParams(t *testing.T) {
 }
 
 func TestPluginMethodArityEnforced(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	spec := bloblang2.NewPluginSpec().Param(bloblang2.NewStringParam("x"))
+	env := bloblangv2.NewEmptyEnvironment()
+	spec := bloblangv2.NewPluginSpec().Param(bloblangv2.NewStringParam("x"))
 	if err := env.RegisterMethod("needs_one", spec,
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 			return func(v any) (any, error) { return v, nil }, nil
 		}); err != nil {
 		t.Fatal(err)
@@ -232,7 +232,7 @@ func TestWithoutMethodsStripsStdlib(t *testing.T) {
 	// V2's resolver defers method name validation to runtime, so stripping a
 	// stdlib method via WithoutMethods surfaces as a Query-time "unknown
 	// method" error rather than a parse error.
-	env := bloblang2.NewEnvironment().WithoutMethods("uppercase")
+	env := bloblangv2.NewEnvironment().WithoutMethods("uppercase")
 	exec, err := env.Parse(`output = input.uppercase()`)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
@@ -244,17 +244,17 @@ func TestWithoutMethodsStripsStdlib(t *testing.T) {
 }
 
 func TestWithoutFunctionsStripsStdlib(t *testing.T) {
-	env := bloblang2.NewEnvironment().WithoutFunctions("now")
+	env := bloblangv2.NewEnvironment().WithoutFunctions("now")
 	if _, err := env.Parse(`output = now()`); err == nil {
 		t.Fatal("expected parse failure after WithoutFunctions")
 	}
 }
 
 func TestExecutorConcurrentUse(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	if err := env.RegisterMethod("bang", bloblang2.NewPluginSpec(),
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
-			return bloblang2.StringMethod(func(s string) (any, error) {
+	env := bloblangv2.NewEmptyEnvironment()
+	if err := env.RegisterMethod("bang", bloblangv2.NewPluginSpec(),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			return bloblangv2.StringMethod(func(s string) (any, error) {
 				return s + "!", nil
 			}), nil
 		}); err != nil {
@@ -290,9 +290,9 @@ func TestExecutorConcurrentUse(t *testing.T) {
 }
 
 func TestRegisterVariadicFunction(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
-	if err := env.RegisterFunction("shout", bloblang2.NewPluginSpec().Variadic(),
-		func(args *bloblang2.ParsedParams) (bloblang2.Function, error) {
+	env := bloblangv2.NewEmptyEnvironment()
+	if err := env.RegisterFunction("shout", bloblangv2.NewPluginSpec().Variadic(),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
 			raw := args.AsSlice()
 			if len(raw) != 1 {
 				return nil, fmt.Errorf("shout() requires one argument")
@@ -323,18 +323,18 @@ func TestRegisterVariadicFunction(t *testing.T) {
 // arguments at a call site are literals, the plugin constructor should be
 // invoked only once regardless of how many times Query runs.
 func TestCtorCachedForStaticArgs(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
+	env := bloblangv2.NewEmptyEnvironment()
 	var ctorCount atomic.Int64
 
-	spec := bloblang2.NewPluginSpec().Param(bloblang2.NewStringParam("suffix"))
+	spec := bloblangv2.NewPluginSpec().Param(bloblangv2.NewStringParam("suffix"))
 	if err := env.RegisterMethod("append_suffix", spec,
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 			ctorCount.Add(1)
 			suf, err := args.GetString("suffix")
 			if err != nil {
 				return nil, err
 			}
-			return bloblang2.StringMethod(func(s string) (any, error) {
+			return bloblangv2.StringMethod(func(s string) (any, error) {
 				return s + suf, nil
 			}), nil
 		}); err != nil {
@@ -356,13 +356,13 @@ func TestCtorCachedForStaticArgs(t *testing.T) {
 }
 
 func TestCtorCachedForZeroArgs(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
+	env := bloblangv2.NewEmptyEnvironment()
 	var ctorCount atomic.Int64
 
-	if err := env.RegisterMethod("stamp", bloblang2.NewPluginSpec(),
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+	if err := env.RegisterMethod("stamp", bloblangv2.NewPluginSpec(),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 			ctorCount.Add(1)
-			return bloblang2.StringMethod(func(s string) (any, error) {
+			return bloblangv2.StringMethod(func(s string) (any, error) {
 				return s + "[stamp]", nil
 			}), nil
 		}); err != nil {
@@ -384,12 +384,12 @@ func TestCtorCachedForZeroArgs(t *testing.T) {
 }
 
 func TestCtorRunsPerCallForDynamicArgs(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
+	env := bloblangv2.NewEmptyEnvironment()
 	var ctorCount atomic.Int64
 
-	spec := bloblang2.NewPluginSpec().Param(bloblang2.NewStringParam("s"))
+	spec := bloblangv2.NewPluginSpec().Param(bloblangv2.NewStringParam("s"))
 	if err := env.RegisterMethod("echo_s", spec,
-		func(args *bloblang2.ParsedParams) (bloblang2.Method, error) {
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
 			ctorCount.Add(1)
 			s, err := args.GetString("s")
 			if err != nil {
@@ -415,12 +415,12 @@ func TestCtorRunsPerCallForDynamicArgs(t *testing.T) {
 }
 
 func TestCtorCachedForStaticFunctionArgs(t *testing.T) {
-	env := bloblang2.NewEmptyEnvironment()
+	env := bloblangv2.NewEmptyEnvironment()
 	var ctorCount atomic.Int64
 
-	spec := bloblang2.NewPluginSpec().Param(bloblang2.NewStringParam("greeting"))
+	spec := bloblangv2.NewPluginSpec().Param(bloblangv2.NewStringParam("greeting"))
 	if err := env.RegisterFunction("greet", spec,
-		func(args *bloblang2.ParsedParams) (bloblang2.Function, error) {
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
 			ctorCount.Add(1)
 			g, err := args.GetString("greeting")
 			if err != nil {

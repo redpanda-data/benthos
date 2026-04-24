@@ -18,6 +18,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
@@ -155,6 +156,190 @@ logger:
 	require.NoError(t, strm.StopWithin(time.Second))
 	assert.Equal(t, []string{"meow"}, received)
 }
+
+func TestEnvironmentBloblangV2ClonePropagation(t *testing.T) {
+	customEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, customEnv.RegisterFunction("oink", bloblangv2.NewPluginSpec(), func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+		return func() (any, error) { return "oink", nil }, nil
+	}))
+
+	procSpec := service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping"))
+	procCtor := func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+		exec, err := conf.FieldBloblangV2("mapping")
+		if err != nil {
+			return nil, err
+		}
+		return &v2MappingProc{exec: exec}, nil
+	}
+
+	base := service.NewEnvironment()
+	base.UseBloblangV2Environment(customEnv)
+	require.NoError(t, base.RegisterProcessor("v2_clone_map", procSpec, procCtor))
+
+	// A clone must inherit the custom V2 env and resolve the plugin.
+	cloned := base.Clone()
+	assertEnvResolves(t, cloned, "v2_clone_map", "output = oink()", "oink")
+
+	// The With* variants also propagate the V2 env (exercise Without as the
+	// most restrictive one — others share the same Clone-based machinery).
+	without := base.Without("nonexistent_plugin")
+	assertEnvResolves(t, without, "v2_clone_map", "output = oink()", "oink")
+}
+
+// assertEnvResolves runs a minimal stream that uses the v2_clone_map processor
+// with the given mapping and asserts the consumer receives the expected output.
+func assertEnvResolves(t *testing.T, env *service.Environment, procName, mapping, expected string) {
+	t.Helper()
+
+	yamlConf := fmt.Sprintf(`
+pipeline:
+  processors:
+    - %s:
+        mapping: '%s'
+
+input:
+  generate:
+    count: 1
+    mapping: 'root = "hello"'
+
+output:
+  drop: {}
+
+logger:
+  level: OFF
+`, procName, mapping)
+
+	builder := env.NewStreamBuilder()
+	require.NoError(t, builder.SetYAML(yamlConf))
+
+	var received []string
+	require.NoError(t, builder.AddConsumerFunc(func(_ context.Context, m *service.Message) error {
+		b, err := m.AsBytes()
+		if err != nil {
+			return err
+		}
+		received = append(received, string(b))
+		return nil
+	}))
+
+	strm, err := builder.Build()
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, strm.Run(ctx))
+
+	assert.Equal(t, []string{expected}, received)
+}
+
+func TestEnvironmentBloblangV2Isolation(t *testing.T) {
+	bEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, bEnv.RegisterFunction("woof", bloblangv2.NewPluginSpec(), func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+		return func() (any, error) {
+			return "woof", nil
+		}, nil
+	}))
+
+	// Register a processor plugin on the global environment that extracts a V2
+	// mapping at construction time. Both environments below share this plugin,
+	// but each environment has its own Bloblang V2 registry — so the "woof"
+	// function only resolves on the environment that has the custom env set.
+	procSpec := service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping"))
+	procCtor := func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+		exec, err := conf.FieldBloblangV2("mapping")
+		if err != nil {
+			return nil, err
+		}
+		return &v2MappingProc{exec: exec}, nil
+	}
+
+	envOne := service.NewEnvironment()
+	envOne.UseBloblangV2Environment(bEnv)
+	require.NoError(t, envOne.RegisterProcessor("v2_test_map", procSpec, procCtor))
+
+	envTwo := service.NewEnvironment()
+	require.NoError(t, envTwo.RegisterProcessor("v2_test_map", procSpec, procCtor))
+
+	mappingConfig := `
+pipeline:
+  processors:
+    - v2_test_map:
+        mapping: 'output = woof()'
+
+input:
+  generate:
+    count: 1
+    mapping: 'root = "hello"'
+
+output:
+  drop: {}
+
+logger:
+  level: OFF
+`
+
+	// envTwo has the default global V2 environment, which does not have
+	// "woof". Run must surface the parse error from the processor ctor.
+	builderTwo := envTwo.NewStreamBuilder()
+	require.NoError(t, builderTwo.SetYAML(mappingConfig))
+	strmTwo, err := builderTwo.Build()
+	require.NoError(t, err)
+
+	ctxTwo, cancelTwo := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancelTwo()
+	runErr := strmTwo.Run(ctxTwo)
+	require.Error(t, runErr)
+	assert.Contains(t, runErr.Error(), "woof")
+
+	// envOne has a custom V2 env containing "woof". Run must succeed and the
+	// processor must rewrite messages to "woof".
+	builderOne := envOne.NewStreamBuilder()
+	require.NoError(t, builderOne.SetYAML(mappingConfig))
+
+	var received []string
+	require.NoError(t, builderOne.AddConsumerFunc(func(_ context.Context, m *service.Message) error {
+		b, err := m.AsBytes()
+		if err != nil {
+			return err
+		}
+		received = append(received, string(b))
+		return nil
+	}))
+
+	strm, err := builderOne.Build()
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, strm.Run(ctx))
+
+	assert.Equal(t, []string{"woof"}, received)
+}
+
+type v2MappingProc struct {
+	exec *bloblangv2.Executor
+}
+
+func (p *v2MappingProc) Process(_ context.Context, m *service.Message) (service.MessageBatch, error) {
+	in, err := m.AsStructured()
+	if err != nil {
+		b, _ := m.AsBytes()
+		in = b
+	}
+	out, err := p.exec.Query(in)
+	if err != nil {
+		return nil, err
+	}
+	nm := m.Copy()
+	if s, ok := out.(string); ok {
+		nm.SetBytes([]byte(s))
+	} else {
+		nm.SetStructured(out)
+	}
+	return service.MessageBatch{nm}, nil
+}
+
+func (p *v2MappingProc) Close(context.Context) error { return nil }
 
 type testFS struct {
 	ifs.FS
