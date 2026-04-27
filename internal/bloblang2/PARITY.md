@@ -130,8 +130,8 @@ Plumbing sketch:
 | `filter` | method | ✅ | |
 | `find` | method | ✅ | V2's `index_of` covers V1 `find(value) → index`; V2's stdlib `find(lambda)` returns the matching element instead. |
 | `find_all` | method | ✅ | |
-| `find_all_by` | method | ⏸ | Lambda predicate; needs plugin lambda support. |
-| `find_by` | method | ⏸ | Lambda predicate; needs plugin lambda support. |
+| `find_all_by` | method | ✅ | Lambda predicate via plugin lambda support. |
+| `find_by` | method | ✅ | Lambda predicate via plugin lambda support. |
 | `flatten` | method | ✅ | |
 | `fold` | method | ✅ | |
 | `index` | method | ✅ | |

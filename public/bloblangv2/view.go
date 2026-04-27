@@ -160,6 +160,8 @@ func paramKindToString(k paramKind) string {
 		return "float64"
 	case paramKindBool:
 		return "bool"
+	case paramKindLambda:
+		return "lambda"
 	default:
 		return "any"
 	}
@@ -212,6 +214,8 @@ func paramFromInfo(p PluginParamInfo) ParamDefinition {
 		def = NewFloat64Param(p.Name)
 	case "bool":
 		def = NewBoolParam(p.Name)
+	case "lambda":
+		def = NewLambdaParam(p.Name)
 	default:
 		def = NewAnyParam(p.Name)
 	}

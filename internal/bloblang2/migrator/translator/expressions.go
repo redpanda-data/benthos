@@ -52,6 +52,18 @@ func (t *translator) translateExpr(e v1ast.Expr) syntax.Expr {
 			t.rec.Exact()
 			return &syntax.IdentExpr{TokenPos: pos(x.TokPos), Name: x.Name, SlotIndex: -1}
 		}
+		// Inside a `this`-rebinding scope (e.g. a query-form predicate
+		// wrapped into a V2 lambda), bare V1 idents resolve as fields of
+		// the rebound element — not of the outer V2 input.
+		if name, ok := t.currentThisRebind(); ok {
+			t.rec.Exact()
+			return &syntax.FieldAccessExpr{
+				Receiver: &syntax.IdentExpr{TokenPos: pos(x.TokPos), Name: name, SlotIndex: -1},
+				Field:    x.Name,
+				FieldPos: pos(x.TokPos),
+				NullSafe: true,
+			}
+		}
 		// Otherwise, legacy bare identifier in expression position =
 		// `this.foo` = V2 `input.foo`. V2 errors if the field is absent
 		// or the receiver isn't an object — V1 silently returned null.

@@ -231,6 +231,49 @@ var ruleCases = []ruleCase{
 		wantV2:    []string{".type()"},
 		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
 	},
+	{
+		name:      "find_by(query-form) wrapped as explicit V2 lambda",
+		v1:        `root = this.items.find_by(this.id == 5)`,
+		wantV2:    []string{".find_by(__v ->", "__v?.id == 5"},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+	},
+	{
+		name:     "find_by(query-form bare ident) rebinds to lambda param",
+		v1:       `root = this.items.find_by(name == "alice")`,
+		wantV2:   []string{".find_by(__v ->", "__v?.name"},
+		notRules: []translator.RuleID{translator.RuleBareIdentToInput},
+	},
+	{
+		name:   "find_by(explicit lambda) translates 1:1",
+		v1:     `root = this.items.find_by(v -> v.id == 5)`,
+		wantV2: []string{".find_by(v -> v?.id == 5)"},
+	},
+	{
+		name:      "find_all_by(query-form) wrapped as explicit V2 lambda",
+		v1:        `root = this.items.find_all_by(this.active)`,
+		wantV2:    []string{".find_all_by(__v ->", "__v?.active"},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+	},
+	{
+		name:   "filter(query-form) wrapped as explicit V2 lambda",
+		v1:     `root = this.nums.filter(this > 10)`,
+		wantV2: []string{".filter(__v ->", "__v > 10"},
+	},
+	{
+		name:   "sort_by(query-form) wrapped as explicit V2 lambda",
+		v1:     `root = this.items.sort_by(this.priority)`,
+		wantV2: []string{".sort_by(__v ->", "__v?.priority"},
+	},
+	{
+		name:   "unique(query-form) wrapped as explicit V2 lambda",
+		v1:     `root = this.items.unique(this.id)`,
+		wantV2: []string{".unique(__v ->", "__v?.id"},
+	},
+	{
+		name:   "all(query-form) wrapped as explicit V2 lambda",
+		v1:     `root = this.nums.all(this > 0)`,
+		wantV2: []string{".all(__v ->", "__v > 0"},
+	},
 
 	// -----------------------------------------------------------------
 	// Maps and imports.
