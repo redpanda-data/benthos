@@ -323,6 +323,7 @@ func (c *ConfigSpec) ParseYAML(yamlStr string, env *Environment) (*ParsedConfig,
 		manager.NewResourceConfig(),
 		manager.OptSetEnvironment(env.internal),
 		manager.OptSetBloblangEnvironment(env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(env.getBloblangV2ParserEnv()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate resources: %w", err)

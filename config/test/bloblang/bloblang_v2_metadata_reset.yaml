@@ -1,0 +1,17 @@
+pipeline:
+  processors:
+    - bloblang_v2: |
+        output = input
+        output@.stamped_by = "bloblang_v2"
+
+tests:
+  - name: Incoming metadata is replaced when mapping does not copy input@
+    target_processors: /pipeline/processors
+    input_batch:
+      - content: '{"id":"baz"}'
+        metadata:
+          will_be_dropped: yes
+    output_batches:
+      - - json_equals: {"id":"baz"}
+          metadata_equals:
+            stamped_by: bloblang_v2

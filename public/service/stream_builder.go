@@ -108,6 +108,7 @@ func (s *StreamBuilder) getLintContext() docs.LintContext {
 	conf := docs.NewLintConfig(s.env.internal)
 	conf.DocsProvider = s.env.internal
 	conf.BloblangEnv = s.env.bloblangEnv.Deactivated()
+	conf.BloblangV2Env = s.env.getBloblangV2ParserEnv()
 	return docs.NewLintContext(conf)
 }
 
@@ -872,6 +873,7 @@ func (s *StreamBuilder) buildWithEnv(env *bundle.Environment) (*Stream, error) {
 		manager.OptSetLogger(logger),
 		manager.OptSetEnvironment(env),
 		manager.OptSetBloblangEnvironment(s.env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(s.env.getBloblangV2ParserEnv()),
 	)
 	if err != nil {
 		return nil, err
@@ -917,6 +919,7 @@ func (s *StreamBuilder) buildWithEnv(env *bundle.Environment) (*Stream, error) {
 		manager.OptSetTracer(tracer),
 		manager.OptSetEnvironment(env),
 		manager.OptSetBloblangEnvironment(s.env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(s.env.getBloblangV2ParserEnv()),
 		manager.OptSetFS(s.env.fs),
 	)
 	if err != nil {
