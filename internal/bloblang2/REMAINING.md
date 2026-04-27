@@ -2,16 +2,9 @@
 
 Work outstanding to reach parity with the V1 integration in `public/service`.
 
-## Config field metadata
+## Custom lint rules
 
-- Add a `BloblangV2 bool` flag to `internal/docs.FieldSpec` (analog of `Bloblang`) and an `IsBloblangV2()` builder, so tooling can differentiate a V2 mapping field from a plain string.
-- Wire `NewBloblangV2Field` in `public/service/config_bloblangv2.go` to use it once the flag exists.
-
-## Linting
-
-- Parse-based linting of V2 mapping fields (no deactivated mode needed — V2 parsing is side-effect free).
-- A mechanism for field authors to attach custom V2 lint rules, equivalent to `FieldBloblang`'s custom-rule pathway.
-- Integration with `component_config_linter.go` / `stream_config_linter.go` (V1 threads `bloblangEnv.Deactivated()` through `docs.LintConfig`; V2 will need an equivalent hook that uses `bloblangv2.Environment.Parse`).
+- A mechanism for field authors to attach custom V2 lint rules, equivalent to `FieldBloblang`'s custom-rule pathway. The built-in parse-based lint is now wired (see `LintBloblangV2Mapping` in `internal/docs/bloblang.go`); user-supplied rules need their own surface.
 
 ## Schema generation
 

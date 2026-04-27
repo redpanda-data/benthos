@@ -281,6 +281,7 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 
 	lintConf := docs.NewLintConfig(r.environment)
 	lintConf.BloblangEnv = bloblang.XWrapEnvironment(bloblEnv.Deactivated())
+	lintConf.BloblangV2Env = r.bloblV2Environment
 
 	confReaderTmp := config.NewReader(initMainFile, initResources,
 		config.OptUseEnvLookupFunc(r.secretLookupFn),
