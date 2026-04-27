@@ -124,9 +124,10 @@ type PreboundFunction func() any
 // FunctionParam describes a function parameter for compile-time validation
 // and named argument resolution.
 type FunctionParam struct {
-	Name       string
-	Default    any // default value (used for named arg resolution)
-	HasDefault bool
+	Name          string
+	Default       any // default value (used for named arg resolution)
+	HasDefault    bool
+	AcceptsLambda bool // true when the parameter accepts a lambda expression
 }
 
 // New creates a new interpreter for the given program.
@@ -1545,7 +1546,7 @@ func (interp *Interpreter) resolveNamedPathArgs(seg syntax.PathSegment, spec Met
 func (interp *Interpreter) resolveNamedFuncArgs(e *syntax.CallExpr, spec FunctionSpec) any {
 	params := make([]namedArgParam, len(spec.Params))
 	for i, p := range spec.Params {
-		params[i] = namedArgParam(p)
+		params[i] = namedArgParam{Name: p.Name, Default: p.Default, HasDefault: p.HasDefault}
 	}
 	resolved := interp.resolveNamedArgs(e.Args, params, e.Name+"()")
 	if IsError(resolved) {

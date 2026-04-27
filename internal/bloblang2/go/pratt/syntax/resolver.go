@@ -36,12 +36,44 @@ type FunctionInfo struct {
 	// Total is the total number of parameters (required + optional).
 	// -1 means no arity checking (variadic or handled at runtime).
 	Total int
+	// Params is per-parameter metadata, parallel to declared positions.
+	// Empty when the function does not declare per-position lambda
+	// acceptance (the default).
+	Params []FunctionParamInfo
 	// ArgFolder, if set, is invoked by the resolver to precompute
 	// literal arguments (see ArgFolder docs).
 	ArgFolder ArgFolder
 	// CallFolder, if set, is invoked by the resolver to precompute a
 	// call-site dispatch target (see CallFolder docs).
 	CallFolder CallFolder
+}
+
+// FunctionParamInfo carries compile-time metadata about one function
+// parameter. Mirrors MethodParamInfo for the function dispatch path.
+type FunctionParamInfo struct {
+	Name          string
+	HasDefault    bool
+	AcceptsLambda bool
+}
+
+// ParamAcceptsLambda reports whether a lambda is accepted at the given
+// argument position. Mirrors MethodInfo.ParamAcceptsLambda.
+func (fi FunctionInfo) ParamAcceptsLambda(position int, name string) bool {
+	if len(fi.Params) == 0 {
+		return false
+	}
+	if name != "" {
+		for _, p := range fi.Params {
+			if p.Name == name {
+				return p.AcceptsLambda
+			}
+		}
+		return false
+	}
+	if position < 0 || position >= len(fi.Params) {
+		return false
+	}
+	return fi.Params[position].AcceptsLambda
 }
 
 // MethodInfo carries compile-time metadata about a stdlib method.
@@ -699,9 +731,21 @@ func (r *resolver) resolveCall(e *CallExpr) {
 		}
 	}
 
-	for _, arg := range e.Args {
-		// No function or user map accepts a lambda argument.
-		r.resolveArgValue(arg.Value, false, e.Name)
+	// Functions may accept lambda arguments per-position when their
+	// FunctionInfo declares Params with AcceptsLambda set; user maps never
+	// accept lambdas as arguments (a map parameter always receives a
+	// value).
+	var fi FunctionInfo
+	var fiKnown bool
+	if e.Namespace == "" && r.findMap(e.Name) == nil {
+		fi, fiKnown = r.knownFunctions[e.Name]
+	}
+	for i, arg := range e.Args {
+		acceptsLambda := false
+		if fiKnown {
+			acceptsLambda = fi.ParamAcceptsLambda(i, arg.Name)
+		}
+		r.resolveArgValue(arg.Value, acceptsLambda, e.Name)
 	}
 }
 

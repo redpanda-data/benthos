@@ -579,9 +579,10 @@ func pluginParamsToFunctionParams(spec *PluginSpec) []eval.FunctionParam {
 	out := make([]eval.FunctionParam, len(spec.params))
 	for i, p := range spec.params {
 		out[i] = eval.FunctionParam{
-			Name:       p.name,
-			Default:    p.defaultVal,
-			HasDefault: p.hasDefault || p.optional,
+			Name:          p.name,
+			Default:       p.defaultVal,
+			HasDefault:    p.hasDefault || p.optional,
+			AcceptsLambda: p.kind == paramKindLambda,
 		}
 	}
 	return out

@@ -130,15 +130,22 @@ func methodSpecToInfo(spec MethodSpec) syntax.MethodInfo {
 // FunctionInfo the resolver consumes. Mirrors methodSpecToInfo.
 func functionSpecToInfo(spec FunctionSpec) syntax.FunctionInfo {
 	required, total := 0, 0
-	for _, p := range spec.Params {
+	params := make([]syntax.FunctionParamInfo, len(spec.Params))
+	for i, p := range spec.Params {
 		total++
 		if !p.HasDefault {
 			required++
+		}
+		params[i] = syntax.FunctionParamInfo{
+			Name:          p.Name,
+			HasDefault:    p.HasDefault,
+			AcceptsLambda: p.AcceptsLambda,
 		}
 	}
 	return syntax.FunctionInfo{
 		Required:   required,
 		Total:      total,
+		Params:     params,
 		ArgFolder:  spec.ArgFolder,
 		CallFolder: spec.CallFolder,
 	}
