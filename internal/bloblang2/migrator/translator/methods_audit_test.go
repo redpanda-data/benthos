@@ -112,10 +112,10 @@ func TestMethodTranslationAudit(t *testing.T) {
 
 		// --- Higher-order lambda shape rewrites ---
 		{
-			name:  ".find(value) -> .find(x -> x == value)",
+			name:  ".find(value) -> .index_of(value)",
 			v1:    `root = this.xs.find("b")`,
 			input: map[string]any{"xs": []any{"a", "b", "c"}},
-			want:  "b",
+			want:  int64(1),
 		},
 		{
 			name:  ".fold(init, ctx -> ctx.tally + ctx.value) -> .fold(init, (tally, value) -> tally + value)",

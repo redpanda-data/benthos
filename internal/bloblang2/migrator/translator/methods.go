@@ -78,9 +78,9 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	case "without":
 		return t.withoutVariadicToArray(m, recv)
 
-	// ----- .find(value) -> .find(x -> x == value) -----
+	// ----- .find(value) -> .index_of(value) -----
 	case "find":
-		return t.findValueToLambda(m, recv)
+		return t.findValueToIndexOf(m, recv)
 
 	// ----- V1 .fold single-param ctx-object lambda -> V2 two-param (tally, value) lambda
 	case "fold":
@@ -362,9 +362,11 @@ func (t *translator) withoutVariadicToArray(m *v1ast.MethodCall, recv syntax.Exp
 	}
 }
 
-// findValueToLambda rewrites V1 `.find(value)` (searches for literal value)
-// to V2 `.find(x -> x == value)` (predicate form).
-func (t *translator) findValueToLambda(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+// findValueToIndexOf rewrites V1 `.find(value)` (returns the index of the
+// first matching element, or -1) to V2 `.index_of(value)` (same signature
+// and semantics). V2's stdlib `find` exists but takes a lambda and returns
+// the matching element — not a semantic match for V1's value-based find.
+func (t *translator) findValueToIndexOf(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
 	if len(m.Args) != 1 {
 		return nil
 	}
@@ -372,35 +374,17 @@ func (t *translator) findValueToLambda(m *v1ast.MethodCall, recv syntax.Expr) sy
 	if needle == nil {
 		return nil
 	}
-	// Build the predicate: x -> x == needle.
-	paramName := "x"
-	predicate := &syntax.LambdaExpr{
-		TokenPos: pos(m.NamePos),
-		Params:   []syntax.Param{{Name: paramName, Pos: pos(m.NamePos), SlotIndex: -1}},
-		Body: &syntax.ExprBody{
-			Result: &syntax.BinaryExpr{
-				Left: &syntax.IdentExpr{
-					TokenPos:  pos(m.NamePos),
-					Name:      paramName,
-					SlotIndex: -1,
-				},
-				Op:    syntax.EQ,
-				OpPos: pos(m.NamePos),
-				Right: needle,
-			},
-		},
-	}
 	t.rec.Rewritten(Change{
 		Line: m.NamePos.Line, Column: m.NamePos.Column,
 		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
 		RuleID:      RuleMethodDoesNotExist,
-		Explanation: "V1 .find(value) rewritten as V2 .find(x -> x == value)",
+		Explanation: "V1 .find(value) rewritten as V2 .index_of(value) (V2 .find takes a lambda and returns an element).",
 	})
 	return &syntax.MethodCallExpr{
 		Receiver:  recv,
-		Method:    "find",
+		Method:    "index_of",
 		MethodPos: pos(m.NamePos),
-		Args:      []syntax.CallArg{{Value: predicate}},
+		Args:      []syntax.CallArg{{Value: needle}},
 	}
 }
 
