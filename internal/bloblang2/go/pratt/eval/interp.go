@@ -1881,5 +1881,15 @@ func (interp *Interpreter) Run(input any, metadata map[string]any) (output any, 
 			}
 		}
 	}()
+
+	// Inputs may have been decoded by a JSON library that uses json.Number to
+	// preserve precision (e.g. encoding/json with UseNumber). The interpreter
+	// only knows about native Go numeric types, so normalise once at the
+	// boundary instead of forcing every operator to special-case json.Number.
+	input = normalizeJSONNumbers(input)
+	for k, v := range metadata {
+		metadata[k] = normalizeJSONNumbers(v)
+	}
+
 	return interp.Exec(input, metadata)
 }

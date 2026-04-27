@@ -4,7 +4,6 @@ package pure
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 
 	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
@@ -149,44 +148,15 @@ func (p *bloblangV2Proc) Close(context.Context) error {
 
 // messageInputValue returns the value to bind to `input` in the mapping.
 // Structured messages parse to their JSON-equivalent Go value; raw messages
-// fall back to their byte contents. json.Number values are normalised to
-// float64 / int64 because the V2 interpreter's comparison operators do not
-// yet understand json.Number (see internal/bloblang2/REMAINING.md).
+// fall back to their byte contents. The V2 interpreter normalises json.Number
+// values internally, so callers do not need to pre-process them.
 func messageInputValue(msg *service.Message) (any, error) {
 	if v, err := msg.AsStructured(); err == nil {
-		return normaliseJSONNumbers(v), nil
+		return v, nil
 	}
 	b, err := msg.AsBytes()
 	if err != nil {
 		return nil, err
 	}
 	return b, nil
-}
-
-// normaliseJSONNumbers walks a decoded-JSON value tree and replaces every
-// json.Number with an int64 or float64. Maps and slices are mutated in place;
-// only json.Number leaves are rewritten.
-func normaliseJSONNumbers(v any) any {
-	switch t := v.(type) {
-	case json.Number:
-		if i, err := t.Int64(); err == nil {
-			return i
-		}
-		if f, err := t.Float64(); err == nil {
-			return f
-		}
-		return t.String()
-	case map[string]any:
-		for k, vv := range t {
-			t[k] = normaliseJSONNumbers(vv)
-		}
-		return t
-	case []any:
-		for i, vv := range t {
-			t[i] = normaliseJSONNumbers(vv)
-		}
-		return t
-	default:
-		return v
-	}
 }
