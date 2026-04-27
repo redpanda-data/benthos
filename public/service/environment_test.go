@@ -4,6 +4,7 @@ package service_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -176,6 +177,61 @@ func TestEnvironmentBloblangV2SchemaIncludesPlugins(t *testing.T) {
 	flat := env.GenerateSchema("test", "now").XFlattened()
 	assert.Contains(t, flat["bloblang-v2-functions"], "hoot")
 	assert.Contains(t, flat["bloblang-v2-methods"], "yell")
+}
+
+func TestConfigSchemaFromJSONV0RoundTripsBloblangV2(t *testing.T) {
+	// Build a schema dump on a "remote" environment that has registered V2
+	// plugins, then load it as JSON on a fresh "local" environment that has
+	// no implementations of those plugins. Linting against the loaded
+	// schema should accept mappings that reference the remote plugins, and
+	// reject mappings that reference unknown ones — proving the stub
+	// registrations carried through.
+	remoteEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, remoteEnv.RegisterFunction("hoot",
+		bloblangv2.NewPluginSpec().Description("owl noise"),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+			return func() (any, error) { return "hoot", nil }, nil
+		},
+	))
+	require.NoError(t, remoteEnv.RegisterMethod("yell", bloblangv2.NewPluginSpec().
+		Param(bloblangv2.NewStringParam("suffix").Default("!")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			suf, _ := args.GetString("suffix")
+			return bloblangv2.StringMethod(func(s string) (any, error) { return s + suf, nil }), nil
+		},
+	))
+
+	remoteSvcEnv := service.NewEmptyEnvironment()
+	remoteSvcEnv.UseBloblangV2Environment(remoteEnv)
+	dump, err := remoteSvcEnv.FullConfigSchema("v0", "now").MarshalJSONV0()
+	require.NoError(t, err)
+
+	localSchema, err := service.ConfigSchemaFromJSONV0(dump)
+	require.NoError(t, err)
+
+	// Re-marshal the loaded schema and confirm the V2 plugin descriptors
+	// survived the decode → register-stub → enumerate cycle. If the decode
+	// step had silently dropped them, MarshalJSONV0 on the loaded schema
+	// would emit an empty set.
+	rehydrated, err := localSchema.MarshalJSONV0()
+	require.NoError(t, err)
+
+	var redump struct {
+		BloblangV2Functions []bloblangv2.PluginInfo `json:"bloblang-v2-functions"`
+		BloblangV2Methods   []bloblangv2.PluginInfo `json:"bloblang-v2-methods"`
+	}
+	require.NoError(t, json.Unmarshal(rehydrated, &redump))
+
+	require.Len(t, redump.BloblangV2Functions, 1)
+	assert.Equal(t, "hoot", redump.BloblangV2Functions[0].Name)
+	assert.Equal(t, "owl noise", redump.BloblangV2Functions[0].Description)
+
+	require.Len(t, redump.BloblangV2Methods, 1)
+	assert.Equal(t, "yell", redump.BloblangV2Methods[0].Name)
+	require.Len(t, redump.BloblangV2Methods[0].Params, 1)
+	assert.Equal(t, "suffix", redump.BloblangV2Methods[0].Params[0].Name)
+	assert.Equal(t, "string", redump.BloblangV2Methods[0].Params[0].Kind)
+	assert.True(t, redump.BloblangV2Methods[0].Params[0].HasDefault)
 }
 
 func TestEnvironmentBloblangV2ClonePropagation(t *testing.T) {

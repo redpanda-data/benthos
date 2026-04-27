@@ -130,3 +130,52 @@ func paramKindToString(k paramKind) string {
 		return "any"
 	}
 }
+
+func paramKindFromString(s string) paramKind {
+	switch s {
+	case "string":
+		return paramKindString
+	case "int64":
+		return paramKindInt64
+	case "float64":
+		return paramKindFloat64
+	case "bool":
+		return paramKindBool
+	default:
+		return paramKindAny
+	}
+}
+
+// NewPluginSpecFromInfo reconstructs a PluginSpec from a serialised PluginInfo
+// description. This is the reverse of the per-plugin information emitted by
+// Environment.WalkFunctions / WalkMethods and is intended for tooling that
+// loads schemas serialised from a separate process (e.g. a remote linter
+// rebuilding stub registrations from a JSON schema dump).
+//
+// Plugin spec fields that have no parse-time semantics (specifically the
+// concrete type of a parameter's stored default value) are preserved on a
+// best-effort basis only.
+//
+// Experimental: this function is intended for tooling and may change without
+// notice.
+func NewPluginSpecFromInfo(info PluginInfo) *PluginSpec {
+	spec := &PluginSpec{
+		status:      pluginStatus(info.Status),
+		category:    info.Category,
+		description: info.Description,
+		version:     info.Version,
+		impure:      info.Impure,
+	}
+	for _, p := range info.Params {
+		def := ParamDefinition{
+			name:        p.Name,
+			description: p.Description,
+			kind:        paramKindFromString(p.Kind),
+			optional:    p.IsOptional,
+			hasDefault:  p.HasDefault,
+			defaultVal:  p.Default,
+		}
+		spec.params = append(spec.params, def)
+	}
+	return spec
+}

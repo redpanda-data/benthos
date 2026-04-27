@@ -165,9 +165,10 @@ pathLoop:
 // against plugin definitions that they themselves haven't imported.
 func ConfigSchemaFromJSONV0(jBytes []byte) (*ConfigSchema, error) {
 	emptyEnvironment := &Environment{
-		internal:    bundle.NewEnvironment(),
-		bloblangEnv: bloblang.NewEmptyEnvironment().WithDisabledImports(),
-		fs:          ifs.OS(), // TODO: Isolate this as well?
+		internal:      bundle.NewEnvironment(),
+		bloblangEnv:   bloblang.NewEmptyEnvironment().WithDisabledImports(),
+		bloblangV2Env: bloblangv2.NewEmptyEnvironment(),
+		fs:            ifs.OS(), // TODO: Isolate this as well?
 	}
 
 	var tmpSchema rawMessageSchema
@@ -179,6 +180,9 @@ func ConfigSchemaFromJSONV0(jBytes []byte) (*ConfigSchema, error) {
 		return nil, err
 	}
 	if err := expandBloblEnvWithSchema(&tmpSchema, emptyEnvironment.bloblangEnv); err != nil {
+		return nil, err
+	}
+	if err := expandBloblV2EnvWithSchema(&tmpSchema, emptyEnvironment.bloblangV2Env); err != nil {
 		return nil, err
 	}
 	return &ConfigSchema{
@@ -279,20 +283,22 @@ func (s *ConfigSchema) Fields(fs ...*ConfigField) *ConfigSchema {
 //------------------------------------------------------------------------------
 
 type rawMessageSchema struct {
-	Version           string            `json:"version"`
-	Date              string            `json:"date"`
-	Config            docs.FieldSpecs   `json:"config,omitempty"`
-	Buffers           []json.RawMessage `json:"buffers,omitempty"`
-	Caches            []json.RawMessage `json:"caches,omitempty"`
-	Inputs            []json.RawMessage `json:"inputs,omitempty"`
-	Outputs           []json.RawMessage `json:"outputs,omitempty"`
-	Processors        []json.RawMessage `json:"processors,omitempty"`
-	RateLimits        []json.RawMessage `json:"rate-limits,omitempty"`
-	Metrics           []json.RawMessage `json:"metrics,omitempty"`
-	Tracers           []json.RawMessage `json:"tracers,omitempty"`
-	Scanners          []json.RawMessage `json:"scanners,omitempty"`
-	BloblangFunctions []json.RawMessage `json:"bloblang-functions,omitempty"`
-	BloblangMethods   []json.RawMessage `json:"bloblang-methods,omitempty"`
+	Version             string                  `json:"version"`
+	Date                string                  `json:"date"`
+	Config              docs.FieldSpecs         `json:"config,omitempty"`
+	Buffers             []json.RawMessage       `json:"buffers,omitempty"`
+	Caches              []json.RawMessage       `json:"caches,omitempty"`
+	Inputs              []json.RawMessage       `json:"inputs,omitempty"`
+	Outputs             []json.RawMessage       `json:"outputs,omitempty"`
+	Processors          []json.RawMessage       `json:"processors,omitempty"`
+	RateLimits          []json.RawMessage       `json:"rate-limits,omitempty"`
+	Metrics             []json.RawMessage       `json:"metrics,omitempty"`
+	Tracers             []json.RawMessage       `json:"tracers,omitempty"`
+	Scanners            []json.RawMessage       `json:"scanners,omitempty"`
+	BloblangFunctions   []json.RawMessage       `json:"bloblang-functions,omitempty"`
+	BloblangMethods     []json.RawMessage       `json:"bloblang-methods,omitempty"`
+	BloblangV2Functions []bloblangv2.PluginInfo `json:"bloblang-v2-functions,omitempty"`
+	BloblangV2Methods   []bloblangv2.PluginInfo `json:"bloblang-v2-methods,omitempty"`
 }
 
 func nameAndBloblSpec(data []byte) (string, *bloblang.PluginSpec, error) {
@@ -348,6 +354,39 @@ func expandBloblEnvWithSchema(schema *rawMessageSchema, bEnv *bloblang.Environme
 				return nil, fmt.Errorf("method %v not enabled", name)
 			}, nil
 		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// expandBloblV2EnvWithSchema registers stub V2 plugins onto bV2Env for every
+// plugin described in the schema, allowing a remote linter to validate
+// configs that reference V2 plugins it does not itself implement. The stubs
+// preserve the original plugin's signature (name, params, arity) so parsing
+// and arity checks succeed; constructor calls always return an error since
+// no executable implementation exists.
+func expandBloblV2EnvWithSchema(schema *rawMessageSchema, bV2Env *bloblangv2.Environment) error {
+	registerStubFn := func(info bloblangv2.PluginInfo) error {
+		spec := bloblangv2.NewPluginSpecFromInfo(info)
+		return bV2Env.RegisterFunction(info.Name, spec, func(_ *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+			return nil, fmt.Errorf("function %v not enabled", info.Name)
+		})
+	}
+	for _, info := range schema.BloblangV2Functions {
+		if err := registerStubFn(info); err != nil {
+			return err
+		}
+	}
+
+	registerStubMethod := func(info bloblangv2.PluginInfo) error {
+		spec := bloblangv2.NewPluginSpecFromInfo(info)
+		return bV2Env.RegisterMethod(info.Name, spec, func(_ *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			return nil, fmt.Errorf("method %v not enabled", info.Name)
+		})
+	}
+	for _, info := range schema.BloblangV2Methods {
+		if err := registerStubMethod(info); err != nil {
 			return err
 		}
 	}
