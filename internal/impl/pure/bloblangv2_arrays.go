@@ -149,6 +149,93 @@ func init() {
 			}), nil
 		},
 	)
+
+	bloblangv2.MustRegisterMethod("find_by",
+		bloblangv2.NewPluginSpec().
+			Category("Object & Array").
+			Description("Returns the index of the first element of the receiver array for which the predicate returns true, or -1 if none match.").
+			Param(bloblangv2.NewLambdaParam("query").Description("A predicate evaluated against each element. Must return a bool.")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			pred, err := args.GetLambda("query")
+			if err != nil {
+				return nil, err
+			}
+			return bloblangv2.ArrayMethod(func(arr []any) (any, error) {
+				for i, elem := range arr {
+					out, err := pred(elem)
+					if err != nil {
+						return nil, fmt.Errorf("predicate failed for index %d: %w", i, err)
+					}
+					b, ok := out.(bool)
+					if !ok {
+						return nil, fmt.Errorf("predicate returned non-bool value for index %d: %T", i, out)
+					}
+					if b {
+						return int64(i), nil
+					}
+				}
+				return int64(-1), nil
+			}), nil
+		},
+	)
+
+	bloblangv2.MustRegisterMethod("find_all_by",
+		bloblangv2.NewPluginSpec().
+			Category("Object & Array").
+			Description("Returns the indexes of every element of the receiver array for which the predicate returns true. Empty array if none match.").
+			Param(bloblangv2.NewLambdaParam("query").Description("A predicate evaluated against each element. Must return a bool.")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			pred, err := args.GetLambda("query")
+			if err != nil {
+				return nil, err
+			}
+			return bloblangv2.ArrayMethod(func(arr []any) (any, error) {
+				out := []any{}
+				for i, elem := range arr {
+					res, err := pred(elem)
+					if err != nil {
+						return nil, fmt.Errorf("predicate failed for index %d: %w", i, err)
+					}
+					b, ok := res.(bool)
+					if !ok {
+						return nil, fmt.Errorf("predicate returned non-bool value for index %d: %T", i, res)
+					}
+					if b {
+						out = append(out, int64(i))
+					}
+				}
+				return out, nil
+			}), nil
+		},
+	)
+
+	bloblangv2.MustRegisterMethod("map_each_key",
+		bloblangv2.NewPluginSpec().
+			Category("Object & Array").
+			Description("Returns a new object with each key transformed by the lambda. The lambda receives the original key as a string and must return a new string key.").
+			Param(bloblangv2.NewLambdaParam("query").Description("A lambda that returns the new key for each entry.")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			fn, err := args.GetLambda("query")
+			if err != nil {
+				return nil, err
+			}
+			return bloblangv2.ObjectMethod(func(m map[string]any) (any, error) {
+				out := make(map[string]any, len(m))
+				for k, v := range m {
+					newKey, err := fn(k)
+					if err != nil {
+						return nil, fmt.Errorf("key %q: %w", k, err)
+					}
+					ns, ok := newKey.(string)
+					if !ok {
+						return nil, fmt.Errorf("key %q: lambda must return a string, got %T", k, newKey)
+					}
+					out[ns] = v
+				}
+				return out, nil
+			}), nil
+		},
+	)
 }
 
 // valuesLooselyEqual mirrors V1's value.ICompare for find_all: treats numerics

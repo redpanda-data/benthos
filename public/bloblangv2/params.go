@@ -77,6 +77,13 @@ func coerceArg(v any, p ParamDefinition) (any, error) {
 		return coerceInt64(v)
 	case paramKindFloat64:
 		return coerceFloat64(v)
+	case paramKindLambda:
+		// Lambda params are pre-wrapped by the plugin dispatcher into a
+		// Lambda closure; pass through unchanged.
+		if _, ok := v.(Lambda); !ok {
+			return nil, fmt.Errorf("expected lambda argument, got %T", v)
+		}
+		return v, nil
 	}
 	return nil, fmt.Errorf("unsupported param kind %d", p.kind)
 }
@@ -114,6 +121,21 @@ func coerceFloat64(v any) (float64, error) {
 		return float64(n), nil
 	}
 	return 0, fmt.Errorf("expected number, got %T", v)
+}
+
+// GetLambda returns the Lambda closure bound to a named lambda parameter.
+// It errors when the parameter was not declared as a lambda or was not
+// provided.
+func (p *ParsedParams) GetLambda(name string) (Lambda, error) {
+	v, err := p.Get(name)
+	if err != nil {
+		return nil, err
+	}
+	lam, ok := v.(Lambda)
+	if !ok {
+		return nil, fmt.Errorf("parameter %q is not a lambda (got %T)", name, v)
+	}
+	return lam, nil
 }
 
 // Get returns the value associated with a named parameter. An error is

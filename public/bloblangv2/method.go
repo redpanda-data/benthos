@@ -11,6 +11,16 @@ import (
 // once per method-call evaluation with the (already-evaluated) receiver value.
 type Method func(v any) (any, error)
 
+// Lambda is the callable form of a lambda argument passed to a plugin. The
+// plugin author retrieves it via ParsedParams.GetLambda and invokes it once
+// per element / iteration with the values to bind to the lambda's parameters.
+//
+// Errors returned by the lambda body are surfaced unchanged. A lambda that
+// returns a void value (an if-without-else that didn't match, etc.) yields a
+// non-nil error so plugin code can detect and react to it; plugins that
+// tolerate void must check for it explicitly.
+type Lambda func(args ...any) (any, error)
+
 // MethodConstructor constructs a Method from arguments resolved against a
 // PluginSpec. When all arguments at a call site are literal, the constructor
 // is invoked once at parse time and its Method is reused across every Query.
