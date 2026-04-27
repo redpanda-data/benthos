@@ -22,11 +22,13 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		// for arrays and `.map_values` for objects. Detect object-literal
 		// receivers at translate time; everything else defaults to `.map`
 		// with a SemanticChange flag so object-receiver cases surface in
-		// the Report.
+		// the Report. The single arg is a ParamQuery in V1 — wrap as a
+		// V2 lambda when the user wrote a bare query rather than a
+		// lambda.
 		if _, isObj := m.Recv.(*v1ast.ObjectLit); isObj {
-			return t.simpleRename(m, recv, "map_values")
+			return t.queryFormRename(m, recv, "map_values", nil)
 		}
-		return t.rewrittenRename(m, recv, "map", Change{
+		return t.queryFormRename(m, recv, "map", &Change{
 			Severity: SeverityWarning, Category: CategorySemanticChange,
 			RuleID:      RuleMethodDoesNotExist,
 			Explanation: "V1 .map_each() accepts arrays and objects; V2 .map() is array-only — use .map_values() if the receiver is an object",
@@ -37,7 +39,7 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		return t.simpleRename(m, recv, "iter")
 	case "map_each_key":
 		// V1 .map_each_key == V2 .map_keys (exact match — both take lambda).
-		return t.simpleRename(m, recv, "map_keys")
+		return t.queryFormRename(m, recv, "map_keys", nil)
 	case "assign":
 		// V1 .assign() is a deep recursive merge of nested objects; V2
 		// .merge() is shallow at the top level (nested values are
@@ -113,6 +115,20 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 			RuleID:      RuleMethodDoesNotExist,
 			Explanation: "V1 " + "." + m.Name + "() accepts arrays and objects; V2 is strict about receiver type",
 		})
+		return t.queryFormRename(m, recv, m.Name, nil)
+	case "find_by", "find_all_by":
+		// V1 .find_by / .find_all_by take a ParamQuery predicate where
+		// `this` and bare idents resolve as fields of the current
+		// element. V2 requires an explicit lambda. Wrap unconditionally.
+		return t.queryFormRename(m, recv, m.Name, nil)
+	case "sort_by":
+		return t.queryFormRename(m, recv, m.Name, nil)
+	case "unique":
+		// V1 .unique() with no args = identity comparison; with one arg
+		// it's a ParamQuery key extractor that needs wrapping.
+		if len(m.Args) == 1 {
+			return t.queryFormRename(m, recv, "unique", nil)
+		}
 		return nil
 	case "sum", "min", "max":
 		// V1 .sum/.min/.max are numeric-only and always return float64.
@@ -360,6 +376,87 @@ func (t *translator) withoutVariadicToArray(m *v1ast.MethodCall, recv syntax.Exp
 			Value: &syntax.ArrayLiteral{LBracketPos: pos(m.NamePos), Elements: elems},
 		}},
 	}
+}
+
+// queryFormRename translates a V1 method call whose final argument is a
+// ParamQuery (V1 rebinds `this` and bare idents to the per-element
+// context). When the V1 argument is already an explicit lambda we
+// translate through 1:1; otherwise we synthesize a V2 lambda that
+// rebinds `this` to a fresh parameter so the V2 surface (which requires
+// an explicit lambda) sees the same effective predicate.
+//
+// `newName` selects the V2 method name (often the same as V1). If
+// `note` is non-nil it is recorded as a Rewritten change describing the
+// rename.
+func (t *translator) queryFormRename(m *v1ast.MethodCall, recv syntax.Expr, newName string, note *Change) syntax.Expr {
+	args := make([]syntax.CallArg, 0, len(m.Args))
+	wrapped := false
+	for i, a := range m.Args {
+		if i == len(m.Args)-1 {
+			lam, didWrap := t.translateQueryFormPredicate(a.Value, m.NamePos)
+			if lam == nil {
+				return nil
+			}
+			args = append(args, syntax.CallArg{Name: a.Name, Value: lam})
+			wrapped = didWrap
+			continue
+		}
+		v := t.translateExpr(a.Value)
+		if v == nil {
+			return nil
+		}
+		args = append(args, syntax.CallArg{Name: a.Name, Value: v})
+	}
+	switch {
+	case note != nil:
+		ch := *note
+		ch.Line = m.NamePos.Line
+		ch.Column = m.NamePos.Column
+		if wrapped {
+			ch.Explanation += "; V1 query-form wrapped as V2 (__v -> ...)"
+		}
+		t.rec.Rewritten(ch)
+	case wrapped:
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 ." + m.Name + "(query-form) wrapped as V2 ." + newName + "(__v -> ...) — V2 requires an explicit lambda",
+		})
+	default:
+		t.rec.Exact()
+	}
+	return &syntax.MethodCallExpr{
+		Receiver:  recv,
+		Method:    newName,
+		MethodPos: pos(m.NamePos),
+		Args:      args,
+		Named:     m.Named,
+	}
+}
+
+// translateQueryFormPredicate translates a single V1 ParamQuery argument.
+// Returns the V2 lambda expression and a `wrapped` flag indicating whether
+// a lambda had to be synthesized (true when the V1 source used the
+// query form rather than an explicit lambda).
+func (t *translator) translateQueryFormPredicate(arg v1ast.Expr, namePos v1ast.Pos) (syntax.Expr, bool) {
+	if _, ok := arg.(*v1ast.Lambda); ok {
+		return t.translateExpr(arg), false
+	}
+	const paramName = "__v"
+	t.pushScope(paramName)
+	t.pushThisRebind(paramName)
+	body := t.translateExpr(arg)
+	t.popThisRebind()
+	t.popScope()
+	if body == nil {
+		return nil, false
+	}
+	return &syntax.LambdaExpr{
+		TokenPos: pos(namePos),
+		Params:   []syntax.Param{{Name: paramName, Pos: pos(namePos), SlotIndex: -1}},
+		Body:     &syntax.ExprBody{Result: body},
+	}, true
 }
 
 // findValueToIndexOf rewrites V1 `.find(value)` (returns the index of the

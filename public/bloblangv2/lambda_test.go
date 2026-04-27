@@ -59,6 +59,57 @@ func TestPluginFunctionLambdaParam(t *testing.T) {
 	}
 }
 
+// TestPluginMethodLambdaMultiArg exercises a plugin method that invokes a
+// lambda with more than one positional argument — V2 lambdas are
+// expressed as `(a, b) -> body`, and the plugin Lambda closure is
+// declared as `func(args ...any)` precisely so multi-arg dispatch works
+// without per-arity wrappers. The test uses a fold-shaped reducer that
+// passes `(tally, element)` on each step.
+func TestPluginMethodLambdaMultiArg(t *testing.T) {
+	env := bloblangv2.NewEmptyEnvironment()
+	if err := env.RegisterMethod("reduce_pairs",
+		bloblangv2.NewPluginSpec().
+			Description("Reduce an array using an explicit two-arg (tally, value) lambda.").
+			Param(bloblangv2.NewAnyParam("initial").Description("Initial tally.")).
+			Param(bloblangv2.NewLambdaParam("step").Description("Lambda invoked as step(tally, value).")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			initial, err := args.Get("initial")
+			if err != nil {
+				return nil, err
+			}
+			step, err := args.GetLambda("step")
+			if err != nil {
+				return nil, err
+			}
+			return bloblangv2.ArrayMethod(func(arr []any) (any, error) {
+				tally := initial
+				for _, v := range arr {
+					next, err := step(tally, v)
+					if err != nil {
+						return nil, err
+					}
+					tally = next
+				}
+				return tally, nil
+			}), nil
+		},
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	exec, err := env.Parse(`output = input.reduce_pairs(0, (tally, v) -> tally + v)`)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	got, err := exec.Query([]any{int64(1), int64(2), int64(3), int64(4)})
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if got != int64(10) {
+		t.Fatalf("got %v, want 10", got)
+	}
+}
+
 func TestPluginMethodLambdaWithMapRef(t *testing.T) {
 	// Bare map references are valid in lambda positions per spec §5.5.
 	// A mapping that references a user-defined map by name should
