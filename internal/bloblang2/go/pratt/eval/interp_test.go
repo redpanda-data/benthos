@@ -9,6 +9,7 @@
 package eval
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -490,5 +491,125 @@ func TestScopeAndStackPathsAgree(t *testing.T) {
 				t.Fatalf("metadata mismatch:\n  scope: %v\n  stack: %v", scopeMeta, stackMeta)
 			}
 		})
+	}
+}
+
+// -----------------------------------------------------------------------
+// json.Number normalisation at the Run boundary
+// -----------------------------------------------------------------------
+//
+// Inputs decoded with encoding/json's UseNumber arrive as json.Number.
+// Run normalises these to int64 / float64 once at the entry point so
+// downstream operators do not need to special-case the type.
+
+func TestInterp_JSONNumberInputComparison(t *testing.T) {
+	prog, errs := syntax.Parse(`output.over = input.score > 0.5`, "", nil)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors:\n%s", syntax.FormatErrors(errs))
+	}
+	interp := New(prog)
+
+	input := map[string]any{"score": json.Number("0.89")}
+	out, _, _, err := interp.Run(input, map[string]any{})
+	if err != nil {
+		t.Fatalf("runtime error: %v", err)
+	}
+	m, ok := out.(map[string]any)
+	if !ok {
+		t.Fatalf("expected map output, got %T", out)
+	}
+	if m["over"] != true {
+		t.Fatalf("expected over=true, got %v (%T)", m["over"], m["over"])
+	}
+}
+
+func TestInterp_JSONNumberInputArithmetic(t *testing.T) {
+	prog, errs := syntax.Parse(`output.sum = input.a + input.b`, "", nil)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors:\n%s", syntax.FormatErrors(errs))
+	}
+	interp := New(prog)
+
+	input := map[string]any{
+		"a": json.Number("3"),
+		"b": json.Number("4"),
+	}
+	out, _, _, err := interp.Run(input, map[string]any{})
+	if err != nil {
+		t.Fatalf("runtime error: %v", err)
+	}
+	m := out.(map[string]any)
+	if m["sum"] != int64(7) {
+		t.Fatalf("expected sum=int64(7), got %v (%T)", m["sum"], m["sum"])
+	}
+}
+
+func TestInterp_JSONNumberInMetadata(t *testing.T) {
+	prog, errs := syntax.Parse(`output.retries = input@.retry_count + 1`, "", nil)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors:\n%s", syntax.FormatErrors(errs))
+	}
+	interp := New(prog)
+
+	meta := map[string]any{"retry_count": json.Number("2")}
+	out, _, _, err := interp.Run(nil, meta)
+	if err != nil {
+		t.Fatalf("runtime error: %v", err)
+	}
+	m := out.(map[string]any)
+	if m["retries"] != int64(3) {
+		t.Fatalf("expected retries=int64(3), got %v (%T)", m["retries"], m["retries"])
+	}
+}
+
+func TestInterp_JSONNumberFractional(t *testing.T) {
+	// Fractional json.Number values arrive as float64 once normalised, so
+	// arithmetic against a float literal produces a float64 result.
+	prog, errs := syntax.Parse(`output.tax = input.amount * 0.1`, "", nil)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors:\n%s", syntax.FormatErrors(errs))
+	}
+	interp := New(prog)
+
+	input := map[string]any{"amount": json.Number("19.99")}
+	out, _, _, err := interp.Run(input, map[string]any{})
+	if err != nil {
+		t.Fatalf("runtime error: %v", err)
+	}
+	m := out.(map[string]any)
+	tax, ok := m["tax"].(float64)
+	if !ok {
+		t.Fatalf("tax should be float64, got %T", m["tax"])
+	}
+	if tax < 1.998 || tax > 2.0 {
+		t.Fatalf("tax=%v, expected ~1.999", tax)
+	}
+}
+
+func TestInterp_JSONNumberNestedInArray(t *testing.T) {
+	// Array elements containing json.Number should be normalised so that
+	// downstream stdlib calls (here .sum()) get native numerics.
+	prog, errs := syntax.Parse(`output.total = input.scores.sum()`, "", nil)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors:\n%s", syntax.FormatErrors(errs))
+	}
+	methods, functions := StdlibNames()
+	methodOpc, funcOpc := StdlibOpcodes()
+	syntax.Resolve(prog, syntax.ResolveOptions{
+		Methods: methods, Functions: functions,
+		MethodOpcodes: methodOpc, FunctionOpcodes: funcOpc,
+	})
+	interp := NewWithStdlib(prog)
+
+	input := map[string]any{
+		"scores": []any{json.Number("1"), json.Number("2"), json.Number("3")},
+	}
+	out, _, _, err := interp.Run(input, map[string]any{})
+	if err != nil {
+		t.Fatalf("runtime error: %v", err)
+	}
+	m := out.(map[string]any)
+	if m["total"] != int64(6) {
+		t.Fatalf("total=%v (%T), expected int64(6)", m["total"], m["total"])
 	}
 }
