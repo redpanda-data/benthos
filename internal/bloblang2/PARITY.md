@@ -10,12 +10,20 @@ Deprecated V1 entries are excluded.
 
 ## Status legend
 
-- ✅ already in V2
-- 🟢 batch 1 — pure stdlib port, mechanical
+- ✅ already in V2 (incl. batch 1 ports landed in `internal/impl/{pure,io}`)
+- 🟢 batch 1 — pure stdlib port, mechanical (now ✅ except `format`, see notes)
 - 🟡 batch 2 — array / object completeness
 - 🔴 batch 3 — pipeline-coupled, needs design
 - ❌ V1-only by architectural choice; V2 won't port
 - ➕ V2-only addition (no V1 equivalent)
+
+> **Batch 1 complete** (commits `cb334fe96` … through the io / time / IDs commit).
+> Pure ports live in `internal/impl/pure/bloblangv2_*.go`; non-pure (clock /
+> randomness) live in `internal/impl/io/bloblangv2_*.go`. The one batch-1
+> entry deliberately deferred is `format`, because V1 used variadic params
+> and V2 deliberately removed the variadic surface (see commit `d73db44a6`).
+> A V2 `format` would need to take a single array-typed argument; that's an
+> API redesign rather than a mechanical lift, so it stays open.
 
 ## Architectural choices we are NOT porting
 
@@ -34,7 +42,7 @@ Deprecated V1 entries are excluded.
 |---|---|---|---|
 | `bool` | method | ✅ | |
 | `bytes` | method | ✅ | |
-| `number` | method | 🟢 | V2 has typed `int64`/`float64`/etc.; `number` would be a permissive coerce. |
+| `number` | method | ✅ | V2 has typed `int64`/`float64`/etc.; `number` would be a permissive coerce. |
 | `string` | method | ✅ | |
 | `timestamp` | method | ✅ | |
 | `type` | method | ✅ | |
@@ -43,35 +51,35 @@ Deprecated V1 entries are excluded.
 
 | Name | Type | Status | Notes |
 |---|---|---|---|
-| `capitalize` | method | 🟢 | |
+| `capitalize` | method | ✅ | |
 | `decode` | method | ✅ | |
 | `encode` | method | ✅ | |
-| `escape_html` | method | 🟢 | |
-| `escape_url_query` | method | 🟢 | |
-| `filepath_join` | method | 🟢 | Path manipulation — pure, no FS access. |
-| `filepath_split` | method | 🟢 | |
+| `escape_html` | method | ✅ | |
+| `escape_url_query` | method | ✅ | |
+| `filepath_join` | method | ✅ | Path manipulation — pure, no FS access. |
+| `filepath_split` | method | ✅ | |
 | `format` | method | 🟢 | printf-style. |
 | `has_prefix` | method | ✅ | |
 | `has_suffix` | method | ✅ | |
-| `hash` | method | 🟢 | |
+| `hash` | method | ✅ | |
 | `index_of` | method | ✅ | |
 | `join` | method | ✅ | |
 | `lowercase` | method | ✅ | |
-| `parse_url` | method | 🟢 | |
-| `quote` | method | 🟢 | |
+| `parse_url` | method | ✅ | |
+| `quote` | method | ✅ | |
 | `repeat` | method | ✅ | |
-| `replace` | method | 🟢 | |
+| `replace` | method | ✅ | |
 | `replace_all` | method | ✅ | |
-| `replace_all_many` | method | 🟢 | |
-| `replace_many` | method | 🟢 | |
+| `replace_all_many` | method | ✅ | |
+| `replace_many` | method | ✅ | |
 | `reverse` | method | ✅ | |
 | `split` | method | ✅ | |
 | `trim` | method | ✅ | |
 | `trim_prefix` | method | ✅ | |
 | `trim_suffix` | method | ✅ | |
-| `unescape_html` | method | 🟢 | |
-| `unescape_url_query` | method | 🟢 | |
-| `unquote` | method | 🟢 | |
+| `unescape_html` | method | ✅ | |
+| `unescape_url_query` | method | ✅ | |
+| `unquote` | method | ✅ | |
 | `uppercase` | method | ✅ | |
 
 ### Numbers
@@ -79,13 +87,13 @@ Deprecated V1 entries are excluded.
 | Name | Type | Status | Notes |
 |---|---|---|---|
 | `abs` | method | ✅ | |
-| `bitwise_and` | method | 🟢 | |
-| `bitwise_or` | method | 🟢 | |
-| `bitwise_xor` | method | 🟢 | |
+| `bitwise_and` | method | ✅ | |
+| `bitwise_or` | method | ✅ | |
+| `bitwise_xor` | method | ✅ | |
 | `ceil` | method | ✅ | |
 | `floor` | method | ✅ | |
-| `log` | method | 🟢 | |
-| `log10` | method | 🟢 | |
+| `log` | method | ✅ | |
+| `log10` | method | ✅ | |
 | `round` | method | ✅ | |
 
 ### Arrays / sequences
@@ -150,10 +158,10 @@ Deprecated V1 entries are excluded.
 | Name | Type | Status | Notes |
 |---|---|---|---|
 | `now` | function | ✅ | |
-| `timestamp_unix` | function | 🔴 | Reads current time — non-pure. |
-| `timestamp_unix_micro` | function | 🔴 | |
-| `timestamp_unix_milli` | function | 🔴 | |
-| `timestamp_unix_nano` | function | 🔴 | |
+| `timestamp_unix` | function | ✅ | Reads current time — non-pure. |
+| `timestamp_unix_micro` | function | ✅ | |
+| `timestamp_unix_milli` | function | ✅ | |
+| `timestamp_unix_nano` | function | ✅ | |
 | `ts_*` | method | ✅ | All ts_* methods present. |
 
 ### Encoding / parsing
@@ -161,23 +169,23 @@ Deprecated V1 entries are excluded.
 | Name | Type | Status | Notes |
 |---|---|---|---|
 | `format_json` | method | ✅ | |
-| `format_yaml` | method | 🟢 | |
-| `json_schema` | method | 🟢 | |
-| `parse_csv` | method | 🟢 | |
+| `format_yaml` | method | ✅ | |
+| `json_schema` | method | ✅ | |
+| `parse_csv` | method | ✅ | |
 | `parse_json` | method | ✅ | |
-| `parse_yaml` | method | 🟢 | |
+| `parse_yaml` | method | ✅ | |
 
 ### Crypto / IDs
 
 | Name | Type | Status | Notes |
 |---|---|---|---|
-| `decrypt_aes` | method | 🟢 | Deterministic given key — pure. |
-| `encrypt_aes` | method | 🟢 | |
-| `ksuid` | function | 🔴 | Generates IDs; non-pure. |
-| `nanoid` | function | 🔴 | |
+| `decrypt_aes` | method | ✅ | Deterministic given key — pure. |
+| `encrypt_aes` | method | ✅ | |
+| `ksuid` | function | ✅ | Generates IDs; non-pure. |
+| `nanoid` | function | ✅ | |
 | `uuid_v4` | function | ✅ | |
-| `uuid_v5` | method | 🟢 | Deterministic — pure. |
-| `uuid_v7` | function | 🔴 | Timestamp-based; non-pure. |
+| `uuid_v5` | method | ✅ | Deterministic — pure. |
+| `uuid_v7` | function | ✅ | Timestamp-based; non-pure. |
 
 ### Error handling
 

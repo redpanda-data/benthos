@@ -36,12 +36,22 @@ func TestSyncSchema(t *testing.T) {
 			err = json.Unmarshal(body, &schema)
 			require.NoError(t, err)
 
-			assert.ElementsMatch(t, slices.Collect(maps.Keys(schema)), []string{
+			expected := []string{
 				"version", "date",
 				"config",
 				"buffers", "caches", "inputs", "outputs", "processors", "rate-limits", "metrics", "tracers", "scanners",
 				"bloblang-functions", "bloblang-methods",
-			})
+			}
+			// V2 plugin fields (bloblang-v2-functions / bloblang-v2-methods)
+			// only appear in the dump when the env has registered V2 plugins,
+			// which happens for any binary importing public/components/{pure,io}.
+			if _, ok := schema["bloblang-v2-functions"]; ok {
+				expected = append(expected, "bloblang-v2-functions")
+			}
+			if _, ok := schema["bloblang-v2-methods"]; ok {
+				expected = append(expected, "bloblang-v2-methods")
+			}
+			assert.ElementsMatch(t, slices.Collect(maps.Keys(schema)), expected)
 
 			var version string
 			err = json.Unmarshal(schema["version"], &version)
