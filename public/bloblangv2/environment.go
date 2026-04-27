@@ -3,6 +3,7 @@
 package bloblangv2
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -292,6 +293,11 @@ func isStdlibFunction(name string) bool {
 // eval.MethodSpec used by the interpreter. The returned spec carries both a
 // per-call Fn (for dynamic arguments) and a CallFolder that pre-binds the
 // constructor at parse time when every argument is a literal.
+//
+// When the spec declares any lambda parameter the static path is replaced
+// with a PluginFn that has access to the interpreter — lambdas have no
+// value form, so non-lambda arguments are evaluated eagerly while lambda
+// positions are wrapped into a Lambda closure for the plugin to invoke.
 func buildMethodSpec(name string, spec *PluginSpec, ctor MethodConstructor) eval.MethodSpec {
 	params := pluginParamsToMethodParams(spec)
 	runMethod := func(receiver any, fn Method) any {
@@ -300,6 +306,27 @@ func buildMethodSpec(name string, spec *PluginSpec, ctor MethodConstructor) eval
 			return eval.NewError(fmt.Sprintf("%s(): %s", name, err.Error()))
 		}
 		return out
+	}
+	if specHasLambdaParam(spec) {
+		return eval.MethodSpec{
+			PluginFn: func(interp *eval.Interpreter, receiver any, callArgs []syntax.CallArg) any {
+				rawArgs, errVal := pluginResolveArgs(interp, name, spec, callArgs)
+				if errVal != nil {
+					return errVal
+				}
+				parsed, err := newParsedParams(spec, rawArgs)
+				if err != nil {
+					return eval.NewError(fmt.Sprintf("%s(): %s", name, err.Error()))
+				}
+				fn, err := ctor(parsed)
+				if err != nil {
+					return eval.NewError(fmt.Sprintf("%s(): %s", name, err.Error()))
+				}
+				return runMethod(receiver, fn)
+			},
+			Params:        params,
+			AcceptsLambda: true,
+		}
 	}
 	return eval.MethodSpec{
 		Fn: func(receiver any, args []any) any {
@@ -343,6 +370,26 @@ func buildFunctionSpec(name string, spec *PluginSpec, ctor FunctionConstructor) 
 		}
 		return out
 	}
+	if specHasLambdaParam(spec) {
+		return eval.FunctionSpec{
+			PluginFn: func(interp *eval.Interpreter, callArgs []syntax.CallArg) any {
+				rawArgs, errVal := pluginResolveArgs(interp, name, spec, callArgs)
+				if errVal != nil {
+					return errVal
+				}
+				parsed, err := newParsedParams(spec, rawArgs)
+				if err != nil {
+					return eval.NewError(fmt.Sprintf("%s(): %s", name, err.Error()))
+				}
+				fn, err := ctor(parsed)
+				if err != nil {
+					return eval.NewError(fmt.Sprintf("%s(): %s", name, err.Error()))
+				}
+				return runFunction(fn)
+			},
+			Params: params,
+		}
+	}
 	return eval.FunctionSpec{
 		Fn: func(args []any) any {
 			parsed, err := newParsedParams(spec, args)
@@ -372,6 +419,73 @@ func buildFunctionSpec(name string, spec *PluginSpec, ctor FunctionConstructor) 
 				return runFunction(fn)
 			}), nil
 		},
+	}
+}
+
+// specHasLambdaParam reports whether spec declares any lambda-typed
+// parameter. Plugins with lambda params bypass the static-arg fold path —
+// lambdas are not values, so per-call dispatch is required.
+func specHasLambdaParam(spec *PluginSpec) bool {
+	for _, p := range spec.params {
+		if p.kind == paramKindLambda {
+			return true
+		}
+	}
+	return false
+}
+
+// pluginResolveArgs resolves the AST argument list for a plugin invocation:
+// non-lambda arguments are evaluated through the interpreter, lambda
+// positions are wrapped into a public Lambda closure that calls back into
+// the same interpreter when invoked. The returned []any matches the order
+// of spec.params and is suitable for newParsedParams.
+//
+// Returns a non-nil errorVal (the eval-package error sentinel) when an
+// argument fails to evaluate or a required lambda is missing.
+func pluginResolveArgs(interp *eval.Interpreter, name string, spec *PluginSpec, callArgs []syntax.CallArg) ([]any, any) {
+	out := make([]any, len(spec.params))
+	for i, p := range spec.params {
+		if i >= len(callArgs) {
+			if p.hasDefault {
+				out[i] = p.defaultVal
+				continue
+			}
+			if p.optional {
+				continue
+			}
+			return nil, eval.NewError(fmt.Sprintf("%s(): missing required argument %q", name, p.name))
+		}
+		argVal := callArgs[i].Value
+		if p.kind == paramKindLambda {
+			lambda := interp.ExtractLambdaOrMapRef([]syntax.CallArg{{Value: argVal}})
+			if lambda == nil {
+				return nil, eval.NewError(fmt.Sprintf("%s(): argument %q must be a lambda", name, p.name))
+			}
+			out[i] = wrapLambda(interp, lambda)
+			continue
+		}
+		v := interp.EvalExpr(argVal)
+		if eval.IsError(v) {
+			return nil, v
+		}
+		out[i] = v
+	}
+	return out, nil
+}
+
+// wrapLambda turns an internal LambdaExpr into the public Lambda type the
+// plugin author invokes. Errors emitted from the lambda body are surfaced
+// as Go errors so plugin code can react to them.
+func wrapLambda(interp *eval.Interpreter, lambda *syntax.LambdaExpr) Lambda {
+	return func(args ...any) (any, error) {
+		result := interp.CallLambda(lambda, args)
+		if eval.IsError(result) {
+			return nil, fmt.Errorf("%v", result)
+		}
+		if eval.IsVoid(result) {
+			return nil, errors.New("lambda returned void")
+		}
+		return result, nil
 	}
 }
 
@@ -447,9 +561,10 @@ func pluginParamsToMethodParams(spec *PluginSpec) []eval.MethodParam {
 	out := make([]eval.MethodParam, len(spec.params))
 	for i, p := range spec.params {
 		out[i] = eval.MethodParam{
-			Name:       p.name,
-			Default:    p.defaultVal,
-			HasDefault: p.hasDefault || p.optional,
+			Name:          p.name,
+			Default:       p.defaultVal,
+			HasDefault:    p.hasDefault || p.optional,
+			AcceptsLambda: p.kind == paramKindLambda,
 		}
 	}
 	return out

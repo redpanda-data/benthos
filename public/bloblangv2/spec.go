@@ -23,6 +23,11 @@ const (
 	paramKindInt64
 	paramKindFloat64
 	paramKindBool
+	// paramKindLambda denotes a parameter that accepts an unevaluated
+	// callable. The plugin receives a Lambda closure via
+	// ParsedParams.GetLambda; argument expressions and bare map references
+	// are wrapped automatically.
+	paramKindLambda
 )
 
 // ParamDefinition describes a single parameter accepted by a plugin. Build
@@ -60,6 +65,15 @@ func NewBoolParam(name string) ParamDefinition {
 // NewAnyParam creates a new parameter that accepts any value type.
 func NewAnyParam(name string) ParamDefinition {
 	return ParamDefinition{name: name, kind: paramKindAny}
+}
+
+// NewLambdaParam creates a parameter that accepts a lambda expression. The
+// plugin retrieves an invocable closure via ParsedParams.GetLambda. Bare
+// map references in mappings (e.g. `arr.find_by(my_map)`) are also accepted
+// where the underlying map takes a single required parameter; the resolver
+// synthesises the equivalent lambda automatically.
+func NewLambdaParam(name string) ParamDefinition {
+	return ParamDefinition{name: name, kind: paramKindLambda}
 }
 
 // Description attaches an optional human-readable description to the

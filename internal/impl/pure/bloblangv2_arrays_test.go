@@ -113,3 +113,60 @@ func TestBloblangV2KeyValues(t *testing.T) {
 		map[string]any{"key": "baz", "value": int64(2)},
 	}, got)
 }
+
+func TestBloblangV2FindBy(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = input.find_by(v -> v != "bar")`,
+		[]any{"bar", "foo", "baz"},
+	)
+	assert.Equal(t, int64(1), got)
+}
+
+func TestBloblangV2FindByObjectPredicate(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = input.find_by(u -> u.age >= 18)`,
+		[]any{
+			map[string]any{"name": "Alice", "age": int64(15)},
+			map[string]any{"name": "Bob", "age": int64(22)},
+			map[string]any{"name": "Carol", "age": int64(19)},
+		},
+	)
+	assert.Equal(t, int64(1), got)
+}
+
+func TestBloblangV2FindByNoMatch(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = input.find_by(v -> v == "missing")`,
+		[]any{"a", "b", "c"},
+	)
+	assert.Equal(t, int64(-1), got)
+}
+
+func TestBloblangV2FindAllBy(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = input.find_all_by(log -> log.level == "error")`,
+		[]any{
+			map[string]any{"level": "info"},
+			map[string]any{"level": "error"},
+			map[string]any{"level": "warn"},
+			map[string]any{"level": "error"},
+		},
+	)
+	assert.Equal(t, []any{int64(1), int64(3)}, got)
+}
+
+func TestBloblangV2MapEachKey(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = input.map_each_key(k -> k.uppercase())`,
+		map[string]any{"keya": "hello", "keyb": "world"},
+	)
+	assert.Equal(t, map[string]any{"KEYA": "hello", "KEYB": "world"}, got)
+}
+
+func TestBloblangV2MapEachKeyMustReturnString(t *testing.T) {
+	exec, err := bloblangv2.GlobalEnvironment().Parse(`output = input.map_each_key(k -> 42)`)
+	require.NoError(t, err)
+	_, err = exec.Query(map[string]any{"a": "v"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "string")
+}

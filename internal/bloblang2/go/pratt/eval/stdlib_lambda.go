@@ -681,6 +681,13 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 	return result
 }
 
+// ExtractLambdaOrMapRef is the exported form of extractLambdaOrMapRef, used
+// by the public plugin surface to translate a lambda or bare map reference
+// argument into a callable LambdaExpr.
+func (interp *Interpreter) ExtractLambdaOrMapRef(args []syntax.CallArg) *syntax.LambdaExpr {
+	return interp.extractLambdaOrMapRef(args)
+}
+
 // extractLambdaOrMapRef gets the lambda expression from the first argument.
 // If the argument is a bare identifier or qualified reference (map name),
 // synthesizes a lambda that calls the map with a single parameter (Section 5.5).

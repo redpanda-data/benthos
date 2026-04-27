@@ -66,12 +66,13 @@ type MethodParam struct {
 // Metadata is colocated with the method definition so the interpreter dispatch
 // does not need hardcoded name lists.
 type MethodSpec struct {
-	Fn            MethodFunc       // regular method (mutually exclusive with LambdaFn)
-	LambdaFn      lambdaMethodFunc // lambda method (mutually exclusive with Fn)
+	Fn            MethodFunc       // regular method (mutually exclusive with LambdaFn / PluginFn)
+	LambdaFn      lambdaMethodFunc // lambda method (mutually exclusive with Fn / PluginFn)
+	PluginFn      pluginMethodFunc // plugin dispatch with interp + AST args (mutually exclusive with Fn / LambdaFn)
 	Intrinsic     bool             // marks catch/or — dispatch handled inline, registered for name resolution only
 	Params        []MethodParam    // nil for methods with no named-arg support
 	AcceptsNull   bool             // receiver can be nil (e.g., type, string, not_null)
-	AcceptsLambda bool             // method accepts a lambda argument (implicit for LambdaFn-backed methods)
+	AcceptsLambda bool             // method accepts a lambda argument (implicit for LambdaFn / PluginFn methods)
 	// ArgFolder, if set, is surfaced on the MethodInfo so the resolver
 	// runs parse-time folding on literal arguments (e.g. precompiling
 	// regex patterns). See syntax.ArgFolder.
@@ -86,13 +87,20 @@ type MethodSpec struct {
 // lambdaMethodFunc is a method that receives unevaluated AST args (for lambda/map-ref arguments).
 type lambdaMethodFunc func(receiver any, args []syntax.CallArg) any
 
+// pluginMethodFunc is the dispatch shape used by the public plugin surface
+// (public/bloblangv2). The interpreter is forwarded so plugins can extract
+// lambda arguments via interp.CallLambda; non-lambda arguments stay as AST
+// nodes until the plugin asks for them.
+type pluginMethodFunc func(interp *Interpreter, receiver any, args []syntax.CallArg) any
+
 // FunctionFunc is a stdlib function implementation.
 type FunctionFunc func(args []any) any
 
 // FunctionSpec bundles a function implementation with its behavioral metadata.
 type FunctionSpec struct {
-	Fn     FunctionFunc
-	Params []FunctionParam // for compile-time arity checking
+	Fn       FunctionFunc
+	PluginFn pluginFunctionFunc // plugin dispatch with interp + AST args (mutually exclusive with Fn)
+	Params   []FunctionParam    // for compile-time arity checking
 	// ArgFolder, if set, is surfaced on the FunctionInfo so the resolver
 	// runs parse-time folding on literal arguments. See syntax.ArgFolder.
 	ArgFolder syntax.ArgFolder
@@ -100,6 +108,9 @@ type FunctionSpec struct {
 	// can precompute a parse-time dispatch target. See PreboundFunction.
 	CallFolder syntax.CallFolder
 }
+
+// pluginFunctionFunc is the function analogue of pluginMethodFunc.
+type pluginFunctionFunc func(interp *Interpreter, args []syntax.CallArg) any
 
 // PreboundMethod is the shape the interpreter expects to find in
 // syntax.MethodCallExpr.Prebound / syntax.PathSegment.Prebound. When set
@@ -764,6 +775,15 @@ func (interp *Interpreter) evalMethodCall(e *syntax.MethodCallExpr) any {
 		return spec.LambdaFn(receiver, args)
 	}
 
+	// Plugin methods that need interp access.
+	if spec.PluginFn != nil {
+		args := e.Args
+		if e.Named && spec.Params != nil {
+			args = reorderNamedCallArgs(args, spec.Params)
+		}
+		return spec.PluginFn(interp, receiver, args)
+	}
+
 	// Evaluate arguments, resolving named args to positional if needed.
 	var args []any
 	if e.Named {
@@ -821,6 +841,20 @@ func (interp *Interpreter) evalOr(e *syntax.MethodCallExpr) any {
 		return NewError(".or() requires exactly one argument")
 	}
 	return interp.evalExpr(e.Args[0].Value)
+}
+
+// CallLambda executes a lambda expression with the given arguments. It is
+// exported so plugin dispatch in public/bloblangv2 can invoke a lambda
+// argument captured from a method / function call.
+func (interp *Interpreter) CallLambda(lambda *syntax.LambdaExpr, args []any) any {
+	return interp.callLambda(lambda, args)
+}
+
+// EvalExpr evaluates an arbitrary expression node against the interpreter
+// state. Exported for plugin dispatch in public/bloblangv2 so non-lambda
+// arguments to a plugin call can be resolved before the constructor runs.
+func (interp *Interpreter) EvalExpr(expr syntax.Expr) any {
+	return interp.evalExpr(expr)
 }
 
 // callLambda executes a lambda expression with the given arguments.
@@ -897,6 +931,19 @@ func (interp *Interpreter) evalCall(e *syntax.CallExpr) any {
 		isStdlib = true
 	}
 	if isStdlib {
+		// Plugin functions that need interp access (e.g., to evaluate
+		// lambda parameters).
+		if spec.PluginFn != nil {
+			args := e.Args
+			if e.Named && len(spec.Params) > 0 {
+				params := make([]MethodParam, len(spec.Params))
+				for i, p := range spec.Params {
+					params[i] = MethodParam{Name: p.Name, Default: p.Default, HasDefault: p.HasDefault}
+				}
+				args = reorderNamedCallArgs(args, params)
+			}
+			return spec.PluginFn(interp, args)
+		}
 		var args []any
 		if e.Named {
 			resolved := interp.resolveNamedFuncArgs(e, spec)
@@ -1369,6 +1416,12 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 					lambdaArgs = reorderNamedCallArgs(lambdaArgs, spec.Params)
 				}
 				current = spec.LambdaFn(current, lambdaArgs)
+			} else if spec.PluginFn != nil {
+				pluginArgs := seg.Args
+				if seg.Named && spec.Params != nil {
+					pluginArgs = reorderNamedCallArgs(pluginArgs, spec.Params)
+				}
+				current = spec.PluginFn(interp, current, pluginArgs)
 			} else {
 				var args []any
 				if seg.Named {

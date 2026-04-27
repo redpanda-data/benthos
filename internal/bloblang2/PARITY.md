@@ -12,44 +12,39 @@ Deprecated V1 entries are excluded.
 
 - ✅ already in V2 (incl. batches 1 / 2 ports landed in `internal/impl/{pure,io}`)
 - 🟢 batch 1 — pure stdlib port, mechanical (now ✅ except `format`)
-- 🟡 batch 2 — array / object completeness (now ✅ except lambda-takers)
+- 🟡 batch 2 — array / object completeness (now ✅)
 - 🔴 batch 3 — pipeline-coupled, needs design
-- ⏸ blocked on a V2 plugin-API addition (see "Plugin lambda parameters" below)
 - ❌ V1-only by architectural choice; V2 won't port
 - ➕ V2-only addition (no V1 equivalent)
 
-> **Batch 1 complete** (commits `cb334fe96` … through the io / time / IDs commit).
-> Pure ports live in `internal/impl/pure/bloblangv2_*.go`; non-pure (clock /
-> randomness) live in `internal/impl/io/bloblangv2_*.go`. The one batch-1
-> entry deliberately deferred is `format`, because V1 used variadic params
-> and V2 deliberately removed the variadic surface (see commit `d73db44a6`).
-> A V2 `format` would need to take a single array-typed argument; that's an
-> API redesign rather than a mechanical lift, so it stays open.
+> **Batches 1 and 2 complete.** Pure ports live in
+> `internal/impl/pure/bloblangv2_*.go`; non-pure (clock / randomness)
+> live in `internal/impl/io/bloblangv2_*.go`. The single deferred entry
+> is `format`, which V1 implemented as a variadic — V2 deliberately
+> removed variadic params (commit `d73db44a6`), so a V2 `format` needs
+> an array-param API redesign rather than a mechanical lift.
 
-> **Batch 2 mostly complete** — `find_all`, `index`, `not_empty`, `collapse`,
-> `key_values`, `enumerated`, `array`, `assign`, `exists`, `explode`, `get`,
-> `re_replace`, `re_find_object`, `re_find_all_object`, `re_find_all_submatch`
-> are all in. Three lambda-takers remain ⏸ (see "Plugin lambda parameters").
+## Plugin lambda parameters (resolved)
 
-## Plugin lambda parameters
+`bloblangv2.PluginSpec` now supports lambda-typed parameters through
+`NewLambdaParam(name)`. Plugin authors retrieve the lambda as a
+`bloblangv2.Lambda` callable via `ParsedParams.GetLambda(name)` and
+invoke it with positional argument values; bare map references
+(spec §5.5) are accepted on the call-site and synthesised into
+single-parameter lambdas automatically.
 
-`bloblangv2.PluginSpec` currently only exposes typed value parameters
-(`NewStringParam`, `NewInt64Param`, etc.). It has no way to declare a
-parameter that accepts a lambda — the V2 stdlib's `filter` / `map` /
-`find` / `sort_by` / etc. all use `RegisterLambdaMethod` against an
-internal API that isn't reachable from public/bloblangv2.
+Plumbing sketch:
 
-Three V1 methods are blocked on this gap and remain ⏸:
-
-- `find_by(lambda) → index`
-- `find_all_by(lambda) → array of indexes`
-- `map_each_key(lambda) → object`
-
-Adding lambda support is its own design task: extending the public
-PluginSpec with a `LambdaParam(name)` builder, surfacing the lambda
-through `ParsedParams` as a callable Go closure, and wiring the
-constructor path to invoke it. Once that lands these three are
-mechanical lifts.
+- `eval.MethodSpec` / `FunctionSpec` gained a `PluginFn` dispatch shape
+  that receives the interpreter alongside unevaluated AST args. The
+  plugin layer routes specs with any `paramKindLambda` parameter
+  through this path, evaluates non-lambda args eagerly, and wraps
+  lambda positions into a `Lambda` closure that calls back through
+  `interp.CallLambda`.
+- `eval.Interpreter.CallLambda` and `ExtractLambdaOrMapRef` are
+  exported for the plugin layer to use.
+- Static-arg folding is bypassed for plugins with lambda params
+  (lambdas are not values), matching V2 stdlib semantics.
 
 ## Architectural choices we are NOT porting
 
