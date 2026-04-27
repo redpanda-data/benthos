@@ -220,9 +220,9 @@ var ruleCases = []ruleCase{
 		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
 	},
 	{
-		name:      ".find(value) rewrites to lambda form",
+		name:      ".find(value) rewrites to .index_of(value)",
 		v1:        `root = [1,2,3].find(2)`,
-		wantV2:    []string{".find(", "->", "=="},
+		wantV2:    []string{".index_of(", "2"},
 		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
 	},
 	{
