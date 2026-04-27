@@ -157,6 +157,27 @@ logger:
 	assert.Equal(t, []string{"meow"}, received)
 }
 
+func TestEnvironmentBloblangV2SchemaIncludesPlugins(t *testing.T) {
+	bEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, bEnv.RegisterFunction("hoot", bloblangv2.NewPluginSpec().Description("owl noise"),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+			return func() (any, error) { return "hoot", nil }, nil
+		},
+	))
+	require.NoError(t, bEnv.RegisterMethod("yell", bloblangv2.NewPluginSpec(),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			return bloblangv2.StringMethod(func(s string) (any, error) { return s + "!", nil }), nil
+		},
+	))
+
+	env := service.NewEnvironment()
+	env.UseBloblangV2Environment(bEnv)
+
+	flat := env.GenerateSchema("test", "now").XFlattened()
+	assert.Contains(t, flat["bloblang-v2-functions"], "hoot")
+	assert.Contains(t, flat["bloblang-v2-methods"], "yell")
+}
+
 func TestEnvironmentBloblangV2ClonePropagation(t *testing.T) {
 	customEnv := bloblangv2.NewEmptyEnvironment()
 	require.NoError(t, customEnv.RegisterFunction("oink", bloblangv2.NewPluginSpec(), func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {

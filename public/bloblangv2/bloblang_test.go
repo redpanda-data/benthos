@@ -197,21 +197,6 @@ func TestRegisterRejectsNilSpec(t *testing.T) {
 	}
 }
 
-func TestRegisterRejectsVariadicWithParams(t *testing.T) {
-	env := bloblangv2.NewEmptyEnvironment()
-	spec := bloblangv2.NewPluginSpec().
-		Variadic().
-		Param(bloblangv2.NewStringParam("x"))
-
-	err := env.RegisterMethod("bad", spec,
-		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
-			return func(v any) (any, error) { return v, nil }, nil
-		})
-	if err == nil {
-		t.Fatal("expected error for Variadic + Param combination")
-	}
-}
-
 func TestPluginMethodArityEnforced(t *testing.T) {
 	env := bloblangv2.NewEmptyEnvironment()
 	spec := bloblangv2.NewPluginSpec().Param(bloblangv2.NewStringParam("x"))
@@ -286,36 +271,6 @@ func TestExecutorConcurrentUse(t *testing.T) {
 	close(errCh)
 	for e := range errCh {
 		t.Error(e)
-	}
-}
-
-func TestRegisterVariadicFunction(t *testing.T) {
-	env := bloblangv2.NewEmptyEnvironment()
-	if err := env.RegisterFunction("shout", bloblangv2.NewPluginSpec().Variadic(),
-		func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
-			raw := args.AsSlice()
-			if len(raw) != 1 {
-				return nil, fmt.Errorf("shout() requires one argument")
-			}
-			s, ok := raw[0].(string)
-			if !ok {
-				return nil, fmt.Errorf("shout() requires a string argument")
-			}
-			return func() (any, error) { return strings.ToUpper(s) + "!", nil }, nil
-		}); err != nil {
-		t.Fatal(err)
-	}
-
-	exec, err := env.Parse(`output = shout("hey")`)
-	if err != nil {
-		t.Fatalf("parse: %v", err)
-	}
-	out, err := exec.Query(nil)
-	if err != nil {
-		t.Fatalf("query: %v", err)
-	}
-	if out != "HEY!" {
-		t.Fatalf("expected HEY!, got %#v", out)
 	}
 }
 

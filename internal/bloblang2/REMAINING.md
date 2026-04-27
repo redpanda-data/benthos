@@ -8,14 +8,9 @@ Work outstanding to reach parity with the V1 integration in `public/service`.
 
 ## Schema generation
 
-- V2 equivalent of `stream_schema.expandBloblEnvWithSchema` — expose registered V2 functions/methods in generated schemas.
-- An introspection surface on `bloblangv2.Environment` to enumerate registered plugins (signatures, docs) for schema tooling.
+- Round-tripping V2 plugin specs through a serialised schema, equivalent to `expandBloblEnvWithSchema` for V1. `bloblangv2.PluginSpec` would need JSON encode/decode and a stub-registration path so a `LoadConfigSchemaFromJSON` consumer can lint configs against V2 plugins it does not implement. The encode side (enumeration via `Environment.WalkFunctions` / `WalkMethods` and embedding `bloblangv2.PluginInfo` in `schema.Full`) is wired; only the decode/stub path remains.
 
 ## Interpolated strings
 
 - V2 does not yet support interpolated string fields. `public/bloblangv2.Environment` has no `NewField` analog of the V1 surface, and `public/service/config_interpolated_string.go` still calls the V1 env only.
 - Out of scope for the initial V2 integration; design needed before wiring.
-
-## CLI surface
-
-- `internal/cli/studio/sync_schema.go` still builds the schema from the V1 env only. Extend once the V2 schema hook above exists.
