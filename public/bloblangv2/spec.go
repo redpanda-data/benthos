@@ -93,7 +93,6 @@ type PluginSpec struct {
 	version     string
 	impure      bool
 	params      []ParamDefinition
-	variadic    bool
 }
 
 // NewPluginSpec creates an empty plugin spec.
@@ -147,15 +146,13 @@ func (p *PluginSpec) Impure() *PluginSpec {
 	return p
 }
 
-// Variadic declares the plugin accepts an arbitrary number of positional
-// arguments. It is invalid to combine Variadic with Param.
-func (p *PluginSpec) Variadic() *PluginSpec {
-	p.variadic = true
-	return p
-}
-
 // Param appends a parameter to the plugin spec. Positional arguments must be
 // supplied in the order Param is called.
+//
+// Variadic plugins are intentionally not supported: the V2 specification
+// (sections 5.3, 10, 13) bounds arity by the declared parameter list — any
+// extra positional argument is an error. Plugin authors that need to accept
+// a list of values should declare a single array-typed parameter.
 func (p *PluginSpec) Param(d ParamDefinition) *PluginSpec {
 	p.params = append(p.params, d)
 	return p

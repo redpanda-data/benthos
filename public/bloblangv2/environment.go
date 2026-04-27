@@ -39,15 +39,15 @@ type Environment struct {
 }
 
 type pluginMethodReg struct {
-	spec     eval.MethodSpec
-	impure   bool
-	variadic bool
+	spec   eval.MethodSpec
+	info   PluginInfo
+	impure bool
 }
 
 type pluginFunctionReg struct {
-	spec     eval.FunctionSpec
-	impure   bool
-	variadic bool
+	spec   eval.FunctionSpec
+	info   PluginInfo
+	impure bool
 }
 
 // globalEnv is the default environment. Plugins registered via the
@@ -167,9 +167,6 @@ func (e *Environment) RegisterMethod(name string, spec *PluginSpec, ctor MethodC
 	if err := validatePluginName(name); err != nil {
 		return err
 	}
-	if spec.variadic && len(spec.params) > 0 {
-		return fmt.Errorf("method %q: a spec cannot be both Variadic() and declare Param() entries", name)
-	}
 	if spec.impure && e.onlyPure {
 		return fmt.Errorf("cannot register impure method %q in a pure-only environment", name)
 	}
@@ -188,7 +185,11 @@ func (e *Environment) RegisterMethod(name string, spec *PluginSpec, ctor MethodC
 	if e.pluginMethods == nil {
 		e.pluginMethods = make(map[string]pluginMethodReg)
 	}
-	e.pluginMethods[name] = pluginMethodReg{spec: methodSpec, impure: spec.impure, variadic: spec.variadic}
+	e.pluginMethods[name] = pluginMethodReg{
+		spec:   methodSpec,
+		info:   pluginInfoFromSpec(name, spec),
+		impure: spec.impure,
+	}
 	return nil
 }
 
@@ -201,9 +202,6 @@ func (e *Environment) RegisterFunction(name string, spec *PluginSpec, ctor Funct
 	}
 	if err := validatePluginName(name); err != nil {
 		return err
-	}
-	if spec.variadic && len(spec.params) > 0 {
-		return fmt.Errorf("function %q: a spec cannot be both Variadic() and declare Param() entries", name)
 	}
 	if spec.impure && e.onlyPure {
 		return fmt.Errorf("cannot register impure function %q in a pure-only environment", name)
@@ -223,8 +221,49 @@ func (e *Environment) RegisterFunction(name string, spec *PluginSpec, ctor Funct
 	if e.pluginFunctions == nil {
 		e.pluginFunctions = make(map[string]pluginFunctionReg)
 	}
-	e.pluginFunctions[name] = pluginFunctionReg{spec: funcSpec, impure: spec.impure, variadic: spec.variadic}
+	e.pluginFunctions[name] = pluginFunctionReg{
+		spec:   funcSpec,
+		info:   pluginInfoFromSpec(name, spec),
+		impure: spec.impure,
+	}
 	return nil
+}
+
+// WalkFunctions invokes fn for every user-registered function plugin on the
+// environment, in unspecified order. Standard library functions are not
+// included — V2 stdlib metadata lives in the language specification at
+// internal/bloblang2/spec rather than in runtime introspection.
+func (e *Environment) WalkFunctions(fn func(name string, view *FunctionView)) {
+	e.mu.RLock()
+	names := make([]string, 0, len(e.pluginFunctions))
+	infos := make(map[string]PluginInfo, len(e.pluginFunctions))
+	for name, reg := range e.pluginFunctions {
+		names = append(names, name)
+		infos[name] = reg.info
+	}
+	e.mu.RUnlock()
+	for _, name := range names {
+		view := &FunctionView{info: infos[name]}
+		fn(name, view)
+	}
+}
+
+// WalkMethods invokes fn for every user-registered method plugin on the
+// environment, in unspecified order. Standard library methods are not
+// included — see WalkFunctions for the reasoning.
+func (e *Environment) WalkMethods(fn func(name string, view *MethodView)) {
+	e.mu.RLock()
+	names := make([]string, 0, len(e.pluginMethods))
+	infos := make(map[string]PluginInfo, len(e.pluginMethods))
+	for name, reg := range e.pluginMethods {
+		names = append(names, name)
+		infos[name] = reg.info
+	}
+	e.mu.RUnlock()
+	for _, name := range names {
+		view := &MethodView{info: infos[name]}
+		fn(name, view)
+	}
 }
 
 func validatePluginName(name string) error {
@@ -400,10 +439,9 @@ func literalValue(lit *syntax.LiteralExpr) (any, error) {
 }
 
 // pluginParamsToMethodParams maps the public ParamDefinition slice onto the
-// internal MethodParam slice used by the resolver for arity checking. A
-// variadic spec yields nil params (equivalent to "no arity check").
+// internal MethodParam slice used by the resolver for arity checking.
 func pluginParamsToMethodParams(spec *PluginSpec) []eval.MethodParam {
-	if spec.variadic || len(spec.params) == 0 {
+	if len(spec.params) == 0 {
 		return nil
 	}
 	out := make([]eval.MethodParam, len(spec.params))
@@ -420,7 +458,7 @@ func pluginParamsToMethodParams(spec *PluginSpec) []eval.MethodParam {
 // pluginParamsToFunctionParams is the function analogue of
 // pluginParamsToMethodParams.
 func pluginParamsToFunctionParams(spec *PluginSpec) []eval.FunctionParam {
-	if spec.variadic || len(spec.params) == 0 {
+	if len(spec.params) == 0 {
 		return nil
 	}
 	out := make([]eval.FunctionParam, len(spec.params))
@@ -508,13 +546,7 @@ func (e *Environment) resolverInputs() (
 		delete(methodOpcodes, name)
 	}
 	for name, reg := range e.pluginFunctions {
-		info := eval.FunctionSpecToInfo(reg.spec)
-		if reg.variadic {
-			// FunctionInfo.Total == -1 disables resolver arity checking.
-			info.Total = -1
-			info.Required = 0
-		}
-		functions[name] = info
+		functions[name] = eval.FunctionSpecToInfo(reg.spec)
 		delete(functionOpcodes, name)
 	}
 

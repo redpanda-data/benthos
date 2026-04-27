@@ -20,15 +20,10 @@ type ParsedParams struct {
 
 // newParsedParams resolves raw positional arguments against a PluginSpec. It
 // applies defaults for missing optional parameters, validates types, and
-// rejects surplus arguments unless the spec is variadic.
+// rejects surplus arguments — V2 plugin signatures are always bounded by
+// their declared parameter list.
 func newParsedParams(spec *PluginSpec, rawArgs []any) (*ParsedParams, error) {
 	pp := &ParsedParams{spec: spec, raw: rawArgs}
-
-	if spec.variadic {
-		// Variadic plugins bypass named-parameter resolution entirely.
-		// Authors consume args through AsSlice.
-		return pp, nil
-	}
 
 	pp.byName = make(map[string]any, len(spec.params))
 	for i, p := range spec.params {
@@ -119,12 +114,6 @@ func coerceFloat64(v any) (float64, error) {
 		return float64(n), nil
 	}
 	return 0, fmt.Errorf("expected number, got %T", v)
-}
-
-// AsSlice returns the raw positional argument values. This is the primary
-// accessor for variadic plugins.
-func (p *ParsedParams) AsSlice() []any {
-	return p.raw
 }
 
 // Get returns the value associated with a named parameter. An error is

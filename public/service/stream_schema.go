@@ -20,6 +20,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/stream"
 	"github.com/redpanda-data/benthos/v4/internal/template"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 )
 
 // ConfigSchema contains the definitions of all config fields for the overall
@@ -204,21 +205,34 @@ func (s *ConfigSchema) MarshalJSONV0() ([]byte, error) {
 		methodDocs = append(methodDocs, spec)
 	})
 
+	var v2Functions []bloblangv2.PluginInfo
+	var v2Methods []bloblangv2.PluginInfo
+	if v2Env := s.env.getBloblangV2ParserEnv(); v2Env != nil {
+		v2Env.WalkFunctions(func(_ string, view *bloblangv2.FunctionView) {
+			v2Functions = append(v2Functions, view.Info())
+		})
+		v2Env.WalkMethods(func(_ string, view *bloblangv2.MethodView) {
+			v2Methods = append(v2Methods, view.Info())
+		})
+	}
+
 	iSchema := schema.Full{
-		Version:           s.version,
-		Date:              s.dateBuilt,
-		Config:            s.fields,
-		Buffers:           s.env.internal.BufferDocs(),
-		Caches:            s.env.internal.CacheDocs(),
-		Inputs:            s.env.internal.InputDocs(),
-		Outputs:           s.env.internal.OutputDocs(),
-		Processors:        s.env.internal.ProcessorDocs(),
-		RateLimits:        s.env.internal.RateLimitDocs(),
-		Metrics:           s.env.internal.MetricsDocs(),
-		Tracers:           s.env.internal.TracersDocs(),
-		Scanners:          s.env.internal.ScannerDocs(),
-		BloblangFunctions: functionDocs,
-		BloblangMethods:   methodDocs,
+		Version:             s.version,
+		Date:                s.dateBuilt,
+		Config:              s.fields,
+		Buffers:             s.env.internal.BufferDocs(),
+		Caches:              s.env.internal.CacheDocs(),
+		Inputs:              s.env.internal.InputDocs(),
+		Outputs:             s.env.internal.OutputDocs(),
+		Processors:          s.env.internal.ProcessorDocs(),
+		RateLimits:          s.env.internal.RateLimitDocs(),
+		Metrics:             s.env.internal.MetricsDocs(),
+		Tracers:             s.env.internal.TracersDocs(),
+		Scanners:            s.env.internal.ScannerDocs(),
+		BloblangFunctions:   functionDocs,
+		BloblangMethods:     methodDocs,
+		BloblangV2Functions: v2Functions,
+		BloblangV2Methods:   v2Methods,
 	}
 
 	return json.Marshal(iSchema)
