@@ -20,6 +20,40 @@ type PluginParamInfo struct {
 	Default any `json:"default,omitempty"`
 }
 
+// UnmarshalJSON normalises Default against Kind so that round-trip through
+// JSON preserves Go-typed semantics. encoding/json decodes every numeric
+// literal as float64; without this hook a parameter declared with
+// NewInt64Param("x").Default(int64(5)) would round-trip with Default of type
+// float64, leaving the typed Kind ("int64") inconsistent with the stored
+// value.
+func (p *PluginParamInfo) UnmarshalJSON(b []byte) error {
+	type alias PluginParamInfo
+	var a alias
+	if err := json.Unmarshal(b, &a); err != nil {
+		return err
+	}
+	a.Default = coerceDefaultByKind(a.Default, a.Kind)
+	*p = PluginParamInfo(a)
+	return nil
+}
+
+// coerceDefaultByKind brings a JSON-decoded default value back into the Go
+// type implied by the parameter's Kind. Only numeric kinds need coercion;
+// bool and string already round-trip with their declared types intact.
+func coerceDefaultByKind(v any, kind string) any {
+	switch kind {
+	case "int64":
+		if f, ok := v.(float64); ok {
+			return int64(f)
+		}
+	case "float64":
+		if f, ok := v.(float64); ok {
+			return f
+		}
+	}
+	return v
+}
+
 // PluginInfo is a JSON-serialisable description of a registered V2 method or
 // function. Use Environment.WalkMethods / Environment.WalkFunctions to obtain
 // these via the FunctionView / MethodView wrappers.
@@ -131,51 +165,64 @@ func paramKindToString(k paramKind) string {
 	}
 }
 
-func paramKindFromString(s string) paramKind {
-	switch s {
-	case "string":
-		return paramKindString
-	case "int64":
-		return paramKindInt64
-	case "float64":
-		return paramKindFloat64
-	case "bool":
-		return paramKindBool
-	default:
-		return paramKindAny
-	}
-}
-
 // NewPluginSpecFromInfo reconstructs a PluginSpec from a serialised PluginInfo
 // description. This is the reverse of the per-plugin information emitted by
 // Environment.WalkFunctions / WalkMethods and is intended for tooling that
 // loads schemas serialised from a separate process (e.g. a remote linter
 // rebuilding stub registrations from a JSON schema dump).
 //
-// Plugin spec fields that have no parse-time semantics (specifically the
-// concrete type of a parameter's stored default value) are preserved on a
-// best-effort basis only.
+// The reconstruction is performed exclusively through the public builder
+// chain (NewPluginSpec, NewStringParam / NewInt64Param / ..., Description,
+// Optional, Default, etc.) so that any validation enforced by those
+// constructors also applies to round-tripped specs. Unknown status strings
+// fall back to the default (stable) status.
 //
 // Experimental: this function is intended for tooling and may change without
 // notice.
 func NewPluginSpecFromInfo(info PluginInfo) *PluginSpec {
-	spec := &PluginSpec{
-		status:      pluginStatus(info.Status),
-		category:    info.Category,
-		description: info.Description,
-		version:     info.Version,
-		impure:      info.Impure,
+	spec := NewPluginSpec().
+		Description(info.Description).
+		Category(info.Category).
+		Version(info.Version)
+	if info.Impure {
+		spec = spec.Impure()
+	}
+	switch info.Status {
+	case string(statusExperimental):
+		spec = spec.Experimental()
+	case string(statusBeta):
+		spec = spec.Beta()
+	case string(statusDeprecated):
+		spec = spec.Deprecated()
 	}
 	for _, p := range info.Params {
-		def := ParamDefinition{
-			name:        p.Name,
-			description: p.Description,
-			kind:        paramKindFromString(p.Kind),
-			optional:    p.IsOptional,
-			hasDefault:  p.HasDefault,
-			defaultVal:  p.Default,
-		}
-		spec.params = append(spec.params, def)
+		spec = spec.Param(paramFromInfo(p))
 	}
 	return spec
+}
+
+func paramFromInfo(p PluginParamInfo) ParamDefinition {
+	var def ParamDefinition
+	switch p.Kind {
+	case "string":
+		def = NewStringParam(p.Name)
+	case "int64":
+		def = NewInt64Param(p.Name)
+	case "float64":
+		def = NewFloat64Param(p.Name)
+	case "bool":
+		def = NewBoolParam(p.Name)
+	default:
+		def = NewAnyParam(p.Name)
+	}
+	if p.Description != "" {
+		def = def.Description(p.Description)
+	}
+	switch {
+	case p.HasDefault:
+		def = def.Default(p.Default)
+	case p.IsOptional:
+		def = def.Optional()
+	}
+	return def
 }
