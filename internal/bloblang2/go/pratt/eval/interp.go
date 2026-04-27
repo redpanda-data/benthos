@@ -1370,7 +1370,16 @@ func (interp *Interpreter) evalPathExpr(e *syntax.PathExpr) any {
 				}
 				current = spec.LambdaFn(current, lambdaArgs)
 			} else {
-				args := interp.evalArgs(seg.Args)
+				var args []any
+				if seg.Named {
+					resolved := interp.resolveNamedPathArgs(seg, spec)
+					if IsError(resolved) {
+						return resolved
+					}
+					args = resolved.([]any)
+				} else {
+					args = interp.evalArgs(seg.Args)
+				}
 				for _, a := range args {
 					if IsError(a) {
 						return a
@@ -1459,6 +1468,21 @@ func (interp *Interpreter) resolveNamedMethodArgs(e *syntax.MethodCallExpr) any 
 		}
 	}
 	return interp.resolveNamedArgs(e.Args, params, "."+e.Method+"()")
+}
+
+// resolveNamedPathArgs is the path-expression analogue of
+// resolveNamedMethodArgs — it reorders named call arguments for a method
+// invoked through a path segment (e.g. `input.parse_csv(delimiter: "|")`).
+// Returns []any or an errorVal.
+func (interp *Interpreter) resolveNamedPathArgs(seg syntax.PathSegment, spec MethodSpec) any {
+	var params []namedArgParam
+	if spec.Params != nil {
+		params = make([]namedArgParam, len(spec.Params))
+		for i, p := range spec.Params {
+			params[i] = namedArgParam{Name: p.Name, Default: p.Default, HasDefault: p.HasDefault}
+		}
+	}
+	return interp.resolveNamedArgs(seg.Args, params, "."+seg.Name+"()")
 }
 
 // resolveNamedFuncArgs maps named arguments to positional using the function's
