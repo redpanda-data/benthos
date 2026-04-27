@@ -10,10 +10,11 @@ Deprecated V1 entries are excluded.
 
 ## Status legend
 
-- ✅ already in V2 (incl. batch 1 ports landed in `internal/impl/{pure,io}`)
-- 🟢 batch 1 — pure stdlib port, mechanical (now ✅ except `format`, see notes)
-- 🟡 batch 2 — array / object completeness
+- ✅ already in V2 (incl. batches 1 / 2 ports landed in `internal/impl/{pure,io}`)
+- 🟢 batch 1 — pure stdlib port, mechanical (now ✅ except `format`)
+- 🟡 batch 2 — array / object completeness (now ✅ except lambda-takers)
 - 🔴 batch 3 — pipeline-coupled, needs design
+- ⏸ blocked on a V2 plugin-API addition (see "Plugin lambda parameters" below)
 - ❌ V1-only by architectural choice; V2 won't port
 - ➕ V2-only addition (no V1 equivalent)
 
@@ -24,6 +25,31 @@ Deprecated V1 entries are excluded.
 > and V2 deliberately removed the variadic surface (see commit `d73db44a6`).
 > A V2 `format` would need to take a single array-typed argument; that's an
 > API redesign rather than a mechanical lift, so it stays open.
+
+> **Batch 2 mostly complete** — `find_all`, `index`, `not_empty`, `collapse`,
+> `key_values`, `enumerated`, `array`, `assign`, `exists`, `explode`, `get`,
+> `re_replace`, `re_find_object`, `re_find_all_object`, `re_find_all_submatch`
+> are all in. Three lambda-takers remain ⏸ (see "Plugin lambda parameters").
+
+## Plugin lambda parameters
+
+`bloblangv2.PluginSpec` currently only exposes typed value parameters
+(`NewStringParam`, `NewInt64Param`, etc.). It has no way to declare a
+parameter that accepts a lambda — the V2 stdlib's `filter` / `map` /
+`find` / `sort_by` / etc. all use `RegisterLambdaMethod` against an
+internal API that isn't reachable from public/bloblangv2.
+
+Three V1 methods are blocked on this gap and remain ⏸:
+
+- `find_by(lambda) → index`
+- `find_all_by(lambda) → array of indexes`
+- `map_each_key(lambda) → object`
+
+Adding lambda support is its own design task: extending the public
+PluginSpec with a `LambdaParam(name)` builder, surfacing the lambda
+through `ParsedParams` as a callable Go closure, and wiring the
+constructor path to invoke it. Once that lands these three are
+mechanical lifts.
 
 ## Architectural choices we are NOT porting
 
@@ -103,23 +129,23 @@ Deprecated V1 entries are excluded.
 | `all` | method | ✅ | |
 | `any` | method | ✅ | |
 | `append` | method | ✅ | |
-| `collapse` | method | 🟡 | |
+| `collapse` | method | ✅ | |
 | `contains` | method | ✅ | |
-| `enumerated` | method | 🟡 | V2 has `enumerate`; confirm shape parity. |
+| `enumerated` | method | ✅ | V2 has `enumerate`; confirm shape parity. |
 | `filter` | method | ✅ | |
-| `find` | method | ✅ | |
-| `find_all` | method | 🟡 | |
-| `find_all_by` | method | 🟡 | |
-| `find_by` | method | 🟡 | |
+| `find` | method | ✅ | V2's `index_of` covers V1 `find(value) → index`; V2's stdlib `find(lambda)` returns the matching element instead. |
+| `find_all` | method | ✅ | |
+| `find_all_by` | method | ⏸ | Lambda predicate; needs plugin lambda support. |
+| `find_by` | method | ⏸ | Lambda predicate; needs plugin lambda support. |
 | `flatten` | method | ✅ | |
 | `fold` | method | ✅ | |
-| `index` | method | 🟡 | |
-| `key_values` | method | 🟡 | |
+| `index` | method | ✅ | |
+| `key_values` | method | ✅ | |
 | `length` | method | ✅ | |
 | `map_each` | method | ❌ | V2 `map` covers it. |
 | `max` | method | ✅ | |
 | `min` | method | ✅ | |
-| `not_empty` | method | 🟡 | |
+| `not_empty` | method | ✅ | |
 | `slice` | method | ✅ | |
 | `sort` | method | ✅ | |
 | `sort_by` | method | ✅ | |
@@ -131,13 +157,13 @@ Deprecated V1 entries are excluded.
 
 | Name | Type | Status | Notes |
 |---|---|---|---|
-| `array` | method | 🟡 | |
-| `assign` | method | 🟡 | |
-| `exists` | method | 🟡 | |
-| `explode` | method | 🟡 | |
-| `get` | method | 🟡 | |
+| `array` | method | ✅ | |
+| `assign` | method | ✅ | |
+| `exists` | method | ✅ | |
+| `explode` | method | ✅ | |
+| `get` | method | ✅ | |
 | `keys` | method | ✅ | |
-| `map_each_key` | method | 🟡 | |
+| `map_each_key` | method | ⏸ | Lambda predicate; needs plugin lambda support. |
 | `merge` | method | ✅ | |
 | `values` | method | ✅ | |
 
@@ -146,11 +172,11 @@ Deprecated V1 entries are excluded.
 | Name | Type | Status | Notes |
 |---|---|---|---|
 | `re_find_all` | method | ✅ | |
-| `re_find_all_object` | method | 🟡 | |
-| `re_find_all_submatch` | method | 🟡 | |
-| `re_find_object` | method | 🟡 | |
+| `re_find_all_object` | method | ✅ | |
+| `re_find_all_submatch` | method | ✅ | |
+| `re_find_object` | method | ✅ | |
 | `re_match` | method | ✅ | |
-| `re_replace` | method | 🟡 | |
+| `re_replace` | method | ✅ | |
 | `re_replace_all` | method | ✅ | |
 
 ### Time
