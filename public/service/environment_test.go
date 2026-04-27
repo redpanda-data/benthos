@@ -232,6 +232,80 @@ logger:
 	assert.Equal(t, []string{expected}, received)
 }
 
+func TestEnvironmentBloblangV2LintFailsForBadMapping(t *testing.T) {
+	env := service.NewEnvironment()
+	require.NoError(t, env.RegisterProcessor(
+		"v2_lint_check",
+		service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping")),
+		func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+			_, err := conf.FieldBloblangV2("mapping")
+			return nil, err
+		},
+	))
+
+	badConfig := `
+pipeline:
+  processors:
+    - v2_lint_check:
+        mapping: 'output = nope('
+
+output:
+  drop: {}
+
+logger:
+  level: OFF
+`
+	err := env.NewStreamBuilder().SetYAML(badConfig)
+	require.Error(t, err, "lint pass should reject malformed V2 mappings at SetYAML time")
+	assert.Contains(t, err.Error(), "expected")
+}
+
+func TestEnvironmentBloblangV2LintRespectsCustomEnv(t *testing.T) {
+	bEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, bEnv.RegisterFunction("squeak", bloblangv2.NewPluginSpec(), func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+		return func() (any, error) { return "squeak", nil }, nil
+	}))
+
+	env := service.NewEnvironment()
+	env.UseBloblangV2Environment(bEnv)
+	require.NoError(t, env.RegisterProcessor(
+		"v2_lint_check",
+		service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping")),
+		func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+			_, err := conf.FieldBloblangV2("mapping")
+			return nil, err
+		},
+	))
+
+	goodConfig := `
+pipeline:
+  processors:
+    - v2_lint_check:
+        mapping: 'output = squeak()'
+
+output:
+  drop: {}
+
+logger:
+  level: OFF
+`
+	// The custom env knows squeak so SetYAML should accept the mapping. A
+	// fresh environment with the global V2 env would reject it during lint.
+	require.NoError(t, env.NewStreamBuilder().SetYAML(goodConfig))
+
+	plainEnv := service.NewEnvironment()
+	require.NoError(t, plainEnv.RegisterProcessor(
+		"v2_lint_check",
+		service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping")),
+		func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+			_, err := conf.FieldBloblangV2("mapping")
+			return nil, err
+		},
+	))
+	err := plainEnv.NewStreamBuilder().SetYAML(goodConfig)
+	require.Error(t, err, "lint should reject squeak() against the default V2 env")
+}
+
 func TestEnvironmentBloblangV2Isolation(t *testing.T) {
 	bEnv := bloblangv2.NewEmptyEnvironment()
 	require.NoError(t, bEnv.RegisterFunction("woof", bloblangv2.NewPluginSpec(), func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
@@ -279,17 +353,11 @@ logger:
 `
 
 	// envTwo has the default global V2 environment, which does not have
-	// "woof". Run must surface the parse error from the processor ctor.
+	// "woof". The lint pass at SetYAML time should reject the mapping.
 	builderTwo := envTwo.NewStreamBuilder()
-	require.NoError(t, builderTwo.SetYAML(mappingConfig))
-	strmTwo, err := builderTwo.Build()
-	require.NoError(t, err)
-
-	ctxTwo, cancelTwo := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancelTwo()
-	runErr := strmTwo.Run(ctxTwo)
-	require.Error(t, runErr)
-	assert.Contains(t, runErr.Error(), "woof")
+	err := builderTwo.SetYAML(mappingConfig)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "woof")
 
 	// envOne has a custom V2 env containing "woof". Run must succeed and the
 	// processor must rewrite messages to "woof".

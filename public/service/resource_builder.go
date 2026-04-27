@@ -80,6 +80,7 @@ func (r *ResourceBuilder) getLintContext() docs.LintContext {
 	conf := docs.NewLintConfig(r.env.internal)
 	conf.DocsProvider = r.env.internal
 	conf.BloblangEnv = r.env.bloblangEnv.Deactivated()
+	conf.BloblangV2Env = r.env.getBloblangV2ParserEnv()
 	return docs.NewLintContext(conf)
 }
 

@@ -108,6 +108,7 @@ func (s *StreamBuilder) getLintContext() docs.LintContext {
 	conf := docs.NewLintConfig(s.env.internal)
 	conf.DocsProvider = s.env.internal
 	conf.BloblangEnv = s.env.bloblangEnv.Deactivated()
+	conf.BloblangV2Env = s.env.getBloblangV2ParserEnv()
 	return docs.NewLintContext(conf)
 }
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/value"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 )
 
 // FieldType represents a field type.
@@ -115,6 +116,9 @@ type FieldSpec struct {
 	// Bloblang indicates that a string field is a Bloblang mapping.
 	Bloblang bool `json:"bloblang,omitempty"`
 
+	// BloblangV2 indicates that a string field is a Bloblang V2 mapping.
+	BloblangV2 bool `json:"bloblang_v2,omitempty"`
+
 	// Examples is a slice of optional example values for a field.
 	Examples []any `json:"examples,omitempty"`
 
@@ -151,6 +155,12 @@ func (f FieldSpec) IsInterpolated() FieldSpec {
 // IsBloblang indicates that the field is a Bloblang mapping.
 func (f FieldSpec) IsBloblang() FieldSpec {
 	f.Bloblang = true
+	return f
+}
+
+// IsBloblangV2 indicates that the field is a Bloblang V2 mapping.
+func (f FieldSpec) IsBloblangV2() FieldSpec {
+	f.BloblangV2 = true
 	return f
 }
 
@@ -464,6 +474,18 @@ func (f FieldSpec) GetLintFunc() LintFunc {
 			fn = LintBloblangMapping
 		}
 	}
+	if f.BloblangV2 {
+		if fn != nil {
+			innerFn := fn
+			fn = func(ctx LintContext, line, col int, value any) []Lint {
+				lints := innerFn(ctx, line, col, value)
+				moreLints := LintBloblangV2Mapping(ctx, line, col, value)
+				return append(lints, moreLints...)
+			}
+		} else {
+			fn = LintBloblangV2Mapping
+		}
+	}
 	return fn
 }
 
@@ -492,6 +514,12 @@ func FieldInterpolatedString(name, description string, examples ...any) FieldSpe
 // Bloblang mapping.
 func FieldBloblang(name, description string, examples ...any) FieldSpec {
 	return newField(name, description, examples...).HasType(FieldTypeString).IsBloblang()
+}
+
+// FieldBloblangV2 returns a field spec for a string typed field containing a
+// Bloblang V2 mapping.
+func FieldBloblangV2(name, description string, examples ...any) FieldSpec {
+	return newField(name, description, examples...).HasType(FieldTypeString).IsBloblangV2()
 }
 
 // FieldInt returns a field spec for a common int typed field.
@@ -679,6 +707,10 @@ type LintConfig struct {
 	// Provides an isolated context for Bloblang parsing.
 	BloblangEnv *bloblang.Environment
 
+	// Provides the registry used to parse Bloblang V2 mapping fields. V2
+	// parsing is side-effect free so this does not need a deactivated mode.
+	BloblangV2Env *bloblangv2.Environment
+
 	// Reject any deprecated components or fields as linting errors.
 	RejectDeprecated bool
 
@@ -692,8 +724,9 @@ type LintConfig struct {
 // NewLintConfig creates a default linting config.
 func NewLintConfig(prov Provider) LintConfig {
 	return LintConfig{
-		DocsProvider: prov,
-		BloblangEnv:  bloblang.GlobalEnvironment().Deactivated(),
+		DocsProvider:  prov,
+		BloblangEnv:   bloblang.GlobalEnvironment().Deactivated(),
+		BloblangV2Env: bloblangv2.GlobalEnvironment(),
 	}
 }
 

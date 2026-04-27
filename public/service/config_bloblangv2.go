@@ -12,12 +12,13 @@ import (
 
 // NewBloblangV2Field defines a new config field that describes a Bloblang V2
 // mapping string. A *bloblangv2.Executor can then be extracted from the parsed
-// config via FieldBloblangV2.
+// config via FieldBloblangV2, and the field is parsed at lint time so syntax
+// errors surface during config load rather than at component construction.
 //
 // Bloblang V2 is a separate language from V1 with its own parser and plugin
 // registry; see public/bloblangv2 for details.
 func NewBloblangV2Field(name string) *ConfigField {
-	tf := docs.FieldString(name, "")
+	tf := docs.FieldBloblangV2(name, "")
 	return &ConfigField{field: tf}
 }
 
