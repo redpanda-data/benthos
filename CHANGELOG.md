@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Schema: Added a `Decimal` common type carrying precision and scale via a new `LogicalParams` struct, enabling lossless conversion between Avro, Parquet, and database `NUMBER`/`NUMERIC` decimals. Includes `NewDecimal`, `FormatDecimal`/`ParseDecimal`, and `DecimalParams.Format`/`Parse`/`ValidateValue` helpers, plus a `Common.Validate` entry point. (@Jeffail)
+
 ## 4.70.0 - 2026-04-02
 
 ### Added
