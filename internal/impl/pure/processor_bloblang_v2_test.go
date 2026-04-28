@@ -3,6 +3,7 @@
 package pure
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -131,6 +132,67 @@ func TestBloblangV2ProcessorMetadataCopyThrough(t *testing.T) {
 	v, ok = out.MetaGetMut("added")
 	require.True(t, ok)
 	assert.Equal(t, "new", v)
+}
+
+func TestBloblangV2ProcessorBatchPositionAndContent(t *testing.T) {
+	proc := parseBloblangV2Proc(t, `|
+  output.idx = batch_index()
+  output.size = batch_size()
+  output.raw = content().string()
+`)
+	t.Cleanup(func() { _ = proc.Close(t.Context()) })
+
+	msgs := service.MessageBatch{
+		service.NewMessage([]byte(`{"v":1}`)),
+		service.NewMessage([]byte(`{"v":2}`)),
+		service.NewMessage([]byte(`{"v":3}`)),
+	}
+
+	batches, err := proc.ProcessBatch(t.Context(), msgs)
+	require.NoError(t, err)
+	require.Len(t, batches, 1)
+	require.Len(t, batches[0], 3)
+
+	for i, m := range batches[0] {
+		got, err := m.AsStructured()
+		require.NoError(t, err)
+		out := got.(map[string]any)
+		assert.Equal(t, int64(i), out["idx"], "batch_index for message %d", i)
+		assert.Equal(t, int64(3), out["size"], "batch_size")
+		assert.NotEmpty(t, out["raw"], "content() should expose raw bytes")
+	}
+}
+
+func TestBloblangV2ProcessorErrorIntrospection(t *testing.T) {
+	proc := parseBloblangV2Proc(t, `|
+  output.failed = errored()
+  output.err = error()
+`)
+	t.Cleanup(func() { _ = proc.Close(t.Context()) })
+
+	clean := service.NewMessage(nil)
+	clean.SetStructured(map[string]any{"x": 1})
+
+	bad := service.NewMessage(nil)
+	bad.SetStructured(map[string]any{"x": 2})
+	bad.SetError(errors.New("kapow"))
+
+	batches, err := proc.ProcessBatch(t.Context(), service.MessageBatch{clean, bad})
+	require.NoError(t, err)
+	require.Len(t, batches, 1)
+	require.Len(t, batches[0], 2)
+
+	cleanOut, err := batches[0][0].AsStructured()
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"failed": false, "err": nil}, cleanOut)
+
+	badOut, err := batches[0][1].AsStructured()
+	require.NoError(t, err)
+	badMap := badOut.(map[string]any)
+	assert.Equal(t, true, badMap["failed"])
+	errObj, ok := badMap["err"].(map[string]any)
+	require.True(t, ok, "error() should resolve to a structured object")
+	assert.Equal(t, "kapow", errObj["what"])
 }
 
 func TestBloblangV2ProcessorParseErrorAtConstruction(t *testing.T) {

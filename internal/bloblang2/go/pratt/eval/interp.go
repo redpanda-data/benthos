@@ -45,6 +45,12 @@ type Interpreter struct {
 	staticFunctions map[string]FunctionSpec
 	lambdaMethods   map[string]MethodSpec
 
+	// messageCtx is bound for the duration of a single RunWithMessage
+	// call. Message-coupled stdlib functions (batch_index, content,
+	// error, ...) read from it; calls from the plain Run path see a
+	// nil context and return a runtime error.
+	messageCtx MessageContext
+
 	// lambdaTable is the opcode-indexed dispatch table for lambda methods.
 	// Indexed by (opcode - lambdaOpcodeBase).
 	lambdaTable []MethodSpec
@@ -98,9 +104,17 @@ type FunctionFunc func(args []any) any
 
 // FunctionSpec bundles a function implementation with its behavioral metadata.
 type FunctionSpec struct {
-	Fn       FunctionFunc
-	PluginFn pluginFunctionFunc // plugin dispatch with interp + AST args (mutually exclusive with Fn)
-	Params   []FunctionParam    // for compile-time arity checking
+	Fn        FunctionFunc
+	PluginFn  pluginFunctionFunc  // plugin dispatch with interp + AST args (mutually exclusive with Fn / MessageFn)
+	MessageFn MessageFunctionFunc // message-coupled dispatch (mutually exclusive with Fn / PluginFn)
+	// RequiresMessageContext is set automatically when MessageFn is
+	// provided. The flag is surfaced on FunctionInfo for tooling
+	// (schema dumps, linters) and drives the dispatch-time check that
+	// the interpreter has a MessageContext bound. Folding bypass is
+	// implicit: MessageFn functions have no Fn for the resolver to
+	// fold against.
+	RequiresMessageContext bool
+	Params                 []FunctionParam // for compile-time arity checking
 	// ArgFolder, if set, is surfaced on the FunctionInfo so the resolver
 	// runs parse-time folding on literal arguments. See syntax.ArgFolder.
 	ArgFolder syntax.ArgFolder
@@ -199,6 +213,9 @@ func (interp *Interpreter) RegisterMethod(name string, spec MethodSpec) {
 func (interp *Interpreter) RegisterFunction(name string, spec FunctionSpec) {
 	if interp.staticFunctions == nil {
 		interp.staticFunctions = make(map[string]FunctionSpec)
+	}
+	if spec.MessageFn != nil {
+		spec.RequiresMessageContext = true
 	}
 	interp.staticFunctions[name] = spec
 }
@@ -959,6 +976,16 @@ func (interp *Interpreter) evalCall(e *syntax.CallExpr) any {
 			if IsError(a) {
 				return a
 			}
+		}
+		// Message-coupled functions read from the bound MessageContext.
+		// If none is bound (the mapping was run via Run instead of
+		// RunWithMessage) the call is a hard runtime error rather than
+		// a silent null fallback.
+		if spec.MessageFn != nil {
+			if interp.messageCtx == nil {
+				return NewError(fmt.Sprintf("function %s requires a message context, but Run was called without one", e.Name))
+			}
+			return spec.MessageFn(interp.messageCtx, args)
 		}
 		return spec.Fn(args)
 	}
@@ -1943,6 +1970,25 @@ type runtimeError struct {
 }
 
 type recursionError struct{}
+
+// RunWithMessage is Run plus a bound MessageContext, used by callers
+// that need the message-coupled stdlib (batch_index, content, error,
+// ...). Input value and metadata are taken from the context; the
+// context is cleared before returning so it is not retained in the
+// pooled interpreter.
+func (interp *Interpreter) RunWithMessage(ctx MessageContext) (output any, outputMeta map[string]any, deleted bool, err error) {
+	interp.messageCtx = ctx
+	defer func() { interp.messageCtx = nil }()
+	var meta map[string]any
+	if ctx != nil {
+		meta = ctx.Metadata()
+	}
+	var input any
+	if ctx != nil {
+		input = ctx.Input()
+	}
+	return interp.Run(input, meta)
+}
 
 // Run executes the program with panic recovery, converting runtime panics
 // to error returns.

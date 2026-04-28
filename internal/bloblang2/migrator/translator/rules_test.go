@@ -276,6 +276,54 @@ var ruleCases = []ruleCase{
 	},
 
 	// -----------------------------------------------------------------
+	// Batch 3 — message-coupled stdlib (P8 migrator coverage).
+	// -----------------------------------------------------------------
+	{
+		name:      `metadata("k") rewrites to input@["k"]`,
+		v1:        `root = metadata("region")`,
+		wantV2:    []string{"input@", `["region"]`},
+		wantRules: []translator.RuleID{translator.RuleMetaReadToInputMeta},
+	},
+	{
+		name:      "metadata() with no arg rewrites to input@",
+		v1:        `root = metadata()`,
+		wantV2:    []string{"input@"},
+		wantRules: []translator.RuleID{translator.RuleMetaReadToInputMeta},
+	},
+	{
+		name:      `meta("k") rewrites to input@["k"] with type-change Note`,
+		v1:        `root = meta("region")`,
+		wantV2:    []string{"input@", `["region"]`},
+		wantRules: []translator.RuleID{translator.RuleMetaReadToInputMeta},
+	},
+	{
+		name:      `root_meta("k") rewrites to output@["k"]`,
+		v1:        `root.copy = root_meta("audit")`,
+		wantV2:    []string{"output@", `["audit"]`},
+		wantRules: []translator.RuleID{translator.RuleMetaReadToInputMeta},
+	},
+	{
+		name:   "error() rewrites to error().what",
+		v1:     `root.failed = error()`,
+		wantV2: []string{"error()", ".what"},
+	},
+	{
+		name:   "errored() passes through",
+		v1:     `root.failed = errored()`,
+		wantV2: []string{"errored()"},
+	},
+	{
+		name:   "batch_index() passes through",
+		v1:     `root.idx = batch_index()`,
+		wantV2: []string{"batch_index()"},
+	},
+	{
+		name:   "content() passes through",
+		v1:     `root.bytes = content()`,
+		wantV2: []string{"content()"},
+	},
+
+	// -----------------------------------------------------------------
 	// Maps and imports.
 	// -----------------------------------------------------------------
 	{

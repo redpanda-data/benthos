@@ -576,6 +576,9 @@ func (t *translator) translateFunctionCall(f *v1ast.FunctionCall) syntax.Expr {
 			Name:     "void",
 		}
 	}
+	if rewritten := t.functionRewrite(f); rewritten != nil {
+		return rewritten
+	}
 	args := t.translateArgs(f.Args)
 	t.rec.Exact()
 	return &syntax.CallExpr{
@@ -583,6 +586,147 @@ func (t *translator) translateFunctionCall(f *v1ast.FunctionCall) syntax.Expr {
 		Name:     f.Name,
 		Args:     args,
 		Named:    f.Named,
+	}
+}
+
+// functionRewrite handles V1→V2 function-shape translations. Returns a
+// non-nil V2 expression on success or nil to fall through to the
+// default 1:1 translation. Rules ordered by V1 function name.
+func (t *translator) functionRewrite(f *v1ast.FunctionCall) syntax.Expr {
+	switch f.Name {
+	case "metadata", "meta":
+		return t.metadataReadToInputMeta(f)
+	case "root_meta":
+		return t.rootMetaReadToOutputMeta(f)
+	case "error":
+		return t.errorStringToErrorWhat(f)
+	case "error_source_label", "error_source_name", "error_source_path":
+		t.rec.Note(Change{
+			Line: f.NamePos.Line, Column: f.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 " + f.Name + "() has no V2 equivalent in this iteration; V2's structured error() will surface source.* fields in a future revision",
+		})
+		return nil
+	case "json":
+		t.rec.Note(Change{
+			Line: f.NamePos.Line, Column: f.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 json(path) is not auto-rewritten; V2 exposes the parsed body as `input` directly (or use `content().parse_json()` to re-parse from bytes)",
+		})
+		return nil
+	}
+	return nil
+}
+
+// metadataReadToInputMeta rewrites V1 `metadata("k")` / `meta("k")` to V2
+// `input@["k"]`, and the no-arg form `metadata()` to V2 `input@` (the
+// whole metadata object).
+//
+// V1 `meta` returned strings only; V2 `input@` is value-typed. Flag the
+// difference as a Note so callers that compared against string literals
+// audit the rewrite.
+func (t *translator) metadataReadToInputMeta(f *v1ast.FunctionCall) syntax.Expr {
+	if len(f.Args) > 1 {
+		return nil
+	}
+	if len(f.Args) == 0 {
+		t.rec.Rewritten(Change{
+			Line: f.NamePos.Line, Column: f.NamePos.Column,
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID:      RuleMetaReadToInputMeta,
+			Explanation: "V1 " + f.Name + "() rewritten as V2 `input@`",
+		})
+		return &syntax.InputMetaExpr{TokenPos: pos(f.NamePos)}
+	}
+	key := t.translateExpr(f.Args[0].Value)
+	if key == nil {
+		return nil
+	}
+	t.rec.Rewritten(Change{
+		Line: f.NamePos.Line, Column: f.NamePos.Column,
+		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+		RuleID:      RuleMetaReadToInputMeta,
+		Explanation: "V1 " + f.Name + "(key) rewritten as V2 `input@[key]`",
+	})
+	if f.Name == "meta" {
+		t.rec.Note(Change{
+			Line: f.NamePos.Line, Column: f.NamePos.Column,
+			Severity: SeverityInfo, Category: CategorySemanticChange,
+			RuleID:      RuleMetaReadToInputMeta,
+			Explanation: "V1 meta() returned strings only; V2 `input@` exposes the value-typed entry — comparisons against bare string literals may diverge",
+		})
+	}
+	return &syntax.IndexExpr{
+		Receiver:    &syntax.InputMetaExpr{TokenPos: pos(f.NamePos)},
+		Index:       key,
+		LBracketPos: pos(f.NamePos),
+	}
+}
+
+// rootMetaReadToOutputMeta rewrites V1 `root_meta("k")` to V2
+// `output@["k"]` and the no-arg form to V2 `output@`.
+func (t *translator) rootMetaReadToOutputMeta(f *v1ast.FunctionCall) syntax.Expr {
+	if len(f.Args) > 1 {
+		return nil
+	}
+	if len(f.Args) == 0 {
+		t.rec.Rewritten(Change{
+			Line: f.NamePos.Line, Column: f.NamePos.Column,
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID:      RuleMetaReadToInputMeta,
+			Explanation: "V1 root_meta() rewritten as V2 `output@`",
+		})
+		return &syntax.OutputMetaExpr{TokenPos: pos(f.NamePos)}
+	}
+	key := t.translateExpr(f.Args[0].Value)
+	if key == nil {
+		return nil
+	}
+	t.rec.Rewritten(Change{
+		Line: f.NamePos.Line, Column: f.NamePos.Column,
+		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+		RuleID:      RuleMetaReadToInputMeta,
+		Explanation: "V1 root_meta(key) rewritten as V2 `output@[key]`",
+	})
+	return &syntax.IndexExpr{
+		Receiver:    &syntax.OutputMetaExpr{TokenPos: pos(f.NamePos)},
+		Index:       key,
+		LBracketPos: pos(f.NamePos),
+	}
+}
+
+// errorStringToErrorWhat rewrites V1 `error()` (which returned a string,
+// or null when no error) to V2 `error().what` (V2's error() returns a
+// structured object `{what: string}` or null). The rewrite preserves
+// the V1 string-typed callsite for comparisons / concatenations; a Note
+// flags the type change for code that branches on the raw form.
+func (t *translator) errorStringToErrorWhat(f *v1ast.FunctionCall) syntax.Expr {
+	if len(f.Args) > 0 {
+		return nil
+	}
+	t.rec.Rewritten(Change{
+		Line: f.NamePos.Line, Column: f.NamePos.Column,
+		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+		RuleID:      RuleMethodDoesNotExist,
+		Explanation: "V1 error() returned a string; V2 returns `{what: string}` — call site rewritten as `error().what` to preserve the string-valued contract",
+	})
+	t.rec.Note(Change{
+		Line: f.NamePos.Line, Column: f.NamePos.Column,
+		Severity: SeverityInfo, Category: CategorySemanticChange,
+		RuleID:      RuleMethodDoesNotExist,
+		Explanation: "V2 error() is structured; future iterations will add source.label / source.name / source.path fields",
+	})
+	call := &syntax.CallExpr{
+		TokenPos: pos(f.NamePos),
+		Name:     "error",
+	}
+	return &syntax.FieldAccessExpr{
+		Receiver: call,
+		Field:    "what",
+		FieldPos: pos(f.NamePos),
+		NullSafe: true,
 	}
 }
 
