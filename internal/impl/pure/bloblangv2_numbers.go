@@ -67,6 +67,66 @@ func init() {
 			Param(bloblangv2.NewFloat64Param("default").Description("Value returned when coercion fails.").Optional()),
 		numberCoerceV2Ctor,
 	)
+
+	bloblangv2.MustRegisterMethod("pow",
+		bloblangv2.NewPluginSpec().
+			Category("Numbers").
+			Description("Returns the receiver raised to the specified exponent.").
+			Param(bloblangv2.NewFloat64Param("exponent").Description("The exponent to raise the receiver to.")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			exp, err := args.GetFloat64("exponent")
+			if err != nil {
+				return nil, err
+			}
+			return bloblangv2.Float64Method(func(base float64) (any, error) {
+				return math.Pow(base, exp), nil
+			}), nil
+		},
+	)
+
+	bloblangv2.MustRegisterMethod("sin",
+		bloblangv2.NewPluginSpec().
+			Category("Numbers").
+			Description("Calculates the sine of the receiver, interpreted as an angle in radians."),
+		func(_ *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			return bloblangv2.Float64Method(func(f float64) (any, error) {
+				return math.Sin(f), nil
+			}), nil
+		},
+	)
+
+	bloblangv2.MustRegisterMethod("cos",
+		bloblangv2.NewPluginSpec().
+			Category("Numbers").
+			Description("Calculates the cosine of the receiver, interpreted as an angle in radians."),
+		func(_ *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			return bloblangv2.Float64Method(func(f float64) (any, error) {
+				return math.Cos(f), nil
+			}), nil
+		},
+	)
+
+	bloblangv2.MustRegisterMethod("tan",
+		bloblangv2.NewPluginSpec().
+			Category("Numbers").
+			Description("Calculates the tangent of the receiver, interpreted as an angle in radians."),
+		func(_ *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			return bloblangv2.Float64Method(func(f float64) (any, error) {
+				return math.Tan(f), nil
+			}), nil
+		},
+	)
+
+	bloblangv2.MustRegisterFunction("pi",
+		bloblangv2.NewPluginSpec().
+			Category("Numbers").
+			Description("Returns the value of the mathematical constant Pi."),
+		func(_ *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+			return func() (any, error) {
+				return math.Pi, nil
+			}, nil
+		},
+	)
 }
 
 func bitwiseV2Ctor(op func(a, b int64) int64) bloblangv2.MethodConstructor {

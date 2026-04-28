@@ -33,6 +33,34 @@ func TestBloblangV2Bitwise(t *testing.T) {
 	}
 }
 
+func TestBloblangV2MathPlugins(t *testing.T) {
+	t.Run("pi", func(t *testing.T) {
+		got := runBloblangV2(t, `output = pi()`, nil)
+		assert.InDelta(t, math.Pi, got, 1e-12)
+	})
+	t.Run("pow", func(t *testing.T) {
+		got := runBloblangV2(t, `output = input.pow(3.0)`, float64(2))
+		assert.InDelta(t, 8.0, got, 1e-12)
+	})
+	t.Run("sin", func(t *testing.T) {
+		got := runBloblangV2(t, `output = input.sin()`, float64(0))
+		assert.InDelta(t, 0.0, got, 1e-12)
+	})
+	t.Run("cos zero", func(t *testing.T) {
+		got := runBloblangV2(t, `output = input.cos()`, float64(0))
+		assert.InDelta(t, 1.0, got, 1e-12)
+	})
+	t.Run("tan pi/4", func(t *testing.T) {
+		got := runBloblangV2(t, `output = input.tan()`, math.Pi/4)
+		assert.InDelta(t, 1.0, got, 1e-12)
+	})
+	t.Run("trig composition", func(t *testing.T) {
+		// sin^2 + cos^2 = 1
+		got := runBloblangV2(t, `output = input.sin().pow(2.0) + input.cos().pow(2.0)`, math.Pi/3)
+		assert.InDelta(t, 1.0, got, 1e-12)
+	})
+}
+
 func TestBloblangV2Logarithms(t *testing.T) {
 	got := runBloblangV2(t, `output = input.log()`, math.E)
 	if got.(float64) < 0.99 || got.(float64) > 1.01 {

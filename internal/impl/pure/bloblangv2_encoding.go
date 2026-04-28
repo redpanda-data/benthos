@@ -12,6 +12,7 @@ import (
 	"hash"
 	"hash/crc32"
 	"hash/fnv"
+	"net/url"
 	"strconv"
 
 	"github.com/OneOfOne/xxhash"
@@ -40,6 +41,66 @@ func init() {
 			Description(`Returns a deterministic UUID v5 derived from the receiver string and a namespace. The namespace may be one of "dns", "url", "oid", "x500", or any RFC-9562 UUID. Empty / unset uses the nil namespace.`).
 			Param(bloblangv2.NewStringParam("ns").Description("Namespace name or UUID.").Default("")),
 		uuidV5V2Ctor,
+	)
+
+	bloblangv2.MustRegisterMethod("compress",
+		bloblangv2.NewPluginSpec().
+			Category("Encoding").
+			Description("Compresses the receiver bytes using the named algorithm and returns the compressed bytes. Supported algorithms: flate, gzip, pgzip, lz4, snappy, zlib, zstd.").
+			Param(bloblangv2.NewStringParam("algorithm").Description("The compression algorithm.")).
+			Param(bloblangv2.NewInt64Param("level").Description("Compression level (-1 selects the algorithm default).").Default(int64(-1))),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			algStr, err := args.GetString("algorithm")
+			if err != nil {
+				return nil, err
+			}
+			level, err := args.GetInt64("level")
+			if err != nil {
+				return nil, err
+			}
+			algFn, err := strToCompressFunc(algStr)
+			if err != nil {
+				return nil, err
+			}
+			return bloblangv2.BytesMethod(func(data []byte) (any, error) {
+				return algFn(int(level), data)
+			}), nil
+		},
+	)
+
+	bloblangv2.MustRegisterMethod("decompress",
+		bloblangv2.NewPluginSpec().
+			Category("Encoding").
+			Description("Decompresses the receiver bytes using the named algorithm and returns the decompressed bytes. Supported algorithms: gzip, pgzip, zlib, bzip2, flate, snappy, lz4, zstd.").
+			Param(bloblangv2.NewStringParam("algorithm").Description("The decompression algorithm.")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			algStr, err := args.GetString("algorithm")
+			if err != nil {
+				return nil, err
+			}
+			algFn, err := strToDecompressFunc(algStr)
+			if err != nil {
+				return nil, err
+			}
+			return bloblangv2.BytesMethod(func(data []byte) (any, error) {
+				return algFn(data)
+			}), nil
+		},
+	)
+
+	bloblangv2.MustRegisterMethod("parse_form_url_encoded",
+		bloblangv2.NewPluginSpec().
+			Category("Parsing").
+			Description("Parses a url-encoded query string (e.g. an x-www-form-urlencoded request body) and returns an object. Repeated keys are surfaced as arrays."),
+		func(_ *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			return bloblangv2.StringMethod(func(s string) (any, error) {
+				values, err := url.ParseQuery(s)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse value as url-encoded data: %w", err)
+				}
+				return urlValuesToMap(values), nil
+			}), nil
+		},
 	)
 }
 

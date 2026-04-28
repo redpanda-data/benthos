@@ -68,3 +68,26 @@ func TestBloblangV2UUIDV5DefaultNamespace(t *testing.T) {
 	got := runBloblangV2(t, `output = input.uuid_v5()`, "example")
 	assert.Equal(t, "feb54431-301b-52bb-a6dd-e1e93e81bb9e", got)
 }
+
+func TestBloblangV2CompressDecompressRoundTrip(t *testing.T) {
+	for _, algo := range []string{"gzip", "zlib", "flate", "snappy", "lz4"} {
+		t.Run(algo, func(t *testing.T) {
+			mapping := `output = input.bytes().compress("` + algo + `").decompress("` + algo + `").string()`
+			got := runBloblangV2(t, mapping, "hello world I love space")
+			assert.Equal(t, "hello world I love space", got)
+		})
+	}
+}
+
+func TestBloblangV2ParseFormURLEncoded(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = input.parse_form_url_encoded()`,
+		"noise=meow&animal=cat&fur=orange&fur=fluffy",
+	)
+	want := map[string]any{
+		"noise":  "meow",
+		"animal": "cat",
+		"fur":    []any{"orange", "fluffy"},
+	}
+	assert.Equal(t, want, got)
+}
