@@ -63,6 +63,7 @@ package schema
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -384,6 +385,12 @@ func anyIntField(obj map[string]any, key string) (int32, error) {
 			return 0, fmt.Errorf("field `%s` must be an integer, got %v", key, n)
 		}
 		return int32Bounded(int64(n), key)
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0, fmt.Errorf("field `%s` must be an integer, got %v", key, n)
+		}
+		return int32Bounded(i, key)
 	default:
 		return 0, fmt.Errorf("expected field `%s` of integer type, got %T", key, v)
 	}

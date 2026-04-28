@@ -3,6 +3,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -22,6 +23,17 @@ func inferFromAny(name string, v any) (Common, error) {
 		c.Type = Float32
 	case float64:
 		c.Type = Float64
+	case json.Number:
+		// json.Number is produced by json.Decoder.UseNumber(); it has no
+		// int-vs-float discriminator, so try integer parsing first and fall
+		// back to float.
+		if _, err := t.Int64(); err == nil {
+			c.Type = Int64
+		} else if _, err := t.Float64(); err == nil {
+			c.Type = Float64
+		} else {
+			return c, fmt.Errorf(" json.Number value %q is not parseable as int64 or float64", string(t))
+		}
 	case []byte:
 		c.Type = ByteArray
 	case string:
@@ -71,7 +83,10 @@ func inferFromAny(name string, v any) (Common, error) {
 // InferFromAny attempts to infer a common schema from any Go value. This
 // process fails if the value, or any children of a provided map/slice, are not
 // within the following subset of Go types: bool, int, int32, int64, float32,
-// float64, []byte, string, map[string]any, []any.
+// float64, [encoding/json.Number], []byte, string, map[string]any, []any.
+//
+// [encoding/json.Number] values are inferred as Int64 when they parse as an
+// integer and as Float64 otherwise.
 //
 // Parameterised logical types (e.g. Decimal) cannot be inferred from generic Go
 // values and must be constructed explicitly.

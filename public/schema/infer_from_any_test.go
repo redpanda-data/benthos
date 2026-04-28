@@ -3,6 +3,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -119,6 +120,25 @@ func TestFromAnySchema(t *testing.T) {
 				"hello world", "this", 10, "is wrong",
 			},
 			ErrContains: "mismatched array types",
+		},
+		{
+			Name:  "json.Number integer",
+			Input: json.Number("12345"),
+			Output: Common{
+				Type: Int64,
+			},
+		},
+		{
+			Name:  "json.Number float",
+			Input: json.Number("1.5"),
+			Output: Common{
+				Type: Float64,
+			},
+		},
+		{
+			Name:        "json.Number invalid",
+			Input:       json.Number("not-a-number"),
+			ErrContains: "not parseable as int64 or float64",
 		},
 	} {
 		t.Run(test.Name, func(t *testing.T) {
