@@ -343,33 +343,40 @@ var ruleCases = []ruleCase{
 		wantV2:    []string{".zip(", "[", "]"},
 		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
 	},
+	{
+		name:      `variadic .format(a, b) -> .format([a, b])`,
+		v1:        `root.s = "%s/%v".format(this.name, this.age)`,
+		wantV2:    []string{".format(", "[", "]"},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+	},
 
 	// -----------------------------------------------------------------
 	// Timestamp idiom shifts: V1 function-form -> V2 method-form.
 	// -----------------------------------------------------------------
 	{
-		name:      "format_timestamp(fmt, ts) -> ts.ts_format(fmt)",
-		v1:        `root.iso = format_timestamp("2006-01-02", this.t)`,
-		wantV2:    []string{".ts_format(", `"2006-01-02"`},
-		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+		name:   "ts.format_timestamp_strftime(fmt) -> ts.ts_format(fmt)",
+		v1:     `root.iso = this.t.format_timestamp_strftime("%Y-%m-%d")`,
+		wantV2: []string{".ts_format(", `"%Y-%m-%d"`},
 	},
 	{
-		name:      "parse_timestamp_strptime(fmt, str) -> str.ts_parse(fmt)",
-		v1:        `root.t = parse_timestamp_strptime("%Y-%m-%d", this.s)`,
-		wantV2:    []string{".ts_parse(", `"%Y-%m-%d"`},
-		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+		name:   "ts.format_timestamp(fmt) flagged but not auto-rewritten",
+		v1:     `root.iso = this.t.format_timestamp("2006-01-02")`,
+		wantV2: []string{".format_timestamp("},
 	},
 	{
-		name:      "format_timestamp_unix(ts) -> ts.ts_unix()",
-		v1:        `root.epoch = format_timestamp_unix(this.t)`,
-		wantV2:    []string{".ts_unix()"},
-		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+		name:   "str.parse_timestamp_strptime(fmt) -> str.ts_parse(fmt)",
+		v1:     `root.t = this.s.parse_timestamp_strptime("%Y-%m-%d")`,
+		wantV2: []string{".ts_parse(", `"%Y-%m-%d"`},
 	},
 	{
-		name:      "format_timestamp_unix_milli(ts) -> ts.ts_unix_milli()",
-		v1:        `root.epoch_ms = format_timestamp_unix_milli(this.t)`,
-		wantV2:    []string{".ts_unix_milli()"},
-		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+		name:   "ts.format_timestamp_unix() -> ts.ts_unix()",
+		v1:     `root.epoch = this.t.format_timestamp_unix()`,
+		wantV2: []string{".ts_unix()"},
+	},
+	{
+		name:   "ts.format_timestamp_unix_milli() -> ts.ts_unix_milli()",
+		v1:     `root.epoch_ms = this.t.format_timestamp_unix_milli()`,
+		wantV2: []string{".ts_unix_milli()"},
 	},
 	{
 		name:   "ts_strftime method renamed to ts_format",

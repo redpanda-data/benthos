@@ -42,6 +42,43 @@ type v1Runner struct {
 	exec *mapping.Executor
 }
 
+// NewV1Runner is the exported wrapper around newV1Runner so tests in
+// other packages can stand up a V1 evaluator with the benchmark
+// harness's exact configuration (custom-importer threading included).
+func NewV1Runner(src string, files map[string]string) (*V1Runner, error) {
+	r, err := newV1Runner(src, files)
+	if err != nil {
+		return nil, err
+	}
+	return &V1Runner{inner: r}, nil
+}
+
+// V1Runner is the public handle returned by NewV1Runner. Exec runs the
+// compiled V1 mapping against input + input metadata.
+type V1Runner struct{ inner *v1Runner }
+
+// Exec runs the V1 mapping against input + metadata.
+func (r *V1Runner) Exec(input any, meta map[string]any) (any, error) {
+	return r.inner.Exec(input, meta)
+}
+
+// NewV2Runner is the exported wrapper around newV2Runner.
+func NewV2Runner(src string) (*V2Runner, error) {
+	r, err := newV2Runner(src)
+	if err != nil {
+		return nil, err
+	}
+	return &V2Runner{inner: r}, nil
+}
+
+// V2Runner is the public handle returned by NewV2Runner.
+type V2Runner struct{ inner *v2Runner }
+
+// Exec runs the V2 mapping against input + metadata.
+func (r *V2Runner) Exec(input any, meta map[string]any) (any, error) {
+	return r.inner.Exec(input, meta)
+}
+
 // newV1Runner compiles a V1 mapping. The import map is threaded through
 // the default bloblang environment's custom importer so corpus cases
 // with `import "foo"` work.

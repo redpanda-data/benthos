@@ -187,6 +187,26 @@ func init() {
 			}), nil
 		},
 	)
+
+	bloblangv2.MustRegisterMethod("format",
+		bloblangv2.NewPluginSpec().
+			Category("Strings").
+			Description(`Formats the receiver string with Go's printf-style verbs (%s, %d, %v, ...) using the supplied argument array. V2 takes a single array argument because variadic parameters are not part of the V2 spec.`).
+			Param(bloblangv2.NewAnyParam("args").Description("Array of arguments to substitute into the format verbs.")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			raw, err := args.Get("args")
+			if err != nil {
+				return nil, err
+			}
+			vals, ok := raw.([]any)
+			if !ok {
+				return nil, fmt.Errorf("expected an array of format arguments, got %T", raw)
+			}
+			return bloblangv2.StringMethod(func(format string) (any, error) {
+				return fmt.Sprintf(format, vals...), nil
+			}), nil
+		},
+	)
 }
 
 func replaceAllV2Ctor(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {

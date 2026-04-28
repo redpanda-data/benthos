@@ -161,3 +161,18 @@ func TestBloblangV2StringPluginsRejectNonString(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "string")
 }
+
+func TestBloblangV2FormatPrintf(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = "%s(%v): %v".format([input.name, input.age, input.fingers])`,
+		map[string]any{"name": "lance", "age": int64(37), "fingers": int64(13)},
+	)
+	assert.Equal(t, "lance(37): 13", got)
+}
+
+func TestBloblangV2FormatRejectsNonArray(t *testing.T) {
+	exec, err := bloblangv2.GlobalEnvironment().Parse(`output = "%s".format(input)`)
+	require.NoError(t, err)
+	_, qerr := exec.Query("not-an-array")
+	require.Error(t, qerr)
+}

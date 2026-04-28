@@ -616,82 +616,8 @@ func (t *translator) functionRewrite(f *v1ast.FunctionCall) syntax.Expr {
 			Explanation: "V1 json(path) is not auto-rewritten; V2 exposes the parsed body as `input` directly (or use `content().parse_json()` to re-parse from bytes)",
 		})
 		return nil
-	case "format_timestamp", "format_timestamp_strftime":
-		// V1: format_timestamp(format, ts) -> V2: ts.ts_format(format).
-		return t.timestampFunctionToMethod(f, "ts_format", true)
-	case "parse_timestamp", "parse_timestamp_strptime":
-		// V1: parse_timestamp(format, str) -> V2: str.ts_parse(format).
-		return t.timestampFunctionToMethod(f, "ts_parse", true)
-	case "format_timestamp_unix":
-		return t.timestampUnaryFunctionToMethod(f, "ts_unix")
-	case "format_timestamp_unix_milli":
-		return t.timestampUnaryFunctionToMethod(f, "ts_unix_milli")
-	case "format_timestamp_unix_micro":
-		return t.timestampUnaryFunctionToMethod(f, "ts_unix_micro")
-	case "format_timestamp_unix_nano":
-		return t.timestampUnaryFunctionToMethod(f, "ts_unix_nano")
 	}
 	return nil
-}
-
-// timestampFunctionToMethod rewrites V1 two-arg `name(format, target)` (or
-// `name(target, format)` when formatFirst is false) function calls into
-// the V2 method-form `target.<v2Name>(format)`. Used for the V1
-// format_timestamp / parse_timestamp families.
-func (t *translator) timestampFunctionToMethod(f *v1ast.FunctionCall, v2Name string, formatFirst bool) syntax.Expr {
-	if len(f.Args) != 2 {
-		return nil
-	}
-	var formatArg, targetArg v1ast.Expr
-	if formatFirst {
-		formatArg, targetArg = f.Args[0].Value, f.Args[1].Value
-	} else {
-		targetArg, formatArg = f.Args[0].Value, f.Args[1].Value
-	}
-	target := t.translateExpr(targetArg)
-	if target == nil {
-		return nil
-	}
-	format := t.translateExpr(formatArg)
-	if format == nil {
-		return nil
-	}
-	t.rec.Rewritten(Change{
-		Line: f.NamePos.Line, Column: f.NamePos.Column,
-		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
-		RuleID:      RuleMethodDoesNotExist,
-		Explanation: "V1 " + f.Name + "(...) rewritten as V2 receiver." + v2Name + "(format)",
-	})
-	return &syntax.MethodCallExpr{
-		Receiver:  target,
-		Method:    v2Name,
-		MethodPos: pos(f.NamePos),
-		Args:      []syntax.CallArg{{Value: format}},
-	}
-}
-
-// timestampUnaryFunctionToMethod rewrites V1 single-arg `name(ts)`
-// function calls into the V2 method-form `ts.<v2Name>()`. Used for the
-// V1 format_timestamp_unix family.
-func (t *translator) timestampUnaryFunctionToMethod(f *v1ast.FunctionCall, v2Name string) syntax.Expr {
-	if len(f.Args) != 1 {
-		return nil
-	}
-	target := t.translateExpr(f.Args[0].Value)
-	if target == nil {
-		return nil
-	}
-	t.rec.Rewritten(Change{
-		Line: f.NamePos.Line, Column: f.NamePos.Column,
-		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
-		RuleID:      RuleMethodDoesNotExist,
-		Explanation: "V1 " + f.Name + "(ts) rewritten as V2 ts." + v2Name + "()",
-	})
-	return &syntax.MethodCallExpr{
-		Receiver:  target,
-		Method:    v2Name,
-		MethodPos: pos(f.NamePos),
-	}
 }
 
 // metadataReadToInputMeta rewrites V1 `metadata("k")` / `meta("k")` to V2

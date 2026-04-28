@@ -81,7 +81,7 @@ Plumbing sketch:
 | `escape_url_query` | method | ✅ | |
 | `filepath_join` | method | ✅ | Path manipulation — pure, no FS access. |
 | `filepath_split` | method | ✅ | |
-| `format` | method | ⏸ | printf-style; V1 was variadic. V2 dropped variadic — port needs an array-param API redesign. |
+| `format` | method | ✅ | V2 takes a single array argument (`"%s".format([args])`); migrator rewrites V1 variadic callsites. |
 | `parse_form_url_encoded` | method | ✅ | |
 | `has_prefix` | method | ✅ | |
 | `has_suffix` | method | ✅ | |
@@ -201,7 +201,9 @@ Plumbing sketch:
 | `ts_sub` | method | ✅ | |
 | `ts_tz` | method | ✅ | |
 | `ts_unix` / `_milli` / `_micro` / `_nano` | method | ✅ | |
-| `format_timestamp*` / `parse_timestamp*` | function | ✅ | V2 surface is the method form (`ts.ts_format(...)`, `str.ts_parse(...)`). Migrator rewrites V1 function-form callsites. |
+| `format_timestamp_strftime` / `parse_timestamp_strptime` | method | ✅ | Migrator renames to V2 `ts_format` / `ts_parse` (both V1 and V2 use strftime / strptime). |
+| `format_timestamp_unix` / `_milli` / `_micro` / `_nano` | method | ✅ | Migrator renames to V2 `ts_unix` / `_milli` / `_micro` / `_nano`. |
+| `format_timestamp` / `parse_timestamp` | method | ⏸ | V1 uses Go's reference-time layout; V2 `ts_format` / `ts_parse` use strftime/strptime exclusively. Migrator emits a Note pointing at the strftime variant — manual format-string conversion required. |
 | `ts_strftime` / `ts_strptime` | method | ✅ | V2 has `ts_format` / `ts_parse`; migrator renames V1 callsites. |
 
 ### Encoding / parsing
@@ -281,6 +283,12 @@ Functions: `day`, `hour`, `minute`, `random_int`, `range`, `second`,
 
 Open follow-ups in the V1 → V2 migrator:
 
+- V1 `.format_timestamp(fmt)` / `.parse_timestamp(fmt)` — V1 uses
+  Go's reference-time layout, V2's `ts_format` / `ts_parse` use
+  strftime/strptime. The format strings are not interchangeable, so
+  the migrator can't safely auto-rename. A future enhancement could
+  translate the format string at migrate time. For now, a Note
+  points the user at the strftime-variant V1 method.
 - V1 `error_source_label()` / `_name()` / `_path()` — no V2
   equivalent yet; revisit once `error()` grows the structured
   `source.*` fields (deferred from batch 3).
