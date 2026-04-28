@@ -5,6 +5,7 @@ package schema
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 )
@@ -166,6 +167,14 @@ func parseCanonicalDecimal(s string) (sign, intPart, fracPart string, err error)
 	}
 	if err := requireDigits(fracPart); err != nil {
 		return "", "", "", err
+	}
+
+	// Cap the fractional length so callers downstream can safely cast it to
+	// the int32 scale type without silent wrap-around. The integer part is
+	// not bounded here — its length only feeds big.Int.SetString, which
+	// handles arbitrary lengths correctly (if slowly).
+	if len(fracPart) > math.MaxInt32 {
+		return "", "", "", fmt.Errorf("decimal string has %d fractional digits, exceeds maximum %d", len(fracPart), math.MaxInt32)
 	}
 
 	return sign, intPart, fracPart, nil
