@@ -82,15 +82,36 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	// ----- Variadic .with(...) and .zip(...) follow the same pattern.
 	case "with", "zip":
 		return t.variadicArgsToArray(m, recv, m.Name)
+	// ----- V1 `.format(a, b, ...)` (variadic) -> V2 `.format([a, b, ...])`.
+	case "format":
+		return t.variadicArgsToArray(m, recv, "format")
 
-	// ----- V1 timestamp method renames: ts_strftime → ts_format,
-	//       ts_strptime → ts_parse. V2's ts_format/ts_parse already
-	//       accept strftime/strptime format strings, so the rewrite is
-	//       a pure rename.
-	case "ts_strftime":
+	// ----- V1 timestamp method renames.
+	// V2 ts_format / ts_parse use strftime/strptime exclusively, so V1
+	// callsites that already use the strftime/strptime variants rename
+	// directly. The V1 Go-layout variants (`format_timestamp`,
+	// `parse_timestamp`) cannot be auto-rewritten because V2 has no
+	// Go-layout method — flag with a Note instead.
+	case "ts_strftime", "format_timestamp_strftime":
 		return t.simpleRename(m, recv, "ts_format")
-	case "ts_strptime":
+	case "ts_strptime", "parse_timestamp_strptime":
 		return t.simpleRename(m, recv, "ts_parse")
+	case "format_timestamp", "parse_timestamp":
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 ." + m.Name + "() uses Go's reference-time layout; V2 ts_format / ts_parse use strftime/strptime — convert the format string and rename to ." + map[string]string{"format_timestamp": "ts_format", "parse_timestamp": "ts_parse"}[m.Name] + "() manually",
+		})
+		return nil
+	case "format_timestamp_unix":
+		return t.simpleRename(m, recv, "ts_unix")
+	case "format_timestamp_unix_milli":
+		return t.simpleRename(m, recv, "ts_unix_milli")
+	case "format_timestamp_unix_micro":
+		return t.simpleRename(m, recv, "ts_unix_micro")
+	case "format_timestamp_unix_nano":
+		return t.simpleRename(m, recv, "ts_unix_nano")
 
 	// ----- .find(value) -> .index_of(value) -----
 	case "find":
