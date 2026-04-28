@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 
+	tracing "github.com/redpanda-data/benthos/v4/internal/tracing/v2"
 	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 	"github.com/redpanda-data/benthos/v4/public/service"
 )
@@ -86,7 +87,8 @@ type bloblangV2Proc struct {
 
 func (p *bloblangV2Proc) ProcessBatch(_ context.Context, batch service.MessageBatch) ([]service.MessageBatch, error) {
 	newBatch := make(service.MessageBatch, 0, len(batch))
-	for _, msg := range batch {
+	batchSize := len(batch)
+	for i, msg := range batch {
 		input, err := messageInputValue(msg)
 		if err != nil {
 			newMsg := msg.Copy()
@@ -102,7 +104,14 @@ func (p *bloblangV2Proc) ProcessBatch(_ context.Context, batch service.MessageBa
 			return nil
 		})
 
-		output, outputMeta, err := p.exec.QueryMetadata(input, inputMeta)
+		ctx := &messageContext{
+			msg:        msg,
+			input:      input,
+			meta:       inputMeta,
+			batchIndex: i,
+			batchSize:  batchSize,
+		}
+		output, outputMeta, err := p.exec.QueryMessage(ctx)
 		if err != nil {
 			if errors.Is(err, bloblangv2.ErrRootDeleted) {
 				continue
@@ -159,4 +168,37 @@ func messageInputValue(msg *service.Message) (any, error) {
 		return nil, err
 	}
 	return b, nil
+}
+
+// messageContext is the adapter that exposes a service.Message + its
+// position within a batch through the bloblangv2.MessageContext
+// surface. The bundled batch-3 stdlib (batch_index, content, error,
+// tracing_id, ...) reads from this adapter.
+type messageContext struct {
+	msg        *service.Message
+	input      any
+	meta       map[string]any
+	batchIndex int
+	batchSize  int
+}
+
+func (c *messageContext) Input() any               { return c.input }
+func (c *messageContext) Metadata() map[string]any { return c.meta }
+func (c *messageContext) BatchIndex() int          { return c.batchIndex }
+func (c *messageContext) BatchSize() int           { return c.batchSize }
+func (c *messageContext) Error() error             { return c.msg.GetError() }
+func (c *messageContext) TraceID() string          { return tracing.GetTraceID(c.msg) }
+func (c *messageContext) Span() any {
+	if s := tracing.GetSpan(c.msg); s != nil {
+		return s
+	}
+	return nil
+}
+
+func (c *messageContext) Bytes() []byte {
+	b, err := c.msg.AsBytes()
+	if err != nil {
+		return nil
+	}
+	return b
 }

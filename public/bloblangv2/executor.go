@@ -64,6 +64,29 @@ func (e *Executor) QueryMetadata(input any, inputMeta map[string]any) (any, map[
 	return e.query(input, inputMeta)
 }
 
+// QueryMessage executes the mapping with a bound MessageContext, making
+// the message-coupled stdlib (batch_index, content, error, ...)
+// available to the mapping. Input value and input metadata are taken
+// from the context.
+//
+// Mappings that reference message-coupled functions but are run via
+// Query / QueryMetadata (no bound context) produce a runtime error;
+// QueryMessage is the path callers wire when they have a pipeline
+// message in hand.
+func (e *Executor) QueryMessage(ctx MessageContext) (any, map[string]any, error) {
+	interp := e.pool.Get().(*eval.Interpreter)
+	defer e.pool.Put(interp)
+
+	output, outputMeta, deleted, err := interp.RunWithMessage(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if deleted {
+		return nil, nil, ErrRootDeleted
+	}
+	return output, outputMeta, nil
+}
+
 func (e *Executor) query(input any, inputMeta map[string]any) (any, map[string]any, error) {
 	interp := e.pool.Get().(*eval.Interpreter)
 	defer e.pool.Put(interp)

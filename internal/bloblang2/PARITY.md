@@ -214,11 +214,11 @@ Plumbing sketch:
 |---|---|---|---|
 | `catch` | method | ✅ | |
 | `deleted` | function | ✅ | |
-| `error` | function | 🔴 | Pipeline-level error introspection. |
-| `error_source_label` | function | 🔴 | |
-| `error_source_name` | function | 🔴 | |
-| `error_source_path` | function | 🔴 | |
-| `errored` | function | 🔴 | |
+| `error` | function | ✅ | V2 returns structured `{what: string}` (was string in V1); migrator rewrites V1 `error()` → V2 `error().what`. |
+| `error_source_label` | function | ❌ | V1 backwards-compat workaround; V2 surfaces source.* on the structured `error()` object in a future iteration. |
+| `error_source_name` | function | ❌ | See `error_source_label`. |
+| `error_source_path` | function | ❌ | See `error_source_label`. |
+| `errored` | function | ✅ | |
 | `not_null` | method | ✅ | |
 | `or` | method | ✅ | |
 | `throw` | function | ✅ | |
@@ -227,13 +227,15 @@ Plumbing sketch:
 
 | Name | Type | Status | Notes |
 |---|---|---|---|
-| `batch_index` | function | 🔴 | V2 spec doesn't define batches. Needs design. |
-| `batch_size` | function | 🔴 | |
-| `content` | function | 🔴 | V2 has `input` for this; possibly redundant. |
-| `json` | function | 🔴 | Same — `input` covers most use cases. |
-| `metadata` | function | 🔴 | V2 has `input@.key` for reads. |
-| `tracing_id` | function | 🔴 | Reads runtime tracer context. |
-| `tracing_span` | function | 🔴 | |
+| `batch_index` | function | ✅ | Bound via `Executor.QueryMessage(MessageContext)`. |
+| `batch_size` | function | ✅ | |
+| `content` | function | ✅ | Returns the raw bytes via `MessageContext.Bytes()`. |
+| `json` | function | ❌ | Redundant in V2 — `input` is the parsed body; `content().parse_json()` re-parses from bytes. Migrator emits a Note. |
+| `metadata` | function | ❌ | Redundant in V2 — `input@[key]` covers the read form. Migrator rewrites `metadata()` / `metadata("k")` to `input@` / `input@["k"]`. |
+| `meta` | function | ❌ | V1's string-only metadata reader; replaced by V2 `input@`. Migrator rewrites with a type-change Note. |
+| `root_meta` | function | ❌ | Redundant in V2 — `output@[key]` covers the read form. Migrator rewrites accordingly. |
+| `tracing_id` | function | ✅ | Backed by `MessageContext.TraceID()`. |
+| `tracing_span` | function | ✅ | Backed by `MessageContext.Span()`. |
 
 ### V2-only additions (➕)
 

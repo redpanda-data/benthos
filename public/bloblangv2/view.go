@@ -58,13 +58,20 @@ func coerceDefaultByKind(v any, kind string) any {
 // function. Use Environment.WalkMethods / Environment.WalkFunctions to obtain
 // these via the FunctionView / MethodView wrappers.
 type PluginInfo struct {
-	Name        string            `json:"name"`
-	Status      string            `json:"status,omitempty"`
-	Category    string            `json:"category,omitempty"`
-	Description string            `json:"description,omitempty"`
-	Version     string            `json:"version,omitempty"`
-	Impure      bool              `json:"impure,omitempty"`
-	Params      []PluginParamInfo `json:"params,omitempty"`
+	Name        string `json:"name"`
+	Status      string `json:"status,omitempty"`
+	Category    string `json:"category,omitempty"`
+	Description string `json:"description,omitempty"`
+	Version     string `json:"version,omitempty"`
+	Impure      bool   `json:"impure,omitempty"`
+	// RequiresMessageContext signals that the function reads from a
+	// pipeline message (batch position, content bytes, error, tracing).
+	// Such functions only resolve when the executor is run via
+	// Executor.QueryMessage; calls from a plain Query / QueryMetadata
+	// path produce a runtime error. Tooling (linters, docs generators)
+	// can use the flag to gate suggestions.
+	RequiresMessageContext bool              `json:"requires_message_context,omitempty"`
+	Params                 []PluginParamInfo `json:"params,omitempty"`
 }
 
 // FunctionView describes a V2 function plugin registered against an
@@ -130,12 +137,13 @@ func pluginInfoFromSpec(name string, spec *PluginSpec) PluginInfo {
 		return PluginInfo{Name: name}
 	}
 	info := PluginInfo{
-		Name:        name,
-		Status:      string(spec.status),
-		Category:    spec.category,
-		Description: spec.description,
-		Version:     spec.version,
-		Impure:      spec.impure,
+		Name:                   name,
+		Status:                 string(spec.status),
+		Category:               spec.category,
+		Description:            spec.description,
+		Version:                spec.version,
+		Impure:                 spec.impure,
+		RequiresMessageContext: spec.requiresMessageContext,
 	}
 	for _, p := range spec.params {
 		info.Params = append(info.Params, PluginParamInfo{
@@ -188,6 +196,9 @@ func NewPluginSpecFromInfo(info PluginInfo) *PluginSpec {
 		Version(info.Version)
 	if info.Impure {
 		spec = spec.Impure()
+	}
+	if info.RequiresMessageContext {
+		spec.requiresMessageContext = true
 	}
 	switch info.Status {
 	case string(statusExperimental):

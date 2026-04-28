@@ -352,6 +352,8 @@ func (interp *Interpreter) registerFunctions() {
 			{Name: "timezone", HasDefault: true, Default: "UTC"},
 		},
 	})
+
+	interp.registerMessageFunctions()
 }
 
 func (interp *Interpreter) registerMethods() {

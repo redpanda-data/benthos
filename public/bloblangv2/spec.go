@@ -101,12 +101,13 @@ func (d ParamDefinition) Default(v any) ParamDefinition {
 // PluginSpec describes the signature and documentation of a plugin method or
 // function. Build with NewPluginSpec, then chain Param, Description, etc.
 type PluginSpec struct {
-	status      pluginStatus
-	category    string
-	description string
-	version     string
-	impure      bool
-	params      []ParamDefinition
+	status                 pluginStatus
+	category               string
+	description            string
+	version                string
+	impure                 bool
+	requiresMessageContext bool
+	params                 []ParamDefinition
 }
 
 // NewPluginSpec creates an empty plugin spec.
