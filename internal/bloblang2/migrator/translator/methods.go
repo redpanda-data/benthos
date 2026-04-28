@@ -78,7 +78,19 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 
 	// ----- Variadic .without("a","b","c") -> .without(["a","b","c"]) -----
 	case "without":
-		return t.withoutVariadicToArray(m, recv)
+		return t.variadicArgsToArray(m, recv, "without")
+	// ----- Variadic .with(...) and .zip(...) follow the same pattern.
+	case "with", "zip":
+		return t.variadicArgsToArray(m, recv, m.Name)
+
+	// ----- V1 timestamp method renames: ts_strftime → ts_format,
+	//       ts_strptime → ts_parse. V2's ts_format/ts_parse already
+	//       accept strftime/strptime format strings, so the rewrite is
+	//       a pure rename.
+	case "ts_strftime":
+		return t.simpleRename(m, recv, "ts_format")
+	case "ts_strptime":
+		return t.simpleRename(m, recv, "ts_parse")
 
 	// ----- .find(value) -> .index_of(value) -----
 	case "find":
@@ -344,14 +356,17 @@ func (t *translator) indexToBracket(m *v1ast.MethodCall, recv syntax.Expr) synta
 	}
 }
 
-// withoutVariadicToArray rewrites V1 `.without("a", "b", "c")` (variadic) to
-// V2 `.without(["a", "b", "c"])` (single array argument). V2 rejects the
-// variadic form at compile time.
-func (t *translator) withoutVariadicToArray(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
-	// If there's already a single array argument, pass through.
+// variadicArgsToArray rewrites V1 variadic-style method calls
+// `.NAME(a, b, c)` into V2 `.NAME([a, b, c])`. Used for V1 methods whose
+// V2 counterpart was redefined to take a single array argument now that
+// V2 rejects variadic plugins at compile time (without, with, zip).
+//
+// If the V1 call already passes a single array literal the rewrite is a
+// no-op rename.
+func (t *translator) variadicArgsToArray(m *v1ast.MethodCall, recv syntax.Expr, name string) syntax.Expr {
 	if len(m.Args) == 1 {
 		if _, ok := m.Args[0].Value.(*v1ast.ArrayLit); ok {
-			return t.simpleRename(m, recv, "without")
+			return t.simpleRename(m, recv, name)
 		}
 	}
 	elems := make([]syntax.Expr, 0, len(m.Args))
@@ -366,11 +381,11 @@ func (t *translator) withoutVariadicToArray(m *v1ast.MethodCall, recv syntax.Exp
 		Line: m.NamePos.Line, Column: m.NamePos.Column,
 		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
 		RuleID:      RuleMethodDoesNotExist,
-		Explanation: "V1 variadic .without(...) rewritten as V2 .without([...])",
+		Explanation: "V1 variadic ." + name + "(...) rewritten as V2 ." + name + "([...])",
 	})
 	return &syntax.MethodCallExpr{
 		Receiver:  recv,
-		Method:    "without",
+		Method:    name,
 		MethodPos: pos(m.NamePos),
 		Args: []syntax.CallArg{{
 			Value: &syntax.ArrayLiteral{LBracketPos: pos(m.NamePos), Elements: elems},

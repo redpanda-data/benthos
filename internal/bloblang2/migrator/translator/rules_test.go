@@ -324,6 +324,65 @@ var ruleCases = []ruleCase{
 	},
 
 	// -----------------------------------------------------------------
+	// Variadic→array rewrites for V2 (with / zip mirror without).
+	// -----------------------------------------------------------------
+	{
+		name:      `variadic .with("a","b") -> .with(["a","b"])`,
+		v1:        `root = this.with("a", "b")`,
+		wantV2:    []string{".with(", `"a"`, `"b"`, "[", "]"},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+	},
+	{
+		name:   `single-array .with([...]) passes through`,
+		v1:     `root = this.with(["a", "b"])`,
+		wantV2: []string{".with([", `"a"`, `"b"`, "])"},
+	},
+	{
+		name:      `variadic .zip(a, b) -> .zip([a, b])`,
+		v1:        `root.foo = this.foo.zip(this.bar, this.baz)`,
+		wantV2:    []string{".zip(", "[", "]"},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+	},
+
+	// -----------------------------------------------------------------
+	// Timestamp idiom shifts: V1 function-form -> V2 method-form.
+	// -----------------------------------------------------------------
+	{
+		name:      "format_timestamp(fmt, ts) -> ts.ts_format(fmt)",
+		v1:        `root.iso = format_timestamp("2006-01-02", this.t)`,
+		wantV2:    []string{".ts_format(", `"2006-01-02"`},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+	},
+	{
+		name:      "parse_timestamp_strptime(fmt, str) -> str.ts_parse(fmt)",
+		v1:        `root.t = parse_timestamp_strptime("%Y-%m-%d", this.s)`,
+		wantV2:    []string{".ts_parse(", `"%Y-%m-%d"`},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+	},
+	{
+		name:      "format_timestamp_unix(ts) -> ts.ts_unix()",
+		v1:        `root.epoch = format_timestamp_unix(this.t)`,
+		wantV2:    []string{".ts_unix()"},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+	},
+	{
+		name:      "format_timestamp_unix_milli(ts) -> ts.ts_unix_milli()",
+		v1:        `root.epoch_ms = format_timestamp_unix_milli(this.t)`,
+		wantV2:    []string{".ts_unix_milli()"},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
+	},
+	{
+		name:   "ts_strftime method renamed to ts_format",
+		v1:     `root.iso = this.t.ts_strftime("2006-01-02")`,
+		wantV2: []string{".ts_format(", `"2006-01-02"`},
+	},
+	{
+		name:   "ts_strptime method renamed to ts_parse",
+		v1:     `root.t = this.s.ts_strptime("%Y-%m-%d")`,
+		wantV2: []string{".ts_parse(", `"%Y-%m-%d"`},
+	},
+
+	// -----------------------------------------------------------------
 	// Maps and imports.
 	// -----------------------------------------------------------------
 	{
