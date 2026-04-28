@@ -160,6 +160,48 @@ func TestFingerprint(t *testing.T) {
 			},
 			shouldMatch: false,
 		},
+		{
+			name: "identical decimal params",
+			schema1: Common{
+				Type:    Decimal,
+				Name:    "amount",
+				Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 18, Scale: 4}},
+			},
+			schema2: Common{
+				Type:    Decimal,
+				Name:    "amount",
+				Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 18, Scale: 4}},
+			},
+			shouldMatch: true,
+		},
+		{
+			name: "different decimal precision",
+			schema1: Common{
+				Type:    Decimal,
+				Name:    "amount",
+				Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 18, Scale: 4}},
+			},
+			schema2: Common{
+				Type:    Decimal,
+				Name:    "amount",
+				Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 20, Scale: 4}},
+			},
+			shouldMatch: false,
+		},
+		{
+			name: "different decimal scale",
+			schema1: Common{
+				Type:    Decimal,
+				Name:    "amount",
+				Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 18, Scale: 4}},
+			},
+			schema2: Common{
+				Type:    Decimal,
+				Name:    "amount",
+				Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 18, Scale: 6}},
+			},
+			shouldMatch: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -215,27 +257,38 @@ func TestFingerprintDeterministic(t *testing.T) {
 }
 
 func TestFingerprintAllTypes(t *testing.T) {
-	types := []CommonType{
-		Boolean, Int32, Int64, Float32, Float64,
-		String, ByteArray, Object, Map, Array,
-		Null, Union, Timestamp, Any,
+	schemas := []Common{
+		{Type: Boolean, Name: "test"},
+		{Type: Int32, Name: "test"},
+		{Type: Int64, Name: "test"},
+		{Type: Float32, Name: "test"},
+		{Type: Float64, Name: "test"},
+		{Type: String, Name: "test"},
+		{Type: ByteArray, Name: "test"},
+		{Type: Object, Name: "test"},
+		{Type: Map, Name: "test"},
+		{Type: Array, Name: "test"},
+		{Type: Null, Name: "test"},
+		{Type: Union, Name: "test"},
+		{Type: Timestamp, Name: "test"},
+		{Type: Any, Name: "test"},
+		{Type: Decimal, Name: "test", Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 10, Scale: 2}}},
 	}
 
 	fingerprints := make(map[string]CommonType)
 
-	for _, typ := range types {
-		schema := Common{Type: typ, Name: "test"}
+	for _, schema := range schemas {
 		fp := schema.fingerprint()
 
 		if fp == "" {
-			t.Errorf("fingerprint for type %v should not be empty", typ)
+			t.Errorf("fingerprint for type %v should not be empty", schema.Type)
 		}
 
 		if existing, exists := fingerprints[fp]; exists {
-			t.Errorf("fingerprint collision between types %v and %v", existing, typ)
+			t.Errorf("fingerprint collision between types %v and %v", existing, schema.Type)
 		}
 
-		fingerprints[fp] = typ
+		fingerprints[fp] = schema.Type
 	}
 }
 
@@ -275,6 +328,14 @@ func TestToAnyIncludesFingerprint(t *testing.T) {
 			schema: Common{
 				Type: Any,
 				Name: "payload",
+			},
+		},
+		{
+			name: "decimal schema",
+			schema: Common{
+				Type:    Decimal,
+				Name:    "amount",
+				Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 18, Scale: 4}},
 			},
 		},
 		{

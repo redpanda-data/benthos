@@ -73,6 +73,9 @@ func inferFromAny(name string, v any) (Common, error) {
 // within the following subset of Go types: bool, int, int32, int64, float32,
 // float64, []byte, string, map[string]any, []any.
 //
+// Parameterised logical types (e.g. Decimal) cannot be inferred from generic Go
+// values and must be constructed explicitly.
+//
 // All values will be recorded as non-optional.
 func InferFromAny(v any) (Common, error) {
 	return inferFromAny("", v)
