@@ -201,8 +201,8 @@ Plumbing sketch:
 | `ts_sub` | method | ✅ | |
 | `ts_tz` | method | ✅ | |
 | `ts_unix` / `_milli` / `_micro` / `_nano` | method | ✅ | |
-| `format_timestamp*` / `parse_timestamp*` | function | ⏸ | V2 surface is the method form (`ts.ts_format(...)`, `str.ts_parse(...)`). Migrator needs rules to rewrite V1 function-form callsites. |
-| `ts_strftime` / `ts_strptime` | method | ⏸ | V2 has `ts_format` / `ts_parse`. Migrator method-rename rule needed. |
+| `format_timestamp*` / `parse_timestamp*` | function | ✅ | V2 surface is the method form (`ts.ts_format(...)`, `str.ts_parse(...)`). Migrator rewrites V1 function-form callsites. |
+| `ts_strftime` / `ts_strptime` | method | ✅ | V2 has `ts_format` / `ts_parse`; migrator renames V1 callsites. |
 
 ### Encoding / parsing
 
@@ -279,18 +279,8 @@ Functions: `day`, `hour`, `minute`, `random_int`, `range`, `second`,
 
 ### Migrator idiom-shift rules
 
-The V2 stdlib already covers these surfaces, but the V1 → V2 migrator
-still passes V1 callsites through unchanged. Each rule is a small
-translator addition; tracked here so we don't lose the list:
+Open follow-ups in the V1 → V2 migrator:
 
-- `format_timestamp(fmt, ts)` → `ts.ts_format(fmt)` (and the
-  `_strftime` variant — V2 `ts_format` accepts strftime).
-- `parse_timestamp(fmt, str)` → `str.ts_parse(fmt)` (likewise for
-  `_strptime`).
-- `format_timestamp_unix(ts)` / `_milli` / `_micro` / `_nano` →
-  method form `ts.ts_unix()` / `_milli` / `_micro` / `_nano`.
-- `.ts_strftime(fmt)` / `.ts_strptime(fmt)` → `.ts_format(fmt)` /
-  `.ts_parse(fmt)`.
 - V1 `error_source_label()` / `_name()` / `_path()` — no V2
   equivalent yet; revisit once `error()` grows the structured
   `source.*` fields (deferred from batch 3).
