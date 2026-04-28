@@ -64,7 +64,12 @@ func migrateSource(v1Source string, opts Options, v2Files map[string]string) (*R
 		return nil, fmt.Errorf("migrator: parsing V1 source: %w", err)
 	}
 
-	tr := &translator{rec: newRecorder(opts), files: opts.Files}
+	tr := &translator{
+		rec:                 newRecorder(opts),
+		files:               opts.Files,
+		customMethodRules:   opts.CustomMethodRules,
+		customFunctionRules: opts.CustomFunctionRules,
+	}
 	v2Prog := tr.translateProgram(prog)
 	v2Source := syntax.Print(v2Prog)
 

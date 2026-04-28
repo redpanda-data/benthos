@@ -41,6 +41,12 @@ type translator struct {
 	// sentinel values (nothing(), deleted()) should be emitted in V2.
 	// The top of the stack wins. See ctxKind for the enumerated contexts.
 	ctxStack []ctxKind
+	// customMethodRules and customFunctionRules carry the per-Migrator
+	// rule hooks supplied via Options. They are checked at the top of
+	// methodRewrite / functionRewrite so a custom rule shadows the
+	// matching built-in (custom-wins precedence — design P2).
+	customMethodRules   map[string]MethodRuleHook
+	customFunctionRules map[string]FunctionRuleHook
 }
 
 // ctxKind is a translator-side marker for the kind of position we're
@@ -208,3 +214,96 @@ func (t *translator) translateProgram(p *v1ast.Program) *syntax.Program {
 func pos(p v1ast.Pos) syntax.Pos {
 	return syntax.Pos{Line: p.Line, Column: p.Column}
 }
+
+// -----------------------------------------------------------------------
+// Public helpers consumed by the public migrator package
+// (public/bloblangv2/migrator). They are exposed so custom-rule
+// implementations registered through that package can hook into the
+// same machinery the built-in rules use without duplicating logic.
+// -----------------------------------------------------------------------
+
+// Translator is the surface a custom rule needs from the running
+// translator: recursive expression translation, scope / this-rebind
+// management, position translation, and the recorder hooks used to
+// keep coverage stats honest when a rule fires.
+type Translator interface {
+	// TranslateExpr recursively translates a V1 expression into a V2
+	// expression. Returns nil when translation cannot proceed (the
+	// translator already emitted the appropriate diagnostic).
+	TranslateExpr(v1Expr v1ast.Expr) syntax.Expr
+
+	// PushScope pushes a named-context frame onto the scope stack.
+	// Each name becomes a bound identifier in the rule's body
+	// translation. Pair with PopScope.
+	PushScope(names ...string)
+	// PopScope removes the innermost scope frame.
+	PopScope()
+
+	// PushThisRebind makes V1 `this` translate to the given V2
+	// identifier name (typically a synthesized lambda parameter)
+	// while the translation walks the rule's body. Pair with
+	// PopThisRebind.
+	PushThisRebind(name string)
+	// PopThisRebind removes the innermost this-rebinding.
+	PopThisRebind()
+
+	// Pos translates a V1 source position into a V2 source position.
+	Pos(p v1ast.Pos) syntax.Pos
+
+	// EmitChange records a Change in the report without touching
+	// coverage counters. Mirrors recorder.Note — used for
+	// supplementary diagnostics alongside a rule's Result.
+	EmitChange(ch Change)
+
+	// RecordRewritten counts a Rewritten coverage entry and records
+	// the supplied Change. Bridges call this when a custom rule's
+	// Replace outcome lands.
+	RecordRewritten(ch Change)
+
+	// RecordUnsupported counts an Unsupported coverage entry and
+	// records the supplied Change with Error severity. Bridges call
+	// this when a custom rule's Unsupported outcome lands.
+	RecordUnsupported(ch Change)
+}
+
+// TranslateExpr is the exported form of translateExpr.
+func (t *translator) TranslateExpr(v1Expr v1ast.Expr) syntax.Expr {
+	return t.translateExpr(v1Expr)
+}
+
+// PushScope is the exported form of pushScope.
+func (t *translator) PushScope(names ...string) { t.pushScope(names...) }
+
+// PopScope is the exported form of popScope.
+func (t *translator) PopScope() { t.popScope() }
+
+// PushThisRebind is the exported form of pushThisRebind.
+func (t *translator) PushThisRebind(name string) { t.pushThisRebind(name) }
+
+// PopThisRebind is the exported form of popThisRebind.
+func (t *translator) PopThisRebind() { t.popThisRebind() }
+
+// Pos is the exported form of pos.
+func (t *translator) Pos(p v1ast.Pos) syntax.Pos { return pos(p) }
+
+// EmitChange records a Change without bumping coverage counters.
+func (t *translator) EmitChange(ch Change) { t.rec.Note(ch) }
+
+// RecordRewritten bumps the Rewritten counter and records ch.
+func (t *translator) RecordRewritten(ch Change) { t.rec.Rewritten(ch) }
+
+// RecordUnsupported bumps the Unsupported counter and records ch.
+func (t *translator) RecordUnsupported(ch Change) { t.rec.Unsupported(ch) }
+
+// MethodRuleHook is the dispatch shape for a custom V1 method-call
+// translation rule. Returning handled=true and out=nil signals an
+// Unsupported outcome (the translator records an Error-severity
+// Change and emits a `// MIGRATION:` comment). Returning handled=true
+// with a non-nil out replaces the V1 method call with that V2
+// expression. Returning handled=false falls through to the built-in
+// rule for the same V1 method name (or the default 1:1 translation
+// if no built-in matches).
+type MethodRuleHook func(t Translator, m *v1ast.MethodCall, recv syntax.Expr) (out syntax.Expr, handled bool)
+
+// FunctionRuleHook is the function-call analogue of MethodRuleHook.
+type FunctionRuleHook func(t Translator, f *v1ast.FunctionCall) (out syntax.Expr, handled bool)

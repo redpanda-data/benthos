@@ -14,6 +14,20 @@ import (
 //   - convert the method call to a different V2 node shape (e.g. index -> []),
 //   - leave it alone (default).
 func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+	// Custom rules win on name collision (design P2). When a registered
+	// rule signals handled=true, its result short-circuits the
+	// built-in switch entirely. Returning a nil expression with
+	// handled=true is the rule's way of signalling Unsupported — the
+	// translator still falls back to the default 1:1 translation but
+	// the rule will already have recorded an Error-severity Change.
+	if rule, ok := t.customMethodRules[m.Name]; ok {
+		if out, handled := rule(t, m, recv); handled {
+			if out == nil {
+				return nil
+			}
+			return out
+		}
+	}
 	switch m.Name {
 
 	// ----- Simple renames (V2 name differs, same shape) -----

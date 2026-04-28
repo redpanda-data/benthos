@@ -291,6 +291,16 @@ type Options struct {
 	// ModeMapping. When Mode is ModeMutation (or unset — the safe
 	// default), no prelude is inserted.
 	Mode Mode
+
+	// CustomMethodRules is keyed by V1 method name. Hooks registered
+	// here run *before* the built-in method-rewrite switch (custom
+	// rules win on name collision per the migrator's design). Returning
+	// handled=false falls through to built-in rules.
+	CustomMethodRules map[string]MethodRuleHook
+
+	// CustomFunctionRules is the function-call analogue of
+	// CustomMethodRules.
+	CustomFunctionRules map[string]FunctionRuleHook
 }
 
 // Mode classifies the V1 execution context the translated mapping will

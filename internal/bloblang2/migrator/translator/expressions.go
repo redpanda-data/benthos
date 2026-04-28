@@ -593,6 +593,16 @@ func (t *translator) translateFunctionCall(f *v1ast.FunctionCall) syntax.Expr {
 // non-nil V2 expression on success or nil to fall through to the
 // default 1:1 translation. Rules ordered by V1 function name.
 func (t *translator) functionRewrite(f *v1ast.FunctionCall) syntax.Expr {
+	// Custom rules win on name collision (design P2). Same precedence
+	// model as methodRewrite.
+	if rule, ok := t.customFunctionRules[f.Name]; ok {
+		if out, handled := rule(t, f); handled {
+			if out == nil {
+				return nil
+			}
+			return out
+		}
+	}
 	switch f.Name {
 	case "metadata", "meta":
 		return t.metadataReadToInputMeta(f)
