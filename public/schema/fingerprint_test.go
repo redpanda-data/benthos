@@ -273,6 +273,7 @@ func TestFingerprintAllTypes(t *testing.T) {
 		{Type: Timestamp, Name: "test"},
 		{Type: Any, Name: "test"},
 		{Type: Decimal, Name: "test", Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 10, Scale: 2}}},
+		{Type: BigDecimal, Name: "test"},
 	}
 
 	fingerprints := make(map[string]CommonType)

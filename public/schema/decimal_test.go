@@ -453,6 +453,16 @@ func TestParseDecimal(t *testing.T) {
 		{"trailing dot with scale", "1.", 3, "1000"},
 		{"negative integer", "-123", 0, "-123"},
 		{"max precision", "12345678901234567890123456789012345678", 0, "12345678901234567890123456789012345678"},
+		// Lenient acceptance — non-canonical but unambiguous inputs are
+		// normalised on the way out via FormatDecimal.
+		{"leading zero", "01", 0, "1"},
+		{"leading zeros multiple", "001.5", 4, "15000"},
+		{"leading zero negative", "-01.5", 4, "-15000"},
+		{"leading plus", "+1", 0, "1"},
+		{"leading plus fractional", "+1.5", 4, "15000"},
+		{"missing integer part", ".5", 1, "5"},
+		{"missing integer part with sign", "-.5", 1, "-5"},
+		{"plus and missing integer", "+.5", 1, "5"},
 	}
 
 	for _, tt := range tests {
@@ -473,8 +483,8 @@ func TestParseDecimalErrors(t *testing.T) {
 	}{
 		{"empty", "", 0, "must not be empty"},
 		{"just minus", "-", 0, "no digits"},
-		{"leading plus", "+1", 0, "must not have a leading plus"},
-		{"missing integer part", ".5", 1, "missing the integer part"},
+		{"just plus", "+", 0, "no digits"},
+		{"just dot", ".", 1, "no digits"},
 		{"two dots", "1.2.3", 1, "at most one decimal point"},
 		{"non-digit", "1.2a", 1, "non-digit"},
 		{"scientific notation", "1e5", 0, "non-digit"},
