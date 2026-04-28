@@ -3,6 +3,8 @@
 package schema
 
 import (
+	"bytes"
+	"encoding/json"
 	"math/big"
 	"strings"
 	"testing"
@@ -80,6 +82,62 @@ func TestDecimalRoundTripNested(t *testing.T) {
 	}
 
 	parsed, err := ParseFromAny(original.ToAny())
+	require.NoError(t, err)
+	assert.Equal(t, original.fingerprint(), parsed.fingerprint())
+}
+
+func TestDecimalParseFromAnyJSONNumber(t *testing.T) {
+	// Simulate what happens when a caller decodes the Any form via
+	// json.Decoder.UseNumber() — precision and scale arrive as json.Number
+	// rather than float64.
+	in := map[string]any{
+		anyFieldType:      "DECIMAL",
+		anyFieldName:      "amount",
+		anyFieldPrecision: json.Number("20"),
+		anyFieldScale:     json.Number("6"),
+	}
+
+	c, err := ParseFromAny(in)
+	require.NoError(t, err)
+	require.NotNil(t, c.Logical)
+	require.NotNil(t, c.Logical.Decimal)
+	assert.Equal(t, int32(20), c.Logical.Decimal.Precision)
+	assert.Equal(t, int32(6), c.Logical.Decimal.Scale)
+}
+
+func TestDecimalParseFromAnyJSONNumberFractional(t *testing.T) {
+	in := map[string]any{
+		anyFieldType:      "DECIMAL",
+		anyFieldName:      "x",
+		anyFieldPrecision: json.Number("10.5"),
+		anyFieldScale:     json.Number("2"),
+	}
+
+	_, err := ParseFromAny(in)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be an integer")
+}
+
+func TestDecimalRoundTripThroughJSONUseNumber(t *testing.T) {
+	// End-to-end: serialise via ToAny, encode to JSON, decode with
+	// UseNumber, parse back through ParseFromAny. Exercises the contract
+	// for any caller that pipes schemas through a JSON layer with the
+	// numeric-precision-preserving decoder configuration.
+	original := Common{
+		Type:    Decimal,
+		Name:    "amount",
+		Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 38, Scale: 10}},
+	}
+
+	encoded, err := json.Marshal(original.ToAny())
+	require.NoError(t, err)
+
+	dec := json.NewDecoder(bytes.NewReader(encoded))
+	dec.UseNumber()
+	var decoded any
+	require.NoError(t, dec.Decode(&decoded))
+
+	parsed, err := ParseFromAny(decoded)
 	require.NoError(t, err)
 	assert.Equal(t, original.fingerprint(), parsed.fingerprint())
 }
