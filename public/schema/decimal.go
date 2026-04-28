@@ -73,51 +73,32 @@ func FormatDecimal(unscaled *big.Int, scale int32) (string, error) {
 	return sign + abs[:splitAt] + "." + abs[splitAt:], nil
 }
 
-// ParseDecimal interprets s as a canonical decimal string and returns the
+// ParseDecimal interprets s as a decimal-shaped string and returns the
 // unscaled integer at the given scale. Inputs with fewer fractional digits
-// than scale are accepted and right-padded with zeros; inputs with more
-// fractional digits than scale are rejected.
+// than scale are right-padded with zeros; inputs with more fractional digits
+// than scale are rejected.
 //
-// Scientific notation, leading plus signs, thousands separators, multiple
-// decimal points, and whitespace are not accepted. The integer part of the
-// number is required (".5" is not accepted; use "0.5"). The scale parameter
-// must be non-negative.
+// The parser is lenient: leading plus signs, leading zeros, and inputs
+// missing the integer part (e.g. ".5") are accepted and normalised. The
+// parser is strict about ambiguous or malformed inputs — scientific
+// notation, multiple decimal points, whitespace, thousands separators, and
+// non-digit characters are rejected. Canonical form is enforced when values
+// are re-emitted via [FormatDecimal]. The scale parameter must be
+// non-negative.
 //
 // Precision is not enforced here; use [DecimalParams.Parse] when both
 // precision and scale must be checked.
+//
+// The parser does not bound the input length. The underlying big.Int parse
+// is super-linear, so callers exposing this directly to untrusted input
+// should impose their own length cap.
 func ParseDecimal(s string, scale int32) (*big.Int, error) {
 	if scale < 0 {
 		return nil, fmt.Errorf("scale must be non-negative, got %d", scale)
 	}
-	if s == "" {
-		return nil, errors.New("decimal string must not be empty")
-	}
 
-	rest := s
-	sign := ""
-	switch rest[0] {
-	case '-':
-		sign = "-"
-		rest = rest[1:]
-	case '+':
-		return nil, errors.New("decimal string must not have a leading plus sign")
-	}
-	if rest == "" {
-		return nil, errors.New("decimal string has no digits")
-	}
-
-	intPart, fracPart, hasDot := strings.Cut(rest, ".")
-	if hasDot && strings.Contains(fracPart, ".") {
-		return nil, errors.New("decimal string must contain at most one decimal point")
-	}
-	if intPart == "" {
-		return nil, errors.New("decimal string is missing the integer part")
-	}
-
-	if err := requireDigits(intPart); err != nil {
-		return nil, err
-	}
-	if err := requireDigits(fracPart); err != nil {
+	sign, intPart, fracPart, err := parseCanonicalDecimal(s)
+	if err != nil {
 		return nil, err
 	}
 
@@ -133,6 +114,61 @@ func ParseDecimal(s string, scale int32) (*big.Int, error) {
 		return nil, fmt.Errorf("failed to parse decimal value %q", s)
 	}
 	return n, nil
+}
+
+// parseCanonicalDecimal parses a decimal-shaped string into its components
+// without applying any scale-specific transformation. The returned sign is ""
+// or "-", and intPart and fracPart are digit-only strings (fracPart may be
+// empty).
+//
+// Parsing follows Postel's principle: the function is lenient about
+// non-canonical-but-unambiguous inputs (leading "+" sign, leading zeros,
+// missing integer part as in ".5") and strict about ambiguous or malformed
+// inputs (scientific notation, multiple decimal points, whitespace,
+// thousands separators, non-digit characters). The canonical-form guarantee
+// is upheld at the emit boundary by [FormatDecimal] and [FormatBigDecimal];
+// strict parsing would duplicate that responsibility at a less useful layer.
+func parseCanonicalDecimal(s string) (sign, intPart, fracPart string, err error) {
+	if s == "" {
+		return "", "", "", errors.New("decimal string must not be empty")
+	}
+
+	rest := s
+	switch rest[0] {
+	case '-':
+		sign = "-"
+		rest = rest[1:]
+	case '+':
+		// Leading plus is unambiguous and accepted; the canonical form just
+		// omits it.
+		rest = rest[1:]
+	}
+	if rest == "" {
+		return "", "", "", errors.New("decimal string has no digits")
+	}
+
+	var hasDot bool
+	intPart, fracPart, hasDot = strings.Cut(rest, ".")
+	if hasDot && strings.Contains(fracPart, ".") {
+		return "", "", "", errors.New("decimal string must contain at most one decimal point")
+	}
+	if intPart == "" {
+		if !hasDot || fracPart == "" {
+			return "", "", "", errors.New("decimal string has no digits")
+		}
+		// Inputs like ".5" — accept and treat as "0.5". The canonical emit
+		// path will produce the leading zero on the way out.
+		intPart = "0"
+	}
+
+	if err := requireDigits(intPart); err != nil {
+		return "", "", "", err
+	}
+	if err := requireDigits(fracPart); err != nil {
+		return "", "", "", err
+	}
+
+	return sign, intPart, fracPart, nil
 }
 
 func requireDigits(s string) error {
