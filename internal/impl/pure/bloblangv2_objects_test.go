@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
 )
@@ -83,4 +86,54 @@ func TestBloblangV2AssignArray(t *testing.T) {
 		[]any{"a", "b"},
 	)
 	assert.Equal(t, []any{"a", "b", "c", "d"}, got)
+}
+
+func TestBloblangV2WithKeepsListedPaths(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = input.with(["inner.a", "inner.c", "d"])`,
+		map[string]any{
+			"inner": map[string]any{"a": "first", "b": "second", "c": "third"},
+			"d":     "fourth",
+			"e":     "fifth",
+		},
+	)
+	assert.Equal(t, map[string]any{
+		"d":     "fourth",
+		"inner": map[string]any{"a": "first", "c": "third"},
+	}, got)
+}
+
+func TestBloblangV2WithMissingPathsIgnored(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = input.with(["a", "missing"])`,
+		map[string]any{"a": int64(1), "b": int64(2)},
+	)
+	assert.Equal(t, map[string]any{"a": int64(1)}, got)
+}
+
+func TestBloblangV2ZipArrays(t *testing.T) {
+	got := runBloblangV2(t,
+		`output = input.foo.zip([input.bar, input.baz])`,
+		map[string]any{
+			"foo": []any{"a", "b", "c"},
+			"bar": []any{int64(1), int64(2), int64(3)},
+			"baz": []any{int64(4), int64(5), int64(6)},
+		},
+	)
+	want := []any{
+		[]any{"a", int64(1), int64(4)},
+		[]any{"b", int64(2), int64(5)},
+		[]any{"c", int64(3), int64(6)},
+	}
+	assert.Equal(t, want, got)
+}
+
+func TestBloblangV2ZipMismatchedLengthsErrors(t *testing.T) {
+	exec, err := bloblangv2.GlobalEnvironment().Parse(`output = input.foo.zip([input.bar])`)
+	require.NoError(t, err)
+	_, qerr := exec.Query(map[string]any{
+		"foo": []any{"a", "b"},
+		"bar": []any{int64(1), int64(2), int64(3)},
+	})
+	assert.Error(t, qerr)
 }

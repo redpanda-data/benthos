@@ -10,19 +10,21 @@ Deprecated V1 entries are excluded.
 
 ## Status legend
 
-- ✅ already in V2 (incl. batches 1 / 2 ports landed in `internal/impl/{pure,io}`)
-- 🟢 batch 1 — pure stdlib port, mechanical (now ✅ except `format`)
-- 🟡 batch 2 — array / object completeness (now ✅)
-- 🔴 batch 3 — pipeline-coupled, needs design
+- ✅ ported / available in V2
+- ⏸ deferred (named-and-known follow-up)
 - ❌ V1-only by architectural choice; V2 won't port
 - ➕ V2-only addition (no V1 equivalent)
 
-> **Batches 1 and 2 complete.** Pure ports live in
+> **Batches 1, 2, and 3 are complete.** Pure ports live in
 > `internal/impl/pure/bloblangv2_*.go`; non-pure (clock / randomness)
-> live in `internal/impl/io/bloblangv2_*.go`. The single deferred entry
-> is `format`, which V1 implemented as a variadic — V2 deliberately
-> removed variadic params (commit `d73db44a6`), so a V2 `format` needs
-> an array-param API redesign rather than a mechanical lift.
+> live in `internal/impl/io/bloblangv2_*.go`. Message-coupled stdlib
+> (batch_index, content, error, …) is registered internally in
+> `internal/bloblang2/go/pratt/eval/stdlib_message.go` and wired
+> through `Executor.QueryMessage(MessageContext)`.
+>
+> The remaining open items are tracked in [Deferred](#deferred-work)
+> below — a `format` API redesign and several V1 → V2 migrator
+> idiom-shift rules.
 
 ## Plugin lambda parameters (resolved)
 
@@ -79,7 +81,8 @@ Plumbing sketch:
 | `escape_url_query` | method | ✅ | |
 | `filepath_join` | method | ✅ | Path manipulation — pure, no FS access. |
 | `filepath_split` | method | ✅ | |
-| `format` | method | 🟢 | printf-style. |
+| `format` | method | ⏸ | printf-style; V1 was variadic. V2 dropped variadic — port needs an array-param API redesign. |
+| `parse_form_url_encoded` | method | ✅ | |
 | `has_prefix` | method | ✅ | |
 | `has_suffix` | method | ✅ | |
 | `hash` | method | ✅ | |
@@ -112,10 +115,15 @@ Plumbing sketch:
 | `bitwise_or` | method | ✅ | |
 | `bitwise_xor` | method | ✅ | |
 | `ceil` | method | ✅ | |
+| `cos` | method | ✅ | |
 | `floor` | method | ✅ | |
 | `log` | method | ✅ | |
 | `log10` | method | ✅ | |
+| `pi` | function | ✅ | |
+| `pow` | method | ✅ | |
 | `round` | method | ✅ | |
+| `sin` | method | ✅ | |
+| `tan` | method | ✅ | |
 
 ### Arrays / sequences
 
@@ -147,6 +155,7 @@ Plumbing sketch:
 | `sum` | method | ✅ | |
 | `unique` | method | ✅ | |
 | `without` | method | ✅ | |
+| `zip` | method | ✅ | V2 takes a single array-of-arrays argument (V1 was variadic). |
 
 ### Objects
 
@@ -158,9 +167,10 @@ Plumbing sketch:
 | `explode` | method | ✅ | |
 | `get` | method | ✅ | |
 | `keys` | method | ✅ | |
-| `map_each_key` | method | ⏸ | Lambda predicate; needs plugin lambda support. |
+| `map_each_key` | method | ✅ | Lambda predicate via plugin lambda support. |
 | `merge` | method | ✅ | |
 | `values` | method | ✅ | |
+| `with` | method | ✅ | V2 takes a single array of dot-paths (V1 was variadic). |
 
 ### Regex
 
@@ -179,22 +189,35 @@ Plumbing sketch:
 | Name | Type | Status | Notes |
 |---|---|---|---|
 | `now` | function | ✅ | |
+| `parse_duration` | method | ✅ | |
 | `timestamp_unix` | function | ✅ | Reads current time — non-pure. |
 | `timestamp_unix_micro` | function | ✅ | |
 | `timestamp_unix_milli` | function | ✅ | |
 | `timestamp_unix_nano` | function | ✅ | |
-| `ts_*` | method | ✅ | All ts_* methods present. |
+| `ts_add` | method | ✅ | |
+| `ts_format` | method | ✅ | Accepts strftime format strings (V1 `ts_strftime` is the same shape). |
+| `ts_parse` | method | ✅ | Accepts strptime format strings (V1 `ts_strptime` is the same shape). |
+| `ts_round` | method | ✅ | |
+| `ts_sub` | method | ✅ | |
+| `ts_tz` | method | ✅ | |
+| `ts_unix` / `_milli` / `_micro` / `_nano` | method | ✅ | |
+| `format_timestamp*` / `parse_timestamp*` | function | ⏸ | V2 surface is the method form (`ts.ts_format(...)`, `str.ts_parse(...)`). Migrator needs rules to rewrite V1 function-form callsites. |
+| `ts_strftime` / `ts_strptime` | method | ⏸ | V2 has `ts_format` / `ts_parse`. Migrator method-rename rule needed. |
 
 ### Encoding / parsing
 
 | Name | Type | Status | Notes |
 |---|---|---|---|
+| `compress` | method | ✅ | V2 takes the same `algorithm` + optional `level` parameters. |
+| `decompress` | method | ✅ | |
 | `format_json` | method | ✅ | |
 | `format_yaml` | method | ✅ | |
+| `infer_schema` | method | ❌ | V1-specific JSON schema utility; not ported pending demand. |
 | `json_schema` | method | ✅ | |
 | `parse_csv` | method | ✅ | |
 | `parse_json` | method | ✅ | |
 | `parse_yaml` | method | ✅ | |
+| `squash` | method | ❌ | V1-specific JSON schema utility; not ported pending demand. |
 
 ### Crypto / IDs
 
@@ -246,43 +269,30 @@ Methods: `char`, `collect`, `filter_entries`, `float32`, `float64`, `has_key`,
 Functions: `day`, `hour`, `minute`, `random_int`, `range`, `second`,
 `timestamp`, `void`.
 
-## Rollout plan
+## Deferred work
 
-### Batch 1 — pure stdlib ports (🟢)
+### Plugin / stdlib
 
-Mechanical lifts from `internal/bloblang/query/methods_*.go`. Each goes in
-`./internal/impl/pure/` because none read external state. Sub-batches by
-source file for focused commits:
+- **`format` method** — V1 was variadic (`"%s/%d".format(name, age)`).
+  V2 dropped variadic params. Needs an array-param API redesign
+  (e.g. `"%s/%d".format([name, age])`) before the port can land.
 
-- **strings**: `capitalize`, `escape_html`, `unescape_html`,
-  `escape_url_query`, `unescape_url_query`, `quote`, `unquote`, `format`,
-  `hash`, `replace`, `replace_many`, `replace_all_many`, `filepath_join`,
-  `filepath_split`, `parse_url`
-- **numbers**: `bitwise_and`, `bitwise_or`, `bitwise_xor`, `log`, `log10`,
-  `number`
-- **encoding**: `parse_yaml`, `format_yaml`, `parse_csv`, `json_schema`
-- **crypto**: `encrypt_aes`, `decrypt_aes`, `uuid_v5`
+### Migrator idiom-shift rules
 
-### Batch 1b — non-pure stdlib ports (🔴, IO-only subset)
+The V2 stdlib already covers these surfaces, but the V1 → V2 migrator
+still passes V1 callsites through unchanged. Each rule is a small
+translator addition; tracked here so we don't lose the list:
 
-Goes in `./internal/impl/io/` because they read external state (current
-time) or generate randomness:
-
-- `timestamp_unix`, `timestamp_unix_milli`, `timestamp_unix_micro`,
-  `timestamp_unix_nano`
-- `ksuid`, `nanoid`, `uuid_v7`
-
-### Batch 2 — array / object completeness (🟡)
-
-Behavioural ports of: `find_all`, `find_all_by`, `find_by`, `index`,
-`not_empty`, `enumerated`, `collapse`, `key_values`, `assign`, `get`,
-`map_each_key`, `array`, `exists`, `explode`, `re_replace`,
-`re_find_object`, `re_find_all_object`, `re_find_all_submatch`.
-
-### Batch 3 — pipeline-coupled (🔴, needs design)
-
-`batch_index`, `batch_size`, `content`, `json`, `metadata`, `error`,
-`errored`, `error_source_*`, `tracing_id`, `tracing_span`. These need a
-design conversation about how V2's interpreter sees the surrounding
-benthos pipeline (batch position, message bytes, runtime metadata, tracer
-context) before being ported.
+- `format_timestamp(fmt, ts)` → `ts.ts_format(fmt)` (and the
+  `_strftime` variant — V2 `ts_format` accepts strftime).
+- `parse_timestamp(fmt, str)` → `str.ts_parse(fmt)` (likewise for
+  `_strptime`).
+- `format_timestamp_unix(ts)` / `_milli` / `_micro` / `_nano` →
+  method form `ts.ts_unix()` / `_milli` / `_micro` / `_nano`.
+- `.ts_strftime(fmt)` / `.ts_strptime(fmt)` → `.ts_format(fmt)` /
+  `.ts_parse(fmt)`.
+- V1 `error_source_label()` / `_name()` / `_path()` — no V2
+  equivalent yet; revisit once `error()` grows the structured
+  `source.*` fields (deferred from batch 3).
+- V1 `json(path)` — no auto-rewrite. Migrator emits a Note pointing
+  at `input` / `content().parse_json()`.

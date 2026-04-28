@@ -3,6 +3,7 @@
 package pure
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Jeffail/gabs/v2"
@@ -135,6 +136,80 @@ func init() {
 				}
 				return root.Data(), nil
 			}, nil
+		},
+	)
+
+	bloblangv2.MustRegisterMethod("with",
+		bloblangv2.NewPluginSpec().
+			Category("Object & Array").
+			Description("Returns the receiver object reduced to the listed dot-path keys. Paths missing on the receiver are ignored. Use this as the keep-only counterpart to without.").
+			Param(bloblangv2.NewAnyParam("paths").Description("Array of dot-separated paths to retain.")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			pathsArg, err := args.Get("paths")
+			if err != nil {
+				return nil, err
+			}
+			paths, ok := pathsArg.([]any)
+			if !ok {
+				return nil, fmt.Errorf("expected an array of paths, got %T", pathsArg)
+			}
+			includeList := make([][]string, 0, len(paths))
+			for i, p := range paths {
+				s, err := value.IGetString(p)
+				if err != nil {
+					return nil, fmt.Errorf("paths[%d]: %w", i, err)
+				}
+				includeList = append(includeList, gabs.DotPathToSlice(s))
+			}
+			return bloblangv2.ObjectMethod(func(in map[string]any) (any, error) {
+				return mapWith(in, includeList), nil
+			}), nil
+		},
+	)
+
+	bloblangv2.MustRegisterMethod("zip",
+		bloblangv2.NewPluginSpec().
+			Category("Object & Array").
+			Description("Zips the receiver array with one or more argument arrays element-wise. Every array must share the same length. Each output element is an array starting with the receiver value followed by the matching element from each argument.").
+			Param(bloblangv2.NewAnyParam("others").Description("Array of arrays to zip with the receiver.")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			othersArg, err := args.Get("others")
+			if err != nil {
+				return nil, err
+			}
+			outer, ok := othersArg.([]any)
+			if !ok {
+				return nil, fmt.Errorf("expected an array of arrays, got %T", othersArg)
+			}
+			if len(outer) == 0 {
+				return nil, errors.New("zip requires at least one argument array")
+			}
+			argSlices := make([][]any, len(outer))
+			for i, a := range outer {
+				inner, ok := a.([]any)
+				if !ok {
+					return nil, fmt.Errorf("others[%d]: expected array, got %T", i, a)
+				}
+				if i > 0 && len(inner) != len(argSlices[0]) {
+					return nil, errors.New("zip arrays must match in length")
+				}
+				argSlices[i] = inner
+			}
+			return bloblangv2.ArrayMethod(func(in []any) (any, error) {
+				if len(in) != len(argSlices[0]) {
+					return nil, errors.New("zip arrays must match in length")
+				}
+				out := make([]any, 0, len(in))
+				for offset, v := range in {
+					tuple := make([]any, 0, len(argSlices)+1)
+					tuple = append(tuple, v)
+					for _, slice := range argSlices {
+						tuple = append(tuple, slice[offset])
+					}
+					out = append(out, tuple)
+				}
+				return out, nil
+			}), nil
 		},
 	)
 }
