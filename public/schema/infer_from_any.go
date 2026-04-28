@@ -88,8 +88,9 @@ func inferFromAny(name string, v any) (Common, error) {
 // [encoding/json.Number] values are inferred as Int64 when they parse as an
 // integer and as Float64 otherwise.
 //
-// Parameterised logical types (e.g. Decimal) cannot be inferred from generic Go
-// values and must be constructed explicitly.
+// Decimal types (both [Decimal] and [BigDecimal]) cannot be inferred from
+// generic Go values and must be constructed explicitly via [NewDecimal] or
+// [NewBigDecimal].
 //
 // All values will be recorded as non-optional.
 func InferFromAny(v any) (Common, error) {

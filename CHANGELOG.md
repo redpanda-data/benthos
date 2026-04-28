@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Schema: Added a `Decimal` common type carrying precision and scale via a new `LogicalParams` struct, enabling lossless conversion between Avro, Parquet, and database `NUMBER`/`NUMERIC` decimals. Includes `NewDecimal`, `FormatDecimal`/`ParseDecimal`, and `DecimalParams.Format`/`Parse`/`ValidateValue` helpers, plus a `Common.Validate` entry point. `ParseFromAny` and `InferFromAny` now accept `encoding/json.Number` values, so schemas pipelined through `json.Decoder.UseNumber()` round-trip without precision loss. (@Jeffail)
+- Schema: Added a `BigDecimal` common type for arbitrary-precision decimals, alongside `NewBigDecimal`, `FormatBigDecimal`, and `ParseBigDecimal` helpers. Use it for sources that lack column-level precision (Postgres `numeric` without `(p, s)`, Oracle `NUMBER` with no `DATA_PRECISION`, MongoDB `Decimal128`). `Common.Validate` enforces `BigDecimal` as a leaf type with no logical parameters. (@Jeffail)
 
 ## 4.70.0 - 2026-04-02
 

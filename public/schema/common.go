@@ -74,21 +74,22 @@ type CommonType int
 
 // Supported common types
 const (
-	Boolean   CommonType = 1
-	Int32     CommonType = 2
-	Int64     CommonType = 3
-	Float32   CommonType = 4
-	Float64   CommonType = 5
-	String    CommonType = 6
-	ByteArray CommonType = 7
-	Object    CommonType = 8
-	Map       CommonType = 9
-	Array     CommonType = 10
-	Null      CommonType = 11
-	Union     CommonType = 12
-	Timestamp CommonType = 13
-	Any       CommonType = 14
-	Decimal   CommonType = 15
+	Boolean    CommonType = 1
+	Int32      CommonType = 2
+	Int64      CommonType = 3
+	Float32    CommonType = 4
+	Float64    CommonType = 5
+	String     CommonType = 6
+	ByteArray  CommonType = 7
+	Object     CommonType = 8
+	Map        CommonType = 9
+	Array      CommonType = 10
+	Null       CommonType = 11
+	Union      CommonType = 12
+	Timestamp  CommonType = 13
+	Any        CommonType = 14
+	Decimal    CommonType = 15
+	BigDecimal CommonType = 16
 )
 
 // Decimal precision bounds. The upper bound matches the widest precision that
@@ -131,6 +132,8 @@ func (t CommonType) String() string {
 		return "ANY"
 	case Decimal:
 		return "DECIMAL"
+	case BigDecimal:
+		return "BIG_DECIMAL"
 	default:
 		return "UNKNOWN"
 	}
@@ -168,6 +171,8 @@ func typeFromStr(v string) (CommonType, error) {
 		return Any, nil
 	case "DECIMAL":
 		return Decimal, nil
+	case "BIG_DECIMAL":
+		return BigDecimal, nil
 	default:
 		return 0, fmt.Errorf("unrecognised type string: %v", v)
 	}
@@ -406,12 +411,14 @@ func int32Bounded(n int64, key string) (int32, error) {
 }
 
 // Validate enforces the parameter invariants of parameterised types
-// (currently only [Decimal]) and that no parameter blocks are attached to
-// types that do not accept them. It recurses into [Common.Children].
+// — [Decimal] precision/scale bounds — and the structural invariant that
+// leaf types do not carry children. The container types ([Object], [Map],
+// [Array], [Union]) are the only types permitted to populate
+// [Common.Children]. Validate recurses into Children.
 //
-// Structural invariants — for example that an [Object] has children, or that
-// a [Union] has more than one child — are not currently enforced; the
-// validation surface may grow as new logical types arrive.
+// Other structural invariants — for example that an [Object] has children,
+// or that a [Union] has more than one child — are not currently enforced;
+// the validation surface may grow as new logical types arrive.
 //
 // Schemas constructed via [ParseFromAny] are validated automatically. Schemas
 // constructed by struct literal should call Validate before being passed to
@@ -432,6 +439,10 @@ func (c *Common) Validate() error {
 		return fmt.Errorf("Logical.Decimal parameters are only valid for type DECIMAL, got %v", c.Type)
 	}
 
+	if !c.isContainerType() && len(c.Children) > 0 {
+		return fmt.Errorf("type %v is a leaf and must not have children", c.Type)
+	}
+
 	for i, child := range c.Children {
 		if err := child.Validate(); err != nil {
 			return fmt.Errorf("child %d (%q): %w", i, child.Name, err)
@@ -439,6 +450,19 @@ func (c *Common) Validate() error {
 	}
 
 	return nil
+}
+
+// isContainerType reports whether the schema's type is one of the container
+// types — [Object], [Map], [Array], or [Union] — for which populating
+// [Common.Children] is structurally meaningful. Every other type is a leaf
+// and must have no children.
+func (c *Common) isContainerType() bool {
+	switch c.Type {
+	case Object, Map, Array, Union:
+		return true
+	default:
+		return false
+	}
 }
 
 // Fingerprint returns a deterministic hash identifier for the schema structure.
