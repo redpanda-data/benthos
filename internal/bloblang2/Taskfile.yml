@@ -55,6 +55,30 @@ tasks:
     cmds:
       - go test ./internal/bloblang2/migrator/v1spec/... -run TestBloblangV1Spec {{.CLI_ARGS}}
 
+  # --- Fuzzing -------------------------------------------------------------
+
+  fuzz:
+    desc: Run all Bloblang V2 parser fuzz targets briefly (override duration via FUZZTIME)
+    cmds:
+      - task: fuzz:scanner
+      - task: fuzz:parse
+
+  fuzz:scanner:
+    desc: Fuzz the scanner (override duration via FUZZTIME, e.g. FUZZTIME=2m task fuzz:scanner)
+    dir: "{{.BENTHOS_ROOT}}"
+    vars:
+      FUZZTIME: '{{default "30s" .FUZZTIME}}'
+    cmds:
+      - go test ./internal/bloblang2/go/pratt/syntax -run=^$ -fuzz=^FuzzScanner$ -fuzztime={{.FUZZTIME}}
+
+  fuzz:parse:
+    desc: Fuzz the parser (override duration via FUZZTIME, e.g. FUZZTIME=2m task fuzz:parse)
+    dir: "{{.BENTHOS_ROOT}}"
+    vars:
+      FUZZTIME: '{{default "30s" .FUZZTIME}}'
+    cmds:
+      - go test ./internal/bloblang2/go/pratt/syntax -run=^$ -fuzz=^FuzzParse$ -fuzztime={{.FUZZTIME}}
+
   # --- Build ---------------------------------------------------------------
 
   build:

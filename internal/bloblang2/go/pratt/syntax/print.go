@@ -564,15 +564,29 @@ func (p *printer) printLiteral(l *LiteralExpr) {
 func (p *printer) printBinary(b *BinaryExpr) {
 	myPrec := binaryPrec(b.Op)
 
-	// Left side: left-associative, so same prec is OK on the left.
-	p.printExpr(b.Left, myPrec)
+	// Left side: same prec is OK for left-associative operators. For
+	// non-associative operators (==, !=, <, <=, >, >=) the parser rejects
+	// chains at the same precedence, so equal-prec children must be
+	// parenthesised on the left as well as the right.
+	leftMin := myPrec
+	if isNonAssocOp(b.Op) {
+		leftMin = myPrec + 1
+	}
+	p.printExpr(b.Left, leftMin)
 	p.write(" ")
 	p.write(b.Op.String())
 	p.write(" ")
 	// Right side needs tighter binding; use myPrec+1 to force parens around
-	// a right-hand child with equal or lower precedence. (For non-associative
-	// operators this also protects against parsing errors.)
+	// a right-hand child with equal or lower precedence.
 	p.printExpr(b.Right, myPrec+1)
+}
+
+func isNonAssocOp(op TokenType) bool {
+	switch op {
+	case EQ, NE, GT, GE, LT, LE:
+		return true
+	}
+	return false
 }
 
 func (p *printer) printUnary(u *UnaryExpr) {
@@ -999,8 +1013,12 @@ func (p *printer) printMatchExpr(m *MatchExpr) {
 		p.writeIndent()
 		p.printMatchCase(c, false)
 	}
-	p.write(",")
-	p.newline()
+	// Trailing comma only when there are cases — `match {}` must not
+	// emit a stray `,` between the braces.
+	if len(m.Cases) > 0 {
+		p.write(",")
+		p.newline()
+	}
 	p.indent--
 	p.writeIndent()
 	p.write("}")

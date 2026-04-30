@@ -500,3 +500,72 @@ output.y = 1
 		})
 	}
 }
+
+// TestPrintEmptyMatch locks in the rule that an empty match expression
+// prints as `match {}` without a stray trailing comma between the braces.
+// Surfaced by FuzzParse on input `$A=match{}`.
+func TestPrintEmptyMatch(t *testing.T) {
+	src := `$x = match {}`
+	prog, errs := Parse(src, "", nil)
+	if len(errs) > 0 {
+		t.Fatalf("parse errors: %s", FormatErrors(errs))
+	}
+	got := Print(prog)
+	if _, errs := Parse(got, "", nil); len(errs) > 0 {
+		t.Fatalf("re-parse of printed output errored:\n%s\nerrors: %s", got, FormatErrors(errs))
+	}
+}
+
+// TestPrintNonAssocParens locks in the printer rule that non-associative
+// operators (==, !=, <, <=, >, >=) preserve parens around equal-precedence
+// children — both left and right — so the printed output remains parseable.
+func TestPrintNonAssocParens(t *testing.T) {
+	cases := []struct {
+		name string
+		src  string
+		want string
+	}{
+		{
+			name: "equality LHS is comparison chain",
+			src:  `output = (1 == 2) != (3 < 4) && (5 >= 6)`,
+			// The original parens around (3 < 4) and (5 >= 6) are redundant —
+			// < binds tighter than != and >= binds tighter than &&, so the
+			// printed form remains unambiguous and re-parses cleanly. The
+			// parens around (1 == 2) on the LHS are required: != is
+			// non-associative with == at the same precedence.
+			want: "output = (1 == 2) != 3 < 4 && 5 >= 6\n",
+		},
+		{
+			name: "equality LHS is equality",
+			src:  `output = (a == b) == c`,
+			want: "output = (a == b) == c\n",
+		},
+		{
+			name: "comparison LHS is comparison",
+			src:  `output = (a < b) < c`,
+			want: "output = (a < b) < c\n",
+		},
+		{
+			name: "left-associative additive needs no LHS parens",
+			src:  `output = 1 + 2 + 3`,
+			want: "output = 1 + 2 + 3\n",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			prog, errs := Parse(tc.src, "", nil)
+			if len(errs) > 0 {
+				t.Fatalf("parse errors: %s", FormatErrors(errs))
+			}
+			got := Print(prog)
+			if got != tc.want {
+				t.Fatalf("print mismatch:\n--- got ---\n%s\n--- want ---\n%s", got, tc.want)
+			}
+			// Re-parse must succeed — the printed form is the actual contract.
+			if _, errs := Parse(got, "", nil); len(errs) > 0 {
+				t.Fatalf("re-parse of printed output errored:\n%s\nerrors: %s", got, FormatErrors(errs))
+			}
+		})
+	}
+}
