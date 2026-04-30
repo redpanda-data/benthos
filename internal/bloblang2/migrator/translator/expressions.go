@@ -221,8 +221,52 @@ func (t *translator) translateBinary(b *v1ast.BinaryExpr) syntax.Expr {
 		return nil
 	}
 	t.flagOperatorDivergence(b)
+	t.flagChainedNonAssoc(op, left, right, b.OpPos)
 	t.rec.Exact()
 	return &syntax.BinaryExpr{Left: left, Op: op, OpPos: pos(b.OpPos), Right: right}
+}
+
+// nonAssocTier returns the precedence tier of a non-associative V2 operator,
+// or -1 for operators that allow chaining. V2 forbids chains within a tier:
+// `a == b == c`, `a < b < c`, and `a == b != c` are all syntax errors.
+func nonAssocTier(op syntax.TokenType) int {
+	switch op {
+	case syntax.EQ, syntax.NE:
+		return 1
+	case syntax.LT, syntax.LE, syntax.GT, syntax.GE:
+		return 2
+	}
+	return -1
+}
+
+// flagChainedNonAssoc emits RuleEmittedInvalidV2 when a translated binary
+// operator chains with a same-tier non-associative operator on either side.
+// V1 accepts `1 < 2 < 3` (and silently produces `bool < int` semantics); V2
+// has no equivalent. We detect this during translation rather than relying on
+// the post-print Parse safety net, because the printer wraps such expressions
+// in parens to keep the output syntactically valid.
+func (t *translator) flagChainedNonAssoc(op syntax.TokenType, left, right syntax.Expr, opPos v1ast.Pos) {
+	tier := nonAssocTier(op)
+	if tier < 0 {
+		return
+	}
+	chained := false
+	if lb, ok := left.(*syntax.BinaryExpr); ok && nonAssocTier(lb.Op) == tier {
+		chained = true
+	}
+	if rb, ok := right.(*syntax.BinaryExpr); ok && nonAssocTier(rb.Op) == tier {
+		chained = true
+	}
+	if !chained {
+		return
+	}
+	t.rec.Note(Change{
+		Line: opPos.Line, Column: opPos.Column,
+		Severity:    SeverityError,
+		Category:    CategoryUnsupported,
+		RuleID:      RuleEmittedInvalidV2,
+		Explanation: "V1 chained comparison has no V2 equivalent; the printed V2 form is parens-wrapped to parse, but evaluates as comparing a boolean to the next operand",
+	})
 }
 
 // translateUnary handles `!x` and unary `-x`.
