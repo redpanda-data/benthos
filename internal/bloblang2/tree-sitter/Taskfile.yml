@@ -1,8 +1,18 @@
 version: "3"
 
 tasks:
+  install:
+    desc: Install npm dependencies
+    cmds:
+      - npm install
+    sources:
+      - package.json
+    generates:
+      - node_modules/.package-lock.json
+
   generate:
     desc: Generate the tree-sitter parser from grammar.js
+    deps: [install]
     cmds:
       - npx tree-sitter generate
 
