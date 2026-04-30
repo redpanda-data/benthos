@@ -1,0 +1,116 @@
+==================
+Simple map declaration
+==================
+
+map double(x) {
+  x * 2
+}
+
+---
+
+(source_file
+  (map_declaration
+    name: (identifier)
+    (parameter_list
+      (parameter
+        (identifier)))
+    (expr_body
+      (binary_expression
+        left: (identifier)
+        right: (integer)))))
+
+==================
+Map with default parameter
+==================
+
+map greet(name, greeting = "hello") {
+  greeting + " " + name
+}
+
+---
+
+(source_file
+  (map_declaration
+    name: (identifier)
+    (parameter_list
+      (parameter
+        (identifier))
+      (parameter
+        (identifier)
+        (string
+          (string_content))))
+    (expr_body
+      (binary_expression
+        left: (binary_expression
+          left: (identifier)
+          right: (string
+            (string_content)))
+        right: (identifier)))))
+
+==================
+Map with discard parameter
+==================
+
+map first(x, _) {
+  x
+}
+
+---
+
+(source_file
+  (map_declaration
+    name: (identifier)
+    (parameter_list
+      (parameter
+        (identifier))
+      (parameter))
+    (expr_body
+      (identifier))))
+
+==================
+Map with variable assignment
+==================
+
+map transform(data) {
+  $temp = data.value * 2
+  $temp + 1
+}
+
+---
+
+(source_file
+  (map_declaration
+    name: (identifier)
+    (parameter_list
+      (parameter
+        (identifier)))
+    (expr_body
+      (var_assignment
+        (variable)
+        (binary_expression
+          left: (field_access
+            receiver: (identifier)
+            field: (identifier))
+          right: (integer)))
+      (binary_expression
+        left: (variable)
+        right: (integer)))))
+
+==================
+Map call
+==================
+
+output = double(input.x)
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (call_expression
+      name: (identifier)
+      (argument_list
+        (positional_arguments
+          (field_access
+            receiver: (input)
+            field: (identifier)))))))

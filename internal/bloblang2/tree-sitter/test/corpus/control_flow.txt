@@ -1,0 +1,182 @@
+==================
+If expression
+==================
+
+output = if input.x > 0 { "positive" } else { "non-positive" }
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (if_expression
+      condition: (binary_expression
+        left: (field_access
+          receiver: (input)
+          field: (identifier))
+        right: (integer))
+      consequence: (expr_body
+        (string
+          (string_content)))
+      (else_clause
+        alternative: (expr_body
+          (string
+            (string_content)))))))
+
+==================
+If else if expression
+==================
+
+output = if input.x > 10 { "big" } else if input.x > 0 { "small" } else { "none" }
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (if_expression
+      condition: (binary_expression
+        left: (field_access
+          receiver: (input)
+          field: (identifier))
+        right: (integer))
+      consequence: (expr_body
+        (string
+          (string_content)))
+      (else_if_clause
+        condition: (binary_expression
+          left: (field_access
+            receiver: (input)
+            field: (identifier))
+          right: (integer))
+        consequence: (expr_body
+          (string
+            (string_content))))
+      (else_clause
+        alternative: (expr_body
+          (string
+            (string_content)))))))
+
+==================
+If statement
+==================
+
+if input.active {
+  output.status = "on"
+}
+
+---
+
+(source_file
+  (if_statement
+    condition: (field_access
+      receiver: (input)
+      field: (identifier))
+    (statement_block
+      (assignment
+        (assign_target
+          (target_path_segment
+            (identifier)))
+        (string
+          (string_content))))))
+
+==================
+Match expression with subject
+==================
+
+output = match input.type {
+  "a" => 1,
+  "b" => 2,
+  _ => 0,
+}
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (match_expression
+      subject: (field_access
+        receiver: (input)
+        field: (identifier))
+      (match_cases
+        (match_case
+          pattern: (string
+            (string_content))
+          body: (integer))
+        (match_case
+          pattern: (string
+            (string_content))
+          body: (integer))
+        (match_case
+          body: (integer))))))
+
+==================
+Match with as binding
+==================
+
+output = match input as v {
+  v.x > 0 => "pos",
+  _ => "other",
+}
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (match_expression
+      subject: (input)
+      binding: (identifier)
+      (match_cases
+        (match_case
+          pattern: (binary_expression
+            left: (field_access
+              receiver: (identifier)
+              field: (identifier))
+            right: (integer))
+          body: (string
+            (string_content)))
+        (match_case
+          body: (string
+            (string_content)))))))
+
+==================
+Match statement
+==================
+
+match input.type {
+  "admin" => {
+    output.role = "admin"
+  },
+  _ => {
+    output.role = "user"
+  },
+}
+
+---
+
+(source_file
+  (match_statement
+    subject: (field_access
+      receiver: (input)
+      field: (identifier))
+    (match_statement_cases
+      (match_statement_case
+        pattern: (string
+          (string_content))
+        body: (statement_block
+          (assignment
+            (assign_target
+              (target_path_segment
+                (identifier)))
+            (string
+              (string_content)))))
+      (match_statement_case
+        body: (statement_block
+          (assignment
+            (assign_target
+              (target_path_segment
+                (identifier)))
+            (string
+              (string_content))))))))
