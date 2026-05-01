@@ -55,6 +55,8 @@ func (m *Migrator) Migrate(v1Source string, opts Options) (*Report, error) {
 		Verbose:               opts.Verbose,
 		TreatWarningsAsErrors: opts.TreatWarningsAsErrors,
 		Files:                 opts.Files,
+		FileResolver:          opts.FileResolver,
+		V2ImportPathRewriter:  opts.V2ImportPathRewriter,
 		Mode:                  opts.Mode,
 	}
 	if len(m.methodRules) > 0 {

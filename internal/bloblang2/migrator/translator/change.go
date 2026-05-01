@@ -266,14 +266,41 @@ type Options struct {
 	// to Error; useful for CI.
 	TreatWarningsAsErrors bool
 
-	// Files is a virtual filesystem for `import` resolution, keyed by the
-	// path used in the V1 source. Both the V1 parser's import resolution
-	// and the final V2 parse check consult this map. nil means "use the
-	// host filesystem" — but note the V1 parser currently does not accept
-	// a files argument either (it resolves via its own configured
-	// importer), so this field is presently consumed only by the final V2
-	// parse verifier. Future work may thread it through more deeply.
+	// Files is a virtual filesystem for `import` resolution. Keys are
+	// treated as canonical identifiers for files: an entry keyed
+	// "helpers.blobl" satisfies any import statement whose path string
+	// resolves (after FileResolver, if set) to "helpers.blobl". When
+	// FileResolver is nil the keys are matched directly against the
+	// path strings written in the V1 source (path-as-canonical-key).
 	Files map[string]string
+
+	// FileResolver, when set, lazily resolves V1 imports during Migrate.
+	// The migrator walks the closure of imports starting from the main
+	// source and any transitively imported files, calling the resolver
+	// for each import path it encounters.
+	//
+	// parentKey is the canonical key of the file the import appears in
+	// (empty for imports in the main V1 source). importPath is the path
+	// string as written in the import statement. The returned
+	// canonicalKey identifies the resolved file for de-duplication and
+	// Report.V2Files emission — two import statements that resolve to
+	// the same canonicalKey are translated once.
+	//
+	// Pre-populated Files take precedence: if Files contains importPath
+	// as a key, the resolver is not consulted and importPath itself is
+	// treated as the canonical key.
+	//
+	// Returning ok=false records an Unsupported RuleImportStatement at
+	// the import site and continues with the rest of the migration.
+	FileResolver FileResolver
+
+	// V2ImportPathRewriter, when set, rewrites V1 import path strings to
+	// their V2 equivalents in the emitted V2 source. Default: identity.
+	// Useful for callers that emit V2-translated files at sibling paths
+	// (e.g. "helpers.blobl" -> "helpers.v5.blobl"). Operates on the
+	// verbatim path string from the V1 source so locality is preserved
+	// (relative imports stay relative).
+	V2ImportPathRewriter V2ImportPathRewriter
 
 	// Mode selects how the V1 mapping's implicit root is treated.
 	//
@@ -302,6 +329,14 @@ type Options struct {
 	// CustomMethodRules.
 	CustomFunctionRules map[string]FunctionRuleHook
 }
+
+// FileResolver lazily resolves a V1 import path during Migrate. See
+// Options.FileResolver for semantics.
+type FileResolver func(parentKey, importPath string) (canonicalKey, content string, ok bool)
+
+// V2ImportPathRewriter rewrites V1 import path strings to their V2
+// equivalents. See Options.V2ImportPathRewriter.
+type V2ImportPathRewriter func(v1Path string) string
 
 // Mode classifies the V1 execution context the translated mapping will
 // replace. See Options.Mode.

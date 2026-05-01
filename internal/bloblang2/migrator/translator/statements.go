@@ -377,8 +377,9 @@ func (t *translator) tryTranslateMapBody(m *v1ast.MapDecl) (*syntax.ExprBody, bo
 }
 
 // translateImport translates `import "path"` to V2. Assigns a synthetic
-// namespace alias and records every map name in the imported file so that
-// subsequent `.apply(name)` call sites can be qualified.
+// namespace alias, records every map name in the imported file so that
+// subsequent `.apply(name)` call sites can be qualified, and applies
+// V2ImportPathRewriter (if set) to the emitted V2 path.
 func (t *translator) translateImport(i *v1ast.ImportStmt) *syntax.ImportStmt {
 	lit, ok := i.Path.(*v1ast.Literal)
 	if !ok {
@@ -389,9 +390,22 @@ func (t *translator) translateImport(i *v1ast.ImportStmt) *syntax.ImportStmt {
 		})
 		return nil
 	}
+
+	site := siteKey{parentKey: t.parentKey, importPath: lit.Str}
+	if t.fileSet != nil {
+		if _, unresolved := t.fileSet.unresolved[site]; unresolved {
+			t.rec.Unsupported(Change{
+				Line: i.Pos.Line, Column: i.Pos.Column,
+				RuleID:      RuleImportStatement,
+				Explanation: fmt.Sprintf("import path %q could not be resolved", lit.Str),
+			})
+			return nil
+		}
+	}
+
 	ns := namespaceFromPath(lit.Str)
 	// Record every map in the imported file under this namespace.
-	if content, ok := t.importedContent(lit.Str); ok {
+	if content, ok := t.importedContent(site); ok {
 		if prog, err := v1ast.Parse(content); err == nil {
 			for _, m := range prog.Maps {
 				// Last import wins on map-name collision; V1 rejects this
@@ -407,24 +421,30 @@ func (t *translator) translateImport(i *v1ast.ImportStmt) *syntax.ImportStmt {
 		RuleID:      RuleImportStatement,
 		Explanation: `V1 import rewritten with synthetic V2 namespace alias`,
 	})
+	v2Path := lit.Str
+	if t.v2ImportPathRewriter != nil {
+		v2Path = t.v2ImportPathRewriter(lit.Str)
+	}
 	return &syntax.ImportStmt{
 		TokenPos:  pos(i.Pos),
-		Path:      lit.Str,
+		Path:      v2Path,
 		Namespace: ns,
 	}
 }
 
 // importedContent retrieves the V1 source of an imported file from the
-// translator's Options.Files (threaded via Migrate). Returns ("", false)
-// if the file isn't in the map.
-func (t *translator) importedContent(path string) (string, bool) {
-	if t.files == nil {
+// translator's fileSet. Returns ("", false) if the import is unresolved
+// or the fileSet is nil.
+func (t *translator) importedContent(site siteKey) (string, bool) {
+	if t.fileSet == nil {
 		return "", false
 	}
-	if s, ok := t.files[path]; ok {
-		return s, true
+	canonical, ok := t.fileSet.siteIndex[site]
+	if !ok {
+		return "", false
 	}
-	return "", false
+	c, ok := t.fileSet.contents[canonical]
+	return c, ok
 }
 
 // namespaceFromPath derives a V2 namespace alias from a V1 import path. It

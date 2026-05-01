@@ -116,6 +116,13 @@ type Report struct {
 	Changes []Change
 	// Coverage aggregates Changes into a coverage ratio.
 	Coverage Coverage
+	// BloblangV2Files is the union of every component's bloblang
+	// Report.V2Files, keyed by canonical key. Populated when callers
+	// supply a BloblangFileResolver and any migrated mapping body
+	// contained imports. The caller is expected to write each entry to
+	// disk (typically with BloblangV2ImportPathRewriter applied to the
+	// canonical key to derive the on-disk path).
+	BloblangV2Files map[string]string
 }
 
 // CoverageError is returned by Migrate when the resulting
