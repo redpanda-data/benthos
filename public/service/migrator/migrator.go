@@ -47,9 +47,20 @@ func (m *Migrator) Migrate(yamlBytes []byte, opts Options) (*Report, error) {
 	if bm == nil {
 		bm = bloblmig.New()
 	}
+
+	// Hoist the top-level resolver hooks into BloblangOptions so they
+	// reach the bloblang migrator on every per-component call.
+	bloblangOpts := opts.BloblangOptions
+	if opts.BloblangFileResolver != nil {
+		bloblangOpts.FileResolver = opts.BloblangFileResolver
+	}
+	if opts.BloblangV2ImportPathRewriter != nil {
+		bloblangOpts.V2ImportPathRewriter = opts.BloblangV2ImportPathRewriter
+	}
+
 	ctx := &Context{
 		bloblang:     bm,
-		bloblangOpts: opts.BloblangOptions,
+		bloblangOpts: bloblangOpts,
 	}
 
 	out, changes, err := walk(yamlBytes, m.rules, ctx, opts.Verbose)
@@ -59,9 +70,10 @@ func (m *Migrator) Migrate(yamlBytes []byte, opts Options) (*Report, error) {
 
 	cov := computeCoverage(changes)
 	rep := &Report{
-		OutputYAML: out,
-		Changes:    changes,
-		Coverage:   cov,
+		OutputYAML:      out,
+		Changes:         changes,
+		Coverage:        cov,
+		BloblangV2Files: aggregateBloblangV2Files(changes),
 	}
 	if opts.MinCoverage > 0 && cov.Ratio < opts.MinCoverage {
 		return nil, &CoverageError{
@@ -71,6 +83,29 @@ func (m *Migrator) Migrate(yamlBytes []byte, opts Options) (*Report, error) {
 		}
 	}
 	return rep, nil
+}
+
+// aggregateBloblangV2Files unions every component's bloblang
+// Report.V2Files into a single map keyed by canonical key. Conflicting
+// canonical keys (same key produced by different components) keep the
+// first content seen — but in practice canonical keys identify
+// fully-resolved files so duplicates carry the same content.
+func aggregateBloblangV2Files(changes []Change) map[string]string {
+	var out map[string]string
+	for _, ch := range changes {
+		if ch.BloblangReport == nil {
+			continue
+		}
+		for canonical, content := range ch.BloblangReport.V2Files {
+			if out == nil {
+				out = map[string]string{}
+			}
+			if _, exists := out[canonical]; !exists {
+				out[canonical] = content
+			}
+		}
+	}
+	return out
 }
 
 // Migrate is a package-level convenience that builds a default

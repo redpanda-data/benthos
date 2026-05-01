@@ -33,10 +33,18 @@ type translator struct {
 	// imported maps it is the alias assigned to the import statement. Used
 	// by `.apply("name")` rewrites to qualify the resulting V2 call.
 	mapNamespace map[string]string
-	// files is a snapshot of the outer Options.Files, carried on the
-	// translator so translateImport can parse imported file contents to
-	// learn the map names they declare.
-	files map[string]string
+	// parentKey is the canonical key of the file currently being
+	// translated, or empty for the main V1 source. Looked up against
+	// fileSet.siteIndex when resolving import statements.
+	parentKey string
+	// fileSet is the closure of imports built by buildFileSet. Used by
+	// translateImport to resolve imported file contents (for map-name
+	// discovery and namespace tracking) and to flag unresolved imports.
+	fileSet *fileSet
+	// v2ImportPathRewriter, when non-nil, is applied to V1 import path
+	// strings before they are emitted into the V2 source. Default
+	// behaviour (nil) is identity.
+	v2ImportPathRewriter V2ImportPathRewriter
 	// ctxStack tracks the nearest enclosing construct that changes how
 	// sentinel values (nothing(), deleted()) should be emitted in V2.
 	// The top of the stack wins. See ctxKind for the enumerated contexts.

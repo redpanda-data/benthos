@@ -84,6 +84,14 @@ type CoverageError = translator.CoverageError
 // will replace.
 type Mode = translator.Mode
 
+// FileResolver lazily resolves a V1 import path during Migrate. See
+// Options.FileResolver for semantics.
+type FileResolver = translator.FileResolver
+
+// V2ImportPathRewriter rewrites V1 import path strings to their V2
+// equivalents. See Options.V2ImportPathRewriter.
+type V2ImportPathRewriter = translator.V2ImportPathRewriter
+
 // Mode values.
 const (
 	ModeMutation = translator.ModeMutation

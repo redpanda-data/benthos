@@ -22,21 +22,33 @@ import (
 func Migrate(v1Source string, opts Options) (*Report, error) {
 	opts = applyDefaults(opts)
 
-	// 1. Translate imported files first so the main source's sanity check
-	// can resolve them as V2.
-	v2Files, err := translateFiles(opts.Files, opts)
+	// 1. Walk the closure of imports rooted at the main source. Both
+	// pre-populated Files and the FileResolver feed into the resulting
+	// fileSet; canonical keys serve as the identity for dedup and for
+	// Report.V2Files emission.
+	fs, err := buildFileSet(v1Source, opts)
+	if err != nil {
+		return nil, fmt.Errorf("migrator: walking import closure: %w", err)
+	}
+
+	// 2. Translate every file in the closure (except the main source)
+	// from V1 to V2 so the main source's V2 sanity-check Parse can
+	// resolve its imports. v2Contents is canonical-keyed.
+	v2Contents, err := translateFiles(fs, opts)
 	if err != nil {
 		return nil, fmt.Errorf("migrator: translating imported file: %w", err)
 	}
 
-	// 2. Translate the main V1 source against the V2 import map.
-	rep, err := migrateSource(v1Source, opts, v2Files)
+	// 3. Project canonical-keyed V2 contents to V2-path-keyed contents
+	// for the sanity-check Parse, then translate the main V1 source.
+	parseFiles := projectToV2Paths(fs, v2Contents, opts.V2ImportPathRewriter)
+	rep, err := migrateSource(v1Source, "", opts, fs, parseFiles)
 	if err != nil {
 		return nil, err
 	}
-	rep.V2Files = v2Files
+	rep.V2Files = v2Contents
 
-	// 3. Coverage gate.
+	// 4. Coverage gate.
 	if cerr := checkCoverage(rep, opts.MinCoverage); cerr != nil {
 		return nil, cerr
 	}
@@ -44,9 +56,11 @@ func Migrate(v1Source string, opts Options) (*Report, error) {
 }
 
 // migrateSource is the core V1→V2 translation step for a single source string.
-// It doesn't touch opts.Files — v2Files is supplied by the caller as a fully
-// translated V2 import map. This keeps the recursive translateFiles loop from
-// re-invoking Migrate (which would re-enter translateFiles and loop).
+// parentKey is the canonical key of the file being translated, or empty for
+// the main source. fs is the closure built upstream; v2Files is the
+// already-translated V2 import map (keyed by the V2 path string emitted into
+// the V2 source after V2ImportPathRewriter is applied) used by the
+// post-translation sanity-check Parse.
 //
 // The post-translation sanity-check Parse is non-fatal: if it fails, we record
 // an Unsupported Change tagged RuleEmittedInvalidV2 and still return the
@@ -54,7 +68,7 @@ func Migrate(v1Source string, opts Options) (*Report, error) {
 // missing imports, duplicate namespaces) echo as V2 parse errors here — they
 // are not translator bugs but honest V2 rejections of V1-invalid input, and
 // should flow through to the caller's Compile for classification.
-func migrateSource(v1Source string, opts Options, v2Files map[string]string) (*Report, error) {
+func migrateSource(v1Source, parentKey string, opts Options, fs *fileSet, v2Files map[string]string) (*Report, error) {
 	if v1Source == "" {
 		return newRecorder(opts).finalise(""), nil
 	}
@@ -65,10 +79,12 @@ func migrateSource(v1Source string, opts Options, v2Files map[string]string) (*R
 	}
 
 	tr := &translator{
-		rec:                 newRecorder(opts),
-		files:               opts.Files,
-		customMethodRules:   opts.CustomMethodRules,
-		customFunctionRules: opts.CustomFunctionRules,
+		rec:                  newRecorder(opts),
+		parentKey:            parentKey,
+		fileSet:              fs,
+		v2ImportPathRewriter: opts.V2ImportPathRewriter,
+		customMethodRules:    opts.CustomMethodRules,
+		customFunctionRules:  opts.CustomFunctionRules,
 	}
 	v2Prog := tr.translateProgram(prog)
 	v2Source := syntax.Print(v2Prog)
@@ -86,8 +102,10 @@ func migrateSource(v1Source string, opts Options, v2Files map[string]string) (*R
 	return tr.rec.finalise(v2Source), nil
 }
 
-// translateFiles migrates each file in the Files map from V1 to V2 source,
-// so V2's Parse sees V2 content wherever it resolves an import.
+// translateFiles migrates every file in fs.contents (excluding the
+// main source — which migrateSource translates separately) from V1 to
+// V2. The returned map is canonical-keyed: it's the shape we surface
+// to callers via Report.V2Files.
 //
 // The outer loop is a fixpoint: files whose imports are all already
 // translated complete first, their results feed the next round, and so on.
@@ -95,28 +113,31 @@ func migrateSource(v1Source string, opts Options, v2Files map[string]string) (*R
 // recursing into Migrate. After the fixpoint settles, any files still
 // pending (cycles, or files with unresolvable imports) get one final pass
 // with all siblings visible — remaining errors are fatal.
-func translateFiles(in map[string]string, outerOpts Options) (map[string]string, error) {
-	if len(in) == 0 {
+func translateFiles(fs *fileSet, outerOpts Options) (map[string]string, error) {
+	if len(fs.contents) == 0 {
 		return nil, nil
 	}
 	innerOpts := outerOpts
 	innerOpts.MinCoverage = 0
 
-	pending := make(map[string]string, len(in))
-	for k, v := range in {
+	// pending is keyed by canonical key.
+	pending := make(map[string]string, len(fs.contents))
+	for k, v := range fs.contents {
 		pending[k] = v
 	}
-	out := make(map[string]string, len(in))
+	// out is keyed by canonical key.
+	out := make(map[string]string, len(fs.contents))
 
 	for {
 		progress := false
-		for path, src := range pending {
-			rep, err := migrateSource(src, innerOpts, out)
+		for canonical, src := range pending {
+			parseFiles := projectToV2Paths(fs, out, outerOpts.V2ImportPathRewriter)
+			rep, err := migrateSource(src, canonical, innerOpts, fs, parseFiles)
 			if err != nil || hasUnresolvedImport(rep) {
 				continue
 			}
-			out[path] = rep.V2Mapping
-			delete(pending, path)
+			out[canonical] = rep.V2Mapping
+			delete(pending, canonical)
 			progress = true
 		}
 		if !progress || len(pending) == 0 {
@@ -126,14 +147,53 @@ func translateFiles(in map[string]string, outerOpts Options) (map[string]string,
 	// Leftovers (cycles, or files with genuinely missing imports): one last
 	// pass with all translated siblings visible. Any remaining error is
 	// still fatal.
-	for path, src := range pending {
-		rep, err := migrateSource(src, innerOpts, out)
+	for canonical, src := range pending {
+		parseFiles := projectToV2Paths(fs, out, outerOpts.V2ImportPathRewriter)
+		rep, err := migrateSource(src, canonical, innerOpts, fs, parseFiles)
 		if err != nil {
-			return nil, fmt.Errorf("%s: %w", path, err)
+			return nil, fmt.Errorf("%s: %w", canonical, err)
 		}
-		out[path] = rep.V2Mapping
+		out[canonical] = rep.V2Mapping
 	}
+
 	return out, nil
+}
+
+// projectToV2Paths maps canonical-keyed V2 contents into a map keyed by
+// the V2 path strings that appear in V2 import statements (i.e. after
+// V2ImportPathRewriter is applied). When no rewriter is set canonical
+// keys equal V1 path strings equal V2 path strings, so the map is
+// returned with canonical keys unchanged.
+func projectToV2Paths(fs *fileSet, v2Contents map[string]string, rewriter V2ImportPathRewriter) map[string]string {
+	if rewriter == nil {
+		// Fast path: the V2 import statements in the emitted source carry
+		// the same path strings as the V1 source, and canonical keys
+		// equal those path strings whenever no FileResolver is in use.
+		// For FileResolver-driven flows the canonical keys are whatever
+		// the resolver returned; the V2 import statements still carry
+		// the original V1 path strings (no rewriter), so we project via
+		// siteIndex.
+		out := make(map[string]string, len(v2Contents))
+		for canonical, content := range v2Contents {
+			out[canonical] = content
+		}
+		for site, canonical := range fs.siteIndex {
+			if c, ok := v2Contents[canonical]; ok {
+				out[site.importPath] = c
+			}
+		}
+		return out
+	}
+	out := make(map[string]string, len(v2Contents))
+	for canonical, content := range v2Contents {
+		out[rewriter(canonical)] = content
+	}
+	for site, canonical := range fs.siteIndex {
+		if c, ok := v2Contents[canonical]; ok {
+			out[rewriter(site.importPath)] = c
+		}
+	}
+	return out
 }
 
 // hasUnresolvedImport reports whether the report signals an emitted-invalid-V2

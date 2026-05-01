@@ -24,7 +24,26 @@ type Options struct {
 	// (ModeMapping for `bloblang`/`mapping`, ModeMutation for
 	// `mutation`); other fields (Verbose, MinCoverage, Files,
 	// TreatWarningsAsErrors) pass through unchanged.
+	//
+	// Note: BloblangFileResolver and BloblangV2ImportPathRewriter
+	// below are forwarded into BloblangOptions on each call. They are
+	// hoisted to the top level of Options because they are the typical
+	// hooks a CLI caller wants to set; setting them directly on
+	// BloblangOptions also works but is less discoverable.
 	BloblangOptions bloblmig.Options
+
+	// BloblangFileResolver is forwarded to BloblangOptions.FileResolver
+	// for every component the migrator translates. This is the single
+	// hook a caller needs to enable transitive import migration —
+	// path discovery, the closure walk, translation and emission all
+	// happen inside the bloblang migrator. See bloblmig.FileResolver
+	// for the contract.
+	BloblangFileResolver bloblmig.FileResolver
+
+	// BloblangV2ImportPathRewriter is forwarded to
+	// BloblangOptions.V2ImportPathRewriter for every component. See
+	// bloblmig.V2ImportPathRewriter for the contract.
+	BloblangV2ImportPathRewriter bloblmig.V2ImportPathRewriter
 
 	// MinCoverage is the minimum aggregate coverage ratio required
 	// across all migrated plugin instances before Migrate returns
