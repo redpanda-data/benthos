@@ -209,6 +209,129 @@ root.x = 21.apply("double")
 	}
 }
 
+// TestFromOnlyInlinesResolvedContent — `from "path"` as the entire
+// V1 mapping body is replaced by the migrated V2 content of the
+// referenced file. The Report records a Rewritten RuleFromStatement
+// change.
+func TestFromOnlyInlinesResolvedContent(t *testing.T) {
+	helpers := `root.id = this.id
+root.upper_name = this.name.uppercase()
+`
+	rep, err := translator.Migrate(`from "./helpers.blobl"`, translator.Options{
+		MinCoverage: 0,
+		Verbose:     true,
+		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+			if importPath == "./helpers.blobl" {
+				return "/abs/helpers.blobl", helpers, true
+			}
+			return "", "", false
+		},
+	})
+	if err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	if !strings.Contains(rep.V2Mapping, "output.id") {
+		t.Fatalf("expected helpers.blobl to be migrated and inlined, got:\n%s", rep.V2Mapping)
+	}
+	if strings.Contains(rep.V2Mapping, "from ") {
+		t.Fatalf(`V2 output should not contain a "from" statement, got:\n%s`, rep.V2Mapping)
+	}
+	var sawFromRewrite bool
+	for _, c := range rep.Changes {
+		if c.RuleID == translator.RuleFromStatement && c.Severity == translator.SeverityInfo {
+			sawFromRewrite = true
+		}
+	}
+	if !sawFromRewrite {
+		t.Fatalf("expected a Rewritten RuleFromStatement change, got: %v", rep.Changes)
+	}
+}
+
+// TestFromTransitiveInlining — A from-references B, B from-references C.
+// The closure walker resolves all three and the migrator inlines C's
+// content into B and B's (which is C's) into A.
+func TestFromTransitiveInlining(t *testing.T) {
+	files := map[string]string{
+		"/abs/a.blobl": `from "./b.blobl"`,
+		"/abs/b.blobl": `from "./c.blobl"`,
+		"/abs/c.blobl": `root.kind = "leaf"`,
+	}
+	rep, err := translator.Migrate(`from "/abs/a.blobl"`, translator.Options{
+		MinCoverage: 0,
+		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+			var canonical string
+			if strings.HasPrefix(importPath, "/") {
+				canonical = importPath
+			} else {
+				// Resolve relative paths against parent's directory.
+				canonical = "/abs/" + strings.TrimPrefix(importPath, "./")
+			}
+			content, ok := files[canonical]
+			return canonical, content, ok
+		},
+	})
+	if err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	if !strings.Contains(rep.V2Mapping, `output.kind = "leaf"`) {
+		t.Fatalf("expected transitive inlining to surface c.blobl content, got:\n%s", rep.V2Mapping)
+	}
+}
+
+// TestFromUnresolvedFallsThroughToUnsupported — when the closure
+// walker can't resolve the from path, the existing Unsupported
+// behaviour is preserved (no inlining, RuleFromStatement Error).
+func TestFromUnresolvedFallsThroughToUnsupported(t *testing.T) {
+	_, err := translator.Migrate(`from "./missing.blobl"`, translator.Options{
+		MinCoverage: 0.5,
+		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+			return "", "", false
+		},
+	})
+	cerr, ok := err.(*translator.CoverageError)
+	if !ok {
+		t.Fatalf("expected *CoverageError, got %T: %v", err, err)
+	}
+	var sawFromUnsupported bool
+	for _, c := range cerr.Report.Changes {
+		if c.RuleID == translator.RuleFromStatement {
+			sawFromUnsupported = true
+		}
+	}
+	if !sawFromUnsupported {
+		t.Fatalf("expected a RuleFromStatement change, got: %v", cerr.Report.Changes)
+	}
+}
+
+// TestFromMixedWithOtherStmtsFallsThroughToUnsupported — `from`
+// alongside other statements is not the simple whole-mapping replace
+// case. Falls through to current Unsupported behaviour.
+func TestFromMixedWithOtherStmtsFallsThroughToUnsupported(t *testing.T) {
+	helpers := `root.id = this.id`
+	rep, err := translator.Migrate(`from "./helpers.blobl"
+root.extra = "foo"
+`, translator.Options{
+		MinCoverage: 0,
+		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+			return "/abs/helpers.blobl", helpers, true
+		},
+	})
+	if err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	// The `from` should remain Unsupported because it's mixed with
+	// other statements; we don't try to inline in that case.
+	var sawUnsupported bool
+	for _, c := range rep.Changes {
+		if c.RuleID == translator.RuleFromStatement && c.Severity == translator.SeverityError {
+			sawUnsupported = true
+		}
+	}
+	if !sawUnsupported {
+		t.Fatalf("expected mixed-statement from to fall through to Unsupported, got: %v", rep.Changes)
+	}
+}
+
 func keys[K comparable, V any](m map[K]V) []K {
 	out := make([]K, 0, len(m))
 	for k := range m {

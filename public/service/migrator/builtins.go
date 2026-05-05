@@ -12,10 +12,17 @@ import (
 // "bloblangv2".
 const targetBloblangV2 = "bloblang_v2"
 
+// targetBloblangV2File is the V2 file-backed processor name
+// registered in internal/impl/pure/processor_bloblang_v2_file.go.
+// V1 `from "path"` bodies migrate to this processor with the path
+// rewritten via Options.BloblangV2ImportPathRewriter.
+const targetBloblangV2File = "bloblang_v2_file"
+
 // builtInRules returns the rules registered automatically on every
 // Migrator constructed via New. They migrate the three V1 mapping
-// processors to bloblang_v2, threading each mapping body through the
-// bundled Bloblang V1->V2 translator.
+// processors to bloblang_v2 (or bloblang_v2_file when the body is a
+// single `from "path"` statement), threading each mapping body
+// through the bundled Bloblang V1->V2 translator.
 func builtInRules() map[Target]Rule {
 	return map[Target]Rule{
 		{ComponentType: "processor", Name: "bloblang"}: bloblangProcessorRule(bloblmig.ModeMapping),
@@ -30,11 +37,33 @@ func builtInRules() map[Target]Rule {
 // translator prepends `output = input` so unwritten fields pass
 // through unchanged), while `mutation` uses ModeMutation (no prelude
 // — V2's empty `output` matches V1's `mutation` semantics).
+//
+// Bodies that consist of a single `from "path"` statement are
+// rewritten to bloblang_v2_file, preserving the user's file-factoring
+// intent. The bloblang migrator still walks the file's V1 content
+// (via the closure walker) so the referenced file gets translated to
+// V2 and surfaced in Report.BloblangV2Files.
 func bloblangProcessorRule(mode bloblmig.Mode) Rule {
 	return func(ctx *Context, c *Component) Result {
 		body, ok := c.BodyString()
 		if !ok {
 			return ctx.Unsupported("expected scalar string body for " + c.Name + " processor")
+		}
+		if v1Path, ok := bloblmig.IsFromOnly(body); ok {
+			// Migrate the body through the bloblang migrator so the
+			// closure walker pulls in the referenced file and emits
+			// its V2 translation in Report.V2Files. The migrated body
+			// itself is not used; we replace the processor with the
+			// file-backed form pointing at the rewritten path.
+			_, rep, err := ctx.MigrateBloblang(body, mode)
+			if err != nil {
+				return ctx.Unsupported(err.Error())
+			}
+			v2Path := v1Path
+			if rewriter := ctx.bloblangOpts.V2ImportPathRewriter; rewriter != nil {
+				v2Path = rewriter(v1Path)
+			}
+			return ctx.ReplaceWithBloblangReport(targetBloblangV2File, v2Path, rep)
 		}
 		v2Source, rep, err := ctx.MigrateBloblang(body, mode)
 		if err != nil {
