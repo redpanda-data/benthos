@@ -153,3 +153,12 @@ func resolveResult(t translator.Translator, p v1ast.Pos, callsite string, res Re
 func Migrate(v1Source string, opts Options) (*Report, error) {
 	return New().Migrate(v1Source, opts)
 }
+
+// IsFromOnly reports whether v1Source consists of a single
+// `from "path"` statement and returns the path string if so. Useful
+// for callers that want to special-case from-only sources before
+// invoking Migrate (e.g. to rewrite a processor config to a
+// file-backed form).
+func IsFromOnly(v1Source string) (string, bool) {
+	return translator.IsFromOnly(v1Source)
+}

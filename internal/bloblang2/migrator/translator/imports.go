@@ -82,15 +82,24 @@ func buildFileSet(mainSource string, opts Options) (*fileSet, error) {
 		}
 
 		for _, stmt := range prog.Stmts {
-			imp, ok := stmt.(*v1ast.ImportStmt)
-			if !ok {
+			var pathStr string
+			switch s := stmt.(type) {
+			case *v1ast.ImportStmt:
+				lit, ok := s.Path.(*v1ast.Literal)
+				if !ok {
+					continue
+				}
+				pathStr = lit.Str
+			case *v1ast.FromStmt:
+				lit, ok := s.Path.(*v1ast.Literal)
+				if !ok {
+					continue
+				}
+				pathStr = lit.Str
+			default:
 				continue
 			}
-			lit, ok := imp.Path.(*v1ast.Literal)
-			if !ok {
-				continue
-			}
-			site := siteKey{parentKey: entry.parentKey, importPath: lit.Str}
+			site := siteKey{parentKey: entry.parentKey, importPath: pathStr}
 
 			canonical, content, resolved, consulted := resolveImport(opts, site)
 			if !resolved {

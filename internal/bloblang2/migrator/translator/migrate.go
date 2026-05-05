@@ -42,7 +42,7 @@ func Migrate(v1Source string, opts Options) (*Report, error) {
 	// 3. Project canonical-keyed V2 contents to V2-path-keyed contents
 	// for the sanity-check Parse, then translate the main V1 source.
 	parseFiles := projectToV2Paths(fs, v2Contents, opts.V2ImportPathRewriter)
-	rep, err := migrateSource(v1Source, "", opts, fs, parseFiles)
+	rep, err := migrateSource(v1Source, "", opts, fs, v2Contents, parseFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -57,10 +57,10 @@ func Migrate(v1Source string, opts Options) (*Report, error) {
 
 // migrateSource is the core V1→V2 translation step for a single source string.
 // parentKey is the canonical key of the file being translated, or empty for
-// the main source. fs is the closure built upstream; v2Files is the
-// already-translated V2 import map (keyed by the V2 path string emitted into
-// the V2 source after V2ImportPathRewriter is applied) used by the
-// post-translation sanity-check Parse.
+// the main source. fs is the closure built upstream; v2Contents holds the
+// already-translated V2 contents for every file in fs (canonical-keyed),
+// used to inline `from "path"` whole-mapping replacements; v2Files is the
+// path-keyed projection used by the post-translation sanity-check Parse.
 //
 // The post-translation sanity-check Parse is non-fatal: if it fails, we record
 // an Unsupported Change tagged RuleEmittedInvalidV2 and still return the
@@ -68,7 +68,7 @@ func Migrate(v1Source string, opts Options) (*Report, error) {
 // missing imports, duplicate namespaces) echo as V2 parse errors here — they
 // are not translator bugs but honest V2 rejections of V1-invalid input, and
 // should flow through to the caller's Compile for classification.
-func migrateSource(v1Source, parentKey string, opts Options, fs *fileSet, v2Files map[string]string) (*Report, error) {
+func migrateSource(v1Source, parentKey string, opts Options, fs *fileSet, v2Contents, v2Files map[string]string) (*Report, error) {
 	if v1Source == "" {
 		return newRecorder(opts).finalise(""), nil
 	}
@@ -76,6 +76,27 @@ func migrateSource(v1Source, parentKey string, opts Options, fs *fileSet, v2File
 	prog, err := v1ast.Parse(v1Source)
 	if err != nil {
 		return nil, fmt.Errorf("migrator: parsing V1 source: %w", err)
+	}
+
+	// `from "path"` is V1's whole-mapping replace form. When the source
+	// is a single from statement and the closure walker has resolved
+	// the referenced file, inline the file's V2 content directly: the
+	// V2 source for this mapping is literally the migrated file.
+	if fromPath, ok := isFromOnlyProgram(prog); ok && fs != nil {
+		site := siteKey{parentKey: parentKey, importPath: fromPath}
+		if canonical, ok := fs.siteIndex[site]; ok {
+			if v2, ok := v2Contents[canonical]; ok {
+				rec := newRecorder(opts)
+				rec.Rewritten(Change{
+					Line: prog.Pos.Line, Column: prog.Pos.Column,
+					Severity:    SeverityInfo,
+					Category:    CategoryIdiomRewrite,
+					RuleID:      RuleFromStatement,
+					Explanation: fmt.Sprintf(`V1 "from %q" inlined as V2 content of resolved file`, fromPath),
+				})
+				return rec.finalise(v2), nil
+			}
+		}
 	}
 
 	tr := &translator{
@@ -100,6 +121,46 @@ func migrateSource(v1Source, parentKey string, opts Options, fs *fileSet, v2File
 	}
 
 	return tr.rec.finalise(v2Source), nil
+}
+
+// isFromOnlyProgram reports whether prog consists of exactly one
+// FromStmt with a string-literal path, and returns that path.
+// Anything else (mixed statements, non-literal path) returns ok=false
+// and falls through to the per-statement loop in translateProgram,
+// which records FromStmt as Unsupported.
+func isFromOnlyProgram(prog *v1ast.Program) (string, bool) {
+	if len(prog.Stmts) != 1 {
+		return "", false
+	}
+	from, ok := prog.Stmts[0].(*v1ast.FromStmt)
+	if !ok {
+		return "", false
+	}
+	lit, ok := from.Path.(*v1ast.Literal)
+	if !ok {
+		return "", false
+	}
+	return lit.Str, true
+}
+
+// isFromOnlyV1Source parses a V1 source string and returns its from
+// path if the source is from-only. Used by translateFiles to defer
+// from-only files until their target has been translated.
+func isFromOnlyV1Source(src string) (string, bool) {
+	prog, err := v1ast.Parse(src)
+	if err != nil {
+		return "", false
+	}
+	return isFromOnlyProgram(prog)
+}
+
+// IsFromOnly reports whether v1Source consists of a single
+// `from "path"` statement and returns the path string if so. Callers
+// that want to special-case from-only sources before invoking Migrate
+// (e.g. to rewrite a processor config to a file-backed form) can use
+// this to detect the case ahead of time.
+func IsFromOnly(v1Source string) (string, bool) {
+	return isFromOnlyV1Source(v1Source)
 }
 
 // translateFiles migrates every file in fs.contents (excluding the
@@ -131,8 +192,20 @@ func translateFiles(fs *fileSet, outerOpts Options) (map[string]string, error) {
 	for {
 		progress := false
 		for canonical, src := range pending {
+			// Defer from-only files whose target hasn't been translated
+			// yet — the from inlining inside migrateSource would
+			// otherwise fall through to the translateProgram path that
+			// records the FromStmt as Unsupported.
+			if fromPath, ok := isFromOnlyV1Source(src); ok {
+				site := siteKey{parentKey: canonical, importPath: fromPath}
+				if targetCanonical, ok := fs.siteIndex[site]; ok {
+					if _, ready := out[targetCanonical]; !ready {
+						continue
+					}
+				}
+			}
 			parseFiles := projectToV2Paths(fs, out, outerOpts.V2ImportPathRewriter)
-			rep, err := migrateSource(src, canonical, innerOpts, fs, parseFiles)
+			rep, err := migrateSource(src, canonical, innerOpts, fs, out, parseFiles)
 			if err != nil || hasUnresolvedImport(rep) {
 				continue
 			}
@@ -149,7 +222,7 @@ func translateFiles(fs *fileSet, outerOpts Options) (map[string]string, error) {
 	// still fatal.
 	for canonical, src := range pending {
 		parseFiles := projectToV2Paths(fs, out, outerOpts.V2ImportPathRewriter)
-		rep, err := migrateSource(src, canonical, innerOpts, fs, parseFiles)
+		rep, err := migrateSource(src, canonical, innerOpts, fs, out, parseFiles)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", canonical, err)
 		}
