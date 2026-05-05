@@ -256,27 +256,47 @@ pipeline:
 	}
 }
 
-// TestFromOnlyBodyWithUnresolvedTargetFallsBackToInline — if the
-// resolver can't satisfy the from path, the rule still calls
-// MigrateBloblang which surfaces the from as Unsupported. The
-// processor IS still rewritten (because IsFromOnly fired) but the
-// referenced file is not migrated; report carries the diagnostic.
-func TestFromOnlyBodyWithUnresolvedTargetFallsBackToInline(t *testing.T) {
+// TestFromOnlyBodyWithUnresolvedTargetEmitsUnsupported — if the
+// resolver can't satisfy the from path, the rule MUST NOT rewrite to
+// bloblang_v2_file (the resulting config would point at a file that
+// won't be in Report.BloblangV2Files). Instead the rule emits
+// Unsupported and leaves the V1 processor untouched.
+//
+// This test exercises the foundation-bug case where MigrateBloblang
+// returns success because BloblangOptions.MinCoverage was set to 0,
+// which would otherwise let the rule blindly emit a broken rewrite.
+func TestFromOnlyBodyWithUnresolvedTargetEmitsUnsupported(t *testing.T) {
 	in := `
 pipeline:
   processors:
     - mapping: 'from "./missing.blobl"'
 `
-	_, err := migrator.Migrate([]byte(in), migrator.Options{
+	rep, err := migrator.Migrate([]byte(in), migrator.Options{
 		BloblangFileResolver: func(parentKey, importPath string) (string, string, bool) {
 			return "", "", false
 		},
+		// Effectively disable the bloblang coverage gate (the
+		// migrator's applyDefaults clobbers 0 to 0.75, so we set a
+		// positive-but-tiny floor). This makes MigrateBloblang
+		// return success-with-an-unsupported-change instead of an
+		// error — the bug-shaped case the rule must guard.
+		BloblangOptions: bloblmig.Options{MinCoverage: 0.01},
 	})
-	// The rule's MigrateBloblang invocation may return an error if the
-	// underlying bloblang migrator's coverage drops below threshold. We
-	// don't strictly require success here — just that the migration
-	// surfaces the issue rather than panicking.
-	_ = err
+	if err != nil {
+		t.Fatalf("migrate should not fail outright: %v", err)
+	}
+	if strings.Contains(rep.OutputYAML, "bloblang_v2_file:") {
+		t.Fatalf("rule must not emit bloblang_v2_file when from target is unresolved:\n%s", rep.OutputYAML)
+	}
+	if !strings.Contains(rep.OutputYAML, "mapping:") {
+		t.Fatalf("expected V1 mapping processor preserved on Unsupported, got:\n%s", rep.OutputYAML)
+	}
+	if len(rep.Changes) != 1 || rep.Changes[0].Outcome != migrator.OutcomeUnsupported {
+		t.Fatalf("expected exactly one Unsupported change, got %+v", rep.Changes)
+	}
+	if !strings.Contains(rep.Changes[0].Reason, "missing.blobl") {
+		t.Fatalf("expected change reason to name the unresolved path, got %q", rep.Changes[0].Reason)
+	}
 }
 
 func v2FileKeys(m map[string]string) []string {

@@ -59,6 +59,17 @@ func bloblangProcessorRule(mode bloblmig.Mode) Rule {
 			if err != nil {
 				return ctx.Unsupported(err.Error())
 			}
+			// Even when MigrateBloblang returns success, the report
+			// can still carry a RuleFromStatement Error change when
+			// the target file couldn't be resolved AND coverage
+			// gating didn't escalate it (e.g. callers running with
+			// MinCoverage=0). Without this guard the rule would emit
+			// `bloblang_v2_file: <path>` pointing at a file that
+			// won't exist in Report.BloblangV2Files — a silently
+			// broken migrated config.
+			if reportHasUnresolvedFrom(rep) {
+				return ctx.Unsupported("from target " + v1Path + " could not be resolved")
+			}
 			v2Path := v1Path
 			if rewriter := ctx.bloblangOpts.V2ImportPathRewriter; rewriter != nil {
 				v2Path = rewriter(v1Path)
@@ -71,4 +82,21 @@ func bloblangProcessorRule(mode bloblmig.Mode) Rule {
 		}
 		return ctx.ReplaceWithBloblangReport(targetBloblangV2, v2Source, rep)
 	}
+}
+
+// reportHasUnresolvedFrom reports whether rep contains an
+// Error-severity RuleFromStatement change — the marker the bloblang
+// migrator emits when a from-only target couldn't be resolved.
+// Errors are never filtered by Verbose so this signal is reliable
+// regardless of the caller's BloblangOptions.
+func reportHasUnresolvedFrom(rep *bloblmig.Report) bool {
+	if rep == nil {
+		return false
+	}
+	for _, c := range rep.Changes {
+		if c.RuleID == bloblmig.RuleFromStatement && c.Severity == bloblmig.SeverityError {
+			return true
+		}
+	}
+	return false
 }

@@ -4,6 +4,7 @@ import (
 	"path"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/translator"
 )
@@ -329,6 +330,38 @@ root.extra = "foo"
 	}
 	if !sawUnsupported {
 		t.Fatalf("expected mixed-statement from to fall through to Unsupported, got: %v", rep.Changes)
+	}
+}
+
+// TestFromCycleDoesNotInfiniteLoop — A from B, B from A. The closure
+// walker dedups by canonical key so it terminates; the fixpoint can
+// make no progress (each side waits for the other) and the
+// post-fixpoint cleanup translates them anyway. This test asserts
+// the migrator returns rather than hanging, regardless of the
+// (broken) input semantics.
+func TestFromCycleDoesNotInfiniteLoop(t *testing.T) {
+	files := map[string]string{
+		"/abs/a.blobl": `from "/abs/b.blobl"`,
+		"/abs/b.blobl": `from "/abs/a.blobl"`,
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = translator.Migrate(`from "/abs/a.blobl"`, translator.Options{
+			MinCoverage: 0,
+			Verbose:     true,
+			FileResolver: func(parentKey, importPath string) (string, string, bool) {
+				content, ok := files[importPath]
+				return importPath, content, ok
+			},
+		})
+	}()
+	select {
+	case <-done:
+		// Returned cleanly — exact V2 content for cyclic input is not
+		// well-defined (it's broken V1) so we don't assert on it.
+	case <-time.After(2 * time.Second):
+		t.Fatalf("Migrate hung on a from-cycle input — fixpoint or closure walker is non-terminating")
 	}
 }
 
