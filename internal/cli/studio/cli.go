@@ -3,7 +3,7 @@
 package studio
 
 import (
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 )
@@ -27,7 +27,7 @@ func CliCommand(cliOpts *common.CLIOpts) *cli.Command {
 		Description: `
 EXPERIMENTAL: This subcommand is experimental and therefore are subject to
 change outside of major version releases.`[1:],
-		Subcommands: []*cli.Command{
+		Commands: []*cli.Command{
 			syncSchemaCommand(cliOpts),
 			pullCommand(cliOpts),
 		},

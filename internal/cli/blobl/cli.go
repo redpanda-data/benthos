@@ -13,7 +13,7 @@ import (
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/fatih/color"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
@@ -79,17 +79,17 @@ Find out more about Bloblang at: {{.DocumentationURL}}/guides/bloblang/about`)[1
 			&cli.StringSliceFlag{
 				Name:    common.RootFlagEnvFile,
 				Aliases: []string{"e"},
-				Value:   cli.NewStringSlice(),
+				Value:   []string{},
 				Usage:   "import environment variables from a dotenv file",
 			},
 		},
-		Before: func(c *cli.Context) error {
-			return common.PreApplyEnvFilesAndTemplates(c, opts)
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+			return ctx, common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
-		Action: func(ctx *cli.Context) error {
-			return run(ctx, opts)
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return run(ctx, cmd, opts)
 		},
-		Subcommands: []*cli.Command{
+		Commands: []*cli.Command{
 			{
 				Name:  "server",
 				Usage: "EXPERIMENTAL: Run a web server that hosts a Bloblang app",
@@ -241,8 +241,8 @@ func (e *execCache) executeMapping(exec *mapping.Executor, rawInput, prettyOutpu
 	return resultStr, nil
 }
 
-func run(c *cli.Context, opts *common.CLIOpts) error {
-	if err := opts.CustomRunExtractFn(c); err != nil {
+func run(ctx context.Context, c *cli.Command, opts *common.CLIOpts) error {
+	if err := opts.CustomRunExtractFn(ctx, c); err != nil {
 		return err
 	}
 
@@ -281,7 +281,7 @@ func run(c *cli.Context, opts *common.CLIOpts) error {
 	}
 
 	inputsChan := make(chan []byte)
-	eg, _ := errgroup.WithContext(c.Context)
+	eg, _ := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		defer close(inputsChan)
 

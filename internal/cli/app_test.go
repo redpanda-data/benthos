@@ -43,7 +43,7 @@ output:
 	opts := common.NewCLIOpts("1.2.3", "aaa")
 	opts.Stdout = io.Discard
 
-	require.NoError(t, icli.App(opts).RunContext(ctx, []string{"benthos", "run", confPath}))
+	require.NoError(t, icli.App(opts).Run(ctx, []string{"benthos", "run", confPath}))
 
 	data, _ := os.ReadFile(outPath)
 	assert.Contains(t, string(data), "foobar")
@@ -71,7 +71,7 @@ output:
 	opts := common.NewCLIOpts("1.2.3", "aaa")
 	opts.Stdout = io.Discard
 
-	require.NoError(t, icli.App(opts).RunContext(ctx, []string{"benthos", "-c", confPath}))
+	require.NoError(t, icli.App(opts).Run(ctx, []string{"benthos", "-c", confPath}))
 
 	data, _ := os.ReadFile(outPath)
 	assert.Contains(t, string(data), "foobar")

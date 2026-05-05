@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	_ "github.com/redpanda-data/benthos/v4/public/components/io"
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
@@ -119,7 +119,7 @@ output:
 				Name:  "meow",
 				Value: "",
 			},
-		}, func(c *cli.Context) error {
+		}, func(_ context.Context, c *cli.Command) error {
 			flagExtracted = c.String("meow")
 			return nil
 		}))

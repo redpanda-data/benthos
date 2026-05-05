@@ -3,13 +3,14 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"runtime/debug"
 	"strings"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/blobl"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
@@ -81,7 +82,7 @@ func traverseHelp(cmd *cli.Command, pieces []string) []pluginHelp {
 		Long:  cmd.Description,
 		Args:  args,
 	}}
-	for _, cmd := range cmd.Subcommands {
+	for _, cmd := range cmd.Commands {
 		if cmd.Hidden {
 			continue
 		}
@@ -92,7 +93,7 @@ func traverseHelp(cmd *cli.Command, pieces []string) []pluginHelp {
 
 // App returns the full CLI app definition, this is useful for writing unit
 // tests around the CLI.
-func App(opts *common.CLIOpts) *cli.App {
+func App(opts *common.CLIOpts) *cli.Command {
 	flags := []cli.Flag{
 		&cli.BoolFlag{
 			Name:    "version",
@@ -151,12 +152,12 @@ func App(opts *common.CLIOpts) *cli.App {
 		for _, o := range cs {
 			o.Usage = opts.ExecTemplate(o.Usage)
 			o.Description = opts.ExecTemplate(o.Description)
-			execNestedTemplates(o.Subcommands)
+			execNestedTemplates(o.Commands)
 		}
 	}
 	execNestedTemplates(commands)
 
-	app := &cli.App{
+	app := &cli.Command{
 		Name:  opts.BinaryName,
 		Usage: opts.ExecTemplate("A stream processor for mundane tasks - {{.DocumentationURL}}"),
 		Description: opts.ExecTemplate(`
@@ -167,17 +168,17 @@ Either run {{.ProductName}} as a stream processor or choose a command:
   {{.BinaryName}} run ./config.yaml
   {{.BinaryName}} run -r "./production/*.yaml" ./config.yaml`)[1:],
 		Flags: flags,
-		Before: func(c *cli.Context) error {
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
 			opts.RootCommonFlagsExtract(c)
-			return common.PreApplyEnvFilesAndTemplates(c, opts)
+			return ctx, common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
-		Action: func(c *cli.Context) error {
+		Action: func(ctx context.Context, c *cli.Command) error {
 			if c.Bool("version") {
 				fmt.Fprintf(opts.Stdout, "Version: %v\nDate: %v\n", opts.Version, opts.DateBuilt)
 				return nil
 			}
 			if c.Bool("help-autocomplete") {
-				_ = json.NewEncoder(opts.Stdout).Encode(traverseHelp(c.Command, nil))
+				_ = json.NewEncoder(opts.Stdout).Encode(traverseHelp(c, nil))
 				return nil
 			}
 			if c.Args().Len() > 0 {
@@ -186,14 +187,14 @@ Either run {{.ProductName}} as a stream processor or choose a command:
 				return &common.ErrExitCode{Err: errors.New("unrecognised command"), Code: 1}
 			}
 
-			return common.RunService(c, opts, false)
+			return common.RunService(ctx, c, opts, false)
 		},
 		Commands: commands,
 	}
 
-	app.OnUsageError = func(context *cli.Context, err error, isSubcommand bool) error {
+	app.OnUsageError = func(_ context.Context, cmd *cli.Command, err error, isSubcommand bool) error {
 		fmt.Fprintf(opts.Stdout, "Usage error: %v\n", err)
-		_ = cli.ShowAppHelp(context)
+		_ = cli.ShowAppHelp(cmd)
 		return err
 	}
 	return app

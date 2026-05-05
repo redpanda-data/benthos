@@ -3,11 +3,12 @@
 package template
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/fatih/color"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
@@ -42,10 +43,10 @@ Exits with a status code 1 if any linting errors are detected:
 
 If a path ends with '...' then {{.ProductName}} will walk the target and lint any
 files with the .yaml or .yml extension.`)[1:],
-		Before: func(c *cli.Context) error {
-			return common.PreApplyEnvFilesAndTemplates(c, opts)
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+			return ctx, common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
-		Action: func(c *cli.Context) error {
+		Action: func(_ context.Context, c *cli.Command) error {
 			targets, err := ifilepath.GlobsAndSuperPaths(ifs.OS(), c.Args().Slice(), "yaml", "yml")
 			if err != nil {
 				return fmt.Errorf("lint paths error: %w", err)

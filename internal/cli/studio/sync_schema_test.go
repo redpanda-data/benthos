@@ -73,7 +73,7 @@ func TestSyncSchema(t *testing.T) {
 			testServer := httptest.NewServer(http.HandlerFunc(testHandler(test.apiPathPrefix)))
 
 			cliApp := icli.App(common.NewCLIOpts(dummyVersion, dummyDate))
-			require.NoError(t, cliApp.Run([]string{"benthos", "studio", "--endpoint", testServer.URL, "sync-schema", "--session", "foosession", "--token", "footoken", "--api-path-prefix", test.apiPathPrefix}))
+			require.NoError(t, cliApp.Run(t.Context(), []string{"benthos", "studio", "--endpoint", testServer.URL, "sync-schema", "--session", "foosession", "--token", "footoken", "--api-path-prefix", test.apiPathPrefix}))
 		})
 	}
 }

@@ -50,7 +50,7 @@ logger:
 	opts := common.NewCLIOpts("1.2.3", "aaa")
 	opts.Stdout = &stdout
 
-	require.NoError(t, icli.App(opts).RunContext(ctx, []string{"benthos", "streams", "-o", obsPath, confPath}))
+	require.NoError(t, icli.App(opts).Run(ctx, []string{"benthos", "streams", "-o", obsPath, confPath}))
 
 	data, _ := os.ReadFile(outPath)
 	assert.Contains(t, string(data), "foobar")
@@ -87,7 +87,7 @@ logger:
 	opts := common.NewCLIOpts("1.2.3", "aaa")
 	opts.Stdout = &stdout
 
-	require.NoError(t, icli.App(opts).RunContext(ctx, []string{"benthos", "-c", obsPath, "streams", confPath}))
+	require.NoError(t, icli.App(opts).Run(ctx, []string{"benthos", "-c", obsPath, "streams", confPath}))
 
 	data, _ := os.ReadFile(outPath)
 	assert.Contains(t, string(data), "foobar")

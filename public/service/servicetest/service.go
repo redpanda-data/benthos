@@ -26,7 +26,7 @@ import (
 //
 // Deprecated: Use the service.CLIOptSetArgs opt func instead.
 func RunCLIWithArgs(ctx context.Context, args ...string) {
-	if err := cli.App(common.NewCLIOpts(cli.Version, cli.DateBuilt)).RunContext(ctx, args); err != nil {
+	if err := cli.App(common.NewCLIOpts(cli.Version, cli.DateBuilt)).Run(ctx, args); err != nil {
 		var cerr *common.ErrExitCode
 		if errors.As(err, &cerr) {
 			os.Exit(cerr.Code)

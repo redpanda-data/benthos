@@ -3,7 +3,9 @@
 package cli
 
 import (
-	"github.com/urfave/cli/v2"
+	"context"
+
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 )
@@ -53,14 +55,14 @@ as http, metrics, logger, resources, and so on.
 
 For more information check out the docs at:
 {{.DocumentationURL}}/guides/streams_mode/about`)[1:],
-		Before: func(c *cli.Context) error {
-			return common.PreApplyEnvFilesAndTemplates(c, opts)
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+			return ctx, common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
-		Action: func(c *cli.Context) error {
+		Action: func(ctx context.Context, c *cli.Command) error {
 			if oConf := c.String("observability"); oConf != "" {
 				opts.RootFlags.Config = oConf
 			}
-			return common.RunService(c, opts, true)
+			return common.RunService(ctx, c, opts, true)
 		},
 	}
 }

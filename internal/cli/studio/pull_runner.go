@@ -12,7 +12,7 @@ import (
 	"time"
 
 	gonanoid "github.com/matoous/go-nanoid/v2"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	ibloblang "github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
@@ -76,7 +76,7 @@ type PullRunner struct {
 	exitDelay   time.Duration
 	exitTimeout time.Duration
 
-	cliContext  *cli.Context
+	cliContext  *cli.Command
 	cliOpts     *common.CLIOpts
 	strictMode  bool
 	version     string
@@ -105,7 +105,7 @@ func OptSetNowFn(fn func() time.Time) func(*PullRunner) {
 // pushed deep into things like the manager constructor, and as cli options are
 // expanded it'd be a drag to have to update every single constructor signature
 // that calls into it.
-func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string, opts ...func(p *PullRunner)) (*PullRunner, error) {
+func NewPullRunner(ctx context.Context, c *cli.Command, cliOpts *common.CLIOpts, token, secret string, opts ...func(p *PullRunner)) (*PullRunner, error) {
 	r := &PullRunner{
 		secretLookupFn:     cliOpts.SecretAccessFn,
 		bloblEnvironment:   cliOpts.BloblEnvironment,
@@ -184,12 +184,12 @@ func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string
 		}
 	}
 
-	if r.sessionTracker, err = initSessionTracker(c.Context, r.nowFn, r.logger, nodeName, baseURL.String(), token, secret); err != nil {
+	if r.sessionTracker, err = initSessionTracker(ctx, r.nowFn, r.logger, nodeName, baseURL.String(), token, secret); err != nil {
 		return nil, fmt.Errorf("failed to initialise session connection: %w", err)
 	}
 	r.metricsFlushPeriod = r.sessionTracker.MetricsGuideFlushPeriod()
 
-	err = r.bootstrapConfigReader(c.Context)
+	err = r.bootstrapConfigReader(ctx)
 	if err != nil {
 		r.logger.Error("Failed to run initial sync config: %v", err)
 	}
@@ -311,7 +311,7 @@ func (r *PullRunner) bootstrapConfigReader(ctx context.Context) (bootstrapErr er
 	tmpTracingSummary.SetEnabled(false)
 
 	stopMgrTmp, err := common.CreateManager(
-		r.cliContext, r.cliOpts, r.logger, false, conf,
+		ctx, r.cliContext, r.cliOpts, r.logger, false, conf,
 		manager.OptSetEnvironment(tmpEnv),
 		manager.OptSetBloblangEnvironment(bloblEnv),
 		manager.OptSetFS(sessFS))

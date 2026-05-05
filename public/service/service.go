@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"os"
 
-	ucli "github.com/urfave/cli/v2"
+	ucli "github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/parser"
@@ -76,7 +76,7 @@ func RunCLIToCode(ctx context.Context, optFuncs ...CLIOptFunc) (exitCode int, er
 		return l, nil
 	}
 
-	if err := cli.App(cliOpts.opts).RunContext(ctx, cliOpts.args); err != nil {
+	if err := cli.App(cliOpts.opts).Run(ctx, cliOpts.args); err != nil {
 		var cerr *common.ErrExitCode
 		if errors.As(err, &cerr) {
 			return cerr.Code, nil
@@ -244,7 +244,7 @@ func CLIOptOnStreamStart(fn func(s *RunningStreamSummary) error) CLIOptFunc {
 
 // CLIOptCustomRunFlags sets a slice of custom cli flags and a closure to be
 // called once those flags are parsed.
-func CLIOptCustomRunFlags(flags []ucli.Flag, fn func(*ucli.Context) error) CLIOptFunc {
+func CLIOptCustomRunFlags(flags []ucli.Flag, fn func(context.Context, *ucli.Command) error) CLIOptFunc {
 	return func(c *CLIOptBuilder) {
 		c.opts.CustomRunFlags = flags
 		c.opts.CustomRunExtractFn = fn

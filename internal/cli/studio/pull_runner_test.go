@@ -20,7 +20,7 @@ import (
 	"github.com/nsf/jsondiff"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	icli "github.com/redpanda-data/benthos/v4/internal/cli"
@@ -102,11 +102,11 @@ func testServerForPullRunner(
 	cliApp := icli.App(cliOpts)
 	for _, c := range cliApp.Commands {
 		if c.Name == "studio" {
-			for _, sc := range c.Subcommands {
+			for _, sc := range c.Commands {
 				if sc.Name == "pull" {
-					sc.Action = func(ctx *cli.Context) error {
+					sc.Action = func(ctx context.Context, cmd *cli.Command) error {
 						var err error
-						pr, err = studio.NewPullRunner(ctx, cliOpts, "aaa", "bbb", studio.OptSetNowFn(nowFn))
+						pr, err = studio.NewPullRunner(ctx, cmd, cliOpts, "aaa", "bbb", studio.OptSetNowFn(nowFn))
 						require.NoError(t, err)
 						return nil
 					}
@@ -114,7 +114,7 @@ func testServerForPullRunner(
 			}
 		}
 	}
-	require.NoError(t, cliApp.Run(injectedArgs))
+	require.NoError(t, cliApp.Run(t.Context(), injectedArgs))
 	return
 }
 

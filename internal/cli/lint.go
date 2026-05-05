@@ -13,7 +13,7 @@ import (
 	"sync"
 
 	"github.com/fatih/color"
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config"
@@ -68,11 +68,11 @@ Exits with a status code 1 if any linting errors are detected:
 
 If a path ends with '...' then {{.ProductName}} will walk the target and lint any
 files with the .yaml or .yml extension.`)[1:],
-		Before: func(c *cli.Context) error {
-			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+			return ctx, common.PreApplyEnvFilesAndTemplates(c, cliOpts)
 		},
-		Action: func(c *cli.Context) error {
-			return LintAction(c, cliOpts, cliOpts.Stderr)
+		Action: func(ctx context.Context, c *cli.Command) error {
+			return LintAction(ctx, c, cliOpts, cliOpts.Stderr)
 		},
 	}
 }
@@ -195,8 +195,8 @@ func lintMDSnippets(path string, spec docs.FieldSpecs, lConf docs.LintConfig) (p
 
 // LintAction performs the benthos lint subcommand and returns the appropriate
 // exit code. This function is exported for testing purposes only.
-func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) error {
-	if err := opts.CustomRunExtractFn(c); err != nil {
+func LintAction(ctx context.Context, c *cli.Command, opts *common.CLIOpts, stderr io.Writer) error {
+	if err := opts.CustomRunExtractFn(ctx, c); err != nil {
 		return err
 	}
 

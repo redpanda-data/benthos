@@ -3,10 +3,11 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"gopkg.in/yaml.v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
@@ -41,11 +42,11 @@ variables have been resolved:
   {{.BinaryName}} echo --set 'input.generate.mapping=root.id = uuid_v4()'
 
   `)[1:],
-		Before: func(c *cli.Context) error {
-			return common.PreApplyEnvFilesAndTemplates(c, opts)
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+			return ctx, common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
-		Action: func(c *cli.Context) error {
-			if err := opts.CustomRunExtractFn(c); err != nil {
+		Action: func(ctx context.Context, c *cli.Command) error {
+			if err := opts.CustomRunExtractFn(ctx, c); err != nil {
 				return err
 			}
 

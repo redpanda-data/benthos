@@ -5,7 +5,7 @@ package common
 import (
 	"strings"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
@@ -13,7 +13,7 @@ import (
 )
 
 // CreateLogger from a CLI context and a stream config.
-func CreateLogger(c *cli.Context, opts *CLIOpts, conf config.Type, streamsMode bool) (logger log.Modular, err error) {
+func CreateLogger(c *cli.Command, opts *CLIOpts, conf config.Type, streamsMode bool) (logger log.Modular, err error) {
 	if overrideLogLevel := opts.RootFlags.GetLogLevel(c); overrideLogLevel != "" {
 		conf.Logger.LogLevel = strings.ToUpper(overrideLogLevel)
 	}

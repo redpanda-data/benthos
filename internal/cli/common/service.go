@@ -17,7 +17,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/stream"
 	strmmgr "github.com/redpanda-data/benthos/v4/internal/stream/manager"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 // ErrExitCode is an error that could be returned by the cli application in
@@ -39,8 +39,8 @@ func (e *ErrExitCode) Unwrap() error {
 
 // RunService runs a service command (either the default or the streams
 // subcommand).
-func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
-	if err := cliOpts.CustomRunExtractFn(c); err != nil {
+func RunService(ctx context.Context, c *cli.Command, cliOpts *CLIOpts, streamsMode bool) error {
+	if err := cliOpts.CustomRunExtractFn(ctx, c); err != nil {
 		return err
 	}
 
@@ -51,7 +51,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 		return fmt.Errorf("configuration file read error: %w", err)
 	}
 	defer func() {
-		_ = confReader.Close(c.Context)
+		_ = confReader.Close(ctx)
 	}()
 
 	logger, err := CreateLogger(c, cliOpts, conf, streamsMode)
@@ -80,7 +80,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 		return errors.New(cliOpts.ExecTemplate("shutting down due to linter errors, to prevent shutdown run {{.ProductName}} with --chilled"))
 	}
 
-	stoppableManager, err := CreateManager(c, cliOpts, logger, streamsMode, conf)
+	stoppableManager, err := CreateManager(ctx, c, cliOpts, logger, streamsMode, conf)
 	if err != nil {
 		return err
 	}
@@ -107,7 +107,7 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 	if err := cliOpts.OnStreamInit(stoppableStream); err != nil {
 		return err
 	}
-	return RunManagerUntilStopped(c, cliOpts, conf, stoppableManager, stoppableStream, dataStreamClosedChan)
+	return RunManagerUntilStopped(ctx, c, cliOpts, conf, stoppableManager, stoppableStream, dataStreamClosedChan)
 }
 
 // DelayShutdown attempts to block until either:

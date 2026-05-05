@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 )
@@ -64,7 +64,7 @@ files and execute them, replacing the previous stream running.`[1:],
 				Usage: "Specify the API path prefix of the Benthos studio server to connect to.",
 			},
 		},
-		Action: func(c *cli.Context) error {
+		Action: func(ctx context.Context, c *cli.Command) error {
 			// Start off by warning about all unsupported flags
 			if cliOpts.RootFlags.GetWatcher(c) {
 				return errors.New("the --watcher/-w flag is not supported in this mode of operation")
@@ -85,7 +85,7 @@ files and execute them, replacing the previous stream running.`[1:],
 				return errors.New("must specify a node token and secret")
 			}
 
-			pullRunner, err := NewPullRunner(c, cliOpts, token, secret)
+			pullRunner, err := NewPullRunner(ctx, c, cliOpts, token, secret)
 			if err != nil {
 				return fmt.Errorf("error encountered whilst initiating studio sync: %v", err)
 			}

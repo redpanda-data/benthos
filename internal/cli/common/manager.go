@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
@@ -27,7 +27,8 @@ import (
 
 // CreateManager from a CLI context and a stream config.
 func CreateManager(
-	c *cli.Context,
+	ctx context.Context,
+	c *cli.Command,
 	cliOpts *CLIOpts,
 	logger log.Modular,
 	streamsMode bool,
@@ -114,7 +115,7 @@ func CreateManager(
 		return
 	}
 
-	if err = mgr.TriggerStartConsuming(c.Context); err != nil {
+	if err = mgr.TriggerStartConsuming(ctx); err != nil {
 		return
 	}
 
@@ -128,7 +129,8 @@ func CreateManager(
 // which point the provided HTTP server, the manager, and the stoppable is
 // stopped according to the configured shutdown timeout.
 func RunManagerUntilStopped(
-	c *cli.Context,
+	ctx context.Context,
+	c *cli.Command,
 	opts *CLIOpts,
 	conf config.Type,
 	stopMgr *StoppableManager,
@@ -155,7 +157,7 @@ func RunManagerUntilStopped(
 	defer func() {
 		if exitDelay > 0 {
 			stopMgr.Manager().Logger().Info("Shutdown delay is in effect for %s\n", exitDelay)
-			if err := DelayShutdown(c.Context, exitDelay); err != nil {
+			if err := DelayShutdown(ctx, exitDelay); err != nil {
 				stopMgr.Manager().Logger().Error("Shutdown delay failed: %s", err)
 			}
 		}
@@ -170,14 +172,14 @@ func RunManagerUntilStopped(
 			os.Exit(1)
 		}()
 
-		ctx, done := context.WithTimeout(c.Context, exitTimeout)
+		stopCtx, done := context.WithTimeout(ctx, exitTimeout)
 		defer done()
 
-		if err := stopStrm.Stop(ctx); err != nil {
+		if err := stopStrm.Stop(stopCtx); err != nil {
 			return
 		}
 
-		if err := stopMgr.Stop(ctx); err != nil {
+		if err := stopMgr.Stop(stopCtx); err != nil {
 			stopMgr.Manager().Logger().Warn(
 				"Service failed to close resources cleanly within allocated time: %v."+
 					" Exiting forcefully and dumping stack trace to stderr\n", err,
@@ -188,7 +190,7 @@ func RunManagerUntilStopped(
 	}()
 
 	var deadLineTrigger <-chan time.Time
-	if dl, exists := c.Deadline(); exists {
+	if dl, exists := ctx.Deadline(); exists {
 		// If a deadline has been set by the cli context then we need to trigger
 		// graceful termination before it's reached, otherwise it'll never
 		// happen as the context will cancel the cleanup.
@@ -221,7 +223,7 @@ func RunManagerUntilStopped(
 		stopMgr.Manager().Logger().Info("Pipeline has terminated. Shutting down the service")
 	case <-deadLineTrigger:
 		stopMgr.Manager().Logger().Info("Run context deadline about to be reached. Shutting down the service")
-	case <-c.Done():
+	case <-ctx.Done():
 		stopMgr.Manager().Logger().Info("Run context was cancelled. Shutting down the service")
 	}
 	return nil

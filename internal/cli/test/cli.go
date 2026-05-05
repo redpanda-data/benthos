@@ -3,10 +3,11 @@
 package test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/filepath"
@@ -51,11 +52,11 @@ fail the process will report the errors and exit with a status code 1.
 
 For more information check out the docs at:
 {{.DocumentationURL}}/configuration/unit_testing`)[1:],
-		Before: func(c *cli.Context) error {
-			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+			return ctx, common.PreApplyEnvFilesAndTemplates(c, cliOpts)
 		},
-		Action: func(c *cli.Context) error {
-			if err := cliOpts.CustomRunExtractFn(c); err != nil {
+		Action: func(ctx context.Context, c *cli.Command) error {
+			if err := cliOpts.CustomRunExtractFn(ctx, c); err != nil {
 				return err
 			}
 

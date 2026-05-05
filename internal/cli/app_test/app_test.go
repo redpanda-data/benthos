@@ -76,7 +76,7 @@ input:
 
 	closeChan := make(chan struct{})
 	go func() {
-		require.NoError(t, cli.App(common.NewCLIOpts("", "")).Run([]string{"benthos", "run", confPath}))
+		require.NoError(t, cli.App(common.NewCLIOpts("", "")).Run(t.Context(), []string{"benthos", "run", confPath}))
 		close(closeChan)
 	}()
 

@@ -17,19 +17,19 @@ import (
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
 )
 
-func executeListSubcmd(args []string) (string, error) {
+func executeListSubcmd(t *testing.T, args []string) (string, error) {
 	var buf bytes.Buffer
 
 	opts := common.NewCLIOpts("1.2.3", "now")
 	opts.Stdout = &buf
 	opts.Stderr = &buf
 
-	err := icli.App(opts).Run(args)
+	err := icli.App(opts).Run(t.Context(), args)
 	return buf.String(), err
 }
 
 func TestListBloblangFunctionsJSONSchema(t *testing.T) {
-	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "jsonschema", "bloblang-functions"})
+	outStr, err := executeListSubcmd(t, []string{"benthos", "list", "--format", "jsonschema", "bloblang-functions"})
 	require.NoError(t, err)
 
 	// Parse JSON output
@@ -68,7 +68,7 @@ func TestListBloblangFunctionsJSONSchema(t *testing.T) {
 }
 
 func TestListBloblangMethodsJSONSchema(t *testing.T) {
-	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "jsonschema", "bloblang-methods"})
+	outStr, err := executeListSubcmd(t, []string{"benthos", "list", "--format", "jsonschema", "bloblang-methods"})
 	require.NoError(t, err)
 
 	// Parse JSON output
@@ -108,7 +108,7 @@ func TestListBloblangMethodsJSONSchema(t *testing.T) {
 }
 
 func TestListBloblangFunctionWithParams(t *testing.T) {
-	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "jsonschema", "bloblang-functions"})
+	outStr, err := executeListSubcmd(t, []string{"benthos", "list", "--format", "jsonschema", "bloblang-functions"})
 	require.NoError(t, err)
 
 	// Parse JSON output
@@ -145,7 +145,7 @@ func TestListBloblangFunctionWithParams(t *testing.T) {
 }
 
 func TestListBloblangMethodWithParams(t *testing.T) {
-	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "jsonschema", "bloblang-methods"})
+	outStr, err := executeListSubcmd(t, []string{"benthos", "list", "--format", "jsonschema", "bloblang-methods"})
 	require.NoError(t, err)
 
 	// Parse JSON output
@@ -187,7 +187,7 @@ func TestListBloblangMethodWithParams(t *testing.T) {
 
 func TestListBloblangFunctionFiltering(t *testing.T) {
 	// Test filtering to a single function
-	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "jsonschema", "bloblang-functions", "uuid_v4"})
+	outStr, err := executeListSubcmd(t, []string{"benthos", "list", "--format", "jsonschema", "bloblang-functions", "uuid_v4"})
 	require.NoError(t, err)
 
 	// Parse JSON output
@@ -200,7 +200,7 @@ func TestListBloblangFunctionFiltering(t *testing.T) {
 	assert.Equal(t, "uuid_v4", functions[0]["name"])
 
 	// Test filtering to multiple functions
-	outStr, err = executeListSubcmd([]string{"benthos", "list", "--format", "jsonschema", "bloblang-functions", "uuid_v4", "nanoid"})
+	outStr, err = executeListSubcmd(t, []string{"benthos", "list", "--format", "jsonschema", "bloblang-functions", "uuid_v4", "nanoid"})
 	require.NoError(t, err)
 
 	err = json.Unmarshal([]byte(outStr), &result)
@@ -216,7 +216,7 @@ func TestListBloblangFunctionFiltering(t *testing.T) {
 
 func TestListBloblangMethodFiltering(t *testing.T) {
 	// Test filtering to a single method
-	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "jsonschema", "bloblang-methods", "uppercase"})
+	outStr, err := executeListSubcmd(t, []string{"benthos", "list", "--format", "jsonschema", "bloblang-methods", "uppercase"})
 	require.NoError(t, err)
 
 	// Parse JSON output
@@ -229,7 +229,7 @@ func TestListBloblangMethodFiltering(t *testing.T) {
 	assert.Equal(t, "uppercase", methods[0]["name"])
 
 	// Test filtering to multiple methods
-	outStr, err = executeListSubcmd([]string{"benthos", "list", "--format", "jsonschema", "bloblang-methods", "uppercase", "catch"})
+	outStr, err = executeListSubcmd(t, []string{"benthos", "list", "--format", "jsonschema", "bloblang-methods", "uppercase", "catch"})
 	require.NoError(t, err)
 
 	err = json.Unmarshal([]byte(outStr), &result)
@@ -245,7 +245,7 @@ func TestListBloblangMethodFiltering(t *testing.T) {
 
 func TestListJSONSchemaComponentsNotAffected(t *testing.T) {
 	// Verify that regular component jsonschema output still works
-	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "jsonschema"})
+	outStr, err := executeListSubcmd(t, []string{"benthos", "list", "--format", "jsonschema"})
 	require.NoError(t, err)
 
 	// Should be a JSON schema document (not our bloblang metadata format)

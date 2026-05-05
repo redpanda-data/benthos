@@ -7,13 +7,13 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 )
 
 // ReadConfig attempts to read a general service wide config via a returned
 // config.Reader based on input CLI flags. This includes applying any config
 // overrides expressed by the --set flag.
-func ReadConfig(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) (mainPath string, inferred bool, conf *config.Reader) {
+func ReadConfig(c *cli.Command, cliOpts *CLIOpts, streamsMode bool) (mainPath string, inferred bool, conf *config.Reader) {
 	path := cliOpts.RootFlags.GetConfig(c)
 	if path == "" {
 		// Iterate default config paths

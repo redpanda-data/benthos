@@ -3,11 +3,12 @@
 package cli
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"gopkg.in/yaml.v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
@@ -131,10 +132,10 @@ forward slashes:
   {{.BinaryName}} create file,http_server/protobuf/http_client
 
 If the expression is omitted a default config is created.`)[1:],
-		Before: func(c *cli.Context) error {
-			return common.PreApplyEnvFilesAndTemplates(c, cliOpts)
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+			return ctx, common.PreApplyEnvFilesAndTemplates(c, cliOpts)
 		},
-		Action: func(c *cli.Context) error {
+		Action: func(_ context.Context, c *cli.Command) error {
 			conf := map[string]any{
 				"input": map[string]any{
 					"stdin": map[string]any{},

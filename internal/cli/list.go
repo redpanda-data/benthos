@@ -3,11 +3,12 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
@@ -59,17 +60,17 @@ only those specific items:
   {{.BinaryName}} list --format jsonschema bloblang-functions uuid_v4
   {{.BinaryName}} list --format jsonschema bloblang-functions uuid_v4 nanoid
   {{.BinaryName}} list --format jsonschema bloblang-methods uppercase catch`)[1:],
-		Before: func(c *cli.Context) error {
-			return common.PreApplyEnvFilesAndTemplates(c, opts)
+		Before: func(ctx context.Context, c *cli.Command) (context.Context, error) {
+			return ctx, common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
-		Action: func(c *cli.Context) error {
+		Action: func(_ context.Context, c *cli.Command) error {
 			listComponents(c, opts)
 			return nil
 		},
 	}
 }
 
-func listComponents(c *cli.Context, opts *common.CLIOpts) {
+func listComponents(c *cli.Command, opts *common.CLIOpts) {
 	ofTypes := map[string]struct{}{}
 	for _, k := range c.Args().Slice() {
 		ofTypes[k] = struct{}{}

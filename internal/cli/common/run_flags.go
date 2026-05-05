@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/parser"
 	"github.com/redpanda-data/benthos/v4/internal/filepath"
@@ -33,7 +33,7 @@ type RootCommonFlags struct {
 
 // RootCommonFlagsExtract attempts to read all common root flags from a cli
 // context (presumed to be the root context).
-func (c *CLIOpts) RootCommonFlagsExtract(ctx *cli.Context) {
+func (c *CLIOpts) RootCommonFlagsExtract(ctx *cli.Command) {
 	c.RootFlags.Config = ctx.String(RootFlagConfig)
 	c.RootFlags.LogLevel = ctx.String(RootFlagLogLevel)
 	c.RootFlags.Set = ctx.StringSlice(RootFlagSet)
@@ -44,7 +44,7 @@ func (c *CLIOpts) RootCommonFlagsExtract(ctx *cli.Context) {
 
 // GetConfig attempts to read a config flag either from the current context, or
 // falls back to whatever the root context set it to.
-func (r *RootCommonFlags) GetConfig(c *cli.Context) string {
+func (r *RootCommonFlags) GetConfig(c *cli.Command) string {
 	if v := c.String(RootFlagConfig); v != "" {
 		return v
 	}
@@ -53,7 +53,7 @@ func (r *RootCommonFlags) GetConfig(c *cli.Context) string {
 
 // GetLogLevel attempts to read a config flag either from the current context,
 // or falls back to whatever the root context set it to.
-func (r *RootCommonFlags) GetLogLevel(c *cli.Context) string {
+func (r *RootCommonFlags) GetLogLevel(c *cli.Command) string {
 	if v := c.String(RootFlagLogLevel); v != "" {
 		return v
 	}
@@ -62,7 +62,7 @@ func (r *RootCommonFlags) GetLogLevel(c *cli.Context) string {
 
 // GetSet attempts to read a config flag either from the current context, or
 // falls back to whatever the root context set it to.
-func (r *RootCommonFlags) GetSet(c *cli.Context) []string {
+func (r *RootCommonFlags) GetSet(c *cli.Command) []string {
 	if v := c.StringSlice(RootFlagSet); len(v) > 0 {
 		return v
 	}
@@ -71,7 +71,7 @@ func (r *RootCommonFlags) GetSet(c *cli.Context) []string {
 
 // GetResources attempts to read a config flag either from the current context,
 // or falls back to whatever the root context set it to.
-func (r *RootCommonFlags) GetResources(c *cli.Context) []string {
+func (r *RootCommonFlags) GetResources(c *cli.Command) []string {
 	if v := c.StringSlice(RootFlagResources); len(v) > 0 {
 		return v
 	}
@@ -80,13 +80,13 @@ func (r *RootCommonFlags) GetResources(c *cli.Context) []string {
 
 // GetChilled attempts to read a config flag either from the current context,
 // or falls back to whatever the root context set it to.
-func (r *RootCommonFlags) GetChilled(c *cli.Context) bool {
+func (r *RootCommonFlags) GetChilled(c *cli.Command) bool {
 	return c.Bool(RootFlagChilled) || r.Chilled
 }
 
 // GetWatcher attempts to read a config flag either from the current context,
 // or falls back to whatever the root context set it to.
-func (r *RootCommonFlags) GetWatcher(c *cli.Context) bool {
+func (r *RootCommonFlags) GetWatcher(c *cli.Command) bool {
 	return c.Bool(RootFlagWatcher) || r.Watcher
 }
 
@@ -151,7 +151,7 @@ func EnvFileAndTemplateFlags(opts *CLIOpts, hidden bool) []cli.Flag {
 			Name:    RootFlagEnvFile,
 			Hidden:  hidden,
 			Aliases: []string{"e"},
-			Value:   cli.NewStringSlice(),
+			Value:   []string{},
 			Usage:   "import environment variables from a dotenv file",
 		},
 		&cli.StringSliceFlag{
@@ -166,7 +166,7 @@ func EnvFileAndTemplateFlags(opts *CLIOpts, hidden bool) []cli.Flag {
 // PreApplyEnvFilesAndTemplates takes a cli context and checks for flags
 // `env-file` and `templates` in order to parse and execute them before the CLI
 // proceeds onto the next behaviour.
-func PreApplyEnvFilesAndTemplates(c *cli.Context, opts *CLIOpts) error {
+func PreApplyEnvFilesAndTemplates(c *cli.Command, opts *CLIOpts) error {
 	dotEnvPaths, err := filepath.Globs(ifs.OS(), c.StringSlice(RootFlagEnvFile))
 	if err != nil {
 		return fmt.Errorf("failed to resolve env file glob pattern: %w", err)

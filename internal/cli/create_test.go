@@ -75,7 +75,7 @@ func TestCreate(t *testing.T) {
 			opts.Stdout = &stdout
 			opts.Stderr = &stderr
 
-			err := cli.App(opts).Run(test.args)
+			err := cli.App(opts).Run(t.Context(), test.args)
 			require.NoError(t, err)
 
 			for _, exp := range test.contains {

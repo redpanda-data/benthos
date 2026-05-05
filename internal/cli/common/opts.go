@@ -10,7 +10,7 @@ import (
 	"path"
 	"text/template"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
@@ -50,7 +50,7 @@ type CLIOpts struct {
 	OnStreamInit StreamInitFunc
 
 	CustomRunFlags     []cli.Flag
-	CustomRunExtractFn func(*cli.Context) error
+	CustomRunExtractFn func(context.Context, *cli.Command) error
 
 	CustomCommands []*cli.Command
 }
@@ -88,7 +88,7 @@ func NewCLIOpts(version, dateBuilt string) *CLIOpts {
 			return l, nil
 		},
 		OnStreamInit:       func(s RunningStream) error { return nil },
-		CustomRunExtractFn: func(*cli.Context) error { return nil },
+		CustomRunExtractFn: func(context.Context, *cli.Command) error { return nil },
 	}
 }
 

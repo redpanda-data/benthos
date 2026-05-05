@@ -18,13 +18,13 @@ import (
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
 )
 
-func executeLintSubcmd(args []string) (string, error) {
+func executeLintSubcmd(t *testing.T, args []string) (string, error) {
 	var buf bytes.Buffer
 
 	opts := common.NewCLIOpts("1.2.3", "now")
 	opts.Stderr = &buf
 
-	err := icli.App(opts).Run(args)
+	err := icli.App(opts).Run(t.Context(), args)
 	return buf.String(), err
 }
 
@@ -188,7 +188,7 @@ output:
 				require.NoError(t, os.WriteFile(tFile(name), []byte(c), 0o644))
 			}
 
-			outStr, err := executeLintSubcmd(test.args)
+			outStr, err := executeLintSubcmd(t, test.args)
 			if test.expectedErr {
 				assert.Error(t, err)
 			} else {

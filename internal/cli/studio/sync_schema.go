@@ -4,6 +4,7 @@ package studio
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,7 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config/schema"
@@ -48,7 +49,7 @@ page within the studio application.`[1:],
 				Usage: "Specify the API path prefixof the Benthos studio server to connect to.",
 			},
 		},
-		Action: func(c *cli.Context) error {
+		Action: func(_ context.Context, c *cli.Command) error {
 			endpoint := c.String("endpoint")
 			sessionID := c.String("session")
 			tokenID := c.String("token")

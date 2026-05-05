@@ -20,7 +20,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/urfave/cli/v2"
+	"github.com/urfave/cli/v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/parser"
@@ -142,7 +142,7 @@ func (f *fileSync) mapping() string {
 	return f.mappingString
 }
 
-func runServer(c *cli.Context) error {
+func runServer(_ context.Context, c *cli.Command) error {
 	fSync := newFileSync(c.String("input-file"), c.String("mapping-file"), c.Bool("write"))
 	defer fSync.write()
 
