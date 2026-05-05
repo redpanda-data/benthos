@@ -79,6 +79,37 @@ func TestBloblangV2FileProcessorInvalidMapping(t *testing.T) {
 	assert.Contains(t, err.Error(), "parsing")
 }
 
+// TestBloblangV2FileProcessorLintsClean exercises the schema-level
+// linter against a stream config containing the new processor,
+// ensuring the registration is wired correctly into the global env
+// and the field shape matches what users will write.
+func TestBloblangV2FileProcessorLintsClean(t *testing.T) {
+	dir := t.TempDir()
+	mappingPath := filepath.Join(dir, "mapping.blobl")
+	require.NoError(t, os.WriteFile(mappingPath, []byte(`output = input`), 0o644))
+
+	yamlConfig := []byte(`
+input:
+  generate:
+    count: 1
+    interval: ""
+    mapping: 'root = {"id": "abc"}'
+pipeline:
+  processors:
+    - bloblang_v2_file: ` + mappingPath + `
+output:
+  drop: {}
+`)
+
+	schema := service.GlobalEnvironment().FullConfigSchema("", "")
+	linter := schema.NewStreamConfigLinter()
+	lints, err := linter.LintYAML(yamlConfig)
+	require.NoError(t, err)
+	for _, l := range lints {
+		t.Errorf("unexpected lint: %+v", l)
+	}
+}
+
 func TestBloblangV2FileProcessorMetadataOverwrite(t *testing.T) {
 	dir := t.TempDir()
 	mappingPath := filepath.Join(dir, "meta.blobl")
