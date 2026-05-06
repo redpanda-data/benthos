@@ -32,6 +32,9 @@ func TestSchemaStringify(t *testing.T) {
 		{Input: Any, Output: "ANY"},
 		{Input: Decimal, Output: "DECIMAL"},
 		{Input: BigDecimal, Output: "BIG_DECIMAL"},
+		{Input: Date, Output: "DATE"},
+		{Input: TimeOfDay, Output: "TIME_OF_DAY"},
+		{Input: UUID, Output: "UUID"},
 		{Input: zeroType, Output: "UNKNOWN"},
 		{Input: CommonType(-1), Output: "UNKNOWN"},
 	} {
@@ -42,7 +45,7 @@ func TestSchemaStringify(t *testing.T) {
 func TestValidateRejectsChildrenOnLeafTypes(t *testing.T) {
 	leafTypes := []CommonType{
 		Boolean, Int32, Int64, Float32, Float64, String, ByteArray,
-		Null, Timestamp, Any, BigDecimal,
+		Null, Timestamp, Any, BigDecimal, Date, UUID,
 	}
 
 	for _, typ := range leafTypes {
@@ -84,4 +87,127 @@ func TestValidateRejectsChildrenOnDecimal(t *testing.T) {
 	err := c.Validate()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "is a leaf and must not have children")
+}
+
+func TestValidateTimestampParams(t *testing.T) {
+	t.Run("nil Logical is permitted (legacy default)", func(t *testing.T) {
+		c := Common{Type: Timestamp, Name: "ts"}
+		assert.NoError(t, c.Validate())
+	})
+
+	t.Run("populated Logical with valid unit", func(t *testing.T) {
+		for _, u := range []TimeUnit{TimeUnitSeconds, TimeUnitMillis, TimeUnitMicros, TimeUnitNanos} {
+			c := Common{
+				Type:    Timestamp,
+				Name:    "ts",
+				Logical: &LogicalParams{Timestamp: &TimestampParams{Unit: u, AdjustToUTC: true}},
+			}
+			assert.NoError(t, c.Validate(), "unit=%v", u)
+		}
+	})
+
+	t.Run("invalid unit rejected", func(t *testing.T) {
+		c := Common{
+			Type:    Timestamp,
+			Name:    "ts",
+			Logical: &LogicalParams{Timestamp: &TimestampParams{Unit: TimeUnit(99), AdjustToUTC: true}},
+		}
+		err := c.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid timestamp unit")
+	})
+
+	t.Run("Timestamp params on non-Timestamp type rejected", func(t *testing.T) {
+		c := Common{
+			Type:    Int64,
+			Name:    "x",
+			Logical: &LogicalParams{Timestamp: &TimestampParams{Unit: TimeUnitMillis, AdjustToUTC: true}},
+		}
+		err := c.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Logical.Timestamp parameters are only valid for type TIMESTAMP")
+	})
+}
+
+func TestValidateTimeOfDayParams(t *testing.T) {
+	t.Run("missing Logical rejected", func(t *testing.T) {
+		c := Common{Type: TimeOfDay, Name: "tod"}
+		err := c.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "type TIME_OF_DAY requires Logical.TimeOfDay parameters")
+	})
+
+	t.Run("populated Logical with valid unit", func(t *testing.T) {
+		for _, u := range []TimeUnit{TimeUnitSeconds, TimeUnitMillis, TimeUnitMicros, TimeUnitNanos} {
+			c := Common{
+				Type:    TimeOfDay,
+				Name:    "tod",
+				Logical: &LogicalParams{TimeOfDay: &TimeOfDayParams{Unit: u}},
+			}
+			assert.NoError(t, c.Validate(), "unit=%v", u)
+		}
+	})
+
+	t.Run("invalid unit rejected", func(t *testing.T) {
+		c := Common{
+			Type:    TimeOfDay,
+			Name:    "tod",
+			Logical: &LogicalParams{TimeOfDay: &TimeOfDayParams{Unit: TimeUnit(0)}},
+		}
+		err := c.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid time-of-day unit")
+	})
+
+	t.Run("TimeOfDay params on non-TimeOfDay type rejected", func(t *testing.T) {
+		c := Common{
+			Type:    Int64,
+			Name:    "x",
+			Logical: &LogicalParams{TimeOfDay: &TimeOfDayParams{Unit: TimeUnitMillis}},
+		}
+		err := c.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Logical.TimeOfDay parameters are only valid for type TIME_OF_DAY")
+	})
+}
+
+func TestEffectiveTimestamp(t *testing.T) {
+	t.Run("nil Logical defaults to legacy millis/UTC", func(t *testing.T) {
+		c := Common{Type: Timestamp, Name: "ts"}
+		got := c.EffectiveTimestamp()
+		assert.Equal(t, TimestampParams{Unit: TimeUnitMillis, AdjustToUTC: true}, got)
+	})
+
+	t.Run("populated Logical wins", func(t *testing.T) {
+		c := Common{
+			Type:    Timestamp,
+			Name:    "ts",
+			Logical: &LogicalParams{Timestamp: &TimestampParams{Unit: TimeUnitMicros, AdjustToUTC: false}},
+		}
+		got := c.EffectiveTimestamp()
+		assert.Equal(t, TimestampParams{Unit: TimeUnitMicros, AdjustToUTC: false}, got)
+	})
+
+	t.Run("Logical present but Timestamp nil also defaults", func(t *testing.T) {
+		c := Common{Type: Timestamp, Name: "ts", Logical: &LogicalParams{}}
+		got := c.EffectiveTimestamp()
+		assert.Equal(t, TimestampParams{Unit: TimeUnitMillis, AdjustToUTC: true}, got)
+	})
+}
+
+func TestTimeUnitString(t *testing.T) {
+	cases := []struct {
+		u TimeUnit
+		s string
+	}{
+		{TimeUnitSeconds, "SECONDS"},
+		{TimeUnitMillis, "MILLIS"},
+		{TimeUnitMicros, "MICROS"},
+		{TimeUnitNanos, "NANOS"},
+		{TimeUnit(0), "UNKNOWN"},
+		{TimeUnit(99), "UNKNOWN"},
+	}
+	for _, tc := range cases {
+		assert.Equal(t, tc.s, tc.u.String())
+	}
 }

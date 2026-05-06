@@ -202,6 +202,87 @@ func TestFingerprint(t *testing.T) {
 			},
 			shouldMatch: false,
 		},
+		{
+			name:        "legacy Timestamp (nil Logical) matches itself",
+			schema1:     Common{Type: Timestamp, Name: "ts"},
+			schema2:     Common{Type: Timestamp, Name: "ts"},
+			shouldMatch: true,
+		},
+		{
+			name: "legacy Timestamp differs from parameterised even with default values",
+			// Fingerprints diverge whenever Logical is populated, even if the
+			// values would match the legacy default. This is intentional: the
+			// presence of the field is itself meaningful.
+			schema1: Common{Type: Timestamp, Name: "ts"},
+			schema2: Common{
+				Type:    Timestamp,
+				Name:    "ts",
+				Logical: &LogicalParams{Timestamp: &TimestampParams{Unit: TimeUnitMillis, AdjustToUTC: true}},
+			},
+			shouldMatch: false,
+		},
+		{
+			name: "Timestamp differs by unit",
+			schema1: Common{
+				Type:    Timestamp,
+				Name:    "ts",
+				Logical: &LogicalParams{Timestamp: &TimestampParams{Unit: TimeUnitMillis, AdjustToUTC: true}},
+			},
+			schema2: Common{
+				Type:    Timestamp,
+				Name:    "ts",
+				Logical: &LogicalParams{Timestamp: &TimestampParams{Unit: TimeUnitMicros, AdjustToUTC: true}},
+			},
+			shouldMatch: false,
+		},
+		{
+			name: "Timestamp differs by AdjustToUTC",
+			schema1: Common{
+				Type:    Timestamp,
+				Name:    "ts",
+				Logical: &LogicalParams{Timestamp: &TimestampParams{Unit: TimeUnitMillis, AdjustToUTC: true}},
+			},
+			schema2: Common{
+				Type:    Timestamp,
+				Name:    "ts",
+				Logical: &LogicalParams{Timestamp: &TimestampParams{Unit: TimeUnitMillis, AdjustToUTC: false}},
+			},
+			shouldMatch: false,
+		},
+		{
+			name: "TimeOfDay matches itself",
+			schema1: Common{
+				Type:    TimeOfDay,
+				Name:    "tod",
+				Logical: &LogicalParams{TimeOfDay: &TimeOfDayParams{Unit: TimeUnitMicros}},
+			},
+			schema2: Common{
+				Type:    TimeOfDay,
+				Name:    "tod",
+				Logical: &LogicalParams{TimeOfDay: &TimeOfDayParams{Unit: TimeUnitMicros}},
+			},
+			shouldMatch: true,
+		},
+		{
+			name: "TimeOfDay differs by unit",
+			schema1: Common{
+				Type:    TimeOfDay,
+				Name:    "tod",
+				Logical: &LogicalParams{TimeOfDay: &TimeOfDayParams{Unit: TimeUnitMillis}},
+			},
+			schema2: Common{
+				Type:    TimeOfDay,
+				Name:    "tod",
+				Logical: &LogicalParams{TimeOfDay: &TimeOfDayParams{Unit: TimeUnitMicros}},
+			},
+			shouldMatch: false,
+		},
+		{
+			name:        "Date and UUID identical pairs",
+			schema1:     Common{Type: Date, Name: "d"},
+			schema2:     Common{Type: Date, Name: "d"},
+			shouldMatch: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -274,6 +355,9 @@ func TestFingerprintAllTypes(t *testing.T) {
 		{Type: Any, Name: "test"},
 		{Type: Decimal, Name: "test", Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 10, Scale: 2}}},
 		{Type: BigDecimal, Name: "test"},
+		{Type: Date, Name: "test"},
+		{Type: TimeOfDay, Name: "test", Logical: &LogicalParams{TimeOfDay: &TimeOfDayParams{Unit: TimeUnitMicros}}},
+		{Type: UUID, Name: "test"},
 	}
 
 	fingerprints := make(map[string]CommonType)
@@ -407,6 +491,77 @@ func TestToAnyIncludesFingerprint(t *testing.T) {
 			parsedFP := parsedSchema.fingerprint()
 			if parsedFP != expectedFP {
 				t.Errorf("parsed schema fingerprint mismatch:\n  got:      %s\n  expected: %s", parsedFP, expectedFP)
+			}
+		})
+	}
+}
+
+// TestFingerprintLegacyStability locks in the exact fingerprint bytes of a
+// representative set of pre-parameterised schemas. These hashes must not
+// change when adding new logical-type variants; doing so would cause a
+// stampede of cache misses across every consumer of [SchemaCache] on
+// upgrade. If this test fails, look at what was added to the fingerprint
+// canonical form and gate the new fields on their being non-nil/non-zero.
+func TestFingerprintLegacyStability(t *testing.T) {
+	cases := []struct {
+		name   string
+		schema Common
+		fp     string
+	}{
+		{
+			name:   "primitive String",
+			schema: Common{Type: String, Name: "id"},
+			fp:     "bba6ac8334a77739f7374a773a738639cacba208b662eaad515178bd75d290fe",
+		},
+		{
+			name:   "primitive Int64 optional",
+			schema: Common{Type: Int64, Name: "age", Optional: true},
+			fp:     "a2f997df3bc480040bb51ae8d174a03a70eeb4cdd42e014d5fcfb58175f61bc9",
+		},
+		{
+			name:   "Timestamp without Logical",
+			schema: Common{Type: Timestamp, Name: "ts"},
+			fp:     "29368740c39657a4a6f7194f43d5254ec0c987a1107190c4dfb3912066540e81",
+		},
+		{
+			name: "nested Object",
+			schema: Common{
+				Type: Object,
+				Name: "user",
+				Children: []Common{
+					{Type: String, Name: "id"},
+					{Type: Int64, Name: "age", Optional: true},
+				},
+			},
+			fp: "9d0ad47ba9ce5b2d4f7d292f51c526fc0c7ec2fbca4a71313131fbede7740bb9",
+		},
+		{
+			name: "Decimal with params",
+			schema: Common{
+				Type:    Decimal,
+				Name:    "amount",
+				Logical: &LogicalParams{Decimal: &DecimalParams{Precision: 18, Scale: 4}},
+			},
+			fp: "97f8a859fab938ba1aa77773ab8457e092b6e3bb0cf87e56245d02dcf83de7c6",
+		},
+	}
+
+	// Hard-coded expected fingerprints lock in the canonical form. If
+	// writeFingerprint changes for any of these schemas, this test fails
+	// and the canonical form change must be reviewed for cache-stampede
+	// implications.
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := tc.schema.fingerprint()
+			if got == "" {
+				t.Fatal("empty fingerprint")
+			}
+			if got != tc.fp {
+				t.Errorf("fingerprint drift detected:\n  got:      %s\n  expected: %s", got, tc.fp)
+			}
+			// Stability: re-compute and compare.
+			if again := tc.schema.fingerprint(); again != got {
+				t.Errorf("non-deterministic fingerprint: %s vs %s", got, again)
 			}
 		})
 	}

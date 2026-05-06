@@ -90,6 +90,9 @@ const (
 	Any        CommonType = 14
 	Decimal    CommonType = 15
 	BigDecimal CommonType = 16
+	Date       CommonType = 17
+	TimeOfDay  CommonType = 18
+	UUID       CommonType = 19
 )
 
 // Decimal precision bounds. The upper bound matches the widest precision that
@@ -134,6 +137,12 @@ func (t CommonType) String() string {
 		return "DECIMAL"
 	case BigDecimal:
 		return "BIG_DECIMAL"
+	case Date:
+		return "DATE"
+	case TimeOfDay:
+		return "TIME_OF_DAY"
+	case UUID:
+		return "UUID"
 	default:
 		return "UNKNOWN"
 	}
@@ -173,6 +182,12 @@ func typeFromStr(v string) (CommonType, error) {
 		return Decimal, nil
 	case "BIG_DECIMAL":
 		return BigDecimal, nil
+	case "DATE":
+		return Date, nil
+	case "TIME_OF_DAY":
+		return TimeOfDay, nil
+	case "UUID":
+		return UUID, nil
 	default:
 		return 0, fmt.Errorf("unrecognised type string: %v", v)
 	}
@@ -199,7 +214,9 @@ type Common struct {
 // CommonType values may carry. Each parameterised type has its own field;
 // at most one is expected to be non-nil for any given Common schema.
 type LogicalParams struct {
-	Decimal *DecimalParams
+	Decimal   *DecimalParams
+	Timestamp *TimestampParams
+	TimeOfDay *TimeOfDayParams
 }
 
 // DecimalParams describes a fixed-precision decimal number.
@@ -214,6 +231,100 @@ type DecimalParams struct {
 	Scale     int32
 }
 
+// TimestampParams describes the precision and timezone semantics of a
+// [Timestamp] schema. Unit selects the resolution at which the timestamp is
+// expressed; AdjustToUTC distinguishes a UTC instant (true) from a civil /
+// "local" datetime that carries no timezone offset (false).
+//
+// A nil [LogicalParams.Timestamp] on a [Timestamp]-typed schema is permitted
+// for backwards compatibility and is treated as {Unit: TimeUnitMillis,
+// AdjustToUTC: true}; see [Common.EffectiveTimestamp].
+type TimestampParams struct {
+	Unit        TimeUnit
+	AdjustToUTC bool
+}
+
+// TimeOfDayParams describes the precision and timezone semantics of a
+// [TimeOfDay] schema (a wall-clock time with no date component). Unit selects
+// the resolution; AdjustToUTC parallels the equivalent Parquet TIME flag and
+// is rare outside Parquet/Postgres timetz.
+//
+// Unlike [TimestampParams], a [TimeOfDay]-typed schema must have non-nil
+// [LogicalParams.TimeOfDay] — there is no historical default to fall back to.
+type TimeOfDayParams struct {
+	Unit        TimeUnit
+	AdjustToUTC bool
+}
+
+// TimeUnit names the precision at which a [Timestamp] or [TimeOfDay] value is
+// expressed. The zero value is invalid; use one of the named constants.
+type TimeUnit int
+
+// Supported time units.
+const (
+	TimeUnitSeconds TimeUnit = 1
+	TimeUnitMillis  TimeUnit = 2
+	TimeUnitMicros  TimeUnit = 3
+	TimeUnitNanos   TimeUnit = 4
+)
+
+// String returns a human-readable representation of the time unit, suitable
+// for serialisation via [Common.ToAny].
+func (u TimeUnit) String() string {
+	switch u {
+	case TimeUnitSeconds:
+		return "SECONDS"
+	case TimeUnitMillis:
+		return "MILLIS"
+	case TimeUnitMicros:
+		return "MICROS"
+	case TimeUnitNanos:
+		return "NANOS"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+func timeUnitFromStr(v string) (TimeUnit, error) {
+	switch v {
+	case "SECONDS":
+		return TimeUnitSeconds, nil
+	case "MILLIS":
+		return TimeUnitMillis, nil
+	case "MICROS":
+		return TimeUnitMicros, nil
+	case "NANOS":
+		return TimeUnitNanos, nil
+	default:
+		return 0, fmt.Errorf("unrecognised time unit string: %v", v)
+	}
+}
+
+// valid reports whether u is one of the named TimeUnit constants.
+func (u TimeUnit) valid() bool {
+	switch u {
+	case TimeUnitSeconds, TimeUnitMillis, TimeUnitMicros, TimeUnitNanos:
+		return true
+	default:
+		return false
+	}
+}
+
+// EffectiveTimestamp returns the timestamp parameters for c, applying the
+// legacy default ({Unit: TimeUnitMillis, AdjustToUTC: true}) when c.Logical
+// is unset. It is only meaningful when c.Type == [Timestamp]; for other
+// types the returned value should be ignored.
+//
+// Format adapters that need to honour both pre-parameterised legacy schemas
+// and richer schemas produced by newer decoders should consult this rather
+// than peeking at c.Logical directly.
+func (c *Common) EffectiveTimestamp() TimestampParams {
+	if c.Logical != nil && c.Logical.Timestamp != nil {
+		return *c.Logical.Timestamp
+	}
+	return TimestampParams{Unit: TimeUnitMillis, AdjustToUTC: true}
+}
+
 const (
 	anyFieldType        = "type"
 	anyFieldName        = "name"
@@ -222,6 +333,8 @@ const (
 	anyFieldFingerprint = "fingerprint"
 	anyFieldPrecision   = "precision"
 	anyFieldScale       = "scale"
+	anyFieldUnit        = "unit"
+	anyFieldAdjustToUTC = "adjust_to_utc"
 )
 
 // ToAny serializes the common schema into a generic Go value, with structured
@@ -263,6 +376,19 @@ func (c *Common) ToAny() any {
 	if c.Type == Decimal && c.Logical != nil && c.Logical.Decimal != nil {
 		m[anyFieldPrecision] = int64(c.Logical.Decimal.Precision)
 		m[anyFieldScale] = int64(c.Logical.Decimal.Scale)
+	}
+
+	// Timestamp parameters are only emitted when present, so legacy schemas
+	// (Type == Timestamp with nil Logical) keep their pre-parameterised
+	// fingerprint and ToAny output exactly.
+	if c.Type == Timestamp && c.Logical != nil && c.Logical.Timestamp != nil {
+		m[anyFieldUnit] = c.Logical.Timestamp.Unit.String()
+		m[anyFieldAdjustToUTC] = c.Logical.Timestamp.AdjustToUTC
+	}
+
+	if c.Type == TimeOfDay && c.Logical != nil && c.Logical.TimeOfDay != nil {
+		m[anyFieldUnit] = c.Logical.TimeOfDay.Unit.String()
+		m[anyFieldAdjustToUTC] = c.Logical.TimeOfDay.AdjustToUTC
 	}
 
 	return m
@@ -361,6 +487,42 @@ func parseFromAnyNoValidate(v any) (Common, error) {
 		return c, errors.New("type DECIMAL requires fields `precision` and `scale`")
 	}
 
+	_, hasUnit := obj[anyFieldUnit]
+	_, hasAdjust := obj[anyFieldAdjustToUTC]
+	if hasUnit || hasAdjust {
+		switch c.Type {
+		case Timestamp, TimeOfDay:
+		default:
+			return c, fmt.Errorf("fields `unit` and `adjust_to_utc` are only valid for types TIMESTAMP or TIME_OF_DAY, got %v", c.Type)
+		}
+		if !hasUnit {
+			return c, fmt.Errorf("type %v with `adjust_to_utc` requires field `unit`", c.Type)
+		}
+		if !hasAdjust {
+			return c, fmt.Errorf("type %v with `unit` requires field `adjust_to_utc`", c.Type)
+		}
+		unitStr, ok := obj[anyFieldUnit].(string)
+		if !ok {
+			return c, fmt.Errorf("expected field `unit` of type string, got %T", obj[anyFieldUnit])
+		}
+		unit, err := timeUnitFromStr(unitStr)
+		if err != nil {
+			return c, err
+		}
+		adjustB, ok := obj[anyFieldAdjustToUTC].(bool)
+		if !ok {
+			return c, fmt.Errorf("expected field `adjust_to_utc` of type bool, got %T", obj[anyFieldAdjustToUTC])
+		}
+		switch c.Type {
+		case Timestamp:
+			c.Logical = &LogicalParams{Timestamp: &TimestampParams{Unit: unit, AdjustToUTC: adjustB}}
+		case TimeOfDay:
+			c.Logical = &LogicalParams{TimeOfDay: &TimeOfDayParams{Unit: unit, AdjustToUTC: adjustB}}
+		}
+	} else if c.Type == TimeOfDay {
+		return c, errors.New("type TIME_OF_DAY requires fields `unit` and `adjust_to_utc`")
+	}
+
 	return c, nil
 }
 
@@ -439,6 +601,33 @@ func (c *Common) Validate() error {
 		return fmt.Errorf("Logical.Decimal parameters are only valid for type DECIMAL, got %v", c.Type)
 	}
 
+	// Timestamp parameters are optional: a nil Logical.Timestamp on a
+	// Timestamp-typed schema is treated as the legacy default (millis, UTC),
+	// see [Common.EffectiveTimestamp]. When provided, the unit must be one of
+	// the named TimeUnit constants.
+	if c.Type == Timestamp {
+		if c.Logical != nil && c.Logical.Timestamp != nil {
+			if !c.Logical.Timestamp.Unit.valid() {
+				return fmt.Errorf("invalid timestamp unit %v", int(c.Logical.Timestamp.Unit))
+			}
+		}
+	} else if c.Logical != nil && c.Logical.Timestamp != nil {
+		return fmt.Errorf("Logical.Timestamp parameters are only valid for type TIMESTAMP, got %v", c.Type)
+	}
+
+	// TimeOfDay parameters are required: there is no historical default to
+	// fall back to, since the type itself is new.
+	if c.Type == TimeOfDay {
+		if c.Logical == nil || c.Logical.TimeOfDay == nil {
+			return errors.New("type TIME_OF_DAY requires Logical.TimeOfDay parameters")
+		}
+		if !c.Logical.TimeOfDay.Unit.valid() {
+			return fmt.Errorf("invalid time-of-day unit %v", int(c.Logical.TimeOfDay.Unit))
+		}
+	} else if c.Logical != nil && c.Logical.TimeOfDay != nil {
+		return fmt.Errorf("Logical.TimeOfDay parameters are only valid for type TIME_OF_DAY, got %v", c.Type)
+	}
+
 	if !c.isContainerType() && len(c.Children) > 0 {
 		return fmt.Errorf("type %v is a leaf and must not have children", c.Type)
 	}
@@ -496,6 +685,12 @@ func (c *Common) writeFingerprint(w io.Writer) {
 	// that schemas of unparameterised types retain their existing fingerprint.
 	if c.Type == Decimal && c.Logical != nil && c.Logical.Decimal != nil {
 		fmt.Fprintf(w, "D:%d:%d|", c.Logical.Decimal.Precision, c.Logical.Decimal.Scale)
+	}
+	if c.Type == Timestamp && c.Logical != nil && c.Logical.Timestamp != nil {
+		fmt.Fprintf(w, "TS:%d:%t|", c.Logical.Timestamp.Unit, c.Logical.Timestamp.AdjustToUTC)
+	}
+	if c.Type == TimeOfDay && c.Logical != nil && c.Logical.TimeOfDay != nil {
+		fmt.Fprintf(w, "TOD:%d:%t|", c.Logical.TimeOfDay.Unit, c.Logical.TimeOfDay.AdjustToUTC)
 	}
 
 	// Write children count and recursively fingerprint each child
