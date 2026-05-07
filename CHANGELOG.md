@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 
 ## 4.73.0 - 2026-05-07
 
-## Added
+### Added
 
 - Schema: Added Date, TimeOfDay, UUID and timestamp/time-of-day params (@twmb)
 
