@@ -146,3 +146,21 @@ func (i *autoRetryInputBatched) Close(ctx context.Context) error {
 	_ = i.retryList.Close(ctx)
 	return i.child.Close(ctx)
 }
+
+// retryNotifyChan exposes the underlying retry-list's notification channel so
+// that downstream readers (e.g. AsyncReader) can splice queued retries ahead
+// of in-flight fresh batches. See autoretry.List.RetryNotifyChan.
+func (i *autoRetryInputBatched) retryNotifyChan() <-chan struct{} {
+	return i.retryList.RetryNotifyChan()
+}
+
+// tryShiftRetry returns a pending retry batch if one is immediately
+// available, otherwise (nil, nil, false). Non-blocking; never dispatches a
+// fresh read.
+func (i *autoRetryInputBatched) tryShiftRetry(ctx context.Context) (MessageBatch, AckFunc, bool) {
+	t, fn, ok := i.retryList.TryShiftRetry(ctx)
+	if !ok {
+		return nil, nil, false
+	}
+	return t.Copy(), AckFunc(fn), true
+}

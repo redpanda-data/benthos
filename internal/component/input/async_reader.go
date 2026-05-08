@@ -35,6 +35,22 @@ type AsyncReader struct {
 	shutSig      *shutdown.Signaller
 }
 
+// retryAware is an optional interface implemented by Async readers whose
+// retry queue can be inspected. AsyncReader uses this (via type assertion) to
+// splice queued retries ahead of in-flight fresh batches that have been read
+// but not yet handed off to the downstream transactions channel. Preserving
+// source ordering across retries matters when an output ack errors after the
+// input has already read further records.
+type retryAware interface {
+	// RetryNotifyChan returns a channel that fires (coalesced) when one or
+	// more retries become available since the last drain.
+	RetryNotifyChan() <-chan struct{}
+
+	// TryShiftRetry returns a pending retry if one is immediately available,
+	// otherwise (nil, nil, false). Non-blocking.
+	TryShiftRetry(ctx context.Context) (message.Batch, AsyncAckFn, bool)
+}
+
 // NewAsyncReader creates a new AsyncReader input type.
 func NewAsyncReader(
 	typeStr string,
@@ -164,56 +180,104 @@ func (r *AsyncReader) loop() {
 	mConn.Incr(1)
 	r.connection.Store(component.ConnectionActive(r.mgr))
 
+	// If the underlying reader exposes its retry queue, race in-flight
+	// fresh-batch sends against the retry-available signal so retries can
+	// preempt fresh batches that have not yet been handed off downstream.
+	ra, _ := r.reader.(retryAware)
+	var retryNotify <-chan struct{}
+	if ra != nil {
+		retryNotify = ra.RetryNotifyChan()
+	}
+
+	type deferredBatch struct {
+		msg       message.Batch
+		ackFn     AsyncAckFn
+		startedAt time.Time
+	}
+	var deferred []deferredBatch
+
 	for {
-		msg, ackFn, err := r.reader.ReadBatch(closeAtLeisureCtx)
+		var (
+			msg       message.Batch
+			ackFn     AsyncAckFn
+			startedAt time.Time
+		)
 
-		// If our reader says it is not connected.
-		if errors.Is(err, component.ErrNotConnected) {
-			mLostConn.Incr(1)
-			r.connection.Store(component.ConnectionFailing(r.mgr, component.ErrNotConnected))
-
-			// Continue to try to reconnect while still active.
-			if !initConnection() {
-				return
+		// 1. A queued retry takes priority over everything else.
+		if ra != nil {
+			if rmsg, raFn, ok := ra.TryShiftRetry(closeAtLeisureCtx); ok {
+				msg, ackFn = rmsg, raFn
+				startedAt = time.Now()
 			}
-			mConn.Incr(1)
-			r.connection.Store(component.ConnectionActive(r.mgr))
-			continue
 		}
 
-		// Close immediately if our reader is closed.
-		if r.shutSig.IsSoftStopSignalled() || errors.Is(err, component.ErrTypeClosed) {
-			return
+		// 2. Otherwise replay any fresh batch that was deferred when a retry
+		// preempted its push.
+		if msg == nil && len(deferred) > 0 {
+			d := deferred[0]
+			deferred = deferred[1:]
+			msg, ackFn, startedAt = d.msg, d.ackFn, d.startedAt
 		}
 
-		if err != nil || len(msg) == 0 {
-			if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, component.ErrTimeout) && !errors.Is(err, component.ErrNotConnected) {
-				r.mgr.Logger().Error("Failed to read message: %v\n", err)
+		// 3. Otherwise read a fresh batch.
+		if msg == nil {
+			var err error
+			msg, ackFn, err = r.reader.ReadBatch(closeAtLeisureCtx)
+
+			// If our reader says it is not connected.
+			if errors.Is(err, component.ErrNotConnected) {
+				mLostConn.Incr(1)
+				r.connection.Store(component.ConnectionFailing(r.mgr, component.ErrNotConnected))
+
+				// Continue to try to reconnect while still active.
+				if !initConnection() {
+					return
+				}
+				mConn.Incr(1)
+				r.connection.Store(component.ConnectionActive(r.mgr))
+				continue
 			}
 
-			nextBoff := r.readBackoff.NextBackOff()
-			if nextBoff == backoff.Stop {
-				r.mgr.Logger().Error("Maximum number of read attempt retries has been met, gracefully terminating input %v", r.typeStr)
+			// Close immediately if our reader is closed.
+			if r.shutSig.IsSoftStopSignalled() || errors.Is(err, component.ErrTypeClosed) {
 				return
 			}
-			select {
-			case <-time.After(nextBoff):
-			case <-r.shutSig.SoftStopChan():
-				return
+
+			if err != nil || len(msg) == 0 {
+				if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, component.ErrTimeout) && !errors.Is(err, component.ErrNotConnected) {
+					r.mgr.Logger().Error("Failed to read message: %v\n", err)
+				}
+
+				nextBoff := r.readBackoff.NextBackOff()
+				if nextBoff == backoff.Stop {
+					r.mgr.Logger().Error("Maximum number of read attempt retries has been met, gracefully terminating input %v", r.typeStr)
+					return
+				}
+				select {
+				case <-time.After(nextBoff):
+				case <-r.shutSig.SoftStopChan():
+					return
+				}
+				continue
 			}
-			continue
+
+			r.readBackoff.Reset()
+			mRcvd.Incr(int64(msg.Len()))
+			r.mgr.Logger().Trace("Consumed %v messages from '%v'.\n", msg.Len(), r.typeStr)
+
+			startedAt = time.Now()
 		}
-
-		r.readBackoff.Reset()
-		mRcvd.Incr(int64(msg.Len()))
-		r.mgr.Logger().Trace("Consumed %v messages from '%v'.\n", msg.Len(), r.typeStr)
-
-		startedAt := time.Now()
 
 		resChan := make(chan error, 1)
 		tracing.InitSpans(r.mgr.Tracer(), traceName, msg)
 		select {
 		case r.transactions <- message.NewTransaction(msg, resChan):
+		case <-retryNotify:
+			// A retry became available while we were waiting to hand this batch
+			// off — defer it and loop so the next iteration picks up the retry
+			// first.
+			deferred = append(deferred, deferredBatch{msg: msg, ackFn: ackFn, startedAt: startedAt})
+			continue
 		case <-r.shutSig.SoftStopChan():
 			return
 		}
@@ -223,6 +287,7 @@ func (r *AsyncReader) loop() {
 			m message.Batch,
 			aFn AsyncAckFn,
 			rChan chan error,
+			sAt time.Time,
 		) {
 			defer pendingAcks.Done()
 
@@ -235,13 +300,13 @@ func (r *AsyncReader) loop() {
 				return
 			}
 
-			mLatency.Timing(time.Since(startedAt).Nanoseconds())
+			mLatency.Timing(time.Since(sAt).Nanoseconds())
 			tracing.FinishSpans(m)
 
-			if err = aFn(closeNowCtx, res); err != nil {
+			if err := aFn(closeNowCtx, res); err != nil {
 				r.mgr.Logger().Error("Failed to acknowledge message: %v\n", err)
 			}
-		}(msg, ackFn, resChan)
+		}(msg, ackFn, resChan, startedAt)
 	}
 }
 

@@ -58,8 +58,15 @@ type List[T any] struct {
 	readInFlight  int
 	retryInFlight int
 	cond          sync.Cond
-	readCtx       context.Context
-	readDone      func()
+	// retryNotify is a buffered (size 1) signal channel. It is sent on
+	// (non-blocking) whenever a new retry is appended to pendingRetry, so
+	// downstream readers that are blocked dispatching a fresh-read batch can
+	// preempt that dispatch and prefer the retry instead. Size 1 + non-blocking
+	// send means signals coalesce: a single observer reading a single value
+	// indicates "one or more retries became available since the last drain".
+	retryNotify chan struct{}
+	readCtx     context.Context
+	readDone    func()
 }
 
 // NewList returns a new list of Ts requiring automatic retries.
@@ -69,12 +76,32 @@ func NewList[T any](reader ReadFunc[T], mutator MutatorFunc[T]) *List[T] {
 	}
 	readCtx, readDone := context.WithCancel(context.Background())
 	return &List[T]{
-		cond:     *sync.NewCond(&sync.Mutex{}),
-		reader:   reader,
-		mutator:  mutator,
-		readCtx:  readCtx,
-		readDone: readDone,
+		cond:        *sync.NewCond(&sync.Mutex{}),
+		reader:      reader,
+		mutator:     mutator,
+		retryNotify: make(chan struct{}, 1),
+		readCtx:     readCtx,
+		readDone:    readDone,
 	}
+}
+
+// RetryNotifyChan returns a channel that delivers a (coalesced) signal each
+// time a new retry has been queued. Readers can race the channel-send of an
+// in-flight fresh batch against this signal in a select to splice retries
+// ahead of fresh batches that have not yet been delivered downstream. Reading
+// from the channel only signals that one or more retries are pending — call
+// TryShiftRetry to obtain one.
+func (l *List[T]) RetryNotifyChan() <-chan struct{} {
+	return l.retryNotify
+}
+
+// TryShiftRetry returns a pending retry if one is immediately available,
+// otherwise the zero T, a nil ack func, and false. Unlike Shift, this never
+// dispatches a fresh read.
+func (l *List[T]) TryShiftRetry(ctx context.Context) (t T, fn AckFunc, ok bool) {
+	l.cond.L.Lock()
+	defer l.cond.L.Unlock()
+	return l.tryShift(ctx)
 }
 
 // Adopt a T and its acknowledgement function so that a rejected T is added to
@@ -112,6 +139,10 @@ func (l *List[T]) wrapPendingAck(t *pendingT[T]) AckFunc {
 			if err != nil {
 				t.t = l.mutator(t.t, err)
 				l.pendingRetry = append(l.pendingRetry, t)
+				select {
+				case l.retryNotify <- struct{}{}:
+				default:
+				}
 				return
 			}
 			l.retryInFlight--

@@ -182,6 +182,49 @@ func (a *airGapBatchReader) Close(ctx context.Context) error {
 	return publicToInternalErr(a.r.Close(ctx))
 }
 
+// retryAwareBatchInput is satisfied by AutoRetryNacksBatched. We type-assert
+// against the unexported method names so only the in-tree autoretry wrapper
+// participates — third-party BatchInput implementations are unaffected.
+type retryAwareBatchInput interface {
+	retryNotifyChan() <-chan struct{}
+	tryShiftRetry(ctx context.Context) (MessageBatch, AckFunc, bool)
+}
+
+// RetryNotifyChan forwards the retry-available signal from the underlying
+// BatchInput when it is the autoretry wrapper. AsyncReader uses this to
+// splice retries ahead of in-flight fresh batches. Returns nil when the
+// underlying input is not retry-aware (no preemption then; the previous
+// pre-fix behaviour is preserved).
+func (a *airGapBatchReader) RetryNotifyChan() <-chan struct{} {
+	rar, ok := a.r.(retryAwareBatchInput)
+	if !ok {
+		return nil
+	}
+	return rar.retryNotifyChan()
+}
+
+// TryShiftRetry forwards a non-blocking retry shift to the underlying
+// BatchInput when it is the autoretry wrapper. Returns (nil, nil, false) when
+// the underlying input is not retry-aware or no retry is currently queued.
+func (a *airGapBatchReader) TryShiftRetry(ctx context.Context) (message.Batch, input.AsyncAckFn, bool) {
+	rar, ok := a.r.(retryAwareBatchInput)
+	if !ok {
+		return nil, nil, false
+	}
+	batch, ackFn, ok := rar.tryShiftRetry(ctx)
+	if !ok {
+		return nil, nil, false
+	}
+	mBatch := make(message.Batch, len(batch))
+	for i, p := range batch {
+		mBatch[i] = p.part
+	}
+	return mBatch, func(c context.Context, r error) error {
+		r = toPublicBatchError(r)
+		return ackFn(c, r)
+	}, true
+}
+
 //------------------------------------------------------------------------------
 
 // ResourceInput provides access to an input resource.
