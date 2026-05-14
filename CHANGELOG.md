@@ -3,6 +3,8 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.74.0 - 2026-05-14
+
 ## 4.73.0 - 2026-05-07
 
 ### Added
