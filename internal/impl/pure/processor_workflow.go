@@ -398,6 +398,17 @@ func (w *Workflow) skipFromMeta(root any) map[string]struct{} {
 
 	gObj := gabs.Wrap(root)
 
+	// Skip stages that were already skipped in a previous run of this workflow.
+	if skipped, ok := gObj.S(append(w.metaPath, "skipped")...).Data().([]any); ok {
+		for _, id := range skipped {
+			if idStr, isString := id.(string); isString {
+				if _, exists := w.allStages[idStr]; exists {
+					skipList[idStr] = struct{}{}
+				}
+			}
+		}
+	}
+
 	// If a whitelist is provided for this flow then skip stages that aren't
 	// within it.
 	if apply, ok := gObj.S(append(w.metaPath, "apply")...).Data().([]any); ok {
@@ -416,17 +427,6 @@ func (w *Workflow) skipFromMeta(root any) map[string]struct{} {
 	// Skip stages that already succeeded in a previous run of this workflow.
 	if succeeded, ok := gObj.S(append(w.metaPath, "succeeded")...).Data().([]any); ok {
 		for _, id := range succeeded {
-			if idStr, isString := id.(string); isString {
-				if _, exists := w.allStages[idStr]; exists {
-					skipList[idStr] = struct{}{}
-				}
-			}
-		}
-	}
-
-	// Skip stages that were already skipped in a previous run of this workflow.
-	if skipped, ok := gObj.S(append(w.metaPath, "skipped")...).Data().([]any); ok {
-		for _, id := range skipped {
 			if idStr, isString := id.(string); isString {
 				if _, exists := w.allStages[idStr]; exists {
 					skipList[idStr] = struct{}{}
