@@ -16,9 +16,12 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/batch/policy"
 	"github.com/redpanda-data/benthos/v4/internal/batch/policy/batchconfig"
 	"github.com/redpanda-data/benthos/v4/internal/component/input/batcher"
+	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
+
+	_ "github.com/redpanda-data/benthos/v4/internal/impl/pure"
 )
 
 func TestBatcherStandard(t *testing.T) {
@@ -163,6 +166,106 @@ func TestBatcherStandard(t *testing.T) {
 	if err := batcher.WaitForClose(tCtx); err != nil {
 		t.Error(err)
 	}
+}
+
+// TestBatcherDroppedBatchMisattributesAck guards against pending transactions
+// being acknowledged with the result of an unrelated, later batch. It mirrors
+// the output batcher's regression test for the same accounting hazard.
+//
+// The batcher accumulates upstream transactions while buffering messages and
+// resolves them once the resulting batch has been written. When a flush yields
+// no batch — because the batch policy processors filtered every message away
+// (exercised here), or because they returned an error — those transactions must
+// be resolved against that flush rather than left to inherit a future batch's
+// result.
+//
+// Scenario: batch one ("drop") is filtered to nothing by the policy processor,
+// so its flush yields no batch. Batch two ("keep") forms a real batch which the
+// downstream consumer nacks with errKeepFailed.
+//
+// Expected: the "drop" transactions resolve with nil (their data was
+// successfully consumed and intentionally filtered) independently of batch two,
+// rather than receiving batch two's errKeepFailed result.
+func TestBatcherDroppedBatchMisattributesAck(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*20)
+	defer done()
+
+	procConf, err := testutil.ProcessorFromYAML(`
+mapping: |
+  root = if content().string() == "drop" { deleted() }
+`)
+	require.NoError(t, err)
+
+	mockInput := &mock.Input{TChan: make(chan message.Transaction)}
+
+	batchConf := batchconfig.NewConfig()
+	batchConf.Count = 2
+	batchConf.Processors = append(batchConf.Processors, procConf)
+	batchPol, err := policy.New(batchConf, mock.NewManager())
+	require.NoError(t, err)
+
+	b := batcher.New(batchPol, mockInput, log.Noop())
+	b.TriggerStartConsuming()
+
+	errKeepFailed := errors.New("keep batch write failed")
+
+	// Buffered so the inline acknowledgement of filtered transactions never
+	// blocks the batcher loop.
+	dropRes := []chan error{make(chan error, 1), make(chan error, 1)}
+	keepRes := []chan error{make(chan error, 1), make(chan error, 1)}
+
+	// Batch one: two messages the policy processor filters away. count=2 fires
+	// the flush, which yields no batch and is dropped.
+	for _, rc := range dropRes {
+		select {
+		case mockInput.TChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte("drop")}), rc):
+		case <-tCtx.Done():
+			t.Fatal("timed out sending drop message")
+		}
+	}
+
+	// Batch two: two messages that survive the processor and form a real batch.
+	for i, rc := range keepRes {
+		select {
+		case mockInput.TChan <- message.NewTransaction(message.QuickBatch([][]byte{fmt.Appendf(nil, "keep%v", i)}), rc):
+		case <-tCtx.Done():
+			t.Fatal("timed out sending keep message")
+		}
+	}
+
+	// Receive the keep batch and nack it.
+	select {
+	case tran := <-b.TransactionChan():
+		assert.Equal(t, [][]byte{[]byte("keep0"), []byte("keep1")}, message.GetAllBytes(tran.Payload))
+		require.NoError(t, tran.Ack(tCtx, errKeepFailed))
+	case <-tCtx.Done():
+		t.Fatal("timed out waiting for keep batch")
+	}
+
+	// The keep transactions belong to the batch that failed, so they are
+	// correctly nacked.
+	for _, rc := range keepRes {
+		select {
+		case got := <-rc:
+			assert.Equal(t, errKeepFailed, got)
+		case <-tCtx.Done():
+			t.Fatal("timed out waiting for keep ack")
+		}
+	}
+
+	// The drop transactions were filtered in a separate, earlier flush and must
+	// NOT inherit batch two's failure.
+	for _, rc := range dropRes {
+		select {
+		case got := <-rc:
+			assert.NoError(t, got, "drop transaction wrongly received the keep batch's result")
+		case <-tCtx.Done():
+			t.Fatal("drop transaction was never acked")
+		}
+	}
+
+	mockInput.TriggerStopConsuming()
+	require.NoError(t, b.WaitForClose(tCtx))
 }
 
 func TestBatcherErrorTracking(t *testing.T) {

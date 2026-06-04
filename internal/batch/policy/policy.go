@@ -180,7 +180,7 @@ func (p *Batcher) flushAny(ctx context.Context) ([]message.Batch, error) {
 		resultMsgs, err := iprocessor.ExecuteAll(ctx, p.procs, newMsg)
 		if err != nil {
 			p.log.Error("Batch processors resulted in error: %v, the batch has been dropped.", err)
-			return nil, err
+			return nil, fmt.Errorf("batch processors resulted in error: %w", err)
 		}
 		return resultMsgs, nil
 	}
