@@ -79,7 +79,8 @@ func TestPolicyBasic(t *testing.T) {
 		t.Errorf("Wrong count: %v != %v", act, exp)
 	}
 
-	msg := pol.Flush(tCtx)
+	msg, err := pol.Flush(tCtx)
+	require.NoError(t, err)
 	if !reflect.DeepEqual(exp, message.GetAllBytes(msg)) {
 		t.Errorf("Wrong result: %s != %s", message.GetAllBytes(msg), exp)
 	}
@@ -87,7 +88,9 @@ func TestPolicyBasic(t *testing.T) {
 		t.Errorf("Wrong count: %v != %v", act, exp)
 	}
 
-	if msg = pol.Flush(tCtx); msg != nil {
+	msg, err = pol.Flush(tCtx)
+	require.NoError(t, err)
+	if msg != nil {
 		t.Error("Non-nil empty flush")
 	}
 }
@@ -120,7 +123,9 @@ func TestPolicyPeriod(t *testing.T) {
 		t.Errorf("Wrong period: %v", v)
 	}
 
-	if v := pol.Flush(tCtx); v == nil {
+	v, err := pol.Flush(tCtx)
+	require.NoError(t, err)
+	if v == nil {
 		t.Error("Nil msgs from flush")
 	}
 
@@ -153,12 +158,15 @@ func TestPolicySize(t *testing.T) {
 		t.Error("Expected batch")
 	}
 
-	msg := pol.Flush(tCtx)
+	msg, err := pol.Flush(tCtx)
+	require.NoError(t, err)
 	if !reflect.DeepEqual(exp, message.GetAllBytes(msg)) {
 		t.Errorf("Wrong result: %s != %s", message.GetAllBytes(msg), exp)
 	}
 
-	if msg = pol.Flush(tCtx); msg != nil {
+	msg, err = pol.Flush(tCtx)
+	require.NoError(t, err)
+	if msg != nil {
 		t.Error("Non-nil empty flush")
 	}
 }
@@ -185,12 +193,15 @@ func TestPolicyCheck(t *testing.T) {
 		t.Error("Expected batch")
 	}
 
-	msg := pol.Flush(tCtx)
+	msg, err := pol.Flush(tCtx)
+	require.NoError(t, err)
 	if !reflect.DeepEqual(exp, message.GetAllBytes(msg)) {
 		t.Errorf("Wrong result: %s != %s", message.GetAllBytes(msg), exp)
 	}
 
-	if msg = pol.Flush(tCtx); msg != nil {
+	msg, err = pol.Flush(tCtx)
+	require.NoError(t, err)
+	if msg != nil {
 		t.Error("Non-nil empty flush")
 	}
 }
@@ -220,12 +231,15 @@ func TestPolicyCheckAdvanced(t *testing.T) {
 		t.Error("Expected batch")
 	}
 
-	msg := pol.Flush(tCtx)
+	msg, err := pol.Flush(tCtx)
+	require.NoError(t, err)
 	if !reflect.DeepEqual(exp, message.GetAllBytes(msg)) {
 		t.Errorf("Wrong result: %s != %s", message.GetAllBytes(msg), exp)
 	}
 
-	if msg = pol.Flush(tCtx); msg != nil {
+	msg, err = pol.Flush(tCtx)
+	require.NoError(t, err)
+	if msg != nil {
 		t.Error("Non-nil empty flush")
 	}
 }
@@ -260,11 +274,13 @@ archive:
 	assert.True(t, pol.Add(message.NewPart([]byte("bar"))))
 	assert.Equal(t, 2, pol.Count())
 
-	msg := pol.Flush(tCtx)
+	msg, err := pol.Flush(tCtx)
+	require.NoError(t, err)
 	assert.Equal(t, exp, message.GetAllBytes(msg))
 	assert.Equal(t, 0, pol.Count())
 
-	msg = pol.Flush(tCtx)
+	msg, err = pol.Flush(tCtx)
+	require.NoError(t, err)
 	assert.Nil(t, msg)
 }
 
@@ -302,7 +318,8 @@ func TestPolicySplit(t *testing.T) {
 		t.Errorf("Wrong count: %v != %v", act, exp)
 	}
 
-	msg := pol.Flush(tCtx)
+	msg, err := pol.Flush(tCtx)
+	require.NoError(t, err)
 	if !reflect.DeepEqual(exp, message.GetAllBytes(msg)) {
 		t.Errorf("Wrong result: %s != %s", message.GetAllBytes(msg), exp)
 	}
@@ -310,7 +327,9 @@ func TestPolicySplit(t *testing.T) {
 		t.Errorf("Wrong count: %v != %v", act, exp)
 	}
 
-	if msg = pol.Flush(tCtx); msg != nil {
+	msg, err = pol.Flush(tCtx)
+	require.NoError(t, err)
+	if msg != nil {
 		t.Error("Non-nil empty flush")
 	}
 }
