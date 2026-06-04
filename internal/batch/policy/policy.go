@@ -128,12 +128,23 @@ func (p *Batcher) Add(part *message.Part) bool {
 	return p.triggered || (p.period > 0 && time.Since(p.lastBatch) > p.period)
 }
 
-// Flush clears all messages stored by this batch policy. Returns nil if the
-// policy is currently empty.
-func (p *Batcher) Flush(ctx context.Context) message.Batch {
+// Flush clears all messages stored by this batch policy and applies any
+// batching processors to them. The returned values distinguish three outcomes:
+//
+//   - (batch, nil): a batch is ready to be sent onwards.
+//   - (nil, nil): the policy is currently empty, or the batching processors
+//     intentionally filtered every message away. Callers should treat the
+//     buffered transactions as successfully consumed (ack).
+//   - (nil, err): the batching processors failed and the batch has been
+//     dropped. Callers should treat the buffered transactions as failed (nack)
+//     so the source can retry them, rather than passing unprocessed data on.
+func (p *Batcher) Flush(ctx context.Context) (message.Batch, error) {
 	var newMsg message.Batch
 
-	resultMsgs := p.flushAny(ctx)
+	resultMsgs, err := p.flushAny(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if len(resultMsgs) == 1 {
 		newMsg = resultMsgs[0]
 	} else if len(resultMsgs) > 1 {
@@ -144,10 +155,10 @@ func (p *Batcher) Flush(ctx context.Context) message.Batch {
 			})
 		}
 	}
-	return newMsg
+	return newMsg, nil
 }
 
-func (p *Batcher) flushAny(ctx context.Context) []message.Batch {
+func (p *Batcher) flushAny(ctx context.Context) ([]message.Batch, error) {
 	var newMsg message.Batch
 	if len(p.parts) > 0 {
 		if !p.triggered && p.period > 0 && time.Since(p.lastBatch) > p.period {
@@ -162,19 +173,19 @@ func (p *Batcher) flushAny(ctx context.Context) []message.Batch {
 	p.triggered = false
 
 	if newMsg == nil {
-		return nil
+		return nil, nil
 	}
 
 	if len(p.procs) > 0 {
 		resultMsgs, err := iprocessor.ExecuteAll(ctx, p.procs, newMsg)
 		if err != nil {
 			p.log.Error("Batch processors resulted in error: %v, the batch has been dropped.", err)
-			return nil
+			return nil, err
 		}
-		return resultMsgs
+		return resultMsgs, nil
 	}
 
-	return []message.Batch{newMsg}
+	return []message.Batch{newMsg}, nil
 }
 
 // Count returns the number of currently buffered message parts within this

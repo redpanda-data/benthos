@@ -79,7 +79,10 @@ func (b *Batcher) UntilNext() (time.Duration, bool) {
 // Flush pending messages into a batch, apply any batching processors that are
 // part of the batching policy, and then return the result.
 func (b *Batcher) Flush(ctx context.Context) (batch MessageBatch, err error) {
-	m := b.p.Flush(ctx)
+	m, err := b.p.Flush(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if m == nil || m.Len() == 0 {
 		return
 	}

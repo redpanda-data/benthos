@@ -85,6 +85,23 @@ func (m *Impl) loop() {
 		nextTimedBatchChan = time.After(tNext)
 	}
 
+	// resolvePending acknowledges every accumulated transaction with the given
+	// result and clears the slice. It is used when a flush does not yield a
+	// batch to send onwards, so that those transactions are resolved
+	// immediately rather than lingering and inheriting a future batch's result.
+	resolvePending := func(pendingTrans []*transaction.Tracked, ackErr error) {
+		if len(pendingTrans) == 0 {
+			return
+		}
+		closeLeisureCtx, done := m.shutSig.SoftStopCtx(context.Background())
+		defer done()
+		for _, t := range pendingTrans {
+			if err := t.Ack(closeLeisureCtx, ackErr); err != nil {
+				return
+			}
+		}
+	}
+
 	var pendingTrans []*transaction.Tracked
 	for !m.shutSig.IsSoftStopSignalled() {
 		if nextTimedBatchChan == nil {
@@ -129,8 +146,22 @@ func (m *Impl) loop() {
 			continue
 		}
 
-		sendMsg := m.batcher.Flush(closeNowCtx)
+		sendMsg, err := m.batcher.Flush(closeNowCtx)
+		if err != nil {
+			// The batching processors failed and the batch has been dropped.
+			// Nack the accumulated transactions so the input can retry them,
+			// rather than letting them be acked by a later, unrelated batch.
+			resolvePending(pendingTrans, err)
+			pendingTrans = nil
+			continue
+		}
 		if sendMsg == nil {
+			// The flush produced no batch, either because the policy was empty
+			// or because the batching processors intentionally filtered every
+			// message away. Either way the data was successfully consumed, so
+			// ack the accumulated transactions.
+			resolvePending(pendingTrans, nil)
+			pendingTrans = nil
 			continue
 		}
 

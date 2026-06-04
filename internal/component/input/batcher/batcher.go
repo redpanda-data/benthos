@@ -66,9 +66,31 @@ func (m *Impl) loop() {
 	pendingTrans := []*transaction.Tracked{}
 	pendingAcks := sync.WaitGroup{}
 
+	// resolvePending acknowledges every accumulated transaction with the given
+	// result and clears the slice. Used when a flush yields no batch to send, so
+	// those transactions are resolved immediately rather than lingering and
+	// inheriting a future batch's result.
+	resolvePending := func(ackErr error) {
+		for _, t := range pendingTrans {
+			if err := t.Ack(closeNowCtx, ackErr); err != nil {
+				break
+			}
+		}
+		pendingTrans = nil
+	}
+
 	flushBatchFn := func() {
-		sendMsg := m.batcher.Flush(closeNowCtx)
+		sendMsg, err := m.batcher.Flush(closeNowCtx)
+		if err != nil {
+			// The batching processors failed and the batch has been dropped.
+			// Nack the accumulated transactions so the source can retry them.
+			resolvePending(err)
+			return
+		}
 		if sendMsg == nil {
+			// No batch produced (the policy was empty or every message was
+			// intentionally filtered away); the data was consumed successfully.
+			resolvePending(nil)
 			return
 		}
 
