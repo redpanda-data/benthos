@@ -396,11 +396,13 @@ func TestWorkflows(t *testing.T) {
 				msg(`{"meta":{"workflow":{"apply":["2"]}},"baz":2}`),
 				msg(`{"meta":{"workflow":{"skipped":["0"]}},"bar":3}`),
 				msg(`{"meta":{"workflow":{"succeeded":["1"]}},"baz":9}`),
+				msg(`{"bar":3,"baz":2,"meta":{"workflow":{"apply":["1","2"],"failed":{"0":"request mapping failed: failed assignment (line 1): field ` + "`this.foo`" + `: value is null"},"skipped":["1","2"]}}}`),
 			},
 			output: []mockMsg{
 				msg(`{"baz":2,"buz":4,"meta":{"workflow":{"previous":{"apply":["2"]},"skipped":["0","1"],"succeeded":["2"]}}}`),
 				msg(`{"bar":3,"baz":8,"buz":10,"meta":{"workflow":{"previous":{"skipped":["0"]},"skipped":["0"],"succeeded":["1","2"]}}}`),
 				msg(`{"baz":9,"buz":11,"meta":{"workflow":{"failed":{"0":"request mapping failed: failed assignment (line 1): field ` + "`this.foo`" + `: value is null"},"previous":{"succeeded":["1"]},"skipped":["1"],"succeeded":["2"]}}}`),
+				msg(`{"bar":3,"baz":8,"buz":10,"meta":{"workflow":{"previous":{"apply":["1","2"],"failed":{"0":"request mapping failed: failed assignment (line 1): field ` + "`this.foo`" + `: value is null"},"skipped":["1","2"]},"skipped":["0"],"succeeded":["1","2"]}}}`),
 			},
 		},
 		{
