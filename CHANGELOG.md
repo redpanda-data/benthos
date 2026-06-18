@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.75.0 - 2026-06-18
+
+### Fixed
+
+- workflow: Build skipList before exclude enrichment in apply section (@tifennlegoff)
+
 ## 4.74.0 - 2026-06-11
 
 ### Changed
