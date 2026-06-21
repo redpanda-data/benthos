@@ -1,0 +1,55 @@
+pipeline:
+  processors:
+    - mapping: |
+        root = this
+        root = match env("MASK") {
+          "FIXED_5"      => root.value.mask(5)
+          "LEFT_5"       => root.value.mask(5, "left")
+          "RIGHT_4"      => root.value.mask(4,"right")
+          "RIGHT_4_HASH" => root.value.mask(4,"right", "#")
+          _              => root.value.mask()
+        }
+
+tests:
+    - name: Fixed mask 5
+      target_processors: /pipeline/processors
+      environment: 
+        MASK: FIXED_5
+      input_batch:
+          - content: '{"value": "this is a happy cat meow"}'
+      output_batches:
+          - - content_equals: '*****'
+
+    - name: Left mask 5
+      target_processors: /pipeline/processors
+      environment: 
+        MASK: LEFT_5
+      input_batch:
+          - content: '{"value": "this is a happy cat meow"}'
+      output_batches:
+          - - content_equals: 'this *******************'
+
+    - name: Right mask 4
+      target_processors: /pipeline/processors
+      environment: 
+        MASK: RIGHT_4
+      input_batch:
+          - content: '{"value": "this is a happy cat meow"}'
+      output_batches:
+          - - content_equals: '********************meow'
+
+    - name: Right mask 4 with hash
+      target_processors: /pipeline/processors
+      environment: 
+        MASK: RIGHT_4_HASH
+      input_batch:
+          - content: '{"value": "this is a happy cat meow"}'
+      output_batches:
+          - - content_equals: '####################meow'
+
+    - name: default mask
+      target_processors: /pipeline/processors
+      input_batch:
+          - content: '{"value": "this is a happy cat meow"}'
+      output_batches:
+          - - content_equals: '************************'
