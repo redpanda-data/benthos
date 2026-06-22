@@ -31,8 +31,9 @@ type Pool struct {
 	shutSig *shutdown.Signaller
 }
 
-// NewPool creates a new processing pool.
-func NewPool(threads int, log log.Modular, msgProcessors ...processor.V1) (*Pool, error) {
+// NewPool creates a new processing pool. When strict is true the workers apply
+// strict error handling.
+func NewPool(threads int, strict bool, log log.Modular, msgProcessors ...processor.V1) (*Pool, error) {
 	if threads <= 0 {
 		threads = runtime.NumCPU()
 	}
@@ -46,7 +47,7 @@ func NewPool(threads int, log log.Modular, msgProcessors ...processor.V1) (*Pool
 	}
 
 	for i := range p.workers {
-		proc := NewProcessor(msgProcessors...)
+		proc := NewProcessor(strict, msgProcessors...)
 		proc.noCloseProcs = true
 		p.workers[i] = proc
 	}

@@ -48,6 +48,12 @@ type NewManagement interface {
 
 	EngineVersion() string
 
+	// Strict reports whether the engine is configured for strict error handling,
+	// where a processing error is terminal for the affected message unless
+	// recovered by wrapping the fallible step within a try_catch or retry
+	// processor.
+	Strict() bool
+
 	Path() []string
 	Label() string
 	StreamID() string

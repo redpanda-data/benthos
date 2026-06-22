@@ -60,7 +60,7 @@ output:
 			}
 
 			var s output.Streamed
-			if s, err = output.NewAsyncWriter("reject", 1, w, mgr); err != nil {
+			if s, err = output.NewAsyncWriter("reject", 1, false, w, mgr); err != nil {
 				return
 			}
 			out = interop.NewUnwrapInternalOutput(s)

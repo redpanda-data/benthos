@@ -232,8 +232,8 @@ func TestBasicWrapProcessors(t *testing.T) {
 
 	mockIn := &mockInput{ts: make(chan message.Transaction)}
 
-	pipe1 := pipeline.NewProcessor(mockProc{})
-	pipe2 := pipeline.NewProcessor(mockProc{})
+	pipe1 := pipeline.NewProcessor(false, mockProc{})
+	pipe2 := pipeline.NewProcessor(false, mockProc{})
 
 	newInput, err := input.WrapWithPipelines(mockIn, func() (iprocessor.Pipeline, error) {
 		return pipe1, nil
@@ -303,7 +303,7 @@ func TestBasicWrapDoubleProcessors(t *testing.T) {
 
 	mockIn := &mockInput{ts: make(chan message.Transaction)}
 
-	pipe1 := pipeline.NewProcessor(mockProc{}, mockProc{})
+	pipe1 := pipeline.NewProcessor(false, mockProc{}, mockProc{})
 
 	newInput, err := input.WrapWithPipelines(mockIn, func() (iprocessor.Pipeline, error) {
 		return pipe1, nil

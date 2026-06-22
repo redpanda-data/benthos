@@ -88,7 +88,7 @@ func init() {
 			}
 
 			var s output.Streamed
-			if s, err = output.NewAsyncWriter("cache", maxInFlight, ca, mgr); err != nil {
+			if s, err = output.NewAsyncWriter("cache", maxInFlight, mgr.Strict(), ca, mgr); err != nil {
 				return
 			}
 			out = interop.NewUnwrapInternalOutput(s)

@@ -70,7 +70,7 @@ func TestNotBatchedSingleMessages(t *testing.T) {
 	}
 
 	w := &mockNBWriter{t: t}
-	out, err := NewAsyncWriter("foo", 1, w, component.NoopObservability())
+	out, err := NewAsyncWriter("foo", 1, false, w, component.NoopObservability())
 	require.NoError(t, err)
 
 	nbOut := OnlySinglePayloads(out)
@@ -113,7 +113,7 @@ func TestShutdown(t *testing.T) {
 	}
 
 	w := &mockNBWriter{t: t, closeChan: make(chan error)}
-	out, err := NewAsyncWriter("foo", 1, w, component.NoopObservability())
+	out, err := NewAsyncWriter("foo", 1, false, w, component.NoopObservability())
 	require.NoError(t, err)
 
 	nbOut := OnlySinglePayloads(out)
@@ -168,7 +168,7 @@ func TestNotBatchedBreakOutMessages(t *testing.T) {
 	}
 
 	w := &mockNBWriter{t: t}
-	out, err := NewAsyncWriter("foo", 1, w, component.NoopObservability())
+	out, err := NewAsyncWriter("foo", 1, false, w, component.NoopObservability())
 	require.NoError(t, err)
 
 	nbOut := OnlySinglePayloads(out)
@@ -213,7 +213,7 @@ func TestNotBatchedBreakOutMessagesErrors(t *testing.T) {
 	}
 
 	w := &mockNBWriter{t: t, errorOn: []string{"foo1", "foo3"}}
-	out, err := NewAsyncWriter("foo", 1, w, component.NoopObservability())
+	out, err := NewAsyncWriter("foo", 1, false, w, component.NoopObservability())
 	require.NoError(t, err)
 
 	nbOut := OnlySinglePayloads(out)
@@ -275,7 +275,7 @@ func TestNotBatchedBreakOutMessagesErrorsAsync(t *testing.T) {
 	}
 
 	w := &mockNBWriter{t: t, errorOn: []string{"foo1", "foo3"}}
-	out, err := NewAsyncWriter("foo", 5, w, component.NoopObservability())
+	out, err := NewAsyncWriter("foo", 5, false, w, component.NoopObservability())
 	require.NoError(t, err)
 
 	nbOut := OnlySinglePayloads(out)

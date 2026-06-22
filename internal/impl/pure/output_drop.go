@@ -22,7 +22,7 @@ func init() {
 		func(conf *service.ParsedConfig, res *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			nm := interop.UnwrapManagement(res)
 			var o output.Streamed
-			if o, err = output.NewAsyncWriter("drop", 1, newDropWriter(nm), nm); err != nil {
+			if o, err = output.NewAsyncWriter("drop", 1, false, newDropWriter(nm), nm); err != nil {
 				return
 			}
 			out = interop.NewUnwrapInternalOutput(o)

@@ -19,6 +19,7 @@ import (
 // either propagate a new message or drop it.
 type Processor struct {
 	noCloseProcs  bool
+	strict        bool
 	msgProcessors []processor.V1
 
 	messagesOut chan message.Transaction
@@ -29,9 +30,12 @@ type Processor struct {
 	shutSig *shutdown.Signaller
 }
 
-// NewProcessor returns a new message processing pipeline.
-func NewProcessor(msgProcessors ...processor.V1) *Processor {
+// NewProcessor returns a new message processing pipeline. When strict is true
+// the pipeline applies strict error handling: a message that fails a processor
+// skips the remaining processors and is rejected at the output.
+func NewProcessor(strict bool, msgProcessors ...processor.V1) *Processor {
 	return &Processor{
+		strict:        strict,
 		msgProcessors: msgProcessors,
 		messagesOut:   make(chan message.Transaction),
 		responsesIn:   make(chan error),
@@ -45,6 +49,10 @@ func NewProcessor(msgProcessors ...processor.V1) *Processor {
 func (p *Processor) loop() {
 	closeNowCtx, cnDone := p.shutSig.HardStopCtx(context.Background())
 	defer cnDone()
+
+	if p.strict {
+		closeNowCtx = processor.WithStrict(closeNowCtx)
+	}
 
 	defer func() {
 		if !p.noCloseProcs {

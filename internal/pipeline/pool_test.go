@@ -49,7 +49,7 @@ func TestPoolBasic(t *testing.T) {
 		mockProc.dropChan <- true
 	}()
 
-	proc, err := pipeline.NewPool(1, log.Noop(), mockProc)
+	proc, err := pipeline.NewPool(1, false, log.Noop(), mockProc)
 	require.NoError(t, err)
 
 	tChan, resChan := make(chan message.Transaction), make(chan error)
@@ -142,7 +142,7 @@ func TestPoolMultiMsgs(t *testing.T) {
 
 	mockProc := &mockSplitProcessor{}
 
-	proc, err := pipeline.NewPool(1, log.Noop(), mockProc)
+	proc, err := pipeline.NewPool(1, false, log.Noop(), mockProc)
 	require.NoError(t, err)
 
 	tChan, resChan := make(chan message.Transaction), make(chan error)
@@ -303,7 +303,7 @@ func TestPoolProcessorsNotClosedEarly(t *testing.T) {
 		},
 	}
 
-	pool, err := pipeline.NewPool(2, log.Noop(), proc)
+	pool, err := pipeline.NewPool(2, false, log.Noop(), proc)
 	require.NoError(t, err)
 
 	tChan := make(chan message.Transaction)

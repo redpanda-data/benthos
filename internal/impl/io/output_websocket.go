@@ -49,7 +49,7 @@ func init() {
 				return
 			}
 			var o output.Streamed
-			if o, err = output.NewAsyncWriter("websocket", 1, w, oldMgr); err != nil {
+			if o, err = output.NewAsyncWriter("websocket", 1, oldMgr.Strict(), w, oldMgr); err != nil {
 				return
 			}
 			out = interop.NewUnwrapInternalOutput(o)

@@ -26,7 +26,7 @@ func AppendFromConfig(conf output.Config, mgr bundle.NewManagement, pipelines ..
 					return nil, err
 				}
 			}
-			return pipeline.NewProcessor(processors...), nil
+			return pipeline.NewProcessor(mgr.Strict(), processors...), nil
 		}}...)
 	}
 	return pipelines

@@ -161,14 +161,14 @@ select_parts:
 			if err != nil {
 				return nil, err
 			}
-			return pipeline.NewProcessor(proc), nil
+			return pipeline.NewProcessor(false, proc), nil
 		},
 		func() (processor.Pipeline, error) {
 			proc, err := mock.NewManager().NewProcessor(secondProc)
 			if err != nil {
 				return nil, err
 			}
-			return pipeline.NewProcessor(proc), nil
+			return pipeline.NewProcessor(false, proc), nil
 		},
 	)
 	if err != nil {

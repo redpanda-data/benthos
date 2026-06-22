@@ -357,7 +357,7 @@ func (e *Environment) RegisterOutput(name string, spec *ConfigSpec, ctor OutputC
 				return nil, fmt.Errorf("invalid maxInFlight parameter: %v", maxInFlight)
 			}
 			w := newAirGapWriter(nm, op)
-			o, err := output.NewAsyncWriter(conf.Type, maxInFlight, w, nm)
+			o, err := output.NewAsyncWriter(conf.Type, maxInFlight, nm.Strict(), w, nm)
 			if err != nil {
 				return nil, err
 			}
@@ -403,7 +403,7 @@ func (e *Environment) RegisterBatchOutput(name string, spec *ConfigSpec, ctor Ba
 			}
 
 			w := newAirGapBatchWriter(nm, op)
-			o, err := output.NewAsyncWriter(conf.Type, maxInFlight, w, nm)
+			o, err := output.NewAsyncWriter(conf.Type, maxInFlight, nm.Strict(), w, nm)
 			if err != nil {
 				return nil, err
 			}

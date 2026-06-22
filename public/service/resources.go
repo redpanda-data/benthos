@@ -383,7 +383,7 @@ func (r *Resources) IntoPath(pathSegments ...string) *Resources {
 // output would be executed within a standard Benthos pipeline.
 func (r *Resources) ManagedBatchOutput(typeName string, maxInFlight int, b BatchOutput) (*OwnedOutput, error) {
 	w := newAirGapBatchWriter(r.mgr, b)
-	o, err := output.NewAsyncWriter(typeName, maxInFlight, w, r.mgr)
+	o, err := output.NewAsyncWriter(typeName, maxInFlight, r.mgr.Strict(), w, r.mgr)
 	if err != nil {
 		return nil, err
 	}

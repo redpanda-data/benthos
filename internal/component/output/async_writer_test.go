@@ -83,7 +83,7 @@ func (w *writerCantSend) Close(context.Context) error { return nil }
 func TestAsyncWriterCantConnect(t *testing.T) {
 	t.Parallel()
 
-	w, err := NewAsyncWriter("foo", 1, writerCantConnect{}, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerCantConnect{}, component.NoopObservability())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +112,7 @@ func TestAsyncWriterCantSendClosed(t *testing.T) {
 
 	writerImpl := &writerCantSend{}
 
-	w, err := NewAsyncWriter("foo", 1, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Error(err)
 		return
@@ -138,7 +138,7 @@ func TestAsyncWriterCantSendClosedChan(t *testing.T) {
 
 	writerImpl := &writerCantSend{}
 
-	w, err := NewAsyncWriter("foo", 1, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Error(err)
 		return
@@ -167,7 +167,7 @@ func TestAsyncWriterStartClosed(t *testing.T) {
 
 	writerImpl := newAsyncMockWriter()
 
-	w, err := NewAsyncWriter("foo", 1, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Error(err)
 		return
@@ -198,7 +198,7 @@ func TestAsyncWriterClosesOnReconn(t *testing.T) {
 
 	writerImpl := newAsyncMockWriter()
 
-	w, err := NewAsyncWriter("foo", 1, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Error(err)
 		return
@@ -249,7 +249,7 @@ func TestAsyncWriterClosesOnResend(t *testing.T) {
 
 	writerImpl := newAsyncMockWriter()
 
-	w, err := NewAsyncWriter("foo", 1, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Error(err)
 		return
@@ -307,7 +307,7 @@ func TestAsyncWriterCanReconnect(t *testing.T) {
 
 	writerImpl := newAsyncMockWriter()
 
-	w, err := NewAsyncWriter("foo", 1, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Error(err)
 		return
@@ -375,7 +375,7 @@ func TestAsyncWriterCanReconnectAsync(t *testing.T) {
 
 	writerImpl := newAsyncMockWriter()
 
-	w, err := NewAsyncWriter("foo", 2, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 2, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -483,7 +483,7 @@ func TestAsyncWriterCantReconnect(t *testing.T) {
 
 	writerImpl := newAsyncMockWriter()
 
-	w, err := NewAsyncWriter("foo", 1, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Error(err)
 		return
@@ -546,7 +546,7 @@ func TestAsyncWriterHappyPath(t *testing.T) {
 
 	exp := [][]byte{[]byte("foo"), []byte("bar")}
 
-	w, err := NewAsyncWriter("foo", 1, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Error(err)
 		return
@@ -611,7 +611,7 @@ func TestAsyncWriterSadPath(t *testing.T) {
 	exp := [][]byte{[]byte("foo"), []byte("bar")}
 	expErr := errors.New("message got lost or something")
 
-	w, err := NewAsyncWriter("foo", 1, writerImpl, component.NoopObservability())
+	w, err := NewAsyncWriter("foo", 1, false, writerImpl, component.NoopObservability())
 	if err != nil {
 		t.Error(err)
 		return

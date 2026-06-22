@@ -77,6 +77,14 @@ type Type struct {
 	// their own custom versioning scheme.
 	engineVersion string
 
+	// When true the engine treats processing errors as terminal for the
+	// affected message: error-flagged messages skip the remaining processors in
+	// their chain and are rejected at the output rather than written. Recovery is
+	// performed by wrapping the fallible step within a try_catch or retry
+	// processor (a standalone catch does not recover here, as the failed message
+	// short-circuits past it).
+	strict bool
+
 	// Keeps track of the full configuration path of the component that holds
 	// the manager. This value is used only in observability and therefore it
 	// is acceptable that this does not fully represent reality.
@@ -141,6 +149,15 @@ func OptSetStreamHTTPNamespacing(enabled bool) OptFunc {
 func OptSetEngineVersion(v string) OptFunc {
 	return func(t *Type) {
 		t.engineVersion = v
+	}
+}
+
+// OptSetStrict enables strict error handling, where a processing error is
+// terminal for the affected message unless recovered by wrapping the fallible
+// step within a try_catch or retry processor.
+func OptSetStrict(strict bool) OptFunc {
+	return func(t *Type) {
+		t.strict = strict
 	}
 }
 
@@ -359,6 +376,11 @@ func New(conf ResourceConfig, opts ...OptFunc) (*Type, error) {
 // string could be any format.
 func (t *Type) EngineVersion() string {
 	return t.engineVersion
+}
+
+// Strict returns true when the engine is configured for strict error handling.
+func (t *Type) Strict() bool {
+	return t.strict
 }
 
 //------------------------------------------------------------------------------

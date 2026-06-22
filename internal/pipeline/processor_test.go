@@ -59,7 +59,7 @@ func TestProcessorPipeline(t *testing.T) {
 		mockProc.dropChan <- true
 	}()
 
-	proc := pipeline.NewProcessor(mockProc)
+	proc := pipeline.NewProcessor(false, mockProc)
 
 	tChan, resChan := make(chan message.Transaction), make(chan error)
 
@@ -192,7 +192,7 @@ func TestProcessorMultiMsgs(t *testing.T) {
 	defer done()
 
 	mockProc := &mockSplitProcessor{}
-	proc := pipeline.NewProcessor(mockProc)
+	proc := pipeline.NewProcessor(false, mockProc)
 
 	tChan, resChan := make(chan message.Transaction), make(chan error)
 	require.NoError(t, proc.Consume(tChan))
@@ -270,7 +270,7 @@ func TestProcessorMultiMsgsBatchError(t *testing.T) {
 	defer done()
 
 	mockProc := &mockSplitProcessor{}
-	proc := pipeline.NewProcessor(mockProc)
+	proc := pipeline.NewProcessor(false, mockProc)
 
 	tChan, resChan := make(chan message.Transaction), make(chan error)
 
@@ -387,7 +387,7 @@ func TestProcessorMultiMsgsBatchUnknownError(t *testing.T) {
 	defer done()
 
 	mockProc := &mockPhantomProcessor{}
-	proc := pipeline.NewProcessor(mockProc)
+	proc := pipeline.NewProcessor(false, mockProc)
 
 	tChan, resChan := make(chan message.Transaction), make(chan error)
 
