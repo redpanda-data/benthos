@@ -98,6 +98,7 @@ func CreateManager(
 	mgrOpts = append([]manager.OptFunc{
 		manager.OptSetAPIReg(httpServer),
 		manager.OptSetEngineVersion(cliOpts.Version),
+		manager.OptSetStrict(conf.ErrorHandling.Strict),
 		manager.OptSetStreamHTTPNamespacing(c.Bool("prefix-stream-endpoints")),
 		manager.OptSetLogger(logger),
 		manager.OptSetMetrics(stats),
