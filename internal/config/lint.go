@@ -52,6 +52,7 @@ func (r *Reader) ReadYAMLFileLinted(ctx context.Context, spec docs.FieldSpecs, p
 
 	if !bytes.HasPrefix(configBytes, []byte("# BENTHOS LINT DISABLE")) {
 		lints = append(lints, spec.LintYAML(docs.NewLintContext(lConf), cNode)...)
+		lints = append(lints, lintStrictErrorHandling(conf, cNode, lConf.DocsProvider)...)
 	}
 	return conf, lints, nil
 }
