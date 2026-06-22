@@ -27,7 +27,7 @@ func AppendFromConfig(conf input.Config, mgr bundle.NewManagement, pipelines ...
 					return nil, fmt.Errorf("failed to create processor '%v': %v", procConf.Type, err)
 				}
 			}
-			return pipeline.NewProcessor(processors...), nil
+			return pipeline.NewProcessor(mgr.Strict(), processors...), nil
 		}}, pipelines...)
 	}
 	return pipelines

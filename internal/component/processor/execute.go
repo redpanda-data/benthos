@@ -8,16 +8,43 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/message"
 )
 
+type strictCtxKey struct{}
+
+// WithStrict returns a child context that signals strict error handling to
+// ExecuteAll: a message that has failed a processing step skips the remaining
+// processors in the chain (rather than continuing through them with the error
+// flag set). The signal propagates to all nested ExecuteAll calls.
+func WithStrict(ctx context.Context) context.Context {
+	return context.WithValue(ctx, strictCtxKey{}, true)
+}
+
+// IsStrict returns true if the context carries the strict error handling signal.
+func IsStrict(ctx context.Context) bool {
+	v, _ := ctx.Value(strictCtxKey{}).(bool)
+	return v
+}
+
 // ExecuteAll attempts to execute a slice of processors to a message. Returns
 // N resulting messages or a response. The response may indicate either a NoAck
 // in the event of the message being buffered or an unrecoverable error.
+//
+// When the context carries the strict error handling signal (see WithStrict) a
+// message that has failed a processing step skips the remaining processors,
+// matching ExecuteTryAll's behaviour.
 func ExecuteAll(ctx context.Context, procs []V1, msgs ...message.Batch) ([]message.Batch, error) {
+	strict := IsStrict(ctx)
+
 	resultMsgs := make([]message.Batch, len(msgs))
 	copy(resultMsgs, msgs)
 
 	for i := 0; len(resultMsgs) > 0 && i < len(procs); i++ {
 		var nextResultMsgs []message.Batch
 		for _, m := range resultMsgs {
+			// In strict mode, skip messages that failed a prior stage.
+			if strict && len(m) > 0 && m.Get(0).ErrorGet() != nil {
+				nextResultMsgs = append(nextResultMsgs, m)
+				continue
+			}
 			rMsgs, err := procs[i].ProcessBatch(ctx, m)
 			if err != nil {
 				// We immediately return if a processor hits an unrecoverable

@@ -46,7 +46,7 @@ For more information please read xref:guides:sync_responses.adoc[synchronous res
 			Field(service.NewObjectField("").Default(map[string]any{})),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			var s output.Streamed
-			if s, err = output.NewAsyncWriter("sync_response", 1, SyncResponseWriter{o: interop.UnwrapManagement(mgr)}, interop.UnwrapManagement(mgr)); err != nil {
+			if s, err = output.NewAsyncWriter("sync_response", 1, false, SyncResponseWriter{o: interop.UnwrapManagement(mgr)}, interop.UnwrapManagement(mgr)); err != nil {
 				return
 			}
 			out = interop.NewUnwrapInternalOutput(s)

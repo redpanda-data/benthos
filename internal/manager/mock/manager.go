@@ -29,7 +29,8 @@ import (
 // Manager provides a mock benthos manager that components can use to test
 // interactions with fake resources.
 type Manager struct {
-	Version string
+	Version    string
+	StrictMode bool
 
 	Inputs          map[string]*Input
 	Caches          map[string]map[string]CacheItem
@@ -75,6 +76,11 @@ func NewManager() *Manager {
 // benthos engine.
 func (m *Manager) EngineVersion() string {
 	return m.Version
+}
+
+// Strict reports whether strict error handling is enabled.
+func (m *Manager) Strict() bool {
+	return m.StrictMode
 }
 
 // ForStream returns the same mock manager.

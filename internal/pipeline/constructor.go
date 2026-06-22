@@ -61,9 +61,9 @@ func New(conf Config, mgr bundle.NewManagement) (processor.Pipeline, error) {
 		}
 	}
 	if conf.Threads == 1 {
-		return NewProcessor(processors...), nil
+		return NewProcessor(mgr.Strict(), processors...), nil
 	}
-	return NewPool(conf.Threads, mgr.Logger(), processors...)
+	return NewPool(conf.Threads, mgr.Strict(), mgr.Logger(), processors...)
 }
 
 // FromAny returns a pipeline config from a parsed config, yaml node or map.

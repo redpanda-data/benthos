@@ -5,6 +5,7 @@ package output
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -52,6 +53,7 @@ type AsyncWriter struct {
 
 	typeStr     string
 	maxInflight int
+	strict      bool
 	writer      AsyncSink
 
 	mgr    component.Observability
@@ -65,11 +67,14 @@ type AsyncWriter struct {
 	shutSig   *shutdown.Signaller
 }
 
-// NewAsyncWriter creates a Streamed implementation around an AsyncSink.
-func NewAsyncWriter(typeStr string, maxInflight int, w AsyncSink, mgr component.Observability) (Streamed, error) {
+// NewAsyncWriter creates a Streamed implementation around an AsyncSink. When
+// strict is true, messages that arrive already flagged as failed are rejected
+// (nacked) rather than written, on a per-message basis.
+func NewAsyncWriter(typeStr string, maxInflight int, strict bool, w AsyncSink, mgr component.Observability) (Streamed, error) {
 	aWriter := &AsyncWriter{
 		typeStr:      typeStr,
 		maxInflight:  maxInflight,
+		strict:       strict,
 		writer:       w,
 		mgr:          mgr,
 		log:          mgr.Logger(),
@@ -100,6 +105,7 @@ func (w *AsyncWriter) loop() {
 		mSent       = w.stats.GetCounter("output_sent")
 		mBatchSent  = w.stats.GetCounter("output_batch_sent")
 		mError      = w.stats.GetCounter("output_error")
+		mRejected   = w.stats.GetCounter("output_rejected")
 		mLatency    = w.stats.GetTimer("output_latency_ns")
 		mConn       = w.stats.GetCounter("output_connection_up")
 		mFailedConn = w.stats.GetCounter("output_connection_failed")
@@ -211,14 +217,82 @@ func (w *AsyncWriter) loop() {
 				return
 			}
 
-			w.log.Trace("Attempting to write %v messages to '%v'.\n", ts.Payload.Len(), w.typeStr)
-			_, spans := tracing.WithChildSpans(w.tracer, traceName, ts.Payload)
+			payload := ts.Payload
+			ackFn := ts.Ack
 
-			latency, err := w.latencyMeasuringWrite(closeLeisureCtx, ts.Payload)
+			// In strict mode, messages that have already failed a processing step
+			// are rejected (nacked) rather than written, on a per-message basis.
+			if w.strict {
+				var rejectErr *batch.Error
+				var sampleErr error
+				for i, m := range payload {
+					mErr := m.ErrorGet()
+					if mErr == nil {
+						continue
+					}
+					if sampleErr == nil {
+						sampleErr = mErr
+					}
+					mErr = fmt.Errorf("rejected due to failed processing: %w", mErr)
+					if rejectErr == nil {
+						rejectErr = batch.NewError(payload, mErr)
+					}
+					rejectErr.Failed(i, mErr)
+				}
+
+				if rejectErr != nil {
+					mRejected.Incr(int64(rejectErr.IndexedErrors()))
+					w.log.Warn("Rejecting %v of %v message(s) for output '%v' because they failed a processing step and strict error handling is enabled (example error: %v). To recover from expected errors and allow these messages through, wrap the failing step within a try_catch (or retry) processor; otherwise they will be nacked and retried by the input.\n", rejectErr.IndexedErrors(), len(payload), w.typeStr, sampleErr)
+
+					if rejectErr.IndexedErrors() == len(payload) {
+						// Every message failed: nack the whole batch without writing.
+						_ = ts.Ack(closeLeisureCtx, rejectErr)
+						continue
+					}
+
+					// Mixed batch: write only the messages that did not fail, and
+					// merge any write failure back into the rejection error.
+					sortGroup, sortedBatch := message.NewSortGroup(payload)
+					forwardBatch := make(message.Batch, 0, len(payload)-rejectErr.IndexedErrors())
+					rejectErr.WalkPartsNaively(func(i int, _ *message.Part, err error) bool {
+						if err == nil {
+							forwardBatch = append(forwardBatch, sortedBatch[i])
+						}
+						return true
+					})
+					payload = forwardBatch
+					ackFn = func(ctx context.Context, werr error) error {
+						if werr == nil {
+							return ts.Ack(ctx, rejectErr)
+						}
+						var tmpBatchErr *batch.Error
+						if errors.As(werr, &tmpBatchErr) {
+							tmpBatchErr.WalkPartsBySource(sortGroup, sortedBatch, func(i int, _ *message.Part, err error) bool {
+								if err != nil {
+									rejectErr.Failed(i, err)
+								}
+								return true
+							})
+							return ts.Ack(ctx, rejectErr)
+						}
+						for _, p := range forwardBatch {
+							if i := sortGroup.GetIndex(p); i >= 0 {
+								rejectErr.Failed(i, werr)
+							}
+						}
+						return ts.Ack(ctx, rejectErr)
+					}
+				}
+			}
+
+			w.log.Trace("Attempting to write %v messages to '%v'.\n", payload.Len(), w.typeStr)
+			_, spans := tracing.WithChildSpans(w.tracer, traceName, payload)
+
+			latency, err := w.latencyMeasuringWrite(closeLeisureCtx, payload)
 
 			// If our writer says it is not connected.
 			if errors.Is(err, component.ErrNotConnected) {
-				latency, err = connectLoop(ts.Payload)
+				latency, err = connectLoop(payload)
 			} else if err != nil {
 				mError.Incr(1)
 			}
@@ -238,16 +312,16 @@ func (w *AsyncWriter) loop() {
 				}
 			} else {
 				mBatchSent.Incr(1)
-				mSent.Incr(int64(batch.MessageCollapsedCount(ts.Payload)))
+				mSent.Incr(int64(batch.MessageCollapsedCount(payload)))
 				mLatency.Timing(latency)
-				w.log.Trace("Successfully wrote %v messages to '%v'.\n", ts.Payload.Len(), w.typeStr)
+				w.log.Trace("Successfully wrote %v messages to '%v'.\n", payload.Len(), w.typeStr)
 			}
 
 			for _, s := range spans {
 				s.Finish()
 			}
 
-			_ = ts.Ack(closeLeisureCtx, err)
+			_ = ackFn(closeLeisureCtx, err)
 		}
 	}
 
