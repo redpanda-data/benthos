@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Processor: Added a `try_catch` processor that executes a list of `processors` with "try" semantics and routes any failed message to a separate list of `catch` processors for recovery. Before the `catch` processors run, the failure is moved into a metadata object (`error` by default, configurable via `error_metadata`) with `what`/`name`/`label`/`path` fields, and the message's failure flag is cleared, so the recovery runs under the normal error semantics and the original error is available as a variable (e.g. `@error.what`). (@Jeffail)
+
 ## 4.75.0 - 2026-06-18
 
 ### Fixed
