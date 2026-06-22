@@ -47,6 +47,7 @@ import (
 // endpoints.
 type StreamBuilder struct {
 	engineVersion string
+	strict        bool
 
 	http       api.Config
 	threads    int
@@ -112,6 +113,14 @@ func (s *StreamBuilder) getLintContext() docs.LintContext {
 }
 
 //------------------------------------------------------------------------------
+
+// SetStrict configures the stream for strict error handling, where a processing
+// error is terminal for the affected message unless recovered by wrapping the
+// fallible step within a try_catch or retry processor. This setting is also
+// derived from a config's `error_handling.strict` field when one is provided.
+func (s *StreamBuilder) SetStrict(strict bool) {
+	s.strict = strict
+}
 
 // SetEngineVersion sets the version string representing the Benthos engine that
 // components will see. By default a best attempt will be made to determine a
@@ -638,6 +647,7 @@ func (s *StreamBuilder) setFromConfig(sconf config.Type) {
 	s.logger = sconf.Logger
 	s.metrics = sconf.Metrics
 	s.tracer = sconf.Tracer
+	s.strict = sconf.ErrorHandling.Strict
 }
 
 // SetBufferYAML parses a buffer YAML configuration and sets it to the builder
@@ -912,6 +922,7 @@ func (s *StreamBuilder) buildWithEnv(env *bundle.Environment) (*Stream, error) {
 		conf.ResourceConfig,
 		manager.OptSetAPIReg(apiMut),
 		manager.OptSetEngineVersion(s.engineVersion),
+		manager.OptSetStrict(s.strict),
 		manager.OptSetLogger(logger),
 		manager.OptSetMetrics(stats),
 		manager.OptSetTracer(tracer),

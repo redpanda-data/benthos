@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Processor: Added a `try_catch` processor that executes a list of `processors` with "try" semantics and routes any failed message to a separate list of `catch` processors for recovery. Before the `catch` processors run, the failure is moved into a metadata object (`error` by default, configurable via `error_metadata`) with `what`/`name`/`label`/`path` fields, and the message's failure flag is cleared, so the recovery runs under the normal error semantics and the original error is available as a variable (e.g. `@error.what`). (@Jeffail)
+- Config: Added an `error_handling.strict` field (default `false`). When enabled, a processing error is terminal for the affected message: it skips the remaining processors in its pipeline and is rejected (nacked) at the output rather than written. Expected errors are recovered by wrapping the fallible step within a `try_catch` (or `retry`) processor. This behaviour is expected to become the default in the next major version. (@Jeffail)
 
 ## 4.75.0 - 2026-06-18
 

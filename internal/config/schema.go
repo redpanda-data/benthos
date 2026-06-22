@@ -22,7 +22,15 @@ const (
 	fieldSystemCloseDelay   = "shutdown_delay"
 	fieldSystemCloseTimeout = "shutdown_timeout"
 	fieldTests              = "tests"
+
+	fieldErrorHandling       = "error_handling"
+	fieldErrorHandlingStrict = "strict"
 )
+
+// ErrorHandlingConfig describes engine-wide error handling behaviour.
+type ErrorHandlingConfig struct {
+	Strict bool `yaml:"strict"`
+}
 
 // Type is the Benthos service configuration struct.
 type Type struct {
@@ -35,6 +43,8 @@ type Type struct {
 	SystemCloseDelay       string         `yaml:"shutdown_delay"`
 	SystemCloseTimeout     string         `yaml:"shutdown_timeout"`
 	Tests                  []any          `yaml:"tests"`
+
+	ErrorHandling ErrorHandlingConfig `yaml:"error_handling"`
 
 	rawSource any
 }
@@ -64,6 +74,9 @@ func observabilityFields() docs.FieldSpecs {
 		}),
 		docs.FieldString(fieldSystemCloseDelay, "A period of time to wait for metrics and traces to be pulled or pushed from the process.").HasDefault("0s"),
 		docs.FieldString(fieldSystemCloseTimeout, "The maximum period of time to wait for a clean shutdown. If this time is exceeded Redpanda Connect will forcefully close.").HasDefault("20s"),
+		docs.FieldObject(fieldErrorHandling, "Configures engine-wide error handling behaviour.").WithChildren(
+			docs.FieldBool(fieldErrorHandlingStrict, "When enabled, a processing error is terminal for the affected message: it skips the remaining processors in its pipeline and is rejected (nacked) at the output rather than written. To recover from an expected error, wrap the fallible step within a `try_catch` processor (or a `retry` processor for transient failures); a standalone `catch` does not recover messages under this mode, as the failed message short-circuits past it. This setting will become the default and only behaviour in the next major version.").HasDefault(false),
+		).Advanced(),
 	}
 }
 
@@ -145,6 +158,11 @@ func noStreamFromParsed(prov docs.Provider, pConf *docs.ParsedConfig, conf *Type
 	}
 	if pConf.Contains(fieldSystemCloseTimeout) {
 		if conf.SystemCloseTimeout, err = pConf.FieldString(fieldSystemCloseTimeout); err != nil {
+			return
+		}
+	}
+	if pConf.Contains(fieldErrorHandling, fieldErrorHandlingStrict) {
+		if conf.ErrorHandling.Strict, err = pConf.FieldBool(fieldErrorHandling, fieldErrorHandlingStrict); err != nil {
 			return
 		}
 	}
