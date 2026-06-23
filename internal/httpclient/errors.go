@@ -4,15 +4,17 @@ package httpclient
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 )
 
 // ErrUnexpectedHTTPRes is an error returned when an HTTP request returned an
 // unexpected response.
 type ErrUnexpectedHTTPRes struct {
-	Code int
-	S    string
-	Body []byte
+	Code   int
+	S      string
+	Body   []byte
+	Header http.Header
 }
 
 // Error returns the Error string.

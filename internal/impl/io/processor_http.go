@@ -127,6 +127,7 @@ func (h *httpProc) ProcessBatch(ctx context.Context, msg service.MessageBatch) (
 				if code > 0 {
 					p.MetaSetMut("http_status_code", code)
 				}
+				h.client.ExtractHeaderMeta(p, hErr.Header)
 				p.SetError(err)
 			}
 		} else {
@@ -161,6 +162,7 @@ func (h *httpProc) ProcessBatch(ctx context.Context, msg service.MessageBatch) (
 				if ok := errors.As(err, &hErr); ok {
 					errPart.MetaSetMut("http_status_code", hErr.Code)
 				}
+				h.client.ExtractHeaderMeta(errPart, hErr.Header)
 				errPart.SetError(err)
 				responseMsg = append(responseMsg, errPart)
 			}
@@ -207,6 +209,7 @@ func (h *httpProc) ProcessBatch(ctx context.Context, msg service.MessageBatch) (
 						if ok := errors.As(err, &hErr); ok {
 							results[index].MetaSetMut("http_status_code", hErr.Code)
 						}
+						h.client.ExtractHeaderMeta(results[index], hErr.Header)
 						results[index].SetError(err)
 					}
 					resChan <- err

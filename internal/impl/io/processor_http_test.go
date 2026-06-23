@@ -285,6 +285,40 @@ http:
 	}
 }
 
+func TestHTTPClientExtractHeadersOnErrorResponse(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Retry-After", "30")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer ts.Close()
+
+	conf := parseYAMLProcConf(t, `
+http:
+  url: %v/testpost
+  retries: 0
+  extract_headers:
+    include_prefixes: [ "retry-after" ]
+`, ts.URL)
+
+	h, err := mock.NewManager().NewProcessor(conf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	msgs, res := h.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte("foo")}))
+	if res != nil {
+		t.Error(res)
+	} else if expC, actC := 1, msgs[0].Len(); actC != expC {
+		t.Errorf("Wrong result count: %v != %v", actC, expC)
+	} else if exp, act := "429", msgs[0].Get(0).MetaGetStr("http_status_code"); exp != act {
+		t.Errorf("Wrong response code metadata: %v != %v", act, exp)
+	} else if exp, act := "30", msgs[0].Get(0).MetaGetStr("retry-after"); exp != act {
+		t.Errorf("Retry-After header was not extracted onto the errored message: %v != %v", act, exp)
+	} else {
+		assert.Error(t, msgs[0].Get(0).ErrorGet())
+	}
+}
+
 func TestHTTPClientSerial(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		bodyBytes, err := io.ReadAll(r.Body)
