@@ -1,0 +1,137 @@
+description: >
+  Non-exhaustive match producing void — V1 has no void sentinel; a non-matching
+  match returns null. Most "skipped assignment" and "void error" tests therefore
+  behave differently.
+
+tests:
+  # --- Void in output assignment: skipped (V1: writes null) ---
+
+  - name: "non-exhaustive equality match produces void — field absent"
+    input: {}
+    mapping: |
+      root.sound = match "bird" {
+        "cat" => "meow",
+        "dog" => "woof",
+      }
+    output: {}
+
+  - name: "void from equality match preserves prior value"
+    mapping: |
+      root.sound = "chirp"
+      root.sound = match "bird" {
+        "cat" => "meow",
+        "dog" => "woof",
+      }
+    output: {"sound": "chirp"}
+
+  - name: "non-exhaustive boolean match produces void — field absent"
+    input: {}
+    mapping: |
+      root.x = match {
+        false => "nope",
+        false => "also nope",
+      }
+    output: {}
+
+  - name: "non-exhaustive match-as produces void — field absent"
+    skip: "V1 has no match-as syntax"
+
+  # --- Void in variable declaration: runtime error (V1: assigns null) ---
+
+  - name: "void from equality match in variable declaration is error"
+    mapping: |
+      let x = match "nope" {
+        "a" => 1,
+        "b" => 2,
+      }
+      root.result = $x
+    error: "variable 'x' undefined"
+
+  - name: "void from boolean match in variable declaration is error"
+    mapping: |
+      let x = match {
+        false => 1,
+      }
+      root.result = $x
+    error: "variable 'x' undefined"
+
+  - name: "void from match-as in variable declaration is error"
+    skip: "V1 has no match-as syntax"
+
+  # --- Void in variable reassignment: skipped (V1: overwrites with null) ---
+
+  - name: "void from match skips variable reassignment"
+    mapping: |
+      let x = "original"
+      let x = match "nope" {
+        "a" => "found",
+      }
+      root.result = $x
+    output: {"result": "original"}
+
+  # --- Void in collection literal: error (V1: null element) ---
+
+  - name: "void from match in array literal is error"
+    mapping: |
+      root.arr = [1, match "x" { "y" => 2 }, 3]
+    output: {"arr": [1, 3]} # V1 omits void elements from the array
+
+  - name: "void from match in object literal is error"
+    mapping: |
+      root.obj = {"key": match "x" { "y" => "val" }}
+    output: {"obj": {}} # V1 omits keys whose value is void
+
+  # --- Void as function/map argument: error ---
+
+  - name: "void from match as map argument is error"
+    skip: "V1 named maps do not take function-style parameters"
+
+  # --- Void rescued with .or() ---
+
+  - name: "or rescues void from non-exhaustive equality match"
+    mapping: |
+      root.result = (match "bird" { "cat" => "meow" }).or("unknown")
+    output: {"result": "unknown"}
+
+  - name: "or rescues void from non-exhaustive boolean match"
+    mapping: |
+      root.result = (match { false => "nope" }).or("default")
+    output: {"result": "default"}
+
+  - name: "or does not trigger when match produces a value"
+    mapping: |
+      root.result = (match "cat" { "cat" => "meow", }).or("unknown")
+    output: {"result": "meow"}
+
+  - name: "or rescues void for variable declaration"
+    mapping: |
+      let x = (match "bird" { "cat" => "meow" }).or("unknown")
+      root.result = $x
+    output: {"result": "unknown"}
+
+  # --- Wildcard prevents void ---
+
+  - name: "wildcard ensures match is exhaustive"
+    mapping: |
+      root.result = match "anything" {
+        "a" => 1,
+        _ => 0,
+      }
+    output: {"result": 0}
+
+  # --- Void in expression context: error (V1: null + 10 is a type error) ---
+
+  - name: "void from match in addition is error"
+    mapping: |
+      root.result = (match "x" { "y" => 1 }) + 10
+    error: "cannot add types nothing"
+
+  # --- .catch() does not rescue void ---
+  # V1 .catch() catches errors, not nulls. Non-matching match returns null (not error), so .catch
+  # does not trigger and the null value passes through.
+
+  - name: "catch does not trigger on void from match"
+    mapping: |
+      root.x = "prior"
+      root.x = (match "x" { "y" => 1 }).catch(0)
+    output: {"x": "prior"} # .catch does not trigger on void; the void propagates and the assignment is skipped, preserving prior

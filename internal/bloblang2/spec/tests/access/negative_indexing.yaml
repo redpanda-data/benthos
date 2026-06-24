@@ -1,0 +1,129 @@
+description: "Negative indexing for arrays, strings, and bytes: -1 is last, -2 is second-to-last, out-of-bounds errors"
+
+tests:
+  # --- Array negative indexing ---
+
+  - name: "array negative index -1 is last element"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-1]
+    output: {"v": 30}
+
+  - name: "array negative index -2 is second to last"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-2]
+    output: {"v": 20}
+
+  - name: "array negative index -3 is first element"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-3]
+    output: {"v": 10}
+
+  - name: "array negative index on single element"
+    mapping: |
+      $arr = [42]
+      output.v = $arr[-1]
+    output: {"v": 42}
+
+  - name: "array negative index out of bounds"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-4]
+    error: "out of bounds"
+
+  - name: "array negative index far out of bounds"
+    mapping: |
+      $arr = [1, 2]
+      output.v = $arr[-100]
+    error: "out of bounds"
+
+  - name: "array negative index on single element -2 is error"
+    mapping: |
+      $arr = [42]
+      output.v = $arr[-2]
+    error: "out of bounds"
+
+  - name: "array negative index with float whole number"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[-1.0]
+    output: {"v": 30}
+
+  # --- String negative indexing (codepoint) ---
+
+  - name: "string negative index -1 is last codepoint"
+    mapping: |
+      output.v = "hello"[-1]
+    output: {"v": 111}
+
+  - name: "string negative index -2 is second to last"
+    mapping: |
+      output.v = "hello"[-2]
+    output: {"v": 108}
+
+  - name: "string negative index -5 is first codepoint"
+    mapping: |
+      output.v = "hello"[-5]
+    output: {"v": 104}
+
+  - name: "string negative index on single char"
+    mapping: |
+      output.v = "A"[-1]
+    output: {"v": 65}
+
+  - name: "string negative index out of bounds"
+    mapping: |
+      output.v = "hello"[-6]
+    error: "out of bounds"
+
+  - name: "string negative index on non-ascii"
+    mapping: |
+      output.v = "caf\u00E9"[-1]
+    output: {"v": 233}
+
+  - name: "string negative index round trip with char"
+    mapping: |
+      output.v = "hello"[-1].char()
+    output: {"v": "o"}
+
+  # --- Bytes negative indexing ---
+
+  - name: "bytes negative index -1 is last byte"
+    mapping: |
+      output.v = "hello".bytes()[-1]
+    output: {"v": 111}
+
+  - name: "bytes negative index -2 is second to last byte"
+    mapping: |
+      output.v = "hello".bytes()[-2]
+    output: {"v": 108}
+
+  - name: "bytes negative index -5 is first byte"
+    mapping: |
+      output.v = "hello".bytes()[-5]
+    output: {"v": 104}
+
+  - name: "bytes negative index out of bounds"
+    mapping: |
+      output.v = "hello".bytes()[-6]
+    error: "out of bounds"
+
+  - name: "bytes negative index on multibyte utf8"
+    mapping: |
+      output.v = "\u00E9".bytes()[-1]
+    output: {"v": 169}
+
+  - name: "bytes negative index on single byte"
+    mapping: |
+      output.v = "X".bytes()[-1]
+    output: {"v": 88}
+
+  # --- Negative indexing from input ---
+
+  - name: "array from input with negative index"
+    input: {"items": ["first", "middle", "last"]}
+    mapping: |
+      output.v = input.items[-1]
+    output: {"v": "last"}

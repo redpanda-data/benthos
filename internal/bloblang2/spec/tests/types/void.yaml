@@ -1,0 +1,184 @@
+description: "Void behavior in every context — void is not a type, it is the absence of a value"
+
+tests:
+  # --- Output field assignment: void skips assignment ---
+
+  - name: "void skips output assignment (no prior value)"
+    mapping: |
+      output.x = if false { "hello" }
+    output: {}
+
+  - name: "void preserves prior output value"
+    mapping: |
+      output.status = "pending"
+      output.status = if false { "override" }
+    output: {"status": "pending"}
+
+  - name: "void from else-if chain without final else"
+    mapping: |
+      output.tier = "default"
+      output.tier = if false { "gold" } else if false { "silver" }
+    output: {"tier": "default"}
+
+  - name: "void from non-exhaustive match"
+    mapping: |
+      output.sound = "unknown"
+      output.sound = match "bird" {
+        "cat" => "meow",
+        "dog" => "woof",
+      }
+    output: {"sound": "unknown"}
+
+  # --- Variable declaration: runtime error ---
+
+  - name: "void in variable declaration is runtime error (if)"
+    mapping: |
+      $x = if false { 42 }
+    error: "void"
+
+  - name: "void in variable declaration is runtime error (match)"
+    mapping: |
+      $x = match "nope" {
+        "a" => 1,
+      }
+    error: "void"
+
+  # --- Variable reassignment: void skips ---
+
+  - name: "void skips variable reassignment"
+    mapping: |
+      $x = 10
+      $x = if false { 42 }
+      output.result = $x
+    output: {"result": 10}
+
+  - name: "void skips variable reassignment from match"
+    mapping: |
+      $x = "original"
+      $x = match "nope" {
+        "a" => "found",
+      }
+      output.result = $x
+    output: {"result": "original"}
+
+  # --- Collection literal: error ---
+
+  - name: "void in array literal is error"
+    mapping: |
+      output.arr = [1, if false { 2 }, 3]
+    error: "void"
+
+  - name: "void in object literal is error"
+    mapping: |
+      output.obj = {"a": 1, "b": if false { 2 }}
+    error: "void"
+
+  - name: "void in array from match is error"
+    mapping: |
+      output.arr = [match "x" { "y" => 1 }]
+    error: "void"
+
+  # --- Function/map argument: error ---
+
+  - name: "void as map argument is error"
+    mapping: |
+      map double(val) { val * 2 }
+      output.result = double(if false { 42 })
+    error: "void"
+
+  # --- .or() rescues void ---
+
+  - name: "or rescues void from if-without-else"
+    mapping: |
+      output.result = (if false { "hello" }).or("default")
+    output: {"result": "default"}
+
+  - name: "or rescues void from non-exhaustive match"
+    mapping: |
+      output.result = (match "bird" { "cat" => "meow" }).or("unknown")
+    output: {"result": "unknown"}
+
+  - name: "or does not trigger when value exists"
+    mapping: |
+      output.result = (if true { "hello" }).or("default")
+    output: {"result": "hello"}
+
+  - name: "or short-circuits argument on non-void"
+    mapping: |
+      output.result = (if true { "hello" }).or(throw("should not run"))
+    output: {"result": "hello"}
+
+  # --- .catch() passes void through unchanged ---
+
+  - name: "catch does not trigger on void"
+    mapping: |
+      output.x = "prior"
+      output.x = (if false { 1 }).catch(err -> 0)
+    output: {"x": "prior"}
+
+  - name: "catch passes void through then method errors"
+    mapping: |
+      output.result = (if false { 1 }).catch(err -> 0).string().catch(err -> "caught")
+    output: {"result": "caught"}
+
+  # --- Method calls on void: error ---
+
+  - name: "type on void is error"
+    mapping: |
+      output.t = (if false { 42 }).type()
+    error: "void"
+
+  - name: "string on void is error"
+    mapping: |
+      output.s = (if false { "hello" }).string()
+    error: "void"
+
+  - name: "length on void is error"
+    mapping: |
+      output.l = (if false { [1, 2] }).length()
+    error: "void"
+
+  - name: "uppercase on void is error"
+    mapping: |
+      output.s = (if false { "hello" }).uppercase()
+    error: "void"
+
+  # --- Expression operand: error ---
+
+  - name: "void plus number is error"
+    mapping: |
+      output.result = (if false { 42 }) + 1
+    error: "void"
+
+  - name: "number plus void is error"
+    mapping: |
+      output.result = 1 + (if false { 42 })
+    error: "void"
+
+  - name: "void in boolean negation is error"
+    mapping: |
+      output.result = !(if false { true })
+    error: "void"
+
+  - name: "void equality comparison is error"
+    mapping: |
+      output.result = (if false { 42 }) == 42
+    error: "void"
+
+  # --- Void rescued with or then used in variable declaration ---
+
+  - name: "or rescues void for variable declaration"
+    mapping: |
+      $x = (if false { 42 }).or(0)
+      output.result = $x
+    output: {"result": 0}
+
+  # --- Void vs deleted distinction ---
+
+  - name: "void preserves prior value while deleted removes it"
+    mapping: |
+      output.a = "exists"
+      output.b = "exists"
+      output.a = if false { "override" }
+      output.b = deleted()
+    output: {"a": "exists"}

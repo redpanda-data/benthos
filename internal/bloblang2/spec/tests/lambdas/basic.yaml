@@ -1,0 +1,151 @@
+description: "Lambda expressions — single/multi param, block bodies, nested expressions, higher-order methods"
+
+tests:
+  # --- Single parameter lambdas ---
+
+  - name: "single param lambda in map"
+    mapping: |
+      output.result = [1, 2, 3].map(x -> x * 2)
+    output: {"result": [2, 4, 6]}
+
+  - name: "single param lambda in filter"
+    mapping: |
+      output.result = [1, 2, 3, 4, 5].filter(x -> x > 3)
+    output: {"result": [4, 5]}
+
+  - name: "single param lambda in sort_by"
+    mapping: |
+      output.result = [{"n": 3}, {"n": 1}, {"n": 2}].sort_by(x -> x.n)
+    output: {"result": [{"n": 1}, {"n": 2}, {"n": 3}]}
+
+  - name: "single param lambda with string method"
+    mapping: |
+      output.result = ["hello", "world"].map(s -> s.uppercase())
+    output: {"result": ["HELLO", "WORLD"]}
+
+  - name: "single param lambda accessing nested fields"
+    mapping: |
+      $items = [{"price": 10, "qty": 2}, {"price": 5, "qty": 4}]
+      output.totals = $items.map(item -> item.price * item.qty)
+    output: {"totals": [20, 20]}
+
+  # --- Multi parameter lambdas ---
+
+  - name: "two param lambda in fold"
+    mapping: |
+      output.sum = [1, 2, 3, 4].fold(0, (tally, x) -> tally + x)
+    output: {"sum": 10}
+
+  - name: "two param lambda in map_entries"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.map_entries((k, v) -> {"key": k.uppercase(), "value": v * 10})
+    output: {"result": {"A": 10, "B": 20}}
+
+  - name: "two param lambda in filter_entries"
+    mapping: |
+      output.result = {"a": 1, "b": 5, "c": 3}.filter_entries((k, v) -> v > 2)
+    output: {"result": {"b": 5, "c": 3}}
+
+  - name: "fold with string accumulator"
+    mapping: |
+      output.result = ["a", "b", "c"].fold("", (acc, x) -> acc + x)
+    output: {"result": "abc"}
+
+  # --- Block body lambdas ---
+
+  - name: "block body with variable declarations"
+    mapping: |
+      $items = [{"price": 10, "qty": 3}, {"price": 20, "qty": 1}]
+      output.result = $items.map(item -> {
+        $base = item.price * item.qty
+        $tax = $base * 0.1
+        $base + $tax
+      })
+    output: {"result": [33.0, 22.0]}
+
+  - name: "block body with multiple variables"
+    mapping: |
+      output.result = [1, 2, 3].map(x -> {
+        $doubled = x * 2
+        $tripled = x * 3
+        $doubled + $tripled
+      })
+    output: {"result": [5, 10, 15]}
+
+  - name: "block body must end with expression"
+    mapping: |
+      output.result = [1].map(x -> {
+        $y = x + 1
+      })
+    compile_error: "expression"
+
+  - name: "block body with conditional expression"
+    mapping: |
+      output.result = [1, 2, 3, 4].map(x -> {
+        $label = if x > 2 { "big" } else { "small" }
+        $label + ":" + x.string()
+      })
+    output: {"result": ["small:1", "small:2", "big:3", "big:4"]}
+
+  # --- Nested lambdas ---
+
+  - name: "nested lambda — map inside map"
+    mapping: |
+      $matrix = [[1, 2], [3, 4]]
+      output.result = $matrix.map(row -> row.map(x -> x * 10))
+    output: {"result": [[10, 20], [30, 40]]}
+
+  - name: "filter inside map"
+    mapping: |
+      $groups = [[1, 2, 3], [4, 5, 6]]
+      output.result = $groups.map(g -> g.filter(x -> x % 2 == 0))
+    output: {"result": [[2], [4, 6]]}
+
+  # --- Passing map names to higher-order methods ---
+
+  - name: "pass map name directly to .map()"
+    mapping: |
+      map double(x) { x * 2 }
+      output.result = [1, 2, 3].map(double)
+    output: {"result": [2, 4, 6]}
+
+  - name: "pass map name directly to .filter()"
+    mapping: |
+      map is_positive(x) { x > 0 }
+      output.result = [-1, 2, -3, 4].filter(is_positive)
+    output: {"result": [2, 4]}
+
+  - name: "pass map name directly to .sort_by()"
+    mapping: |
+      map neg(x) { -x }
+      output.result = [3, 1, 2].sort_by(neg)
+    output: {"result": [3, 2, 1]}
+
+  # --- Lambda is not a value ---
+
+  - name: "cannot store lambda in variable"
+    mapping: |
+      $fn = x -> x * 2
+    compile_error: "lambda"
+
+  - name: "cannot assign lambda to output"
+    mapping: |
+      output.fn = x -> x * 2
+    compile_error: "lambda"
+
+  # --- Parameter is read-only ---
+
+  - name: "lambda parameter cannot be assigned to"
+    mapping: |
+      output.result = [1].map(x -> {
+        x = 10
+        x
+      })
+    compile_error: "assign"
+
+  # --- map_values with single param lambda ---
+
+  - name: "map_values with lambda"
+    mapping: |
+      output.result = {"x": 1, "y": 2}.map_values(v -> v + 100)
+    output: {"result": {"x": 101, "y": 102}}

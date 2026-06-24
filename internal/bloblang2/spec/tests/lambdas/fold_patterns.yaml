@@ -1,0 +1,114 @@
+description: >
+  Fold patterns that stress variable slot management — building objects
+  from arrays, nested folds, fold calling maps, fold with conditional
+  accumulation, and fold combined with other iterators.
+
+tests:
+  # --- Build object from key-value pairs ---
+
+  - name: "fold builds object from pairs array"
+    mapping: |
+      output.v = [
+        {"k": "name", "v": "Alice"},
+        {"k": "age", "v": 30},
+      ].fold({}, (acc, pair) -> {
+        $a = acc
+        $a[pair.k] = pair.v
+        $a
+      })
+    output: {"v": {"name": "Alice", "age": 30}}
+
+  - name: "fold builds object with computed keys"
+    mapping: |
+      output.v = ["x", "y", "z"].enumerate().fold({}, (acc, e) -> {
+        $a = acc
+        $a["key_" + e.value] = e.index + 1
+        $a
+      })
+    output: {"v": {"key_x": 1, "key_y": 2, "key_z": 3}}
+
+  # --- Fold with conditional accumulation ---
+
+  - name: "fold conditionally adds to accumulator"
+    mapping: |
+      output.v = [1, -2, 3, -4, 5].fold([], (acc, x) ->
+        if x > 0 { acc.concat([x]) } else { acc }
+      )
+    output: {"v": [1, 3, 5]}
+
+  - name: "fold with match in body"
+    mapping: |
+      output.v = ["apple", "banana", "avocado", "cherry"].fold(
+        {"a": [], "other": []},
+        (acc, s) -> {
+          $a = acc
+          $bucket = match s.slice(0, 1) { "a" => "a", _ => "other" }
+          $a[$bucket] = $a[$bucket].concat([s])
+          $a
+        }
+      )
+    output: {"v": {"a": ["apple", "avocado"], "other": ["banana", "cherry"]}}
+
+  # --- Nested fold ---
+
+  - name: "nested fold — outer builds rows, inner sums columns"
+    mapping: |
+      $matrix = [[1, 2, 3], [4, 5, 6]]
+      output.v = $matrix.fold([], (rows, row) -> {
+        $total = row.fold(0, (sum, x) -> sum + x)
+        rows.concat([$total])
+      })
+    output: {"v": [6, 15]}
+
+  - name: "fold inside map inside fold"
+    mapping: |
+      $groups = [
+        {"name": "a", "items": [1, 2]},
+        {"name": "b", "items": [3, 4, 5]},
+      ]
+      output.v = $groups.fold({}, (acc, g) -> {
+        $a = acc
+        $a[g.name] = g.items.fold(0, (sum, x) -> sum + x)
+        $a
+      })
+    output: {"v": {"a": 3, "b": 12}}
+
+  # --- Fold calling user maps ---
+
+  - name: "fold body calls user map"
+    mapping: |
+      map transform(val) { val * val }
+      output.v = [1, 2, 3, 4].fold(0, (acc, x) -> acc + transform(x))
+    output: {"v": 30}
+
+  - name: "fold body calls user map that returns object"
+    mapping: |
+      map make_entry(key, val) {
+        {"key": key, "value": val}
+      }
+      output.v = ["a", "b", "c"].enumerate().fold({}, (acc, e) -> {
+        $entry = make_entry(e.value, e.index)
+        $a = acc
+        $a[$entry.key] = $entry.value
+        $a
+      })
+    output: {"v": {"a": 0, "b": 1, "c": 2}}
+
+  # --- Fold preserves accumulator across iterations ---
+
+  - name: "fold accumulator carries forward correctly"
+    mapping: |
+      output.v = [10, 20, 30].fold({"sum": 0, "count": 0}, (acc, x) -> {
+        $a = acc
+        $a.sum = $a.sum + x
+        $a.count = $a.count + 1
+        $a
+      })
+    output: {"v": {"sum": 60, "count": 3}}
+
+  - name: "fold with string accumulator and separator"
+    mapping: |
+      output.v = ["a", "b", "c"].fold("", (acc, s) ->
+        if acc == "" { s } else { acc + ", " + s }
+      )
+    output: {"v": "a, b, c"}

@@ -1,0 +1,341 @@
+==================
+Multiline method chain (postfix continuation)
+==================
+
+output = input.name
+  .trim()
+  .lowercase()
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (method_call
+        receiver: (field_access
+          receiver: (input)
+          field: (identifier))
+        method: (identifier))
+      method: (identifier))))
+
+==================
+Multiline binary expression (operator continuation)
+==================
+
+output = input.price +
+  input.tax +
+  input.shipping
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (binary_expression
+      left: (binary_expression
+        left: (field_access
+          receiver: (input)
+          field: (identifier))
+        right: (field_access
+          receiver: (input)
+          field: (identifier)))
+      right: (field_access
+        receiver: (input)
+        field: (identifier)))))
+
+==================
+Multiline array literal
+==================
+
+output = [
+  1,
+  2,
+  3
+]
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (array
+      (integer)
+      (integer)
+      (integer))))
+
+==================
+Multiline function arguments
+==================
+
+output = input.replace_all(
+  "hello",
+  "world"
+)
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (input)
+      method: (identifier)
+      (argument_list
+        (positional_arguments
+          (string
+            (string_content))
+          (string
+            (string_content)))))))
+
+==================
+Multiline if else chain
+==================
+
+output = if input.x > 0 {
+  "positive"
+} else {
+  "non-positive"
+}
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (if_expression
+      condition: (binary_expression
+        left: (field_access
+          receiver: (input)
+          field: (identifier))
+        right: (integer))
+      consequence: (expr_body
+        (string
+          (string_content)))
+      (else_clause
+        alternative: (expr_body
+          (string
+            (string_content)))))))
+
+==================
+Multiline match expression
+==================
+
+output = match input.type {
+  "a" => 1,
+  "b" => 2,
+  _ => 0,
+}
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (match_expression
+      subject: (field_access
+        receiver: (input)
+        field: (identifier))
+      (match_cases
+        (match_case
+          pattern: (string
+            (string_content))
+          body: (integer))
+        (match_case
+          pattern: (string
+            (string_content))
+          body: (integer))
+        (match_case
+          body: (integer))))))
+
+==================
+Multiline map declaration
+==================
+
+map transform(data) {
+  $temp = data.value * 2
+  $temp + 1
+}
+
+---
+
+(source_file
+  (map_declaration
+    name: (identifier)
+    (parameter_list
+      (parameter
+        (identifier)))
+    (expr_body
+      (var_assignment
+        (variable)
+        (binary_expression
+          left: (field_access
+            receiver: (identifier)
+            field: (identifier))
+          right: (integer)))
+      (binary_expression
+        left: (variable)
+        right: (integer)))))
+
+==================
+Null-safe postfix continuation
+==================
+
+output = input.user
+  ?.name
+  ?.trim()
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (null_safe_method_call
+      receiver: (null_safe_field_access
+        receiver: (field_access
+          receiver: (input)
+          field: (identifier))
+        field: (identifier))
+      method: (identifier))))
+
+==================
+Index postfix continuation
+==================
+
+output = input.items
+  [0]
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (index
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      index: (integer))))
+
+==================
+Else continuation across lines
+==================
+
+if input.active {
+  output = "yes"
+}
+else {
+  output = "no"
+}
+
+---
+
+(source_file
+  (if_statement
+    condition: (field_access
+      receiver: (input)
+      field: (identifier))
+    (statement_block
+      (assignment
+        (assign_target)
+        (string
+          (string_content))))
+    (else_statement_clause
+      (statement_block
+        (assignment
+          (assign_target)
+          (string
+            (string_content)))))))
+
+==================
+Multiline lambda block
+==================
+
+output = input.items.map(x -> {
+  $doubled = x * 2
+  $doubled + 1
+})
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      method: (identifier)
+      (argument_list
+        (positional_arguments
+          (lambda_expression
+            parameters: (identifier)
+            body: (lambda_block
+              (expr_body
+                (var_assignment
+                  (variable)
+                  (binary_expression
+                    left: (identifier)
+                    right: (integer)))
+                (binary_expression
+                  left: (variable)
+                  right: (integer))))))))))
+
+==================
+Blank lines between statements
+==================
+
+output.a = 1
+
+output.b = 2
+
+---
+
+(source_file
+  (assignment
+    (assign_target
+      (target_path_segment
+        (identifier)))
+    (integer))
+  (assignment
+    (assign_target
+      (target_path_segment
+        (identifier)))
+    (integer)))
+
+==================
+Assignment continuation
+==================
+
+output.result =
+  input.items
+    .filter(x -> x > 0)
+    .map(x -> x * 2)
+
+---
+
+(source_file
+  (assignment
+    (assign_target
+      (target_path_segment
+        (identifier)))
+    (method_call
+      receiver: (method_call
+        receiver: (field_access
+          receiver: (input)
+          field: (identifier))
+        method: (identifier)
+        (argument_list
+          (positional_arguments
+            (lambda_expression
+              parameters: (identifier)
+              body: (binary_expression
+                left: (identifier)
+                right: (integer))))))
+      method: (identifier)
+      (argument_list
+        (positional_arguments
+          (lambda_expression
+            parameters: (identifier)
+            body: (binary_expression
+              left: (identifier)
+              right: (integer))))))))

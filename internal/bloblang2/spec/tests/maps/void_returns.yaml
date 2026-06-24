@@ -1,0 +1,114 @@
+description: >
+  Map void returns — when a map body's final expression produces void
+  (from if-without-else or match-without-wildcard), the map call produces
+  void. Void propagates to the calling context with normal semantics.
+
+tests:
+  # --- Map returns void from if-without-else ---
+
+  - name: "map returns void — output assignment skipped"
+    mapping: |
+      map maybe(val) {
+        if val > 10 { val * 2 }
+      }
+      output.v = "prior"
+      output.v = maybe(5)
+    output: {"v": "prior"}
+
+  - name: "map returns value when condition true"
+    mapping: |
+      map maybe(val) {
+        if val > 10 { val * 2 }
+      }
+      output.v = maybe(20)
+    output: {"v": 40}
+
+  - name: "map returns void — variable declaration errors"
+    mapping: |
+      map maybe(val) {
+        if val > 10 { val * 2 }
+      }
+      $x = maybe(5)
+    error: "void"
+
+  - name: "map returns void — variable reassignment skipped"
+    mapping: |
+      map maybe(val) {
+        if val > 10 { val * 2 }
+      }
+      $x = "original"
+      $x = maybe(5)
+      output.v = $x
+    output: {"v": "original"}
+
+  # --- Map returns void from non-exhaustive match ---
+
+  - name: "map returns void from match — assignment skipped"
+    mapping: |
+      map classify(val) {
+        match val {
+          "a" => "alpha",
+          "b" => "beta",
+        }
+      }
+      output.v = "default"
+      output.v = classify("c")
+    output: {"v": "default"}
+
+  - name: "map returns value from match when case matches"
+    mapping: |
+      map classify(val) {
+        match val {
+          "a" => "alpha",
+          "b" => "beta",
+        }
+      }
+      output.v = classify("a")
+    output: {"v": "alpha"}
+
+  # --- Void from map in collection literal errors ---
+
+  - name: "void from map in array literal is error"
+    mapping: |
+      map maybe(val) {
+        if val > 10 { val }
+      }
+      output.v = [maybe(5)]
+    error: "void"
+
+  - name: "void from map in object literal is error"
+    mapping: |
+      map maybe(val) {
+        if val > 10 { val }
+      }
+      output.v = {"key": maybe(5)}
+    error: "void"
+
+  # --- Void from map rescued with .or() ---
+
+  - name: "void from map rescued with or"
+    mapping: |
+      map maybe(val) {
+        if val > 10 { val * 2 }
+      }
+      output.v = maybe(5).or(0)
+    output: {"v": 0}
+
+  - name: "non-void from map not rescued by or"
+    mapping: |
+      map maybe(val) {
+        if val > 10 { val * 2 }
+      }
+      output.v = maybe(20).or(0)
+    output: {"v": 40}
+
+  # --- Void from map as argument to another map errors ---
+
+  - name: "void from map as argument to another map is error"
+    mapping: |
+      map maybe(val) {
+        if val > 10 { val }
+      }
+      map double(val) { val * 2 }
+      output.v = double(maybe(5))
+    error: "void"

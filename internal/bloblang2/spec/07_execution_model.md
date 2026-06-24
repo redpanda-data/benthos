@@ -1,0 +1,338 @@
+# 7. Execution Model
+
+## 7.1 Immutable Input, Mutable Output
+
+**Input (document + metadata) is always immutable:**
+```bloblang
+output.invitees = input.invitees.filter(i -> i.mood >= 0.5)
+output.rejected = input.invitees.filter(i -> i.mood < 0.5)
+# input.invitees unchanged - both see original
+
+# Input metadata also immutable
+output.original_topic = input@.kafka_topic
+output@.kafka_topic = "processed"
+output.still_original = input@.kafka_topic  # Still original value
+```
+
+**Output (document + metadata) built incrementally:**
+```bloblang
+output.user.id = input.id         # Creates output.user.id
+output.user.name = input.name     # Adds output.user.name
+output@.kafka_topic = "processed" # Adds output metadata
+```
+
+**Initial state:** `output` starts as empty object `{}`. `output@` (metadata) starts as empty object `{}`. A mapping with no statements produces `{}` with empty metadata. Reading `output` itself (without a path) before any assignment returns `{}` — e.g., `output.type()` returns `"object"`.
+
+**Input type:** `input` holds the incoming message document, which can be any type — object, array, string, bytes, number, bool, or null. Most commonly it is an object (parsed from JSON), but raw/unstructured messages arrive as bytes or string. The type of `input` is determined by the runtime environment, not by Bloblang. Use `.type()` to check, and methods like `.parse_json()` or `.string()` to convert.
+
+**Reading non-existent fields:** Accessing a field that doesn't exist returns `null` rather than erroring:
+```bloblang
+# output is initially {}
+output.field    # Returns null (field doesn't exist)
+
+# After assignment
+output.field = "value"
+output.field    # Returns "value"
+```
+
+**Unset vs Null distinction:**
+- **Non-existent field:** Field is not present in the object structure; reading it returns `null`
+- **Explicit null:** Field exists in the object with `null` as its value: `output.field = null`
+- **Practical impact:** In JSON output, non-existent fields are omitted; fields with `null` values are serialized as `"field": null`
+
+```bloblang
+output.exists_null = null               # Field present: {"exists_null": null}
+output.not_created = if false { "x" }   # Field absent: {}
+# Both return null when read, but differ structurally
+```
+
+**Root output assignment:** Assigning to bare `output` (without a path) replaces the entire output document with the assigned value, regardless of its type and regardless of any prior assignments. The new value completely replaces the old one — previous field assignments are discarded. `output` can hold any type (object, array, string, number, etc.):
+```bloblang
+output.x = 1
+output.y = 2
+output = "foo"         # Replaces {"x": 1, "y": 2} with "foo"
+output.field           # ERROR: cannot access field of string
+
+output = "foo"
+output = {"a": 1}      # Replaces "foo" with {"a": 1}
+output.b = 2           # {"a": 1, "b": 2}
+```
+
+## 7.2 Copy-and-Modify Pattern
+
+```bloblang
+# Copy document
+output = input
+output.password = deleted()
+output.processed_at = now()
+
+# Copy metadata
+output@ = input@
+output@.kafka_topic = "new-topic"
+```
+
+`output = input` performs a **logical copy** (copy-on-write) of the entire document — `output` is fully independent of `input`. Subsequent mutations to `output` never affect `input`. This is the same COW semantics used for variable assignment (Section 3.7) and metadata copy (`output@ = input@`).
+
+## 7.3 Contexts
+
+**Top-level mapping contexts:**
+
+**Input Context:**
+- `input.field` - Document field (immutable)
+- `input@.key` - Metadata key (immutable)
+- Always refers to original input message
+
+**Output Context:**
+- `output.field` - Document field (mutable)
+- `output@.key` - Metadata key (mutable)
+- Built incrementally during execution
+
+**Variables:**
+- `$variable` - Block-scoped, mutable
+- Can shadow variables from outer scopes
+
+**Map body contexts:**
+- Parameter: Bare identifier (e.g., `data.field`)
+- Variables: `$variable` (local to map)
+- **No access** to `input` or `output` (isolated functions)
+
+## 7.4 Metadata
+
+Messages have metadata separate from document payload. Metadata (`output@`) is always an object (key-value map) — unlike `output`, which can hold any type. This distinction affects deletion behavior (see Section 9.2).
+
+**Access:**
+```bloblang
+# Read input metadata (immutable)
+output.topic = input@.kafka_topic
+output.partition = input@.kafka_partition
+
+# Write output metadata (mutable)
+output@.kafka_topic = "processed-topic"
+output@.kafka_key = input.id
+output@.content_type = "application/json"
+
+# Dynamic metadata access (string index)
+$key = "kafka_topic"
+output.topic = input@[$key]
+output@[$key] = "new-topic"
+
+# Delete metadata key
+output@.kafka_key = deleted()
+
+# Clear all metadata
+output@ = {}                    # Removes all keys
+
+# Cannot delete metadata object itself
+output@ = deleted()             # ERROR: cannot delete metadata object
+
+# Metadata root must be an object
+output@ = "string"              # ERROR: metadata must be an object
+output@ = [1, 2, 3]            # ERROR: metadata must be an object
+output@ = 42                   # ERROR: metadata must be an object
+```
+
+**Types:**
+Metadata values can be any serializable type (string, number, bool, null, bytes, array, object, timestamp).
+```bloblang
+output@.retry_count = 5
+output@.tags = ["urgent", "customer-service"]
+output@.routing = {"region": "us-west", "priority": 10}
+output@.created_at = now()
+```
+
+**Nested metadata paths:** Metadata paths support the same auto-creation semantics as output paths (Section 3.7). Assigning to a nested metadata path auto-creates intermediate objects:
+```bloblang
+output@.routing.region = "us-west"       # Auto-creates output@.routing as {}
+output@.routing.priority = 10            # output@.routing is {"region": "us-west", "priority": 10}
+```
+
+**Note:** While the language allows any metadata type, message systems (Kafka, AMQP, etc.) often only support string metadata. In practice, implementations serialize non-string values to JSON strings when interfacing with such systems. For example, `output@.tags = ["a", "b"]` would be stored as the string `'["a","b"]'` in Kafka metadata. Bytes values in metadata are an error during serialization — use `.encode("base64")` or `.encode("hex")` before storing in metadata that will be serialized.
+
+**Reading metadata as a whole:** `input@` and `output@` without a path component evaluate to the entire metadata object. The result is always an object (`.type()` returns `"object"`), even when empty.
+```bloblang
+output.all_meta = input@            # Read all input metadata as an object
+output.meta_type = input@.type()    # "object"
+output.has_meta = input@.length()   # Number of metadata keys
+output.keys = input@.keys()         # Array of metadata key names
+```
+
+**Copy all metadata:**
+```bloblang
+output@ = input@                    # Logical copy (COW) all metadata
+output@.kafka_topic = "new-topic"   # Override specific
+```
+
+`output@ = input@` performs a **logical copy** (copy-on-write) — output metadata is fully independent of input metadata. Modifying output metadata (including nested values like `output@.tags[0]`) never affects input metadata. This is the same COW semantics used for document copy and variable assignment.
+
+Undefined metadata keys return `null`.
+
+## 7.5 Scoping Rules
+
+**Context Access Permissions:**
+
+| Context | Read `input` | Read `output` | Write `output`/`output@` | Read enclosing params | Read/Write `$var` |
+|---------|--------------|---------------|--------------------------|-----------------------|-------------------|
+| Top-level mapping | ✅ | ✅ | ✅ | n/a | ✅ |
+| Map body | ❌ | ❌ | ❌ | ✅ (own params) | ✅ (locally declared only) |
+| Expression context (top-level) | ✅ | ✅ | ❌ | n/a | ✅ |
+| Expression context (inside map) | ❌ | ❌ | ❌ | ✅ (enclosing map's params + own lambda params) | ✅ (enclosing map's local variables) |
+| Match `as` binding (top-level) | ✅ | ✅ | ❌ | n/a | ✅ |
+| Match `as` binding (inside map) | ❌ | ❌ | ❌ | ✅ (enclosing map's params) | ✅ (enclosing map's local variables) |
+
+**Key principle:** Map bodies cannot access `input`, `output`, or top-level `$variables` — the only data available inside a map is its parameters and variables declared within the map body. Inline lambdas and expressions at the top-level can read (but not write) `input` and `output`. Lambdas inherit the read permissions of their enclosing context (Section 3.4), which is why a lambda nested inside a map can still read that map's parameters and local variables (but cannot reach `input` / `output` / top-level `$var`).
+
+**Examples:**
+```bloblang
+# Top-level: full access
+output.x = input.y                        # ✅ Read input, write output
+
+# Top-level inline lambda: can read input/output
+output.items = input.data.map(x -> {
+  $multiplier = input.config.multiplier   # ✅ Can read input
+  $base = output.base_value               # ✅ Can read output
+  x * $multiplier
+})
+
+# Map body: no input/output access
+map transform(data) {
+  $temp = input.value                     # ❌ ERROR: cannot access input
+  data.field * 2                          # ✅ OK: use parameters
+}
+
+# Lambda inside map: also no input/output access
+map process(items) {
+  items.map(x -> {
+    $val = input.config                   # ❌ ERROR: cannot access input
+    x * 2                                 # ✅ OK: use parameters and variables
+  })
+}
+```
+
+**Top-level scope:**
+- Variables accessible throughout mapping
+- Maps accessible globally (or via namespace if imported)
+
+**Block scope:**
+- New variable declarations in `if`, `match`, lambda, and map bodies are block-scoped
+- Only accessible within declaring block and nested blocks
+- In expression contexts: assigning to an existing outer variable name creates a new inner variable (shadow)
+- In statement contexts: assigning to an existing outer variable modifies it
+
+```bloblang
+$global = 10
+
+output.result = if input.flag {
+  $local = 20        # Only in this block
+  $global + $local   # Can access both
+}
+
+# $local not accessible here
+output.final = $global  # Still 10
+```
+
+**Expression contexts (shadowing):**
+```bloblang
+$value = 10
+
+output.inner = if input.flag {
+  $value = 20        # NEW variable, shadows outer (expression context)
+  $value             # Returns 20
+}
+
+output.outer = $value  # Still 10 (outer variable unchanged)
+```
+
+**Statement contexts (mutation):**
+```bloblang
+$value = 10
+
+if input.flag {
+  $value = 20        # Modifies outer $value (statement context)
+  $new = "hello"     # Block-scoped: NOT visible outside
+}
+
+output.result = $value  # 20 if flag was true, 10 if false
+output.new = $new       # Compile-time error: $new does not exist
+```
+
+## 7.6 Variable Reassignment
+
+Variables can be reassigned in the same scope:
+```bloblang
+$value = 10
+$value = 20      # OK: reassignment
+output.x = $value  # 20
+
+# Reassignment vs shadowing
+output.y = if true {
+  $value = 30    # Shadowing: new variable in inner scope
+  $value         # 30
+}
+output.z = $value  # Still 20 (inner scope doesn't affect outer)
+```
+
+**Variable path assignment:** Variables support field and index assignment with the same semantics as `output`. Assigning to a nested path within a variable mutates the variable's value in place, with auto-creation of intermediate structures:
+
+```bloblang
+$record = {"name": "Alice", "scores": [10, 20]}
+$record.name = "Bob"                  # {"name": "Bob", "scores": [10, 20]}
+$record.scores[2] = 30               # {"name": "Bob", "scores": [10, 20, 30]}
+$record.scores[5] = 99               # Gaps filled with null: [10, 20, 30, null, null, 99]
+$record.address.city = "London"       # Auto-creates: {"name": "Bob", ..., "address": {"city": "London"}}
+$record.name = deleted()              # Removes field: {"scores": [...], "address": {...}}
+```
+
+**Copy-on-write:** Assigning a value to a variable always creates a logical copy, regardless of the source. Subsequent mutations to the variable never affect the original, and subsequent mutations to the original never affect the variable:
+
+```bloblang
+# From input (immutable source)
+$data = input.user
+$data.status = "processed"            # Mutates $data only; input.user unchanged
+
+# From output (mutable source)
+$snapshot = output.user
+output.user.name = "changed"          # Mutates output only; $snapshot unchanged
+$snapshot.age = 30                    # Mutates $snapshot only; output unchanged
+
+# Between variables
+$a = {"x": 1}
+$b = $a
+$b.x = 2                             # $b is {"x": 2}, $a is still {"x": 1}
+```
+
+Variable path assignment (`$var.field = expr`) is available in all contexts. In expression contexts (if/match expressions, lambdas, map bodies), only variable assignments are allowed (no `output` assignments). In statement contexts (top-level, if/match statements), both variable and `output` assignments are allowed.
+
+## 7.7 Evaluation Order
+
+Statements execute sequentially, top-to-bottom.
+Variables must be declared before being read. A variable is declared either by direct assignment (`$x = expr`) or by path assignment to an undeclared name (`$x.field = expr`, `$x[0] = expr`), which auto-creates the root value per Section 3.7's type-inference rules. Reading an undeclared variable (`output.y = $never`) is a compile-time error.
+**Map declarations are hoisted** — maps can be called before their declaration in the file. All maps are resolved before execution begins, so declaration order does not matter. Duplicate map names within the same file are a compile-time error.
+
+```bloblang
+# Map used before its declaration — valid
+output.result = transform(input.data)
+
+map transform(data) {
+  data.value * 2
+}
+```
+
+Later statements can reference earlier `output` fields:
+
+```bloblang
+output.price = input.price
+output.tax = output.price * 0.1          # Uses earlier output
+output.total = output.price + output.tax
+```
+
+**Note:** Reading an `output` field that has not yet been assigned returns `null` (consistent with Section 7.1 — non-existent fields return null). This means reordering statements can silently change behavior:
+```bloblang
+output.a = output.b  # null — output.b not yet assigned
+output.b = 42
+```
+
+This includes inline lambdas in method arguments — a lambda reading `output` sees its value at the time the enclosing statement executes:
+```bloblang
+output.multiplier = input.rate
+output.items = input.data.map(x -> x * output.multiplier)  # OK: multiplier already assigned
+```

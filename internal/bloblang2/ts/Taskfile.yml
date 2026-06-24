@@ -1,0 +1,39 @@
+version: "3"
+
+tasks:
+  install:
+    desc: Install npm dependencies
+    cmds:
+      - npm install
+    sources:
+      - package.json
+    generates:
+      - node_modules/.package-lock.json
+
+  build:
+    desc: Compile TypeScript to dist/
+    deps: [install]
+    cmds:
+      - npx tsc
+    sources:
+      - src/**/*.ts
+      - tsconfig.json
+    generates:
+      - dist/**/*.js
+
+  bundle:
+    desc: Bundle as a single ES module and copy into demo/
+    deps: [build]
+    cmds:
+      - node bundle.mjs
+
+  test:
+    desc: Run spec conformance and unit tests
+    deps: [install]
+    cmds:
+      - npx vitest run
+
+  clean:
+    desc: Remove build artifacts
+    cmds:
+      - rm -rf dist

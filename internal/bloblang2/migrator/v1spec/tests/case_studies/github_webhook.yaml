@@ -1,0 +1,96 @@
+description: >
+  GitHub pull request webhook normalization — extract fields from a deeply nested
+  PR event payload, parse issue references from the body with regex, merge
+  reviewer lists, categorize PR size, and build a notification-ready summary.
+
+tests:
+  - name: "normalize PR opened webhook into notification event"
+    input:
+      action: "opened"
+      number: 42
+      pull_request:
+        title: "feat: add retry logic to payment processor"
+        body: "## Summary\nAdds exponential backoff.\n\nCloses #38\nRelated: #35, #40"
+        html_url: "https://github.com/acme/payments/pull/42"
+        state: "open"
+        draft: false
+        additions: 347
+        deletions: 42
+        changed_files: 8
+        created_at: "2024-01-15T14:30:00Z"
+        user:
+          login: "alice-dev"
+        head:
+          ref: "feat/payment-retry"
+        base:
+          ref: "main"
+        labels:
+          - {name: "enhancement"}
+          - {name: "payments"}
+          - {name: "needs-review"}
+        requested_reviewers:
+          - {login: "bob-reviewer"}
+          - {login: "carol-lead"}
+        requested_teams:
+          - {name: "platform-team"}
+    mapping: |
+      let pr = this.pull_request
+      let url_parts = $pr.html_url.split("/")
+      let repo = $url_parts.3 + "/" + $url_parts.4
+
+      # Categorize by total lines changed
+      let total_changes = $pr.additions + $pr.deletions
+      let size_category = match {
+        $total_changes > 300 => "large",
+        $total_changes > 100 => "medium",
+        _ => "small",
+      }
+
+      # Parse issue references (#NNN) from PR body, deduplicate and sort
+      let issue_refs = $pr.body.re_find_all("#\\d+").
+        map_each(ref -> ref.trim_prefix("#").number()).
+        sort().
+        unique()
+
+      # Merge individual reviewers and team reviewers into one sorted list
+      # V2 .concat(...) → V1 .merge(...) concatenates arrays
+      let reviewers = $pr.requested_reviewers.map_each(r -> r.login).
+        merge($pr.requested_teams.map_each(t -> t.name)).
+        sort()
+
+      root.event_type = "pr_" + this.action
+      root.repo = $repo
+      root.pr_number = this.number
+      root.title = $pr.title
+      root.author = $pr.user.login
+      root.url = $pr.html_url
+      root.branch = $pr.head.ref + " -> " + $pr.base.ref
+      root.labels = $pr.labels.map_each(l -> l.name).sort()
+      root.reviewers = $reviewers
+      root.size = {
+        "additions": $pr.additions,
+        "deletions": $pr.deletions,
+        "files": $pr.changed_files,
+        "category": $size_category,
+      }
+      root.referenced_issues = $issue_refs
+      root.is_feature = $pr.title.has_prefix("feat")
+      root.summary = "[" + $repo + "] " + $pr.user.login + " " + this.action + " #" + this.number.string() + ": " + $pr.title + " (" + $size_category + ", " + $pr.changed_files.string() + " files)"
+    output:
+      event_type: "pr_opened"
+      repo: "acme/payments"
+      pr_number: 42
+      title: "feat: add retry logic to payment processor"
+      author: "alice-dev"
+      url: "https://github.com/acme/payments/pull/42"
+      branch: "feat/payment-retry -> main"
+      labels: ["enhancement", "needs-review", "payments"]
+      reviewers: ["bob-reviewer", "carol-lead", "platform-team"]
+      size:
+        additions: 347
+        deletions: 42
+        files: 8
+        category: "large"
+      referenced_issues: [35.0, 38.0, 40.0] # V1 .number() always returns float64
+      is_feature: true
+      summary: "[acme/payments] alice-dev opened #42: feat: add retry logic to payment processor (large, 8 files)"

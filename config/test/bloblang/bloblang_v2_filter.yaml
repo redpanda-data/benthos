@@ -1,0 +1,16 @@
+pipeline:
+  processors:
+    - bloblang_v2: |
+        output = if input.drop == true { deleted() } else { input }
+
+tests:
+  - name: Root deletion filters messages out of the batch
+    target_processors: /pipeline/processors
+    input_batch:
+      - content: '{"drop":false,"id":"keep1"}'
+      - content: '{"drop":true,"id":"drop1"}'
+      - content: '{"drop":false,"id":"keep2"}'
+      - content: '{"drop":true,"id":"drop2"}'
+    output_batches:
+      - - json_equals: {"drop":false,"id":"keep1"}
+        - json_equals: {"drop":false,"id":"keep2"}

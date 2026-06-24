@@ -1,0 +1,400 @@
+// Package translator converts Bloblang V1 mappings to Bloblang V2.
+//
+// The public entry point is Migrate. Given V1 source text and Options, it
+// returns a Report containing the V2 source, a list of semantic Change
+// records describing any behavioural divergences, and a Coverage summary.
+// An error is returned only when Coverage.Ratio falls below Options.MinCoverage.
+//
+// V2 is an intentional redesign that fixes ambiguities in V1. Where V1 and V2
+// differ semantically, the translator by default adopts V2 semantics and
+// records a Change describing the shift. It is the caller's responsibility to
+// audit Changes before relying on the translated mapping.
+package translator
+
+import "fmt"
+
+// Severity classifies how much the user should care about a Change.
+type Severity int
+
+const (
+	// SeverityInfo marks a benign rewrite — the V1 and V2 forms are
+	// equivalent, but the V1 form was non-canonical (e.g. a bare identifier)
+	// or idiomatic V2 differs from idiomatic V1.
+	SeverityInfo Severity = iota
+
+	// SeverityWarning means the V1 and V2 forms may diverge on some inputs,
+	// and the caller should audit the translated mapping.
+	SeverityWarning
+
+	// SeverityError means the translator could not produce a V2 form that
+	// preserves V1 semantics at all, and the emitted mapping almost
+	// certainly behaves differently. The affected span may also have been
+	// elided.
+	SeverityError
+)
+
+// String satisfies fmt.Stringer for ergonomic test output.
+func (s Severity) String() string {
+	switch s {
+	case SeverityInfo:
+		return "info"
+	case SeverityWarning:
+		return "warning"
+	case SeverityError:
+		return "error"
+	}
+	return fmt.Sprintf("severity(%d)", s)
+}
+
+// Category groups Changes by the kind of translation decision.
+type Category int
+
+const (
+	// CategoryIdiomRewrite flags that the V1 form was rewritten to an
+	// idiomatic V2 form with identical semantics. Always SeverityInfo.
+	CategoryIdiomRewrite Category = iota
+
+	// CategorySemanticChange flags that the translator deliberately adopted
+	// V2 semantics where V1 and V2 diverge. The caller should audit.
+	CategorySemanticChange
+
+	// CategoryUnsupported flags a V1 construct with no V2 equivalent. The
+	// emitted mapping contains a "# MIGRATION: <reason>" comment at the
+	// affected site and does not translate the construct.
+	CategoryUnsupported
+
+	// CategoryUncertain flags that the translator couldn't determine the V1
+	// behaviour confidently (e.g. ambiguous precedence, context-dependent
+	// rebinding). The emitted form is best-effort.
+	CategoryUncertain
+)
+
+// String satisfies fmt.Stringer.
+func (c Category) String() string {
+	switch c {
+	case CategoryIdiomRewrite:
+		return "idiom-rewrite"
+	case CategorySemanticChange:
+		return "semantic-change"
+	case CategoryUnsupported:
+		return "unsupported"
+	case CategoryUncertain:
+		return "uncertain"
+	}
+	return fmt.Sprintf("category(%d)", c)
+}
+
+// RuleID is a stable identifier for a translation rule. Each rule emits Changes
+// tagged with its RuleID. RuleID values survive spec renumbering: a renamed
+// §14 quirk still maps to the same RuleID.
+//
+// Add new rules by appending here. Never reuse values.
+type RuleID int
+
+// RuleID values. Trailing-line comments describe the rule. See the
+// bloblang_v1_spec.md §14 quirk anchors in parentheses.
+const (
+	// RuleUnknown is the zero value; only appears when a Change was built
+	// without setting a rule.
+	RuleUnknown RuleID = iota
+
+	// Naming & shape.
+	RuleRootToOutput       // root -> output
+	RuleThisToInput        // this -> input (read position)
+	RuleThisTargetToOutput // this as write target -> output (§14#72)
+	RuleBareIdentToInput   // bare ident `foo` -> `input.foo` (§14#1)
+	RuleBarePathToOutput   // bare-path target `foo.bar = v` -> `output.foo.bar = v` (§14#2)
+
+	// Metadata rules.
+	RuleMetaTargetToOutputMeta // `meta foo = v` -> `output@.foo = v`
+	RuleMetaReadToInputMeta    // `meta("k")` or `@k` -> `input@.k` or `input@[k]`
+
+	// Operator rules.
+	RuleCoalescePrecedence    // `a + b | c` parens preserved (§14#4)
+	RuleAndOrSameLevel        // V1 &&/|| coerce non-bool operands (§14#48); V2 requires bool
+	RuleBoolNumberEquality    // `true == 1` / `1 == true` asymmetry (§14#38)
+	RuleModuloFloatTruncation // `%` silent float->int64 truncation (§14#39)
+	RuleIntDivReturnsFloat    // `/` on ints returns float64 (§14#5)
+
+	// Sentinel and error-model rules.
+	RuleOrCatchesErrors // V1 `.or()` catches errors; V2 `.or()` doesn't (§12.2)
+
+	// Control-flow rules.
+	RuleIfNoElseNothing     // `if cond { x }` no-else produces nothing sentinel (§14#44)
+	RuleMatchSubjectRebinds // match arms rebind `this` to subject (§8.4)
+
+	// Path and indexing rules.
+	RuleNoBracketIndexing // `this[0]` not valid; use `.index(0)` (§14#10)
+
+	// String rules.
+	RuleStringLengthBytes // `.length()` on string returns byte count (§14#40)
+
+	// Method and function existence/rename rules.
+	RuleMethodDoesNotExist // e.g. map_values, collect, chunk, char — no V2/V1 equivalent
+	RuleNowReturnsString   // `now()` returns a string in V1 (§14#57)
+
+	// Map and import rules.
+	RuleMapDeclTranslation // `map foo { body }` -> V2 `map foo { body }`
+	RuleImportStatement    // `import "path"` -> V2 equivalent
+	RuleFromStatement      // `from "path"` whole-mapping include (§10.5)
+
+	// RuleUnsupportedConstruct is the catch-all when no more specific rule
+	// applies.
+	RuleUnsupportedConstruct
+
+	// RuleEmittedInvalidV2 flags that the translator's emitted V2 text did
+	// not parse under syntax.Parse. This is either a genuine translator bug
+	// (when V1 input was valid) or an echo of a V1 compile error the V2
+	// parser also rejects (e.g. chained `<`, missing imports, duplicate
+	// namespaces). Callers that want to detect real bugs can filter on this
+	// rule; the report is still returned with the best-effort V2 text.
+	RuleEmittedInvalidV2
+
+	// RuleBlockScopedLet flags a `let` declaration inside an if/else branch
+	// body. V1 scopes variables at the mapping level so declarations leak
+	// out; V2 scopes them per block. If the variable is referenced outside
+	// the branch, the V2 output will fail to compile.
+	RuleBlockScopedLet
+)
+
+// String satisfies fmt.Stringer.
+func (r RuleID) String() string {
+	switch r {
+	case RuleUnknown:
+		return "unknown"
+	case RuleRootToOutput:
+		return "root-to-output"
+	case RuleThisToInput:
+		return "this-to-input"
+	case RuleThisTargetToOutput:
+		return "this-target-to-output"
+	case RuleBareIdentToInput:
+		return "bare-ident-to-input"
+	case RuleBarePathToOutput:
+		return "bare-path-to-output"
+	case RuleMetaTargetToOutputMeta:
+		return "meta-target-to-output-meta"
+	case RuleMetaReadToInputMeta:
+		return "meta-read-to-input-meta"
+	case RuleCoalescePrecedence:
+		return "coalesce-precedence"
+	case RuleAndOrSameLevel:
+		return "and-or-same-level"
+	case RuleBoolNumberEquality:
+		return "bool-number-equality"
+	case RuleModuloFloatTruncation:
+		return "modulo-float-truncation"
+	case RuleIntDivReturnsFloat:
+		return "int-div-returns-float"
+	case RuleOrCatchesErrors:
+		return "or-catches-errors"
+	case RuleIfNoElseNothing:
+		return "if-no-else-nothing"
+	case RuleMatchSubjectRebinds:
+		return "match-subject-rebinds"
+	case RuleNoBracketIndexing:
+		return "no-bracket-indexing"
+	case RuleStringLengthBytes:
+		return "string-length-bytes"
+	case RuleMethodDoesNotExist:
+		return "method-does-not-exist"
+	case RuleNowReturnsString:
+		return "now-returns-string"
+	case RuleMapDeclTranslation:
+		return "map-decl-translation"
+	case RuleImportStatement:
+		return "import-statement"
+	case RuleFromStatement:
+		return "from-statement"
+	case RuleUnsupportedConstruct:
+		return "unsupported-construct"
+	case RuleEmittedInvalidV2:
+		return "emitted-invalid-v2"
+	case RuleBlockScopedLet:
+		return "block-scoped-let"
+	}
+	return fmt.Sprintf("rule(%d)", r)
+}
+
+// Change records one translation decision worth surfacing to the caller.
+type Change struct {
+	Line, Column int // start of the affected V1 span
+	EndLine      int // end line (may equal Line)
+	EndColumn    int // end column
+	Severity     Severity
+	Category     Category
+	RuleID       RuleID
+	SpecRef      string // e.g. "§14#48"; current spec anchor for docs
+	Original     string // V1 snippet (for citation)
+	Translated   string // V2 snippet emitted; empty if dropped
+	Explanation  string // one-line human-readable
+}
+
+// Report is the result of a successful Migrate call.
+type Report struct {
+	V2Mapping string
+	// V2Files is the set of imported files translated from V1 to V2. Keys
+	// are the paths used by the V1 source's import statements. Empty when
+	// Options.Files was empty.
+	V2Files  map[string]string
+	Changes  []Change
+	Coverage Coverage
+}
+
+// Coverage summarises the translator's progress over the V1 input.
+type Coverage struct {
+	Total       int     // total V1 AST nodes weighed
+	Translated  int     // translated exactly (Exact)
+	Rewritten   int     // translated with a SemanticChange
+	Unsupported int     // dropped / replaced with a MIGRATION comment
+	Ratio       float64 // (Translated*1.0 + Rewritten*0.9) / Total
+}
+
+// Options controls Migrate.
+type Options struct {
+	// MinCoverage is the minimum Coverage.Ratio required before Migrate
+	// returns successfully. If the computed ratio is below this value,
+	// Migrate returns (nil, *CoverageError). Default 0.75.
+	MinCoverage float64
+
+	// Verbose emits Info-severity Changes. Without this, only Warning and
+	// Error Changes are recorded, keeping the report focused on items that
+	// need human attention.
+	Verbose bool
+
+	// TreatWarningsAsErrors causes Warning-severity Changes to be promoted
+	// to Error; useful for CI.
+	TreatWarningsAsErrors bool
+
+	// Files is a virtual filesystem for `import` resolution. Keys are
+	// treated as canonical identifiers for files: an entry keyed
+	// "helpers.blobl" satisfies any import statement whose path string
+	// resolves (after FileResolver, if set) to "helpers.blobl". When
+	// FileResolver is nil the keys are matched directly against the
+	// path strings written in the V1 source (path-as-canonical-key).
+	Files map[string]string
+
+	// FileResolver, when set, lazily resolves V1 imports during Migrate.
+	// The migrator walks the closure of imports starting from the main
+	// source and any transitively imported files, calling the resolver
+	// for each import path it encounters.
+	//
+	// parentKey is the canonical key of the file the import appears in
+	// (empty for imports in the main V1 source). importPath is the path
+	// string as written in the import statement. The returned
+	// canonicalKey identifies the resolved file for de-duplication and
+	// Report.V2Files emission — two import statements that resolve to
+	// the same canonicalKey are translated once.
+	//
+	// Pre-populated Files take precedence: if Files contains importPath
+	// as a key, the resolver is not consulted and importPath itself is
+	// treated as the canonical key.
+	//
+	// Returning ok=false records an Unsupported RuleImportStatement at
+	// the import site and continues with the rest of the migration.
+	FileResolver FileResolver
+
+	// V2ImportPathRewriter, when set, rewrites V1 import path strings to
+	// their V2 equivalents in the emitted V2 source. Default: identity.
+	// Useful for callers that emit V2-translated files at sibling paths
+	// (e.g. "helpers.blobl" -> "helpers.v5.blobl"). Operates on the
+	// verbatim path string from the V1 source so locality is preserved
+	// (relative imports stay relative).
+	V2ImportPathRewriter V2ImportPathRewriter
+
+	// Mode selects how the V1 mapping's implicit root is treated.
+	//
+	// V1 ships two Bloblang-executing processors with different root
+	// defaults:
+	//   - `mapping`  — `root` starts as the *input* document; a mapping
+	//                  that makes no assignments passes the input
+	//                  through unchanged.
+	//   - `mutation` — `root` starts as `{}`; a mapping that makes no
+	//                  assignments emits an empty object.
+	//
+	// V2's `output` always starts as `{}`, matching V1's `mutation`. To
+	// preserve V1 `mapping` semantics the translator prepends an
+	// `output = input` statement to the V2 output when Mode is
+	// ModeMapping. When Mode is ModeMutation (or unset — the safe
+	// default), no prelude is inserted.
+	Mode Mode
+
+	// CustomMethodRules is keyed by V1 method name. Hooks registered
+	// here run *before* the built-in method-rewrite switch (custom
+	// rules win on name collision per the migrator's design). Returning
+	// handled=false falls through to built-in rules.
+	CustomMethodRules map[string]MethodRuleHook
+
+	// CustomFunctionRules is the function-call analogue of
+	// CustomMethodRules.
+	CustomFunctionRules map[string]FunctionRuleHook
+}
+
+// FileResolver lazily resolves a V1 import path during Migrate. See
+// Options.FileResolver for semantics.
+type FileResolver func(parentKey, importPath string) (canonicalKey, content string, ok bool)
+
+// V2ImportPathRewriter rewrites V1 import path strings to their V2
+// equivalents. See Options.V2ImportPathRewriter.
+type V2ImportPathRewriter func(v1Path string) string
+
+// Mode classifies the V1 execution context the translated mapping will
+// replace. See Options.Mode.
+type Mode int
+
+const (
+	// ModeMutation is the default: V1 `mutation` processor semantics.
+	// `root` starts empty; no prelude injected by the translator.
+	ModeMutation Mode = iota
+
+	// ModeMapping selects V1 `mapping` processor semantics. `root`
+	// starts as the input document; the translator prepends
+	// `output = input` so the V2 output behaves the same way.
+	ModeMapping
+)
+
+// String satisfies fmt.Stringer for ergonomic test/log output.
+func (m Mode) String() string {
+	switch m {
+	case ModeMutation:
+		return "mutation"
+	case ModeMapping:
+		return "mapping"
+	}
+	return fmt.Sprintf("mode(%d)", m)
+}
+
+// DefaultOptions returns reasonable defaults.
+func DefaultOptions() Options {
+	return Options{
+		MinCoverage: 0.75,
+	}
+}
+
+// CoverageError is returned by Migrate when Coverage.Ratio < Options.MinCoverage.
+type CoverageError struct {
+	Coverage Coverage
+	Min      float64
+	Report   *Report // the would-be report; inspect for context even on error
+}
+
+// Error satisfies the error interface.
+func (e *CoverageError) Error() string {
+	return fmt.Sprintf(
+		"migrator: translation coverage %.2f is below threshold %.2f (translated=%d rewritten=%d unsupported=%d total=%d)",
+		e.Coverage.Ratio, e.Min,
+		e.Coverage.Translated, e.Coverage.Rewritten, e.Coverage.Unsupported, e.Coverage.Total,
+	)
+}
+
+// computeRatio applies the weighted formula:
+//
+//	(Translated*1.0 + Rewritten*0.9) / Total
+//
+// Returns 1.0 when Total is zero (nothing to translate is 100% successful).
+func computeRatio(c Coverage) float64 {
+	if c.Total == 0 {
+		return 1.0
+	}
+	return (float64(c.Translated)*1.0 + float64(c.Rewritten)*0.9) / float64(c.Total)
+}

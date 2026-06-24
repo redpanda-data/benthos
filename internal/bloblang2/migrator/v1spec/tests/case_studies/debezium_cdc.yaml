@@ -1,0 +1,143 @@
+description: >
+  Debezium CDC change event processing — diff the before/after snapshots to
+  identify changed fields, parse embedded JSON columns (shipping address, line
+  items), convert Debezium epoch-day dates, convert cents to dollars, extract
+  provenance metadata, and set output metadata for downstream CDC routing.
+
+tests:
+  - name: "process Debezium MySQL update event with embedded JSON"
+    input:
+      payload:
+        before:
+          id: 10042
+          customer_id: 1007
+          status: "pending"
+          order_date: 19797
+          shipping_address: '{"street":"742 Evergreen Terrace","city":"Springfield","state":"IL","zip":"62704"}'
+          line_items_json: '[{"sku":"WIDGET-A","qty":3,"unit_price_cents":1500},{"sku":"GADGET-B","qty":1,"unit_price_cents":4200}]'
+          total_cents: 8700
+          currency: "USD"
+          updated_at: "2024-03-15T10:30:00Z"
+        after:
+          id: 10042
+          customer_id: 1007
+          status: "shipped"
+          order_date: 19797
+          shipping_address: '{"street":"742 Evergreen Terrace","city":"Springfield","state":"IL","zip":"62704"}'
+          line_items_json: '[{"sku":"WIDGET-A","qty":3,"unit_price_cents":1500},{"sku":"GADGET-B","qty":1,"unit_price_cents":4200}]'
+          total_cents: 8700
+          currency: "USD"
+          updated_at: "2024-03-15T14:22:17Z"
+        source:
+          connector: "mysql"
+          name: "dbserver1"
+          db: "inventory"
+          table: "orders"
+          ts_ms: 1710509137000
+          gtid: "3e11fa47-71ca-11e1-9e33-c80aa9429562:58"
+          file: "mysql-bin.000003"
+          pos: 484
+          version: "2.5.0.Final"
+        op: "u"
+        ts_ms: 1710509137425
+    mapping: |
+      let before = this.payload.before
+      let after = this.payload.after
+      let src = this.payload.source
+
+      # Diff: compare selected fields between before and after.
+      # V2 $before[f] with dynamic key → V1 $before.get(f).
+      # V2 .collect() → V1 fold of {key,value} records into an object.
+      let diff_fields = ["status", "updated_at", "total_cents", "currency"]
+      let changed = $diff_fields.
+        filter(f -> $before.get(f) != $after.get(f)).
+        map_each(f -> {"key": f, "value": {"before": $before.get(f), "after": $after.get(f)}}).
+        fold({}, item -> item.tally.merge({(item.value.key): item.value.value}))
+
+      # Parse embedded JSON string columns from the after image.
+      # V2 .map() → V1 .map_each().
+      let address = $after.shipping_address.parse_json()
+      let line_items = $after.line_items_json.parse_json().
+        map_each(li -> li.merge({"subtotal_cents": li.qty * li.unit_price_cents}))
+
+      # Debezium epoch-day (days since 1970-01-01) as unix seconds.
+      # The migrator V1 core env has no ts_format (lives in impl/pure), so we
+      # emit the raw numeric timestamp rather than formatting it.
+      let order_date_unix = $after.order_date * 86400
+
+      # Event timestamp from Debezium milliseconds; emit as numeric unix millis.
+      let event_ts_ms = this.payload.ts_ms
+
+      # Map operation code to name
+      let op_name = match this.payload.op {
+        "c" => "create",
+        "u" => "update",
+        "d" => "delete",
+        "r" => "snapshot",
+        _ => "unknown",
+      }
+
+      root.table = $src.db + "." + $src.table
+      root.operation = $op_name
+      root.key = {"id": $after.id}
+      root.timestamp_ms = $event_ts_ms
+      root.changed_fields = $changed
+      root.current = {
+        "id": $after.id,
+        "customer_id": $after.customer_id,
+        "status": $after.status,
+        "order_date_unix": $order_date_unix,
+        "shipping_address": $address,
+        "line_items": $line_items,
+        "total_dollars": $after.total_cents.number() / 100.0,
+        "currency": $after.currency,
+      }
+      root.provenance = {
+        "connector": $src.connector,
+        "server": $src.name,
+        "gtid": $src.gtid,
+        "binlog_file": $src.file,
+        "binlog_pos": $src.pos,
+        "version": $src.version,
+      }
+
+      # V2 output@.x → V1 meta x
+      meta cdc_table = $src.db + "." + $src.table
+      meta cdc_operation = $op_name
+      meta cdc_gtid = $src.gtid
+    output:
+      table: "inventory.orders"
+      operation: "update"
+      key: {id: 10042}
+      timestamp_ms: 1710509137425
+      changed_fields:
+        status: {before: "pending", after: "shipped"}
+        updated_at: {before: "2024-03-15T10:30:00Z", after: "2024-03-15T14:22:17Z"}
+      current:
+        id: 10042
+        customer_id: 1007
+        status: "shipped"
+        order_date_unix: 1710460800
+        shipping_address:
+          street: "742 Evergreen Terrace"
+          city: "Springfield"
+          state: "IL"
+          zip: "62704"
+        line_items:
+          # V1 parse_json decodes JSON numbers as float64; qty/unit_price_cents
+          # and arithmetic over them are therefore floats here.
+          - {sku: "WIDGET-A", qty: 3.0, unit_price_cents: 1500.0, subtotal_cents: 4500.0}
+          - {sku: "GADGET-B", qty: 1.0, unit_price_cents: 4200.0, subtotal_cents: 4200.0}
+        total_dollars: 87.0
+        currency: "USD"
+      provenance:
+        connector: "mysql"
+        server: "dbserver1"
+        gtid: "3e11fa47-71ca-11e1-9e33-c80aa9429562:58"
+        binlog_file: "mysql-bin.000003"
+        binlog_pos: 484
+        version: "2.5.0.Final"
+    output_metadata:
+      cdc_table: "inventory.orders"
+      cdc_operation: "update"
+      cdc_gtid: "3e11fa47-71ca-11e1-9e33-c80aa9429562:58"
