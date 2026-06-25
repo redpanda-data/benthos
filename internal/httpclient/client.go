@@ -214,28 +214,39 @@ func (h *Client) waitForAccess(ctx context.Context) bool {
 	}
 }
 
+// ExtractHeaderMeta sets response header values as metadata on the provided
+// message according to the configured metadata extraction filter. It is a no-op
+// when no extraction filter is configured or when header is nil, and is shared
+// by both the successful response path and the error response path so that
+// configured headers (e.g. Retry-After on a 429) are extracted regardless of
+// the response status code.
+func (h *Client) ExtractHeaderMeta(p *service.Message, header http.Header) {
+	if h.metaExtractFilter.IsEmpty() {
+		return
+	}
+	for k, values := range header {
+		normalisedHeader := strings.ToLower(k)
+		if len(values) > 0 && h.metaExtractFilter.Match(normalisedHeader) {
+			if len(values) == 1 {
+				p.MetaSetMut(normalisedHeader, values[0])
+			} else {
+				metaVal := make([]any, 0, len(values))
+				for _, v := range values {
+					metaVal = append(metaVal, v)
+				}
+				p.MetaSetMut(normalisedHeader, metaVal)
+			}
+		}
+	}
+}
+
 // ResponseToBatch attempts to parse an HTTP response into a 2D slice of bytes.
 func (h *Client) ResponseToBatch(res *http.Response) (service.MessageBatch, error) {
 	var resMsg service.MessageBatch
 
 	annotatePart := func(p *service.Message) {
 		p.MetaSetMut("http_status_code", res.StatusCode)
-		if !h.metaExtractFilter.IsEmpty() {
-			for k, values := range res.Header {
-				normalisedHeader := strings.ToLower(k)
-				if len(values) > 0 && h.metaExtractFilter.Match(normalisedHeader) {
-					if len(values) == 1 {
-						p.MetaSetMut(normalisedHeader, values[0])
-					} else {
-						metaVal := make([]any, 0, len(values))
-						for _, v := range values {
-							metaVal = append(metaVal, v)
-						}
-						p.MetaSetMut(normalisedHeader, metaVal)
-					}
-				}
-			}
-		}
+		h.ExtractHeaderMeta(p, res.Header)
 	}
 
 	if res.Body == nil {
@@ -498,7 +509,7 @@ func unexpectedErr(res *http.Response) error {
 	if err != nil {
 		return err
 	}
-	return ErrUnexpectedHTTPRes{Code: res.StatusCode, S: res.Status, Body: body}
+	return ErrUnexpectedHTTPRes{Code: res.StatusCode, S: res.Status, Body: body, Header: res.Header}
 }
 
 // Send creates an HTTP request from the client config, a provided message to be
