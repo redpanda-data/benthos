@@ -3,7 +3,7 @@ module github.com/redpanda-data/benthos/v4
 go 1.26.4
 
 require (
-	cuelang.org/go v0.16.1
+	cuelang.org/go v0.17.0
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/Jeffail/grok v1.1.0
 	github.com/Jeffail/shutdown v1.1.0
@@ -22,7 +22,7 @@ require (
 	github.com/itchyny/gojq v0.12.19
 	github.com/itchyny/timefmt-go v0.1.8
 	github.com/jmespath/go-jmespath v0.4.0
-	github.com/klauspost/compress v1.18.6
+	github.com/klauspost/compress v1.19.0
 	github.com/klauspost/pgzip v1.2.6
 	github.com/linkedin/goavro/v2 v2.15.0
 	github.com/matoous/go-nanoid/v2 v2.1.0
@@ -53,7 +53,7 @@ require (
 require github.com/cespare/xxhash/v2 v2.3.0 // indirect
 
 require (
-	github.com/cockroachdb/apd/v3 v3.2.1 // indirect
+	github.com/cockroachdb/apd/v3 v3.2.3 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
