@@ -8,7 +8,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 )
@@ -17,14 +16,13 @@ import (
 // stream config, applies any matching rule, and returns the rewritten
 // document plus the per-component changes. The input bytes are not
 // mutated; the returned tree is a fresh allocation.
-func walk(yamlBytes []byte, rules map[Target]Rule, ctx *Context, verbose bool) (string, []Change, error) {
+func walk(yamlBytes []byte, rules map[Target]Rule, ctx *Context, verbose bool, provider docs.Provider) (string, []Change, error) {
 	root, err := docs.UnmarshalYAML(yamlBytes)
 	if err != nil {
 		return "", nil, fmt.Errorf("parse config: %w", err)
 	}
 
 	spec := config.Spec()
-	provider := bundle.GlobalEnvironment
 
 	var changes []Change
 

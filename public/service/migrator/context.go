@@ -3,6 +3,8 @@
 package migrator
 
 import (
+	"context"
+
 	bloblmig "github.com/redpanda-data/benthos/v4/public/bloblangv2/migrator"
 )
 
@@ -13,6 +15,9 @@ import (
 type Context struct {
 	bloblang     *bloblmig.Migrator
 	bloblangOpts bloblmig.Options
+	// goCtx is the context.Context of the enclosing Migrate call, threaded to
+	// the bundled Bloblang migrator (whose import resolution honours it).
+	goCtx context.Context
 }
 
 // Bloblang returns the Bloblang V1->V2 migrator wired into this
@@ -32,7 +37,11 @@ func (c *Context) Bloblang() *bloblmig.Migrator {
 func (c *Context) MigrateBloblang(v1Source string, mode bloblmig.Mode) (string, *bloblmig.Report, error) {
 	opts := c.bloblangOpts
 	opts.Mode = mode
-	rep, err := c.bloblang.Migrate(v1Source, opts)
+	goCtx := c.goCtx
+	if goCtx == nil {
+		goCtx = context.Background()
+	}
+	rep, err := c.bloblang.Migrate(goCtx, v1Source, opts)
 	if err != nil {
 		return "", nil, err
 	}

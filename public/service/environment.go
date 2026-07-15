@@ -72,6 +72,19 @@ func NewEmptyEnvironment() *Environment {
 	}
 }
 
+type environmentUnwrapper struct {
+	child *bundle.Environment
+}
+
+func (e environmentUnwrapper) Unwrap() *bundle.Environment {
+	return e.child
+}
+
+// XUnwrapper is for internal use only, do not use this.
+func (e *Environment) XUnwrapper() any {
+	return environmentUnwrapper{child: e.internal}
+}
+
 // Clone an environment, creating a new environment containing the same plugins
 // that can be modified independently of the source.
 func (e *Environment) Clone() *Environment {

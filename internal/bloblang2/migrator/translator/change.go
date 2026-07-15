@@ -11,7 +11,10 @@
 // audit Changes before relying on the translated mapping.
 package translator
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // Severity classifies how much the user should care about a Change.
 type Severity int
@@ -155,6 +158,18 @@ const (
 	// out; V2 scopes them per block. If the variable is referenced outside
 	// the branch, the V2 output will fail to compile.
 	RuleBlockScopedLet
+
+	// RuleSliceByteVsCodepoint flags that V1 .slice() indexes strings by byte
+	// while V2 indexes by Unicode codepoint, so slicing a multi-byte string
+	// differs (V1 may split a rune / yield invalid UTF-8). Identical on arrays
+	// and ASCII strings.
+	RuleSliceByteVsCodepoint
+
+	// RuleCoalesceDuplicatesFallback flags that the `|`/`.or` coalesce rewrite
+	// (`x.or(f).catch(_ -> f)`) duplicates the fallback expression f, so a
+	// nondeterministic or side-effecting f is evaluated twice on the error
+	// path where V1 evaluated it once (e.g. uuid_v4(), now(), .apply()).
+	RuleCoalesceDuplicatesFallback
 )
 
 // String satisfies fmt.Stringer.
@@ -212,6 +227,10 @@ func (r RuleID) String() string {
 		return "emitted-invalid-v2"
 	case RuleBlockScopedLet:
 		return "block-scoped-let"
+	case RuleSliceByteVsCodepoint:
+		return "slice-byte-vs-codepoint"
+	case RuleCoalesceDuplicatesFallback:
+		return "coalesce-duplicates-fallback"
 	}
 	return fmt.Sprintf("rule(%d)", r)
 }
@@ -257,9 +276,12 @@ type Options struct {
 	// Migrate returns (nil, *CoverageError). Default 0.75.
 	MinCoverage float64
 
-	// Verbose emits Info-severity Changes. Without this, only Warning and
-	// Error Changes are recorded, keeping the report focused on items that
-	// need human attention.
+	// Verbose additionally emits Info-severity idiom rewrites
+	// (CategoryIdiomRewrite — cosmetic V1->V2 rewrites with identical
+	// semantics). Without this they are suppressed to keep the report focused.
+	// Info-severity Changes in any other category (semantic changes,
+	// unsupported constructs, uncertain translations) describe real divergence
+	// and are ALWAYS recorded, verbose or not.
 	Verbose bool
 
 	// TreatWarningsAsErrors causes Warning-severity Changes to be promoted
@@ -328,11 +350,19 @@ type Options struct {
 	// CustomFunctionRules is the function-call analogue of
 	// CustomMethodRules.
 	CustomFunctionRules map[string]FunctionRuleHook
+
+	// IsImpureFunc, when set, reports whether a V1 function name is
+	// nondeterministic or stateful, in addition to benthos core's own set.
+	// A distribution with extra Bloblang plugins (e.g. Connect's
+	// snowflake_id) supplies this so the coalesce-double-eval check flags
+	// those plugins too. It is consulted on top of the built-in detection,
+	// never instead of it.
+	IsImpureFunc func(name string) bool
 }
 
 // FileResolver lazily resolves a V1 import path during Migrate. See
 // Options.FileResolver for semantics.
-type FileResolver func(parentKey, importPath string) (canonicalKey, content string, ok bool)
+type FileResolver func(ctx context.Context, parentKey, importPath string) (canonicalKey, content string, ok bool)
 
 // V2ImportPathRewriter rewrites V1 import path strings to their V2
 // equivalents. See Options.V2ImportPathRewriter.

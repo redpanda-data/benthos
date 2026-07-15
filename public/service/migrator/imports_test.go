@@ -3,6 +3,7 @@
 package migrator_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -25,8 +26,8 @@ pipeline:
         import "./helpers.blobl"
         root.x = 21.apply("double")
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{
-		BloblangFileResolver: func(parentKey, importPath string) (string, string, bool) {
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{
+		BloblangFileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			if importPath == "./helpers.blobl" && parentKey == "" {
 				return "/abs/helpers.blobl", helpers, true
 			}
@@ -59,8 +60,8 @@ pipeline:
         import "./helpers.blobl"
         root.x = 21.apply("double")
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{
-		BloblangFileResolver: func(parentKey, importPath string) (string, string, bool) {
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{
+		BloblangFileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			return "/abs/helpers.blobl", helpers, true
 		},
 		BloblangV2ImportPathRewriter: func(p string) string {
@@ -93,8 +94,8 @@ pipeline:
         import "./helpers.blobl"
         root.y = 42.apply("double")
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{
-		BloblangFileResolver: func(parentKey, importPath string) (string, string, bool) {
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{
+		BloblangFileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			return "/abs/helpers.blobl", helpers, true
 		},
 	})
@@ -119,9 +120,9 @@ pipeline:
         import "./helpers.blobl"
         root.x = 21.apply("double")
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{
 		BloblangOptions: bloblmig.Options{
-			FileResolver: func(parentKey, importPath string) (string, string, bool) {
+			FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 				return "/abs/helpers.blobl", helpers, true
 			},
 		},
@@ -146,13 +147,13 @@ pipeline:
         root.x = "ok"
 `
 	var topLevelCalled, embeddedCalled bool
-	_, err := migrator.Migrate([]byte(in), migrator.Options{
-		BloblangFileResolver: func(parentKey, importPath string) (string, string, bool) {
+	_, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{
+		BloblangFileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			topLevelCalled = true
 			return "/abs/helpers.blobl", `map noop { root = this }`, true
 		},
 		BloblangOptions: bloblmig.Options{
-			FileResolver: func(parentKey, importPath string) (string, string, bool) {
+			FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 				embeddedCalled = true
 				return "/should-not-happen", "", true
 			},
@@ -182,8 +183,8 @@ pipeline:
   processors:
     - mapping: 'from "./helpers.blobl"'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{
-		BloblangFileResolver: func(parentKey, importPath string) (string, string, bool) {
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{
+		BloblangFileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			if importPath == "./helpers.blobl" {
 				return "/abs/helpers.blobl", helpers, true
 			}
@@ -218,8 +219,8 @@ pipeline:
   processors:
     - bloblang: 'from "./helpers.blobl"'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{
-		BloblangFileResolver: func(parentKey, importPath string) (string, string, bool) {
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{
+		BloblangFileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			return "/abs/helpers.blobl", helpers, true
 		},
 		BloblangV2ImportPathRewriter: func(p string) string {
@@ -243,8 +244,8 @@ pipeline:
   processors:
     - mutation: 'from "./helpers.blobl"'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{
-		BloblangFileResolver: func(parentKey, importPath string) (string, string, bool) {
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{
+		BloblangFileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			return "/abs/helpers.blobl", helpers, true
 		},
 	})
@@ -271,8 +272,8 @@ pipeline:
   processors:
     - mapping: 'from "./missing.blobl"'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{
-		BloblangFileResolver: func(parentKey, importPath string) (string, string, bool) {
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{
+		BloblangFileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			return "", "", false
 		},
 		// Effectively disable the bloblang coverage gate (the

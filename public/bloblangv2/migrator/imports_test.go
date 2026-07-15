@@ -3,6 +3,7 @@
 package migrator_test
 
 import (
+	"context"
 	"path"
 	"strings"
 	"testing"
@@ -18,9 +19,9 @@ func TestPublicFileResolver(t *testing.T) {
 	v1Main := `import "./helpers.blobl"
 root.x = 21.apply("double")
 `
-	rep, err := migrator.Migrate(v1Main, migrator.Options{
+	rep, err := migrator.Migrate(context.Background(), v1Main, migrator.Options{
 		MinCoverage: 0,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			if importPath == "./helpers.blobl" && parentKey == "" {
 				return "/abs/helpers.blobl", v1Helpers, true
 			}
@@ -53,11 +54,11 @@ map b_helper { root = this.c_helper.apply() }
 `,
 		"/abs/c.blobl": `map c_helper { root = this * 3 }`,
 	}
-	rep, err := migrator.Migrate(`import "/abs/a.blobl"
+	rep, err := migrator.Migrate(context.Background(), `import "/abs/a.blobl"
 root.x = 7.apply("a_helper")
 `, migrator.Options{
 		MinCoverage: 0,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			var canonical string
 			if strings.HasPrefix(importPath, "/") {
 				canonical = importPath

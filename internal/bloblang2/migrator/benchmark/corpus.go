@@ -1,6 +1,7 @@
 package benchmark
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -208,7 +209,7 @@ func (c *Collection) admit(name string, tc *spectest.TestCase, sub *spectest.Cas
 	}
 
 	// 3. Translate V1 -> V2.
-	rep, err := translator.Migrate(mapping, translator.Options{MinCoverage: 0, Files: files})
+	rep, err := translator.Migrate(context.Background(), mapping, translator.Options{MinCoverage: 0, Files: files})
 	if err != nil {
 		c.skip(name, SkipTranslateFail, err.Error())
 		return

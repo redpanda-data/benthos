@@ -149,7 +149,7 @@ func migrateV1(v1Source string) (*translator.Report, error) {
 		MinCoverage: 0, // never gate — we want to show whatever the translator can emit
 		Verbose:     true,
 	}
-	rep, err := translator.Migrate(v1Source, opts)
+	rep, err := translator.Migrate(context.Background(), v1Source, opts)
 	if err != nil {
 		// CoverageError can still carry a partial report; other errors can't.
 		var cerr *translator.CoverageError

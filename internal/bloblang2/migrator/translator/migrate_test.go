@@ -1,13 +1,14 @@
 package translator
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
 )
 
 func TestMigrateEmptyInput(t *testing.T) {
-	rep, err := Migrate("", Options{})
+	rep, err := Migrate(context.Background(), "", Options{})
 	if err != nil {
 		t.Fatalf("empty input should succeed, got %v", err)
 	}
@@ -20,7 +21,7 @@ func TestMigrateEmptyInput(t *testing.T) {
 }
 
 func TestMigrateSimpleRootToOutput(t *testing.T) {
-	rep, err := Migrate("root = this", Options{Verbose: true})
+	rep, err := Migrate(context.Background(), "root = this", Options{Verbose: true})
 	if err != nil {
 		t.Fatalf("simple root->output should succeed: %v", err)
 	}
@@ -37,7 +38,7 @@ func TestMigrateSimpleRootToOutput(t *testing.T) {
 }
 
 func TestMigrateArithmetic(t *testing.T) {
-	rep, err := Migrate("root = 1 + 2 * 3", Options{})
+	rep, err := Migrate(context.Background(), "root = 1 + 2 * 3", Options{})
 	if err != nil {
 		t.Fatalf("arithmetic translation should succeed: %v", err)
 	}
@@ -80,7 +81,7 @@ func TestApplyDefaults(t *testing.T) {
 
 func TestMigrateModeMutationNoPrelude(t *testing.T) {
 	// Default mode: no `output = input` prelude.
-	rep, err := Migrate("root.v = 1", Options{Mode: ModeMutation})
+	rep, err := Migrate(context.Background(), "root.v = 1", Options{Mode: ModeMutation})
 	if err != nil {
 		t.Fatalf("mutation-mode translation should succeed: %v", err)
 	}
@@ -93,7 +94,7 @@ func TestMigrateModeMappingInjectsPrelude(t *testing.T) {
 	// mapping mode: translator prepends `output = input` so the V2
 	// result starts as the input document (matching V1 mapping's
 	// pass-through default).
-	rep, err := Migrate("root.v = 1", Options{Mode: ModeMapping, Verbose: true})
+	rep, err := Migrate(context.Background(), "root.v = 1", Options{Mode: ModeMapping, Verbose: true})
 	if err != nil {
 		t.Fatalf("mapping-mode translation should succeed: %v", err)
 	}

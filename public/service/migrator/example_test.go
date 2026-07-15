@@ -3,6 +3,7 @@
 package migrator_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -22,7 +23,7 @@ pipeline:
     - bloblang: |
         root.id = this.id
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		fmt.Println("migrate:", err)
 		return
@@ -42,7 +43,7 @@ pipeline:
 // to a new `new_widget` plugin in V2.
 func ExampleMigrator_RegisterRule() {
 	mig := migrator.New()
-	mig.RegisterRule(
+	mig.MustRegisterRule(
 		migrator.Target{ComponentType: "processor", Name: "old_widget"},
 		func(ctx *migrator.Context, c *migrator.Component) migrator.Result {
 			body, ok := c.BodyString()

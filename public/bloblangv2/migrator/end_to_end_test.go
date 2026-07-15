@@ -3,6 +3,7 @@
 package migrator_test
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"testing"
@@ -30,7 +31,7 @@ func TestEndToEndCustomPlugin(t *testing.T) {
 	endToEndOnce.Do(registerEndToEndPlugins)
 
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget_double", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget_double", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
 		if len(m.Args) != 0 {
 			return ctx.Unsupported("widget_double takes no arguments")
 		}
@@ -41,7 +42,7 @@ func TestEndToEndCustomPlugin(t *testing.T) {
 	})
 
 	const v1Source = `root.doubled = this.value.widget_double()`
-	rep, err := mig.Migrate(v1Source, migrator.Options{})
+	rep, err := mig.Migrate(context.Background(), v1Source, migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}

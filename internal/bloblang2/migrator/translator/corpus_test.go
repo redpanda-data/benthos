@@ -1,6 +1,7 @@
 package translator_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -199,7 +200,7 @@ func runOne(interp spectest.Interpreter, tc *spectest.TestCase, fileLevel map[st
 	// enabled so Info-severity Changes surface on the Report and
 	// hasFlaggedDivergence can see any SemanticChange the translator
 	// emitted.
-	rep, err := translator.Migrate(tc.Mapping, translator.Options{
+	rep, err := translator.Migrate(context.Background(), tc.Mapping, translator.Options{
 		MinCoverage: 0.5,
 		Verbose:     true,
 		Files:       mergeFiles(fileLevel, tc.Files),

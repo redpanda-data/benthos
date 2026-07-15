@@ -3,6 +3,7 @@
 package migrator_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -22,7 +23,7 @@ pipeline:
     - bloblang: |
         root.id = this.id
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -59,7 +60,7 @@ pipeline:
     - mapping: |
         root.id = this.id
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -78,7 +79,7 @@ pipeline:
     - mutation: |
         root.id = this.id
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -98,7 +99,7 @@ pipeline:
       bloblang: |
         root = this
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -121,7 +122,7 @@ pipeline:
     - mutation: 'root.b = this.b'
     - mapping: 'root.c = this.c'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -146,7 +147,7 @@ pipeline:
             - mutation: |
                 root.fallback = true
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -162,7 +163,7 @@ pipeline:
     - log:
         message: hello
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -176,7 +177,7 @@ pipeline:
 
 func TestRegisterCustomRuleOverridesBuiltin(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterRule(migrator.Target{ComponentType: "processor", Name: "bloblang"},
+	mig.MustRegisterRule(migrator.Target{ComponentType: "processor", Name: "bloblang"},
 		func(ctx *migrator.Context, c *migrator.Component) migrator.Result {
 			return ctx.Unsupported("custom rule says no")
 		})
@@ -186,7 +187,7 @@ pipeline:
   processors:
     - bloblang: 'root = this'
 `
-	rep, err := mig.Migrate([]byte(in), migrator.Options{})
+	rep, err := mig.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -206,7 +207,7 @@ pipeline:
 
 func TestRegisterCustomRuleNewTarget(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterRule(migrator.Target{ComponentType: "processor", Name: "log"},
+	mig.MustRegisterRule(migrator.Target{ComponentType: "processor", Name: "log"},
 		func(ctx *migrator.Context, c *migrator.Component) migrator.Result {
 			return ctx.ReplaceStructured("log", map[string]any{"message": "rewritten"})
 		})
@@ -217,7 +218,7 @@ pipeline:
     - log:
         message: hello
 `
-	rep, err := mig.Migrate([]byte(in), migrator.Options{})
+	rep, err := mig.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -228,7 +229,7 @@ pipeline:
 
 func TestMinCoverageGate(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterRule(migrator.Target{ComponentType: "processor", Name: "bloblang"},
+	mig.MustRegisterRule(migrator.Target{ComponentType: "processor", Name: "bloblang"},
 		func(ctx *migrator.Context, c *migrator.Component) migrator.Result {
 			return ctx.Unsupported("nope")
 		})
@@ -238,7 +239,7 @@ pipeline:
   processors:
     - bloblang: 'root = this'
 `
-	_, err := mig.Migrate([]byte(in), migrator.Options{MinCoverage: 0.5})
+	_, err := mig.Migrate(context.Background(), []byte(in), migrator.Options{MinCoverage: 0.5})
 	if err == nil {
 		t.Fatalf("expected coverage error")
 	}
@@ -261,7 +262,7 @@ pipeline:
   processors:
     - mapping: 'root.id = this.id'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -279,7 +280,7 @@ pipeline:
   processors:
     - bloblang: 'root.id = this.id'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -297,7 +298,7 @@ pipeline:
   processors:
     - mutation: 'root.id = this.id'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -320,7 +321,7 @@ input:
   processors:
     - mapping: 'root.upper = this.uppercase()'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -345,7 +346,7 @@ output:
   processors:
     - mutation: 'root.flag = true'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -367,7 +368,7 @@ pipeline:
           - mapping: 'root.id = this.id'
         result_map: 'root.enriched = this'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -394,7 +395,7 @@ processor_resources:
   - label: my_resource
     bloblang: 'root.x = this.x'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -421,7 +422,7 @@ pipeline:
     # comment between processors
     - mutation: 'root.flag = true'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -446,7 +447,7 @@ pipeline:
   processors:
     - bloblang: '@@@ not valid bloblang @@@'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate should not fail outright on bad body: %v", err)
 	}
@@ -477,7 +478,7 @@ func TestVerboseEmitsSkipChange(t *testing.T) {
 
 	build := func() *migrator.Migrator {
 		mig := migrator.New()
-		mig.RegisterRule(migrator.Target{ComponentType: "processor", Name: "bloblang"}, rule)
+		mig.MustRegisterRule(migrator.Target{ComponentType: "processor", Name: "bloblang"}, rule)
 		return mig
 	}
 
@@ -487,7 +488,7 @@ pipeline:
     - bloblang: 'root = this'
 `
 
-	quiet, err := build().Migrate([]byte(in), migrator.Options{})
+	quiet, err := build().Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("quiet migrate: %v", err)
 	}
@@ -498,7 +499,7 @@ pipeline:
 		t.Fatalf("non-verbose Skip should not count toward Coverage.Skipped, got %+v", quiet.Coverage)
 	}
 
-	loud, err := build().Migrate([]byte(in), migrator.Options{Verbose: true})
+	loud, err := build().Migrate(context.Background(), []byte(in), migrator.Options{Verbose: true})
 	if err != nil {
 		t.Fatalf("verbose migrate: %v", err)
 	}
@@ -520,7 +521,7 @@ pipeline:
 // rejected with an error rather than panicking or silently producing
 // empty output.
 func TestInvalidYAMLReturnsError(t *testing.T) {
-	_, err := migrator.Migrate([]byte("not: valid: yaml: ::\n  - oops"), migrator.Options{})
+	_, err := migrator.Migrate(context.Background(), []byte("not: valid: yaml: ::\n  - oops"), migrator.Options{})
 	if err == nil {
 		t.Fatalf("expected error for invalid YAML")
 	}
@@ -531,7 +532,7 @@ func TestInvalidYAMLReturnsError(t *testing.T) {
 // set), the component is left untouched and no Change is recorded.
 func TestZeroResultLeavesComponentUntouched(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterRule(
+	mig.MustRegisterRule(
 		migrator.Target{ComponentType: "processor", Name: "log"},
 		func(ctx *migrator.Context, c *migrator.Component) migrator.Result {
 			return migrator.Result{}
@@ -544,7 +545,7 @@ pipeline:
     - log:
         message: hello
 `
-	rep, err := mig.Migrate([]byte(in), migrator.Options{})
+	rep, err := mig.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -568,7 +569,7 @@ input:
 output:
   drop: {}
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -594,7 +595,7 @@ output:
 func TestBloblangMigratorOptionThreadedThrough(t *testing.T) {
 	bloblMig := bloblmig.New()
 	var fired int
-	bloblMig.RegisterMethodRule("widget_encode", func(ctx *bloblmig.Context, m *bloblmig.V1MethodCall) bloblmig.Result {
+	bloblMig.MustRegisterMethodRule("widget_encode", func(ctx *bloblmig.Context, m *bloblmig.V1MethodCall) bloblmig.Result {
 		fired++
 		return ctx.Replace(&bloblmig.V2MethodCallExpr{
 			Receiver: ctx.Translate(m.Receiver),
@@ -607,7 +608,7 @@ pipeline:
   processors:
     - bloblang: 'root.encoded = this.payload.widget_encode()'
 `
-	rep, err := migrator.Migrate([]byte(in), migrator.Options{BloblangMigrator: bloblMig})
+	rep, err := migrator.Migrate(context.Background(), []byte(in), migrator.Options{BloblangMigrator: bloblMig})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -624,7 +625,7 @@ pipeline:
 func TestComponentAccessors(t *testing.T) {
 	mig := migrator.New()
 	var sawBodyString, sawBodyAny bool
-	mig.RegisterRule(
+	mig.MustRegisterRule(
 		migrator.Target{ComponentType: "processor", Name: "log"},
 		func(ctx *migrator.Context, c *migrator.Component) migrator.Result {
 			if _, ok := c.BodyString(); ok {
@@ -642,7 +643,7 @@ pipeline:
     - log:
         message: hello
 `
-	if _, err := mig.Migrate([]byte(in), migrator.Options{Verbose: true}); err != nil {
+	if _, err := mig.Migrate(context.Background(), []byte(in), migrator.Options{Verbose: true}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	if sawBodyString {

@@ -32,28 +32,31 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 
 	// ----- Simple renames (V2 name differs, same shape) -----
 	case "map_each":
-		// V1 .map_each accepts arrays and objects; V2 splits that: `.map`
-		// for arrays and `.map_values` for objects. Detect object-literal
-		// receivers at translate time; everything else defaults to `.map`
-		// with a SemanticChange flag so object-receiver cases surface in
-		// the Report. The single arg is a ParamQuery in V1 — wrap as a
-		// V2 lambda when the user wrote a bare query rather than a
-		// lambda.
+		// V1 .map_each accepts arrays and objects; V2 has no single
+		// polymorphic equivalent. On an ARRAY it passes each element (→ V2
+		// .map); on an OBJECT it passes each entry as {key, value} and
+		// replaces the value (→ V2 .map_values / .map_entries, which bind
+		// differently). When the receiver is a statically-known object
+		// literal we can translate faithfully; otherwise the runtime type is
+		// unknown so we emit .map (the array case) and flag the object case.
 		if _, isObj := m.Recv.(*v1ast.ObjectLit); isObj {
-			return t.queryFormRename(m, recv, "map_values", nil)
+			return t.translateObjectMapEach(m, recv)
 		}
 		return t.queryFormRename(m, recv, "map", &Change{
 			Severity: SeverityWarning, Category: CategorySemanticChange,
-			RuleID:      RuleMethodDoesNotExist,
-			Explanation: "V1 .map_each() accepts arrays and objects; V2 .map() is array-only — use .map_values() if the receiver is an object",
-		})
+			RuleID: RuleMethodDoesNotExist,
+			Explanation: "V1 .map_each() accepts arrays and objects; the receiver type is not statically known. " +
+				"V2 .map() (emitted) is array-only — if the receiver is an object, V1 binds each entry as " +
+				"{key, value} and replaces the value: use .map_values(v -> ...) when only the value is needed, " +
+				"or .map_entries((k, v) -> {\"key\": k, \"value\": ...}) when the key is needed",
+		}, true)
 	case "enumerated":
 		return t.simpleRename(m, recv, "enumerate")
 	case "key_values":
 		return t.simpleRename(m, recv, "iter")
 	case "map_each_key":
 		// V1 .map_each_key == V2 .map_keys (exact match — both take lambda).
-		return t.queryFormRename(m, recv, "map_keys", nil)
+		return t.queryFormRename(m, recv, "map_keys", nil, false)
 	case "assign":
 		// V1 .assign() is a deep recursive merge of nested objects; V2
 		// .merge() is shallow at the top level (nested values are
@@ -156,25 +159,27 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	case "merge":
 		return t.mergePolymorphicRewrite(m, recv)
 	case "filter", "filter_entries", "all", "any":
-		t.rec.Rewritten(Change{
-			Line: m.NamePos.Line, Column: m.NamePos.Column,
+		// Pass the divergence as queryFormRename's note so the method node is
+		// tallied exactly once (Rewritten). Recording a separate Rewritten
+		// here and then calling queryFormRename — which tallies again — would
+		// double-count the node and inflate the coverage ratio.
+		return t.queryFormRename(m, recv, m.Name, &Change{
 			Severity: SeverityWarning, Category: CategorySemanticChange,
 			RuleID:      RuleMethodDoesNotExist,
-			Explanation: "V1 " + "." + m.Name + "() accepts arrays and objects; V2 is strict about receiver type",
-		})
-		return t.queryFormRename(m, recv, m.Name, nil)
+			Explanation: "V1 ." + m.Name + "() accepts arrays and objects; V2 is strict about receiver type",
+		}, false)
 	case "find_by", "find_all_by":
 		// V1 .find_by / .find_all_by take a ParamQuery predicate where
 		// `this` and bare idents resolve as fields of the current
 		// element. V2 requires an explicit lambda. Wrap unconditionally.
-		return t.queryFormRename(m, recv, m.Name, nil)
+		return t.queryFormRename(m, recv, m.Name, nil, false)
 	case "sort_by":
-		return t.queryFormRename(m, recv, m.Name, nil)
+		return t.queryFormRename(m, recv, m.Name, nil, false)
 	case "unique":
 		// V1 .unique() with no args = identity comparison; with one arg
 		// it's a ParamQuery key extractor that needs wrapping.
 		if len(m.Args) == 1 {
-			return t.queryFormRename(m, recv, "unique", nil)
+			return t.queryFormRename(m, recv, "unique", nil, false)
 		}
 		return nil
 	case "sum", "min", "max":
@@ -190,12 +195,65 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		})
 		return nil
 	case "sort":
+		if len(m.Args) > 0 {
+			// V1 .sort(<query>) uses implicit `left`/`right` identifiers as a
+			// boolean comparator. V2 has no comparator-sort form: .sort() is
+			// ascending-only and .sort_by(fn) takes a one-argument key
+			// function. Translating the comparator through the normal path
+			// rewrites the bare `left`/`right` identifiers into
+			// `input.left`/`input.right`, emitting nonsense like
+			// `output.sort(input.left > input.right)` (and counting it as an
+			// Exact translation). Instead, drop the comparator and emit a bare
+			// ascending `.sort()` as a best-effort starting point, flagged
+			// Unsupported (Error) so the user MUST migrate the ordering by hand
+			// (e.g. `.sort()` ascending, `.sort().reverse()` descending, or
+			// `.sort_by(fn)` for a key). Note: the bare `.sort()` only executes
+			// for a scalar array — for object/key comparators it errors at
+			// runtime (objects aren't sortable), which is why it's Unsupported.
+			t.rec.Unsupported(Change{
+				Line: m.NamePos.Line, Column: m.NamePos.Column,
+				RuleID:      RuleUnsupportedConstruct,
+				Explanation: "V1 .sort(<comparator>) uses implicit left/right comparator identifiers; V2 has no comparator sort (use .sort() for ascending, .sort().reverse() for descending, or .sort_by(fn) for a key). The comparator was dropped and a bare ascending .sort() emitted — migrate the ordering manually.",
+			})
+			return &syntax.MethodCallExpr{
+				Receiver:  recv,
+				Method:    "sort",
+				MethodPos: pos(m.NamePos),
+			}
+		}
 		t.rec.Rewritten(Change{
 			Line: m.NamePos.Line, Column: m.NamePos.Column,
 			Severity: SeverityWarning, Category: CategorySemanticChange,
 			RuleID:      RuleMethodDoesNotExist,
 			Explanation: "V1 .sort() accepts any element type but produces lexicographic ordering; V2 rejects non-scalar or non-numeric elements outright",
 		})
+		return nil
+	case "slice":
+		// V1 .slice() indexes STRINGS by byte; V2 by Unicode codepoint (spec
+		// §13 ".slice"), so slicing a multi-byte string differs. Arrays (by
+		// element) and bytes (by byte) are UNAFFECTED. Skip the flag when the
+		// receiver is statically a non-string (array/object); otherwise flag
+		// conservatively (a dynamic receiver may be a string). 1:1 shape
+		// (return nil), counted once via the Rewritten flag so
+		// translateMethodCall skips the Exact tally.
+		if sliceReceiverIsNonString(m.Recv) {
+			return nil
+		}
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleSliceByteVsCodepoint,
+			Explanation: "on a string receiver, V1 .slice() indexes by byte while V2 indexes by Unicode codepoint — results differ on multi-byte strings (array/bytes receivers are unaffected)",
+		})
+		return nil
+	case "contains":
+		// Intentionally NOT flagged. .contains() is 1:1 and has no V1/V2
+		// divergence: V2 numeric equality uses promotion (spec §2 "5 == 5.0 is
+		// true"), so array .contains() matches 1 against 1.0 exactly as V1
+		// does, and cross-type comparisons are false in both. String substring
+		// search is identical too. Verified against both engines. Falls through
+		// to the default 1:1 translation (counted Exact once). Do not re-add a
+		// "type-strict" flag — it was factually wrong.
 		return nil
 	case "reverse":
 		// V1 .reverse() errors on empty arrays/strings; V2 returns empty.
@@ -438,7 +496,7 @@ func (t *translator) variadicArgsToArray(m *v1ast.MethodCall, recv syntax.Expr, 
 // `newName` selects the V2 method name (often the same as V1). If
 // `note` is non-nil it is recorded as a Rewritten change describing the
 // rename.
-func (t *translator) queryFormRename(m *v1ast.MethodCall, recv syntax.Expr, newName string, note *Change) syntax.Expr {
+func (t *translator) queryFormRename(m *v1ast.MethodCall, recv syntax.Expr, newName string, note *Change, keepElement bool) syntax.Expr {
 	args := make([]syntax.CallArg, 0, len(m.Args))
 	wrapped := false
 	for i, a := range m.Args {
@@ -446,6 +504,14 @@ func (t *translator) queryFormRename(m *v1ast.MethodCall, recv syntax.Expr, newN
 			lam, didWrap := t.translateQueryFormPredicate(a.Value, m.NamePos)
 			if lam == nil {
 				return nil
+			}
+			// For element-transform methods (V1 .map_each), a lambda whose
+			// body is an else-less `if` returns V1's nothing sentinel when the
+			// condition is false, which V1 treats as "keep the original
+			// element". V2 has no such fallback (void errors), so synthesize
+			// an explicit `else { <element> }` to preserve the semantics.
+			if keepElement {
+				t.keepElementOnBareIf(lam, m.NamePos)
 			}
 			args = append(args, syntax.CallArg{Name: a.Name, Value: lam})
 			wrapped = didWrap
@@ -485,6 +551,230 @@ func (t *translator) queryFormRename(m *v1ast.MethodCall, recv syntax.Expr, newN
 	}
 }
 
+// keepElementOnBareIf preserves V1 .map_each's "nothing keeps the original
+// element" semantics for a lambda whose body is an else-less `if`. V1 returns
+// its nothing sentinel when no branch matches and .map_each keeps the element;
+// V2 would produce void and error. If the lambda's element parameter is
+// referenceable, synthesize `else { <element> }` so the element is kept.
+// A discarded (_) parameter can't be referenced, so it's left as-is (the
+// §14#44 divergence note recorded during body translation still flags it).
+func (t *translator) keepElementOnBareIf(lam syntax.Expr, namePos v1ast.Pos) {
+	le, ok := lam.(*syntax.LambdaExpr)
+	if !ok || le.Body == nil {
+		return
+	}
+	ifExpr, ok := le.Body.Result.(*syntax.IfExpr)
+	if !ok || ifExpr.Else != nil {
+		return
+	}
+	if len(le.Params) == 0 {
+		return
+	}
+	param := le.Params[0].Name
+	if le.Params[0].Discard || param == "" {
+		// The element param was discarded (`_`), so we can't reference it —
+		// but V1 keeps the element, so give the param a synthetic name and
+		// un-discard it. Safe: a discarded param is by definition unused in
+		// the body, so introducing the name cannot collide with anything.
+		param = "__elem"
+		le.Params[0].Name = param
+		le.Params[0].Discard = false
+	}
+	ifExpr.Else = &syntax.ExprBody{Result: &syntax.IdentExpr{
+		TokenPos: pos(namePos), Name: param, SlotIndex: -1,
+	}}
+	t.rec.Note(Change{
+		Line: namePos.Line, Column: namePos.Column,
+		Severity: SeverityInfo, Category: CategorySemanticChange,
+		RuleID: RuleIfNoElseNothing, SpecRef: "§14#34",
+		Explanation: "V1 .map_each with an else-less `if` keeps the original element when the condition is false; synthesized `else { " + param + " }` to preserve this in V2",
+	})
+}
+
+// keepElementOnBareIfValue is the object-receiver variant of
+// keepElementOnBareIf. In the .map_entries/.into rewrite the lambda parameter
+// is bound to the whole {key, value} entry, but V1 .map_each over an object
+// keeps the original VALUE (not the entry) when an else-less `if` matches
+// nothing — so the synthesized else is `<param>.value`, not `<param>`.
+func (t *translator) keepElementOnBareIfValue(lam syntax.Expr, namePos v1ast.Pos) {
+	le, ok := lam.(*syntax.LambdaExpr)
+	if !ok || le.Body == nil {
+		return
+	}
+	ifExpr, ok := le.Body.Result.(*syntax.IfExpr)
+	if !ok || ifExpr.Else != nil || len(le.Params) == 0 {
+		return
+	}
+	param := le.Params[0].Name
+	if le.Params[0].Discard || param == "" {
+		param = "__entry"
+		le.Params[0].Name = param
+		le.Params[0].Discard = false
+	}
+	ifExpr.Else = &syntax.ExprBody{Result: &syntax.FieldAccessExpr{
+		Receiver: &syntax.IdentExpr{TokenPos: pos(namePos), Name: param, SlotIndex: -1},
+		Field:    "value",
+		FieldPos: pos(namePos),
+	}}
+	t.rec.Note(Change{
+		Line: namePos.Line, Column: namePos.Column,
+		Severity: SeverityInfo, Category: CategorySemanticChange,
+		RuleID: RuleIfNoElseNothing, SpecRef: "§14#34",
+		Explanation: "V1 .map_each over an object with an else-less `if` keeps the original value; synthesized `else { " + param + ".value }` to preserve this in V2",
+	})
+}
+
+// exprYieldsNothing reports whether e contains a V1 `deleted()`/`nothing()`
+// sentinel call. Used to detect object .map_each bodies that drop entries: the
+// .map_entries/.into rewrite can't place a dropped value in an entry's "value"
+// position (it errors), so those are flagged Unsupported instead.
+func exprYieldsNothing(e v1ast.Expr) bool {
+	switch x := e.(type) {
+	case *v1ast.FunctionCall:
+		if (x.Name == "deleted" || x.Name == "nothing") && len(x.Args) == 0 {
+			return true
+		}
+		return anyArgYieldsNothing(x.Args)
+	case *v1ast.MethodCall:
+		return exprYieldsNothing(x.Recv) || anyArgYieldsNothing(x.Args)
+	case *v1ast.BinaryExpr:
+		return exprYieldsNothing(x.Left) || exprYieldsNothing(x.Right)
+	case *v1ast.UnaryExpr:
+		return exprYieldsNothing(x.Operand)
+	case *v1ast.ParenExpr:
+		return exprYieldsNothing(x.Inner)
+	case *v1ast.FieldAccess:
+		return exprYieldsNothing(x.Recv)
+	case *v1ast.Lambda:
+		return exprYieldsNothing(x.Body)
+	case *v1ast.ArrayLit:
+		for _, el := range x.Elems {
+			if exprYieldsNothing(el) {
+				return true
+			}
+		}
+	case *v1ast.ObjectLit:
+		for _, en := range x.Entries {
+			if exprYieldsNothing(en.Key) || exprYieldsNothing(en.Value) {
+				return true
+			}
+		}
+	case *v1ast.IfExpr:
+		for _, br := range x.Branches {
+			if exprYieldsNothing(br.Cond) || exprYieldsNothing(br.Body) {
+				return true
+			}
+		}
+		return x.Else != nil && exprYieldsNothing(x.Else)
+	case *v1ast.MatchExpr:
+		if x.Subject != nil && exprYieldsNothing(x.Subject) {
+			return true
+		}
+		for _, c := range x.Cases {
+			if exprYieldsNothing(c.Body) {
+				return true
+			}
+		}
+	case *v1ast.MapExpr:
+		return exprYieldsNothing(x.Recv) || exprYieldsNothing(x.Body)
+	}
+	return false
+}
+
+func anyArgYieldsNothing(args []v1ast.CallArg) bool {
+	for _, a := range args {
+		if exprYieldsNothing(a.Value) {
+			return true
+		}
+	}
+	return false
+}
+
+// mapEntryObject builds the V2 object literal {"key": <k>, "value": <v>}.
+func mapEntryObject(k, v syntax.Expr, namePos v1ast.Pos) *syntax.ObjectLiteral {
+	strKey := func(s string) syntax.Expr {
+		return &syntax.LiteralExpr{TokenPos: pos(namePos), TokenType: syntax.STRING, Value: s}
+	}
+	return &syntax.ObjectLiteral{
+		LBracePos: pos(namePos),
+		Entries: []syntax.ObjectEntry{
+			{Key: strKey("key"), Value: k},
+			{Key: strKey("value"), Value: v},
+		},
+	}
+}
+
+// translateObjectMapEach translates V1 `.map_each` over a statically-known
+// object literal. V1 binds each entry as {key, value} and replaces the value
+// with the lambda result; V2 has no drop-in equivalent (.map_values binds the
+// bare value; .map_entries binds (key, value) and returns a {key, value}
+// object). We rebuild the entry and bind it via .into so the body sees
+// {key, value} exactly as V1 did:
+//
+//	recv.map_entries((__ek, __ev) -> {
+//	    "key":   __ek,
+//	    "value": {"key": __ek, "value": __ev}.into(<param> -> <body>),
+//	})
+//
+// Keep-element (else-less if) synthesizes `else { <param>.value }` (V1 keeps
+// the original value). A body that can yield deleted()/nothing() can't be
+// represented in the "value" position (it would error), so that case is
+// flagged Unsupported with the best-effort form still emitted.
+func (t *translator) translateObjectMapEach(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+	if len(m.Args) != 1 {
+		return nil
+	}
+	lamExpr, _ := t.translateQueryFormPredicate(m.Args[0].Value, m.NamePos)
+	lam, ok := lamExpr.(*syntax.LambdaExpr)
+	if !ok {
+		return nil
+	}
+	t.keepElementOnBareIfValue(lam, m.NamePos)
+
+	entryRef := func() *syntax.ObjectLiteral {
+		return mapEntryObject(identRef("__ek", m.NamePos), identRef("__ev", m.NamePos), m.NamePos)
+	}
+	inner := &syntax.MethodCallExpr{
+		Receiver:  entryRef(),
+		Method:    "into",
+		MethodPos: pos(m.NamePos),
+		Args:      []syntax.CallArg{{Value: lam}},
+	}
+	outerLam := &syntax.LambdaExpr{
+		TokenPos: pos(m.NamePos),
+		Params: []syntax.Param{
+			{Name: "__ek", Pos: pos(m.NamePos), SlotIndex: -1},
+			{Name: "__ev", Pos: pos(m.NamePos), SlotIndex: -1},
+		},
+		Body: &syntax.ExprBody{Result: mapEntryObject(identRef("__ek", m.NamePos), inner, m.NamePos)},
+	}
+	if exprYieldsNothing(m.Args[0].Value) {
+		t.rec.Unsupported(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			RuleID:      RuleUnsupportedConstruct,
+			Explanation: "V1 .map_each over an object whose body can drop entries (deleted()/nothing()) has no faithful V2 .map_entries form — a dropped value cannot sit in an entry's \"value\"; emitted best-effort, migrate the drop to a .map_entries lambda returning deleted() manually",
+		})
+	} else {
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 .map_each over an object binds each entry as {key, value} and replaces the value; rewritten to V2 .map_entries with the entry rebound via .into so the body sees {key, value} as in V1 — review the (verbose) result",
+		})
+	}
+	return &syntax.MethodCallExpr{
+		Receiver:  recv,
+		Method:    "map_entries",
+		MethodPos: pos(m.NamePos),
+		Args:      []syntax.CallArg{{Value: outerLam}},
+	}
+}
+
+// identRef builds a by-name V2 identifier reference (slot resolved later).
+func identRef(name string, namePos v1ast.Pos) *syntax.IdentExpr {
+	return &syntax.IdentExpr{TokenPos: pos(namePos), Name: name, SlotIndex: -1}
+}
+
 // translateQueryFormPredicate translates a single V1 ParamQuery argument.
 // Returns the V2 lambda expression and a `wrapped` flag indicating whether
 // a lambda had to be synthesized (true when the V1 source used the
@@ -496,7 +786,9 @@ func (t *translator) translateQueryFormPredicate(arg v1ast.Expr, namePos v1ast.P
 	const paramName = "__v"
 	t.pushScope(paramName)
 	t.pushThisRebind(paramName)
+	t.pushCtx(ctxLambdaBody)
 	body := t.translateExpr(arg)
+	t.popCtx()
 	t.popThisRebind()
 	t.popScope()
 	if body == nil {
@@ -743,6 +1035,14 @@ func (t *translator) orToOrPlusCatch(m *v1ast.MethodCall, recv syntax.Expr) synt
 		SpecRef:     "§12.2",
 		Explanation: "V1 .or() catches null AND errors; rewritten as V2 .or(x).catch(_ -> x) to preserve both paths",
 	})
+	if t.exprMayDivergeIfDuplicated(m.Args[0].Value) {
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleCoalesceDuplicatesFallback,
+			Explanation: "V1 .or() fallback is duplicated in the V2 .or(x).catch(_ -> x) rewrite; a nondeterministic or side-effecting fallback runs twice on the error path where V1 ran it once — verify or hoist it into a `let`",
+		})
+	}
 	orCall := &syntax.MethodCallExpr{
 		Receiver:  recv,
 		Method:    "or",
@@ -840,6 +1140,40 @@ func isArrayExpr(e v1ast.Expr) bool {
 		return true
 	}
 	return false
+}
+
+// sliceReceiverIsNonString reports whether e is statically a non-string value
+// (array/object), so the .slice byte-vs-codepoint divergence — which is
+// string-only — cannot apply and the flag can be skipped. It is deliberately
+// STRICTER than isArrayExpr: V1 .reverse() is string-only and .slice() returns
+// the receiver's own type, so a chain ending in either (e.g.
+// `s.reverse().slice(...)` or `s.slice(1,5).slice(0,2)`) may still be a string
+// and MUST keep the flag. Everything else isArrayExpr recognises (map_each,
+// map, filter, split, values, keys, collapse→object, range(), array literals,
+// …) is a non-string collection and is safe to skip. Recurses through parens
+// and if-branches so a wrapped slice/reverse is still caught.
+func sliceReceiverIsNonString(e v1ast.Expr) bool {
+	switch n := e.(type) {
+	case *v1ast.MethodCall:
+		if n.Name == "slice" || n.Name == "reverse" {
+			return false
+		}
+		return isArrayExpr(e)
+	case *v1ast.ParenExpr:
+		return sliceReceiverIsNonString(n.Inner)
+	case *v1ast.IfExpr:
+		for _, b := range n.Branches {
+			if !sliceReceiverIsNonString(b.Body) {
+				return false
+			}
+		}
+		if n.Else != nil && !sliceReceiverIsNonString(n.Else) {
+			return false
+		}
+		return true
+	default:
+		return isArrayExpr(e)
+	}
 }
 
 // rewriteFoldContext walks the V1 expression tree and replaces every

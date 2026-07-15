@@ -1,6 +1,7 @@
 package translator_test
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -25,7 +26,7 @@ func TestRuleUnits(t *testing.T) {
 			// Mappings that translate to 100% Unsupported (`from`,
 			// `.apply(dynamic)`) still trip the CoverageError path; we
 			// unwrap the Report from the error for those cases.
-			rep, err := translator.Migrate(c.v1, translator.Options{
+			rep, err := translator.Migrate(context.Background(), c.v1, translator.Options{
 				Verbose:     true,
 				MinCoverage: 0.0001,
 			})
@@ -87,6 +88,35 @@ var ruleCases = []ruleCase{
 		v1:        `this.foo = "bar"`,
 		wantV2:    []string{"output.foo"},
 		wantRules: []translator.RuleID{translator.RuleThisTargetToOutput},
+	},
+	{
+		name:      "slice flags byte-vs-codepoint divergence",
+		v1:        `root = this.s.slice(0, 3)`,
+		wantV2:    []string{".slice(", "0", "3"},
+		wantRules: []translator.RuleID{translator.RuleSliceByteVsCodepoint},
+	},
+	{
+		// #4: byte-vs-codepoint divergence is string-only; a statically-known
+		// array receiver must NOT be flagged.
+		name:     "slice on array literal does not flag byte-vs-codepoint",
+		v1:       `root = [1, 2, 3].slice(0, 2)`,
+		wantV2:   []string{".slice(", "0", "2"},
+		notRules: []translator.RuleID{translator.RuleSliceByteVsCodepoint},
+	},
+	{
+		// slice on a string-returning chain (.reverse()/.slice()) MUST still
+		// flag — the receiver may be a string even though isArrayExpr's loose
+		// whitelist would call it an array.
+		name:      "slice after reverse still flags byte-vs-codepoint",
+		v1:        `root = this.s.reverse().slice(0, 3)`,
+		wantV2:    []string{".reverse()", ".slice("},
+		wantRules: []translator.RuleID{translator.RuleSliceByteVsCodepoint},
+	},
+	{
+		name:      "coalesce with nondeterministic fallback flags double-eval",
+		v1:        `root = this.a | uuid_v4()`,
+		wantV2:    []string{".or(", ".catch("},
+		wantRules: []translator.RuleID{translator.RuleCoalesceDuplicatesFallback},
 	},
 	{
 		name:      "bare ident -> input.ident (null-safe)",
@@ -167,9 +197,12 @@ var ruleCases = []ruleCase{
 		notRules: []translator.RuleID{translator.RuleCoalescePrecedence},
 	},
 	{
-		name:   "method rename: map_each on object-literal receiver -> map_values",
-		v1:     `root = {"a":1}.map_each(v -> v)`,
-		wantV2: []string{".map_values(v -> v)"},
+		// Object .map_each binds each entry as {key, value} in V1; the rewrite
+		// rebuilds that via .map_entries + .into so the body sees the entry.
+		name:      "method rewrite: map_each on object-literal receiver -> map_entries + into",
+		v1:        `root = {"a":1}.map_each(v -> v.value)`,
+		wantV2:    []string{".map_entries(", ".into(v -> v", "value"},
+		wantRules: []translator.RuleID{translator.RuleMethodDoesNotExist},
 	},
 	{
 		name:      "method rename: .index(n) -> [n]",

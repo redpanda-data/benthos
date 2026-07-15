@@ -755,7 +755,12 @@ func quoteString(s string) string {
 			sb.WriteString(`\t`)
 		default:
 			if r < 0x20 {
-				sb.WriteString(fmt.Sprintf(`\u%04X`, r))
+				// \u00XX for control chars (high two hex digits are always 0
+				// since r < 0x20). Manual hex avoids WriteString(Sprintf(...)).
+				const hexDigits = "0123456789ABCDEF"
+				sb.WriteString(`\u00`)
+				sb.WriteByte(hexDigits[(r>>4)&0x0F])
+				sb.WriteByte(hexDigits[r&0x0F])
 			} else {
 				sb.WriteRune(r)
 			}

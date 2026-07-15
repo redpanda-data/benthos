@@ -1,6 +1,7 @@
 package translator_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestNeverPanics(t *testing.T) {
 					t.Errorf("Migrate(%q) panicked: %v", in, r)
 				}
 			}()
-			_, _ = translator.Migrate(in, translator.Options{})
+			_, _ = translator.Migrate(context.Background(), in, translator.Options{})
 		}()
 	}
 }
@@ -64,7 +65,7 @@ root.data = this`,
 		`root = [1,2,3].map_each(x -> x + 1)`,
 	}
 	for _, in := range inputs {
-		rep, err := translator.Migrate(in, translator.Options{})
+		rep, err := translator.Migrate(context.Background(), in, translator.Options{})
 		if err != nil {
 			t.Logf("skip non-parsing input: %q -> %v", in, err)
 			continue
@@ -86,7 +87,7 @@ func TestCoverageAlwaysComputed(t *testing.T) {
 root = $x`,
 	}
 	for _, in := range inputs {
-		rep, err := translator.Migrate(in, translator.Options{})
+		rep, err := translator.Migrate(context.Background(), in, translator.Options{})
 		if err != nil {
 			continue
 		}
@@ -108,7 +109,7 @@ func TestReportWellFormed(t *testing.T) {
 root.v = (5).apply("foo")`,
 	}
 	for _, src := range sources {
-		rep, err := translator.Migrate(src, translator.Options{Verbose: true})
+		rep, err := translator.Migrate(context.Background(), src, translator.Options{Verbose: true})
 		if err != nil {
 			continue
 		}

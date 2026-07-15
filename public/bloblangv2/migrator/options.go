@@ -61,4 +61,11 @@ type Options struct {
 	// translating mappings authored for V1's `mapping` processor (the
 	// translator prepends `output = input`).
 	Mode Mode
+
+	// IsNondeterministicFunc, when set, reports whether a V1 function name is
+	// nondeterministic or stateful, in ADDITION to benthos core's own
+	// detection. Distributions that register extra Bloblang functions (e.g.
+	// Connect's snowflake_id) should supply this — backed by their function
+	// registry — so the coalesce-double-eval check flags those plugins too.
+	IsNondeterministicFunc func(name string) bool
 }

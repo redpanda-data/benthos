@@ -1,6 +1,7 @@
 package translator
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
@@ -19,14 +20,14 @@ import (
 // still carries the best-effort Report via its Report field.
 //
 // A zero Options value behaves like DefaultOptions().
-func Migrate(v1Source string, opts Options) (*Report, error) {
+func Migrate(ctx context.Context, v1Source string, opts Options) (*Report, error) {
 	opts = applyDefaults(opts)
 
 	// 1. Walk the closure of imports rooted at the main source. Both
 	// pre-populated Files and the FileResolver feed into the resulting
 	// fileSet; canonical keys serve as the identity for dedup and for
 	// Report.V2Files emission.
-	fs, err := buildFileSet(v1Source, opts)
+	fs, err := buildFileSet(ctx, v1Source, opts)
 	if err != nil {
 		return nil, fmt.Errorf("migrator: walking import closure: %w", err)
 	}

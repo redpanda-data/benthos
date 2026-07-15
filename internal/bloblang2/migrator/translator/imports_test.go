@@ -1,6 +1,7 @@
 package translator_test
 
 import (
+	"context"
 	"path"
 	"strings"
 	"testing"
@@ -17,9 +18,9 @@ func TestFileResolverSimple(t *testing.T) {
 	v1Main := `import "./helpers.blobl"
 root.x = 21.apply("double")
 `
-	rep, err := translator.Migrate(v1Main, translator.Options{
+	rep, err := translator.Migrate(context.Background(), v1Main, translator.Options{
 		MinCoverage: 0,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			if parentKey == "" && importPath == "./helpers.blobl" {
 				return "/abs/helpers.blobl", v1Helpers, true
 			}
@@ -56,9 +57,9 @@ map b_helper { root = this.c_helper.apply() }
 root.x = 7.apply("a_helper")
 `
 	var resolverCalls int
-	rep, err := translator.Migrate(v1Main, translator.Options{
+	rep, err := translator.Migrate(context.Background(), v1Main, translator.Options{
 		MinCoverage: 0,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			resolverCalls++
 			var canonical string
 			if strings.HasPrefix(importPath, "/") {
@@ -92,9 +93,9 @@ import "helpers.blobl"
 root.x = 21.apply("double")
 `
 	var resolverCalls int
-	rep, err := translator.Migrate(v1Main, translator.Options{
+	rep, err := translator.Migrate(context.Background(), v1Main, translator.Options{
 		MinCoverage: 0,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			resolverCalls++
 			return "/canonical/helpers.blobl", v1Helpers, true
 		},
@@ -114,11 +115,11 @@ root.x = 21.apply("double")
 // ok=false should produce an Unsupported RuleImportStatement change
 // at the import site, and the V2 source should NOT contain the import.
 func TestFileResolverUnresolvedFlagsUnsupported(t *testing.T) {
-	rep, err := translator.Migrate(`import "./missing.blobl"
+	rep, err := translator.Migrate(context.Background(), `import "./missing.blobl"
 root.x = "hi"
 `, translator.Options{
 		MinCoverage: 0,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			return "", "", false
 		},
 	})
@@ -144,7 +145,7 @@ root.x = "hi"
 // (legacy behaviour). The V2 sanity-check parse will still complain
 // about the unresolved import via RuleEmittedInvalidV2.
 func TestNoResolverNoFilesPreservesLegacyBehaviour(t *testing.T) {
-	rep, err := translator.Migrate(`import "./helpers.blobl"
+	rep, err := translator.Migrate(context.Background(), `import "./helpers.blobl"
 root.x = "hi"
 `, translator.Options{MinCoverage: 0})
 	if err != nil {
@@ -159,11 +160,11 @@ root.x = "hi"
 // emitted V2 source, but canonical keys in V2Files are unaffected.
 func TestV2ImportPathRewriter(t *testing.T) {
 	v1Helpers := `map double { root = this * 2 }`
-	rep, err := translator.Migrate(`import "./helpers.blobl"
+	rep, err := translator.Migrate(context.Background(), `import "./helpers.blobl"
 root.x = 21.apply("double")
 `, translator.Options{
 		MinCoverage: 0,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			return "/abs/helpers.blobl", v1Helpers, true
 		},
 		V2ImportPathRewriter: func(p string) string {
@@ -187,14 +188,14 @@ root.x = 21.apply("double")
 // callers who want to override specific imports.
 func TestFilesTakesPrecedenceOverResolver(t *testing.T) {
 	var resolverCalled bool
-	rep, err := translator.Migrate(`import "helpers.blobl"
+	rep, err := translator.Migrate(context.Background(), `import "helpers.blobl"
 root.x = 21.apply("double")
 `, translator.Options{
 		MinCoverage: 0,
 		Files: map[string]string{
 			"helpers.blobl": `map double { root = this * 2 }`,
 		},
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			resolverCalled = true
 			return "should-not-happen", "should-not-happen", true
 		},
@@ -218,10 +219,10 @@ func TestFromOnlyInlinesResolvedContent(t *testing.T) {
 	helpers := `root.id = this.id
 root.upper_name = this.name.uppercase()
 `
-	rep, err := translator.Migrate(`from "./helpers.blobl"`, translator.Options{
+	rep, err := translator.Migrate(context.Background(), `from "./helpers.blobl"`, translator.Options{
 		MinCoverage: 0,
 		Verbose:     true,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			if importPath == "./helpers.blobl" {
 				return "/abs/helpers.blobl", helpers, true
 			}
@@ -257,9 +258,9 @@ func TestFromTransitiveInlining(t *testing.T) {
 		"/abs/b.blobl": `from "./c.blobl"`,
 		"/abs/c.blobl": `root.kind = "leaf"`,
 	}
-	rep, err := translator.Migrate(`from "/abs/a.blobl"`, translator.Options{
+	rep, err := translator.Migrate(context.Background(), `from "/abs/a.blobl"`, translator.Options{
 		MinCoverage: 0,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			var canonical string
 			if strings.HasPrefix(importPath, "/") {
 				canonical = importPath
@@ -283,9 +284,9 @@ func TestFromTransitiveInlining(t *testing.T) {
 // walker can't resolve the from path, the existing Unsupported
 // behaviour is preserved (no inlining, RuleFromStatement Error).
 func TestFromUnresolvedFallsThroughToUnsupported(t *testing.T) {
-	_, err := translator.Migrate(`from "./missing.blobl"`, translator.Options{
+	_, err := translator.Migrate(context.Background(), `from "./missing.blobl"`, translator.Options{
 		MinCoverage: 0.5,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			return "", "", false
 		},
 	})
@@ -309,11 +310,11 @@ func TestFromUnresolvedFallsThroughToUnsupported(t *testing.T) {
 // case. Falls through to current Unsupported behaviour.
 func TestFromMixedWithOtherStmtsFallsThroughToUnsupported(t *testing.T) {
 	helpers := `root.id = this.id`
-	rep, err := translator.Migrate(`from "./helpers.blobl"
+	rep, err := translator.Migrate(context.Background(), `from "./helpers.blobl"
 root.extra = "foo"
 `, translator.Options{
 		MinCoverage: 0,
-		FileResolver: func(parentKey, importPath string) (string, string, bool) {
+		FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			return "/abs/helpers.blobl", helpers, true
 		},
 	})
@@ -347,10 +348,10 @@ func TestFromCycleDoesNotInfiniteLoop(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		_, _ = translator.Migrate(`from "/abs/a.blobl"`, translator.Options{
+		_, _ = translator.Migrate(context.Background(), `from "/abs/a.blobl"`, translator.Options{
 			MinCoverage: 0,
 			Verbose:     true,
-			FileResolver: func(parentKey, importPath string) (string, string, bool) {
+			FileResolver: func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 				content, ok := files[importPath]
 				return importPath, content, ok
 			},

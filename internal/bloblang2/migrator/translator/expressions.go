@@ -193,6 +193,14 @@ func (t *translator) translateBinary(b *v1ast.BinaryExpr) syntax.Expr {
 			RuleID: RuleCoalescePrecedence, SpecRef: "§14#4",
 			Explanation: "V1 `|` coalesce rewritten as V2 `.or(x).catch(_ -> x)` (covers V1's combined null + error coalesce)",
 		})
+		if t.exprMayDivergeIfDuplicated(b.Right) {
+			t.rec.Note(Change{
+				Line: b.OpPos.Line, Column: b.OpPos.Column,
+				Severity: SeverityWarning, Category: CategorySemanticChange,
+				RuleID:      RuleCoalesceDuplicatesFallback,
+				Explanation: "V1 `|` fallback is duplicated in the V2 `.or(x).catch(_ -> x)` rewrite; a nondeterministic or side-effecting fallback runs twice on the error path where V1 ran it once — verify or hoist it into a `let`",
+			})
+		}
 		orCall := &syntax.MethodCallExpr{
 			Receiver:  left,
 			Method:    "or",
@@ -504,11 +512,20 @@ func (t *translator) translateMethodCall(m *v1ast.MethodCall) syntax.Expr {
 	if recv == nil {
 		return nil
 	}
+	before := t.rec.coverage.Total
 	if out := t.methodRewrite(m, recv); out != nil {
 		return out
 	}
+	// methodRewrite returned nil to reuse the default 1:1 shape. If it already
+	// recorded coverage for this call (e.g. a Rewritten/Unsupported flag on a
+	// method whose V2 shape is unchanged, like .slice/.contains/.reverse),
+	// don't also count it as Exact — that tallies the same node twice and
+	// inflates the coverage ratio.
+	recordedByRewrite := t.rec.coverage.Total != before
 	args := t.translateArgs(m.Args)
-	t.rec.Exact()
+	if !recordedByRewrite {
+		t.rec.Exact()
+	}
 	return &syntax.MethodCallExpr{
 		Receiver:  recv,
 		Method:    m.Name,
@@ -620,11 +637,17 @@ func (t *translator) translateFunctionCall(f *v1ast.FunctionCall) syntax.Expr {
 			Name:     "void",
 		}
 	}
+	before := t.rec.coverage.Total
 	if rewritten := t.functionRewrite(f); rewritten != nil {
 		return rewritten
 	}
+	// See translateMethodCall: skip the Exact tally if functionRewrite already
+	// recorded coverage for this call and returned nil to reuse the 1:1 shape.
+	recordedByRewrite := t.rec.coverage.Total != before
 	args := t.translateArgs(f.Args)
-	t.rec.Exact()
+	if !recordedByRewrite {
+		t.rec.Exact()
+	}
 	return &syntax.CallExpr{
 		TokenPos: pos(f.NamePos),
 		Name:     f.Name,
@@ -655,19 +678,24 @@ func (t *translator) functionRewrite(f *v1ast.FunctionCall) syntax.Expr {
 	case "error":
 		return t.errorStringToErrorWhat(f)
 	case "error_source_label", "error_source_name", "error_source_path":
-		t.rec.Note(Change{
+		// No V2 equivalent in this iteration. Record Unsupported (not a
+		// Note) so it counts against coverage — a Note would leave the
+		// default 1:1 fallthrough to tally it Exact, reporting a perfect
+		// ratio for V2 that references a nonexistent function and won't
+		// compile.
+		t.rec.Unsupported(Change{
 			Line: f.NamePos.Line, Column: f.NamePos.Column,
-			Severity: SeverityWarning, Category: CategorySemanticChange,
-			RuleID:      RuleMethodDoesNotExist,
-			Explanation: "V1 " + f.Name + "() has no V2 equivalent in this iteration; V2's structured error() will surface source.* fields in a future revision",
+			RuleID:      RuleUnsupportedConstruct,
+			Explanation: "V1 " + f.Name + "() has no V2 equivalent in this iteration (V2's structured error() will surface source.* fields in a future revision) — migrate manually",
 		})
 		return nil
 	case "json":
-		t.rec.Note(Change{
+		// V1 json(path) has no direct V2 function; the emitted call won't
+		// compile. Record Unsupported so coverage reflects it (see above).
+		t.rec.Unsupported(Change{
 			Line: f.NamePos.Line, Column: f.NamePos.Column,
-			Severity: SeverityWarning, Category: CategorySemanticChange,
-			RuleID:      RuleMethodDoesNotExist,
-			Explanation: "V1 json(path) is not auto-rewritten; V2 exposes the parsed body as `input` directly (or use `content().parse_json()` to re-parse from bytes)",
+			RuleID:      RuleUnsupportedConstruct,
+			Explanation: "V1 json(path) has no V2 auto-rewrite; V2 exposes the parsed body as `input` directly (or use `content().parse_json()` to re-parse from bytes) — migrate manually",
 		})
 		return nil
 	}
@@ -812,7 +840,9 @@ func (t *translator) translateLambda(l *v1ast.Lambda) syntax.Expr {
 		paramName = "_"
 	}
 	t.pushScope(paramName)
+	t.pushCtx(ctxLambdaBody)
 	body := t.translateExpr(l.Body)
+	t.popCtx()
 	t.popScope()
 	if body == nil {
 		return nil

@@ -1,6 +1,7 @@
 package translator
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/v1ast"
@@ -48,7 +49,7 @@ func newFileSet() *fileSet {
 //
 // A V1 parse error inside an imported file is fatal — the caller is
 // supplying broken content.
-func buildFileSet(mainSource string, opts Options) (*fileSet, error) {
+func buildFileSet(ctx context.Context, mainSource string, opts Options) (*fileSet, error) {
 	fs := newFileSet()
 
 	// Seed contents with any pre-populated Files. Each entry is treated
@@ -67,6 +68,9 @@ func buildFileSet(mainSource string, opts Options) (*fileSet, error) {
 	visited := map[string]struct{}{}
 
 	for len(queue) > 0 {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		entry := queue[0]
 		queue = queue[1:]
 
@@ -101,7 +105,7 @@ func buildFileSet(mainSource string, opts Options) (*fileSet, error) {
 			}
 			site := siteKey{parentKey: entry.parentKey, importPath: pathStr}
 
-			canonical, content, resolved, consulted := resolveImport(opts, site)
+			canonical, content, resolved, consulted := resolveImport(ctx, opts, site)
 			if !resolved {
 				if consulted {
 					// FileResolver was set and explicitly declined this
@@ -137,14 +141,14 @@ func buildFileSet(mainSource string, opts Options) (*fileSet, error) {
 // "no resolver configured" — the former is surfaced as Unsupported,
 // the latter falls through to the legacy "emit V2 import verbatim"
 // path so callers without a resolver retain the old behaviour.
-func resolveImport(opts Options, site siteKey) (canonical, content string, ok, consulted bool) {
+func resolveImport(ctx context.Context, opts Options, site siteKey) (canonical, content string, ok, consulted bool) {
 	if c, exists := opts.Files[site.importPath]; exists {
 		return site.importPath, c, true, false
 	}
 	if opts.FileResolver == nil {
 		return "", "", false, false
 	}
-	canonical, content, ok = opts.FileResolver(site.parentKey, site.importPath)
+	canonical, content, ok = opts.FileResolver(ctx, site.parentKey, site.importPath)
 	if !ok {
 		return "", "", false, true
 	}

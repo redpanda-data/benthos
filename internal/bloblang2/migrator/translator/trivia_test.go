@@ -1,6 +1,7 @@
 package translator_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -77,7 +78,7 @@ root.x = "hi"
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rep, err := translator.Migrate(tc.v1, translator.Options{MinCoverage: 0})
+			rep, err := translator.Migrate(context.Background(), tc.v1, translator.Options{MinCoverage: 0})
 			if err != nil {
 				t.Fatalf("Migrate: %v", err)
 			}
@@ -103,7 +104,7 @@ func TestTriviaMultipleBlankLinesCollapse(t *testing.T) {
 
 root.b = this.b
 `
-	rep, err := translator.Migrate(v1, translator.Options{MinCoverage: 0})
+	rep, err := translator.Migrate(context.Background(), v1, translator.Options{MinCoverage: 0})
 	if err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}

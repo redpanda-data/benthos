@@ -1,6 +1,7 @@
 package translator_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -15,7 +16,12 @@ import (
 //
 //  1. Translate a minimal V1 snippet exercising the method.
 //  2. Compile + execute the V2 output against a specific input.
-//  3. Assert the V2 output equals the expected value BYTE-FOR-BYTE.
+//  3. Assert the V2 output equals the expected value via jsonEqual.
+//
+// NOTE: jsonEqual compares by JSON round-trip, so it is VALUE equality, not
+// type equality — int64 vs float64 and string("2") vs number(2) both compare
+// equal (see jsonEqual). It catches wrong values and structure, not numeric
+// type-strictness; don't rely on this suite to pin int-vs-float behaviour.
 //
 // There is NO "warning = free pass" escape hatch here — unlike the
 // corpus regression test, this file validates that each rule produces
@@ -42,12 +48,14 @@ func TestMethodTranslationAudit(t *testing.T) {
 			want:  []any{2.0, 4.0, 6.0},
 		},
 		{
-			// V1 .map_each() on an object passes each VALUE (not an
-			// {key, value} entry) — so the translator's `.map_values`
-			// rewrite is correct. The test confirms the value-level
-			// transform round-trips.
-			name:  "map_each on object literal -> map_values",
-			v1:    `root = {"a": 1, "b": 2}.map_each(v -> v * 10)`,
+			// V1 .map_each() on an object binds each entry as {key, value}
+			// (NOT the bare value) and replaces the value with the result.
+			// The translator rebuilds that binding via .map_entries + .into,
+			// so `v.value` resolves exactly as in V1. (A bare `v * 10` would
+			// error in BOTH engines — object * number — which is the correct
+			// faithful behaviour; the realistic idiom uses v.value.)
+			name:  "map_each on object literal -> map_entries (value transform)",
+			v1:    `root = {"a": 1, "b": 2}.map_each(v -> v.value * 10)`,
 			input: map[string]any{},
 			want:  map[string]any{"a": int64(10), "b": int64(20)},
 		},
@@ -56,6 +64,75 @@ func TestMethodTranslationAudit(t *testing.T) {
 			v1:    `root = this.xs.enumerated()`,
 			input: map[string]any{"xs": []any{"a", "b"}},
 			want:  []any{map[string]any{"index": int64(0), "value": "a"}, map[string]any{"index": int64(1), "value": "b"}},
+		},
+		{
+			// .slice is 1:1 in shape (flagged for the byte-vs-codepoint
+			// divergence on multi-byte strings); on an ASCII string V1 and V2
+			// agree, so the emitted V2 must execute to the same value.
+			name:  "slice on ASCII string (1:1, flagged)",
+			v1:    `root = this.s.slice(0, 3)`,
+			input: map[string]any{"s": "abcdef"},
+			want:  "abc",
+		},
+		{
+			// #4: .slice on a statically-known array receiver has no
+			// byte-vs-codepoint divergence, so it must NOT be flagged — the
+			// shape is 1:1 and executes identically.
+			name:  "slice on array literal (1:1, NOT flagged)",
+			v1:    `root = [1, 2, 3, 4].slice(1, 3)`,
+			input: map[string]any{},
+			want:  []any{int64(2), int64(3)},
+		},
+		{
+			// .contains is 1:1 and NOT flagged: V2 numeric equality uses
+			// promotion (1 == 1.0), so it matches V1 — no divergence.
+			name:  "contains (1:1, not flagged)",
+			v1:    `root = this.xs.contains("b")`,
+			input: map[string]any{"xs": []any{"a", "b", "c"}},
+			want:  true,
+		},
+		{
+			// V1 .map_each with an else-less `if` keeps the original element
+			// when the condition is false (nothing sentinel). V2 has no such
+			// fallback, so the migrator must synthesize `else { x }`. Here 1.0
+			// fails `> 1` and must be preserved; 2.0/3.0 are transformed.
+			name:  "map_each bare-if keeps original element",
+			v1:    `root = this.xs.map_each(x -> if x > 1 { x * 10 })`,
+			input: map[string]any{"xs": []any{1.0, 2.0, 3.0}},
+			want:  []any{1.0, 20.0, 30.0},
+		},
+		{
+			// Discard param: V1 keeps the element on the no-else branch, but
+			// the `_` param can't be referenced — the migrator renames it so
+			// the element is kept rather than the V2 erroring on void.
+			name:  "map_each discard-param bare-if keeps element (no runtime error)",
+			v1:    `root = this.xs.map_each(_ -> if this.keep { 99 })`,
+			input: map[string]any{"xs": []any{10.0, 20.0}, "keep": false},
+			want:  []any{10.0, 20.0},
+		},
+		{
+			// V1 keeps the original VALUE (not the {key,value} entry) when the
+			// else-less if matches nothing; the .map_entries/.into rewrite
+			// synthesises `else { v.value }` to preserve that. a (1, not > 3)
+			// keeps 1; b (5 > 3) becomes 50.
+			name:  "map_each object bare-if keeps value",
+			v1:    `root = {"a": 1, "b": 5}.map_each(v -> if v.value > 3 { v.value * 10 })`,
+			input: map[string]any{},
+			want:  map[string]any{"a": int64(1), "b": int64(50)},
+		},
+		{
+			name:  "map_each query-form bare-if keeps element",
+			v1:    `root = this.xs.map_each(if this > 1 { this * 10 })`,
+			input: map[string]any{"xs": []any{1.0, 2.0}},
+			want:  []any{1.0, 20.0},
+		},
+		{
+			// #7: the comparator is dropped (V2 has no comparator sort) and a
+			// bare ascending .sort() is emitted; on a scalar array it executes.
+			name:  "sort comparator dropped -> ascending sort executes (scalar)",
+			v1:    `root = this.xs.sort(left > right)`,
+			input: map[string]any{"xs": []any{3.0, 1.0, 2.0}},
+			want:  []any{1.0, 2.0, 3.0},
 		},
 		{
 			name:  "key_values -> iter",
@@ -214,7 +291,7 @@ func TestMethodTranslationAudit(t *testing.T) {
 	interp := &bloblang2.Interp{}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rep, err := translator.Migrate(tc.v1, translator.Options{MinCoverage: 0})
+			rep, err := translator.Migrate(context.Background(), tc.v1, translator.Options{MinCoverage: 0})
 			if err != nil {
 				t.Fatalf("Migrate: %v", err)
 			}

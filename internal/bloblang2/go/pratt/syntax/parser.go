@@ -25,11 +25,28 @@ type parser struct {
 	parsing     map[string]bool // files currently being parsed (circular import detection)
 	currentFile string
 	errors      []PosError
+	depth       int  // current expression-nesting depth (see maxParseDepth)
+	fatal       bool // set when a fatal condition (depth cap) aborts parsing
+
+	// lambdaAhead memoizes the isLambdaAhead verdict per open-'(' position.
+	// The first scan over an outer '(' resolves every '(' it encloses, so
+	// subsequent isLambdaAhead calls for inner parens hit the cache in O(1),
+	// making the overall parse linear instead of O(depth * tail). Per-parse
+	// (reset by init); single-goroutine, so no synchronisation is needed.
+	lambdaAhead map[Pos]bool
 }
+
+// maxParseDepth bounds expression nesting. It fails a pathologically nested
+// mapping fast rather than (a) overflowing the goroutine stack via unbounded
+// parseExpr recursion, or (b) letting the O(n^2) parenthesis lookahead in
+// isLambdaAhead run for minutes on deeply nested parens. Real mappings nest a
+// handful of levels; this leaves ample headroom.
+const maxParseDepth = 1000
 
 func (p *parser) init(src, file string) {
 	p.s = newScanner(src, file)
 	p.currentFile = file
+	p.lambdaAhead = make(map[Pos]bool)
 	p.advance() // prime the first token
 }
 
@@ -68,6 +85,11 @@ func (p *parser) skipNL() {
 }
 
 func (p *parser) error(pos Pos, msg string) {
+	// Once parsing has fatally aborted (e.g. depth cap exceeded) suppress the
+	// cascade of follow-on errors produced while unwinding to EOF.
+	if p.fatal {
+		return
+	}
 	p.errors = append(p.errors, PosError{Pos: pos, Msg: msg})
 }
 
@@ -530,6 +552,21 @@ const (
 )
 
 func (p *parser) parseExpr(minBP int) Expr {
+	p.depth++
+	defer func() { p.depth-- }()
+	if p.depth > maxParseDepth {
+		p.error(p.tok.Pos, fmt.Sprintf("expression nesting exceeds maximum depth of %d", maxParseDepth))
+		// Abort: skip to EOF so loop-based callers (array/object/argument
+		// lists) make progress and unwind instead of spinning on a token that
+		// never advances. Set fatal first so the unwind's expect() failures
+		// don't pile up as a cascade of follow-on errors.
+		p.fatal = true
+		for p.tok.Type != EOF {
+			p.advance()
+		}
+		return &LiteralExpr{TokenPos: p.tok.Pos, TokenType: NULL, Value: "null"}
+	}
+
 	left := p.parsePrefix()
 
 	for {
@@ -762,10 +799,26 @@ func (p *parser) parseParenOrLambda() Expr {
 
 // isLambdaAhead scans forward from the current ( to the matching )
 // and checks if -> follows. Does not consume tokens.
+//
+// The verdict for every '(' is memoized in p.lambdaAhead keyed by the '('
+// position. A cached position returns immediately without scanning. On a
+// miss, the single forward scan resolves not just the current '(' but every
+// '(' nested inside it (the token immediately after each matching ')' decides
+// that paren's verdict), so later isLambdaAhead calls for inner parens are
+// O(1). This keeps the overall parse linear rather than O(depth * tail).
 func (p *parser) isLambdaAhead() bool {
+	if v, ok := p.lambdaAhead[p.tok.Pos]; ok {
+		return v
+	}
+
 	// Save scanner state.
 	savedTok := p.tok
 	savedS := *p.s
+	outerPos := p.tok.Pos
+
+	// Stack of open-'(' positions awaiting their matching ')'. The current
+	// token is the outermost '('.
+	openStack := []Pos{p.tok.Pos}
 
 	depth := 0
 	p.advance() // skip (
@@ -774,16 +827,24 @@ func (p *parser) isLambdaAhead() bool {
 		switch p.tok.Type {
 		case LPAREN:
 			depth++
+			openStack = append(openStack, p.tok.Pos)
+			p.advance()
 		case RPAREN:
 			depth--
-		}
-		if depth > 0 {
+			// Pop the '(' this ')' matches, then advance so the current
+			// token is the follow-token that decides its verdict.
+			openPos := openStack[len(openStack)-1]
+			openStack = openStack[:len(openStack)-1]
+			p.advance() // skip )
+			p.lambdaAhead[openPos] = p.tok.Type == THINARROW
+		default:
 			p.advance()
 		}
 	}
-	// Now at the matching ) — peek past it.
-	p.advance() // skip )
-	isLambda := p.tok.Type == THINARROW
+	// If the scan hit EOF before the outer ')' (unbalanced parens), the outer
+	// paren was never recorded; the map lookup yields false, matching the old
+	// behavior of peeking past a non-existent ')'.
+	isLambda := p.lambdaAhead[outerPos]
 
 	// Restore state.
 	*p.s = savedS

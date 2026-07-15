@@ -3,6 +3,7 @@
 package migrator_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -13,7 +14,7 @@ import (
 // confirm the public API behaves the same as the internal translator
 // when no custom rules are registered.
 func TestDefaultMigrate(t *testing.T) {
-	rep, err := migrator.Migrate(`root.x = this.y`, migrator.Options{})
+	rep, err := migrator.Migrate(context.Background(), `root.x = this.y`, migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -32,7 +33,7 @@ func TestDefaultMigrate(t *testing.T) {
 // registered custom rule.
 func TestRegisterMethodRuleReplace(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget_encode", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget_encode", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
 		if len(m.Args) != 0 {
 			return ctx.Unsupported("widget_encode takes no arguments in V1")
 		}
@@ -42,7 +43,7 @@ func TestRegisterMethodRuleReplace(t *testing.T) {
 		})
 	})
 
-	rep, err := mig.Migrate(`root.encoded = this.payload.widget_encode()`, migrator.Options{Verbose: true})
+	rep, err := mig.Migrate(context.Background(), `root.encoded = this.payload.widget_encode()`, migrator.Options{Verbose: true})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -59,7 +60,7 @@ func TestRegisterMethodRuleReplace(t *testing.T) {
 // ctx.Translate, and constructs a V2 method call with both.
 func TestRegisterMethodRuleArgs(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget_pack", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget_pack", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
 		if len(m.Args) != 2 {
 			return ctx.Unsupported("widget_pack expects two arguments")
 		}
@@ -80,7 +81,7 @@ func TestRegisterMethodRuleArgs(t *testing.T) {
 		})
 	})
 
-	rep, err := mig.Migrate(`root.x = this.handle.widget_pack("brotli", this.payload)`, migrator.Options{Verbose: true})
+	rep, err := mig.Migrate(context.Background(), `root.x = this.handle.widget_pack("brotli", this.payload)`, migrator.Options{Verbose: true})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -97,11 +98,11 @@ func TestRegisterMethodRuleArgs(t *testing.T) {
 // translator falls through to its default 1:1 translation.
 func TestRegisterMethodRuleSkip(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget_passthrough", func(ctx *migrator.Context, _ *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget_passthrough", func(ctx *migrator.Context, _ *migrator.V1MethodCall) migrator.Result {
 		return ctx.Skip("widget_passthrough is identity in both versions")
 	})
 
-	rep, err := mig.Migrate(`root.x = this.handle.widget_passthrough()`, migrator.Options{Verbose: true})
+	rep, err := mig.Migrate(context.Background(), `root.x = this.handle.widget_passthrough()`, migrator.Options{Verbose: true})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -115,11 +116,11 @@ func TestRegisterMethodRuleSkip(t *testing.T) {
 // records an Error-severity Change.
 func TestRegisterMethodRuleUnsupported(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget_dynamic", func(ctx *migrator.Context, _ *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget_dynamic", func(ctx *migrator.Context, _ *migrator.V1MethodCall) migrator.Result {
 		return ctx.Unsupported("dynamic dispatch has no V2 equivalent")
 	})
 
-	rep, err := mig.Migrate(`root.x = this.h.widget_dynamic()`, migrator.Options{Verbose: true, MinCoverage: 0.0001})
+	rep, err := mig.Migrate(context.Background(), `root.x = this.h.widget_dynamic()`, migrator.Options{Verbose: true, MinCoverage: 0.0001})
 	// The Unsupported counts against coverage; below the default
 	// threshold we'd see CoverageError. We set MinCoverage near zero
 	// to surface the Report directly.
@@ -143,14 +144,14 @@ func TestRegisterMethodRuleUnsupported(t *testing.T) {
 // confirming the design P2 precedence model.
 func TestRegisterMethodRuleOverride(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterMethodRule("without", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("without", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
 		// Custom override: rewrite into a fictional .strip() method.
 		return ctx.Replace(&migrator.V2MethodCallExpr{
 			Receiver: ctx.Translate(m.Receiver),
 			Method:   "strip",
 		})
 	})
-	rep, err := mig.Migrate(`root = this.without("a", "b")`, migrator.Options{})
+	rep, err := mig.Migrate(context.Background(), `root = this.without("a", "b")`, migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -166,7 +167,7 @@ func TestRegisterMethodRuleOverride(t *testing.T) {
 // fictional V1 function that V2 turns into a method call on `input`.
 func TestRegisterFunctionRule(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterFunctionRule("widget_size", func(ctx *migrator.Context, f *migrator.V1FunctionCall) migrator.Result {
+	mig.MustRegisterFunctionRule("widget_size", func(ctx *migrator.Context, f *migrator.V1FunctionCall) migrator.Result {
 		if len(f.Args) != 0 {
 			return ctx.Unsupported("widget_size takes no arguments")
 		}
@@ -175,7 +176,7 @@ func TestRegisterFunctionRule(t *testing.T) {
 			Method:   "widget_size",
 		})
 	})
-	rep, err := mig.Migrate(`root.size = widget_size()`, migrator.Options{})
+	rep, err := mig.Migrate(context.Background(), `root.size = widget_size()`, migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -188,7 +189,7 @@ func TestRegisterFunctionRule(t *testing.T) {
 // alongside the Result without breaking coverage.
 func TestNoteEmitsExtraDiagnostic(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget_encode", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget_encode", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
 		ctx.Note(migrator.Change{
 			Severity:    migrator.SeverityWarning,
 			Category:    migrator.CategorySemanticChange,
@@ -199,7 +200,7 @@ func TestNoteEmitsExtraDiagnostic(t *testing.T) {
 			Method:   "widget_encode_v2",
 		})
 	})
-	rep, err := mig.Migrate(`root.x = this.h.widget_encode()`, migrator.Options{})
+	rep, err := mig.Migrate(context.Background(), `root.x = this.h.widget_encode()`, migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -222,7 +223,7 @@ func TestPushScopeAndThisRebind(t *testing.T) {
 	// Fake V1 method: turn `recv.where(predicate)` into a V2
 	// `recv.find_by(__v -> <predicate>)` lambda where the predicate
 	// has its `this` references rebound to __v.
-	mig.RegisterMethodRule("where", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("where", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
 		if len(m.Args) != 1 {
 			return ctx.Unsupported("where: need exactly one predicate argument")
 		}
@@ -246,7 +247,7 @@ func TestPushScopeAndThisRebind(t *testing.T) {
 			}},
 		})
 	})
-	rep, err := mig.Migrate(`root.match = this.items.where(this.id == 5)`, migrator.Options{})
+	rep, err := mig.Migrate(context.Background(), `root.match = this.items.where(this.id == 5)`, migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -264,13 +265,13 @@ func TestPushScopeAndThisRebind(t *testing.T) {
 // coverage gate would lie.
 func TestCoverageReflectsReplace(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget_encode", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget_encode", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
 		return ctx.Replace(&migrator.V2MethodCallExpr{
 			Receiver: ctx.Translate(m.Receiver),
 			Method:   "widget_encode_v2",
 		})
 	})
-	rep, err := mig.Migrate(`root.x = this.h.widget_encode()`, migrator.Options{})
+	rep, err := mig.Migrate(context.Background(), `root.x = this.h.widget_encode()`, migrator.Options{})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -284,10 +285,10 @@ func TestCoverageReflectsReplace(t *testing.T) {
 // through recorder.Unsupported).
 func TestCoverageReflectsUnsupported(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget_dynamic", func(ctx *migrator.Context, _ *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget_dynamic", func(ctx *migrator.Context, _ *migrator.V1MethodCall) migrator.Result {
 		return ctx.Unsupported("dynamic dispatch has no V2 equivalent")
 	})
-	rep, err := mig.Migrate(`root.x = this.h.widget_dynamic()`, migrator.Options{MinCoverage: 0.0001})
+	rep, err := mig.Migrate(context.Background(), `root.x = this.h.widget_dynamic()`, migrator.Options{MinCoverage: 0.0001})
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
@@ -300,7 +301,7 @@ func TestCoverageReflectsUnsupported(t *testing.T) {
 // concurrent Migrate calls once registration completes.
 func TestMigrateConcurrentSafe(t *testing.T) {
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
 		return ctx.Replace(&migrator.V2MethodCallExpr{
 			Receiver: ctx.Translate(m.Receiver),
 			Method:   "widget_v2",
@@ -310,7 +311,7 @@ func TestMigrateConcurrentSafe(t *testing.T) {
 	done := make(chan error, goroutines)
 	for i := 0; i < goroutines; i++ {
 		go func() {
-			_, err := mig.Migrate(`root.x = this.h.widget()`, migrator.Options{})
+			_, err := mig.Migrate(context.Background(), `root.x = this.h.widget()`, migrator.Options{})
 			done <- err
 		}()
 	}

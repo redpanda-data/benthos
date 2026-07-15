@@ -78,7 +78,7 @@ func (c *Context) Note(ch Change) {
 	if ch.Column == 0 {
 		ch.Column = c.defaultV1.Column
 	}
-	c.t.EmitChange(ch)
+	c.t.EmitChange(changeTo(ch))
 }
 
 // Replace produces a Result that swaps the V1 node for the supplied

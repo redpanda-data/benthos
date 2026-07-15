@@ -4,6 +4,7 @@ package migrator
 
 import (
 	bloblmig "github.com/redpanda-data/benthos/v4/public/bloblangv2/migrator"
+	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
 // Options controls a single Migrate call. Per-instance configuration
@@ -45,6 +46,15 @@ type Options struct {
 	// bloblmig.V2ImportPathRewriter for the contract.
 	BloblangV2ImportPathRewriter bloblmig.V2ImportPathRewriter
 
+	// BloblangIsNondeterministicFunc is forwarded to
+	// BloblangOptions.IsNondeterministicFunc for every component. A
+	// distribution that registers extra Bloblang functions (e.g. Connect's
+	// snowflake_id) should supply this — backed by its function registry — so
+	// the coalesce-double-eval check flags those plugins too. Hoisted to the
+	// top level (like the resolver hooks above) for discoverability; setting
+	// it on BloblangOptions directly also works.
+	BloblangIsNondeterministicFunc func(name string) bool
+
 	// MinCoverage is the minimum aggregate coverage ratio required
 	// across all migrated plugin instances before Migrate returns
 	// successfully. The ratio is computed as (Rewritten) /
@@ -55,4 +65,11 @@ type Options struct {
 	// Verbose emits Info-severity Changes (e.g. Skip notes). Without
 	// it, only Warning and Error Changes are recorded.
 	Verbose bool
+
+	// Environment overrides the component registry the migrator resolves
+	// core component types against when walking a config. Defaults to the
+	// global environment. Set this to a custom *service.Environment (e.g. a
+	// distribution that registers extra components into a non-global
+	// environment) so the migrator recognises those components.
+	Environment *service.Environment
 }

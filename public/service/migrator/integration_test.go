@@ -3,6 +3,7 @@
 package migrator_test
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -99,8 +100,8 @@ pipeline:
 	// supplied configDir for top-level imports (parentKey == "") and
 	// to the parent file's directory for transitive imports. This is
 	// the resolution policy the connect CLI will install.
-	resolverFor := func(configDir string) func(string, string) (string, string, bool) {
-		return func(parentKey, importPath string) (string, string, bool) {
+	resolverFor := func(configDir string) func(context.Context, string, string) (string, string, bool) {
+		return func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 			base := configDir
 			if parentKey != "" {
 				base = filepath.Dir(parentKey)
@@ -131,7 +132,7 @@ pipeline:
 	for _, yamlPath := range []string{app1Path, app2Path} {
 		yamlBytes, err := os.ReadFile(yamlPath)
 		require(err)
-		rep, err := migrator.Migrate(yamlBytes, migrator.Options{
+		rep, err := migrator.Migrate(context.Background(), yamlBytes, migrator.Options{
 			BloblangFileResolver:         resolverFor(filepath.Dir(yamlPath)),
 			BloblangV2ImportPathRewriter: rewriter,
 			Verbose:                      true,
@@ -278,8 +279,8 @@ func (e *integrationEnv) writeConfig(name, content string) string {
 // resolverFor anchors importPath to configDir for top-level imports
 // (parentKey == "") and to the parent file's directory for
 // transitive imports. Mirrors the resolver the connect CLI installs.
-func (e *integrationEnv) resolverFor(configDir string) func(string, string) (string, string, bool) {
-	return func(parentKey, importPath string) (string, string, bool) {
+func (e *integrationEnv) resolverFor(configDir string) func(context.Context, string, string) (string, string, bool) {
+	return func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 		base := configDir
 		if parentKey != "" {
 			base = filepath.Dir(parentKey)
@@ -335,7 +336,7 @@ cache_resources:
 	if err != nil {
 		t.Fatalf("read yaml: %v", err)
 	}
-	rep, err := migrator.Migrate(yamlBytes, migrator.Options{
+	rep, err := migrator.Migrate(context.Background(), yamlBytes, migrator.Options{
 		BloblangFileResolver:         env.resolverFor(filepath.Dir(yamlPath)),
 		BloblangV2ImportPathRewriter: v5SuffixRewriter,
 		Verbose:                      true,
@@ -404,7 +405,7 @@ pipeline:
 	if err != nil {
 		t.Fatalf("read yaml: %v", err)
 	}
-	rep, err := migrator.Migrate(yamlBytes, migrator.Options{
+	rep, err := migrator.Migrate(context.Background(), yamlBytes, migrator.Options{
 		BloblangFileResolver:         env.resolverFor(filepath.Dir(yamlPath)),
 		BloblangV2ImportPathRewriter: v5SuffixRewriter,
 		Verbose:                      true,
@@ -482,7 +483,7 @@ pipeline:
 	if err != nil {
 		t.Fatalf("read yaml: %v", err)
 	}
-	rep, err := migrator.Migrate(yamlBytes, migrator.Options{
+	rep, err := migrator.Migrate(context.Background(), yamlBytes, migrator.Options{
 		BloblangFileResolver:         env.resolverFor(filepath.Dir(yamlPath)),
 		BloblangV2ImportPathRewriter: v5SuffixRewriter,
 		Verbose:                      true,
@@ -571,17 +572,17 @@ pipeline:
 	// Wrap the resolver with a per-site call counter.
 	innerResolver := env.resolverFor(filepath.Dir(yamlPath))
 	siteCalls := map[string]int{}
-	resolver := func(parentKey, importPath string) (string, string, bool) {
+	resolver := func(ctx context.Context, parentKey, importPath string) (string, string, bool) {
 		key := parentKey + "::" + importPath
 		siteCalls[key]++
-		return innerResolver(parentKey, importPath)
+		return innerResolver(ctx, parentKey, importPath)
 	}
 
 	yamlBytes, err := os.ReadFile(yamlPath)
 	if err != nil {
 		t.Fatalf("read yaml: %v", err)
 	}
-	rep, err := migrator.Migrate(yamlBytes, migrator.Options{
+	rep, err := migrator.Migrate(context.Background(), yamlBytes, migrator.Options{
 		BloblangFileResolver:         resolver,
 		BloblangV2ImportPathRewriter: v5SuffixRewriter,
 	})
@@ -655,7 +656,7 @@ pipeline:
 	if err != nil {
 		t.Fatalf("read yaml: %v", err)
 	}
-	rep, err := migrator.Migrate(yamlBytes, migrator.Options{
+	rep, err := migrator.Migrate(context.Background(), yamlBytes, migrator.Options{
 		BloblangFileResolver:         env.resolverFor(filepath.Dir(yamlPath)),
 		BloblangV2ImportPathRewriter: v5SuffixRewriter,
 		Verbose:                      true,

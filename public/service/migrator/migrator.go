@@ -3,8 +3,32 @@
 package migrator
 
 import (
+	"context"
+	"errors"
+
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
 	bloblmig "github.com/redpanda-data/benthos/v4/public/bloblangv2/migrator"
+	"github.com/redpanda-data/benthos/v4/public/service"
 )
+
+// resolveProvider returns the component-docs provider the config walker
+// resolves core component types against: the caller-supplied environment when
+// set, otherwise the global environment.
+func resolveProvider(env *service.Environment) docs.Provider {
+	if env != nil {
+		if u, ok := env.XUnwrapper().(interface{ Unwrap() *bundle.Environment }); ok {
+			// A zero-value &service.Environment{} unwraps to a nil
+			// *bundle.Environment; fall back to the global rather than
+			// returning a non-nil docs.Provider wrapping a nil pointer
+			// (which would panic on use).
+			if inner := u.Unwrap(); inner != nil {
+				return inner
+			}
+		}
+	}
+	return bundle.GlobalEnvironment
+}
 
 // Migrator rewrites Benthos stream configs by replacing one plugin
 // instance with another. Construct one with New, register any custom
@@ -31,9 +55,22 @@ func New() *Migrator {
 
 // RegisterRule registers a custom rule for the given Target. If a
 // rule is already registered for the same Target the new rule
-// replaces it (so downstream rules can override the built-ins).
-func (m *Migrator) RegisterRule(target Target, rule Rule) {
+// replaces it (so downstream rules can override the built-ins). It
+// returns an error if rule is nil.
+func (m *Migrator) RegisterRule(target Target, rule Rule) error {
+	if rule == nil {
+		return errors.New("service/migrator: rule must not be nil")
+	}
 	m.rules[target] = rule
+	return nil
+}
+
+// MustRegisterRule is like RegisterRule but panics on error. Convenient for
+// package-init registration where an error is a programming bug.
+func (m *Migrator) MustRegisterRule(target Target, rule Rule) {
+	if err := m.RegisterRule(target, rule); err != nil {
+		panic(err)
+	}
 }
 
 // Migrate rewrites the supplied stream config YAML by applying every
@@ -42,7 +79,10 @@ func (m *Migrator) RegisterRule(target Target, rule Rule) {
 //
 // Returns *CoverageError when the resulting Coverage.Ratio falls
 // below opts.MinCoverage; the Report is reachable via the error.
-func (m *Migrator) Migrate(yamlBytes []byte, opts Options) (*Report, error) {
+func (m *Migrator) Migrate(ctx context.Context, yamlBytes []byte, opts Options) (*Report, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	bm := opts.BloblangMigrator
 	if bm == nil {
 		bm = bloblmig.New()
@@ -57,13 +97,17 @@ func (m *Migrator) Migrate(yamlBytes []byte, opts Options) (*Report, error) {
 	if opts.BloblangV2ImportPathRewriter != nil {
 		bloblangOpts.V2ImportPathRewriter = opts.BloblangV2ImportPathRewriter
 	}
-
-	ctx := &Context{
-		bloblang:     bm,
-		bloblangOpts: bloblangOpts,
+	if opts.BloblangIsNondeterministicFunc != nil {
+		bloblangOpts.IsNondeterministicFunc = opts.BloblangIsNondeterministicFunc
 	}
 
-	out, changes, err := walk(yamlBytes, m.rules, ctx, opts.Verbose)
+	rctx := &Context{
+		bloblang:     bm,
+		bloblangOpts: bloblangOpts,
+		goCtx:        ctx,
+	}
+
+	out, changes, err := walk(yamlBytes, m.rules, rctx, opts.Verbose, resolveProvider(opts.Environment))
 	if err != nil {
 		return nil, err
 	}
@@ -111,8 +155,8 @@ func aggregateBloblangV2Files(changes []Change) map[string]string {
 // Migrate is a package-level convenience that builds a default
 // Migrator (built-in rules only) and runs it against the supplied
 // YAML. Equivalent to `New().Migrate(src, opts)`.
-func Migrate(yamlBytes []byte, opts Options) (*Report, error) {
-	return New().Migrate(yamlBytes, opts)
+func Migrate(ctx context.Context, yamlBytes []byte, opts Options) (*Report, error) {
+	return New().Migrate(ctx, yamlBytes, opts)
 }
 
 func computeCoverage(changes []Change) Coverage {

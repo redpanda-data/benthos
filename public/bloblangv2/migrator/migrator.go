@@ -3,6 +3,9 @@
 package migrator
 
 import (
+	"context"
+	"errors"
+
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/translator"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/v1ast"
@@ -30,15 +33,47 @@ func New() *Migrator {
 
 // RegisterMethodRule registers a custom translation rule for a V1
 // method named `name`. If a rule is already registered for the same
-// name on this Migrator instance the new rule replaces it.
-func (m *Migrator) RegisterMethodRule(name string, rule MethodRule) {
+// name on this Migrator instance the new rule replaces it. It returns
+// an error if name is empty or rule is nil.
+func (m *Migrator) RegisterMethodRule(name string, rule MethodRule) error {
+	if name == "" {
+		return errors.New("bloblangv2/migrator: method rule name must not be empty")
+	}
+	if rule == nil {
+		return errors.New("bloblangv2/migrator: method rule must not be nil")
+	}
 	m.methodRules[name] = rule
+	return nil
+}
+
+// MustRegisterMethodRule is like RegisterMethodRule but panics on error.
+// Convenient for package-init registration where an error is a programming
+// bug.
+func (m *Migrator) MustRegisterMethodRule(name string, rule MethodRule) {
+	if err := m.RegisterMethodRule(name, rule); err != nil {
+		panic(err)
+	}
 }
 
 // RegisterFunctionRule registers a custom translation rule for a V1
-// function (top-level call) named `name`.
-func (m *Migrator) RegisterFunctionRule(name string, rule FunctionRule) {
+// function (top-level call) named `name`. It returns an error if name is
+// empty or rule is nil.
+func (m *Migrator) RegisterFunctionRule(name string, rule FunctionRule) error {
+	if name == "" {
+		return errors.New("bloblangv2/migrator: function rule name must not be empty")
+	}
+	if rule == nil {
+		return errors.New("bloblangv2/migrator: function rule must not be nil")
+	}
 	m.functionRules[name] = rule
+	return nil
+}
+
+// MustRegisterFunctionRule is like RegisterFunctionRule but panics on error.
+func (m *Migrator) MustRegisterFunctionRule(name string, rule FunctionRule) {
+	if err := m.RegisterFunctionRule(name, rule); err != nil {
+		panic(err)
+	}
 }
 
 // Migrate translates a V1 source mapping into V2. Per-call config —
@@ -49,15 +84,22 @@ func (m *Migrator) RegisterFunctionRule(name string, rule FunctionRule) {
 // Returns a *Report on success. Returns *CoverageError when the
 // computed coverage falls below opts.MinCoverage; the Report is
 // reachable via the error.
-func (m *Migrator) Migrate(v1Source string, opts Options) (*Report, error) {
+func (m *Migrator) Migrate(ctx context.Context, v1Source string, opts Options) (*Report, error) {
+	if ctx == nil {
+		// buildFileSet calls ctx.Err() unconditionally; guard a nil ctx so a
+		// caller passing one gets a normal migration rather than a panic
+		// (mirrors the service-layer goCtx guard).
+		ctx = context.Background()
+	}
 	internalOpts := translator.Options{
 		MinCoverage:           opts.MinCoverage,
 		Verbose:               opts.Verbose,
 		TreatWarningsAsErrors: opts.TreatWarningsAsErrors,
 		Files:                 opts.Files,
-		FileResolver:          opts.FileResolver,
-		V2ImportPathRewriter:  opts.V2ImportPathRewriter,
-		Mode:                  opts.Mode,
+		FileResolver:          translator.FileResolver(opts.FileResolver),
+		V2ImportPathRewriter:  translator.V2ImportPathRewriter(opts.V2ImportPathRewriter),
+		Mode:                  translator.Mode(opts.Mode),
+		IsImpureFunc:          opts.IsNondeterministicFunc,
 	}
 	if len(m.methodRules) > 0 {
 		internalOpts.CustomMethodRules = make(map[string]translator.MethodRuleHook, len(m.methodRules))
@@ -71,7 +113,13 @@ func (m *Migrator) Migrate(v1Source string, opts Options) (*Report, error) {
 			internalOpts.CustomFunctionRules[name] = m.bridgeFunctionRule(name, rule)
 		}
 	}
-	return translator.Migrate(v1Source, internalOpts)
+	rep, err := translator.Migrate(ctx, v1Source, internalOpts)
+	// Convert internal types to the public wrappers at the boundary.
+	var cerr *translator.CoverageError
+	if errors.As(err, &cerr) {
+		return reportFrom(cerr.Report), coverageErrorFrom(cerr)
+	}
+	return reportFrom(rep), err
 }
 
 // bridgeMethodRule wraps a public MethodRule into the internal hook
@@ -150,8 +198,8 @@ func resolveResult(t translator.Translator, p v1ast.Pos, callsite string, res Re
 // Equivalent to `New().Migrate(src, opts)`. Use this when you only
 // need built-in rules; create your own Migrator when you have rules
 // to register.
-func Migrate(v1Source string, opts Options) (*Report, error) {
-	return New().Migrate(v1Source, opts)
+func Migrate(ctx context.Context, v1Source string, opts Options) (*Report, error) {
+	return New().Migrate(ctx, v1Source, opts)
 }
 
 // IsFromOnly reports whether v1Source consists of a single

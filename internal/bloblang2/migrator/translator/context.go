@@ -63,7 +63,13 @@ func (r *recorder) emit(ch Change) {
 	if r.warningsAsErrors && ch.Severity == SeverityWarning {
 		ch.Severity = SeverityError
 	}
-	if ch.Severity == SeverityInfo && !r.opts.Verbose {
+	// Suppress only benign idiom rewrites (identical V1/V2 semantics) unless
+	// verbose. Semantic changes, unsupported constructs, and uncertain
+	// translations describe real divergence the caller must audit, so they are
+	// always recorded regardless of severity — otherwise a "clean" default
+	// report can mask divergence on every arithmetic/comparison/byte-offset
+	// operation in the mapping.
+	if ch.Severity == SeverityInfo && ch.Category == CategoryIdiomRewrite && !r.opts.Verbose {
 		return
 	}
 	r.changes = append(r.changes, ch)

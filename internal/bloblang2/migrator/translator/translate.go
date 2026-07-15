@@ -71,6 +71,11 @@ const (
 	// binding. V1 deletes the variable on nothing(); V2 errors on void
 	// in a var-decl RHS — there is no semantic-preserving translation.
 	ctxVarDeclRHS
+	// ctxLambdaBody is pushed while translating a lambda body. A lambda body
+	// is never itself a collection-literal element, so this shadows any outer
+	// ctxCollectionLit and stops it leaking in (which would otherwise make an
+	// else-less `if` inside a lambda wrongly synthesize `deleted()`).
+	ctxLambdaBody
 )
 
 // pushCtx pushes a translation context kind. Pair with popCtx.

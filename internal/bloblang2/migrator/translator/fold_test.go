@@ -1,6 +1,7 @@
 package translator_test
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -57,7 +58,7 @@ root.x = $params
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rep, err := translator.Migrate(tc.v1, translator.Options{MinCoverage: 0})
+			rep, err := translator.Migrate(context.Background(), tc.v1, translator.Options{MinCoverage: 0})
 			if err != nil {
 				t.Fatalf("Migrate: %v", err)
 			}
@@ -81,7 +82,7 @@ root.x = $params
 func TestFoldBareContextRefIsFlagged(t *testing.T) {
 	v1 := `root.x = this.xs.fold({}, item -> item)
 `
-	rep, err := translator.Migrate(v1, translator.Options{MinCoverage: 0})
+	rep, err := translator.Migrate(context.Background(), v1, translator.Options{MinCoverage: 0})
 	if err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}

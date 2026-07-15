@@ -3,6 +3,7 @@
 package migrator_test
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -16,7 +17,7 @@ import (
 // callsite into the V2 form during translation.
 func ExampleMigrator_RegisterMethodRule() {
 	mig := migrator.New()
-	mig.RegisterMethodRule("widget_encode", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
+	mig.MustRegisterMethodRule("widget_encode", func(ctx *migrator.Context, m *migrator.V1MethodCall) migrator.Result {
 		// V1 widget_encode took no arguments. V2 keeps that.
 		if len(m.Args) != 0 {
 			return ctx.Unsupported("widget_encode takes no arguments")
@@ -27,7 +28,7 @@ func ExampleMigrator_RegisterMethodRule() {
 		})
 	})
 
-	report, err := mig.Migrate(`root.encoded = this.payload.widget_encode()`, migrator.Options{})
+	report, err := mig.Migrate(context.Background(), `root.encoded = this.payload.widget_encode()`, migrator.Options{})
 	if err != nil {
 		fmt.Println("migrate failed:", err)
 		return
@@ -43,7 +44,7 @@ func ExampleMigrator_RegisterMethodRule() {
 // V2 by an equivalent method on `input`.
 func ExampleMigrator_RegisterFunctionRule() {
 	mig := migrator.New()
-	mig.RegisterFunctionRule("widget_size", func(ctx *migrator.Context, f *migrator.V1FunctionCall) migrator.Result {
+	mig.MustRegisterFunctionRule("widget_size", func(ctx *migrator.Context, f *migrator.V1FunctionCall) migrator.Result {
 		if len(f.Args) != 0 {
 			return ctx.Unsupported("widget_size takes no arguments")
 		}
@@ -53,7 +54,7 @@ func ExampleMigrator_RegisterFunctionRule() {
 		})
 	})
 
-	report, err := mig.Migrate(`root.size = widget_size()`, migrator.Options{})
+	report, err := mig.Migrate(context.Background(), `root.size = widget_size()`, migrator.Options{})
 	if err != nil {
 		fmt.Println("migrate failed:", err)
 		return

@@ -1,6 +1,7 @@
 package benchmark_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -112,7 +113,7 @@ func TestMigrationSmoke(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			rep, err := translator.Migrate(tc.v1, translator.Options{
+			rep, err := translator.Migrate(context.Background(), tc.v1, translator.Options{
 				Verbose:     true,
 				MinCoverage: 0.0001,
 			})
