@@ -206,6 +206,22 @@ func TestMethodTranslationAudit(t *testing.T) {
 			input: map[string]any{"xs": []any{map[string]any{"k": "a", "v": float64(1)}, map[string]any{"k": "b", "v": float64(2)}}},
 			want:  map[string]any{"a": float64(1), "b": float64(2)},
 		},
+		{
+			// Query form: the second arg is a bare query where `this` is the
+			// {tally, value} context (no explicit lambda). Must wrap as V2
+			// (tally, value) -> ... — previously emitted a non-lambda arg and
+			// errored at exec ("fold() second argument must be a lambda").
+			name:  ".fold query-form (this.tally/this.value) -> (tally, value) lambda",
+			v1:    `root = this.xs.fold(0, this.tally + this.value)`,
+			input: map[string]any{"xs": []any{float64(1), float64(2), float64(3)}},
+			want:  float64(6),
+		},
+		{
+			name:  ".fold query-form merge (this.tally.merge with this.value fields)",
+			v1:    `root = this.xs.fold({}, this.tally.merge({(this.value.k): this.value.v}))`,
+			input: map[string]any{"xs": []any{map[string]any{"k": "a", "v": float64(1)}, map[string]any{"k": "b", "v": float64(2)}}},
+			want:  map[string]any{"a": float64(1), "b": float64(2)},
+		},
 
 		// --- Error-catching operators ---
 		{

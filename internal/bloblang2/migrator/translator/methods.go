@@ -171,7 +171,8 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	case "find_by", "find_all_by":
 		// V1 .find_by / .find_all_by take a ParamQuery predicate where
 		// `this` and bare idents resolve as fields of the current
-		// element. V2 requires an explicit lambda. Wrap unconditionally.
+		// element. V2 has the same methods but requires an explicit lambda,
+		// so wrap the query form unconditionally.
 		return t.queryFormRename(m, recv, m.Name, nil, false)
 	case "sort_by":
 		return t.queryFormRename(m, recv, m.Name, nil, false)
@@ -947,30 +948,49 @@ func (t *translator) foldContextToTwoParam(m *v1ast.MethodCall, recv syntax.Expr
 	if len(m.Args) != 2 {
 		return nil
 	}
-	lam, ok := m.Args[1].Value.(*v1ast.Lambda)
-	if !ok || lam.Discard {
-		// Map-ref or discard param — V1 also supports these but the shape
-		// isn't recognisable from here. Pass through; translator will emit
-		// V2 that errors and the warning surfaces the issue.
-		t.rec.Rewritten(Change{
-			Line: m.NamePos.Line, Column: m.NamePos.Column,
-			Severity: SeverityWarning, Category: CategorySemanticChange,
-			RuleID:      RuleMethodDoesNotExist,
-			SpecRef:     "§13",
-			Explanation: "V1 .fold() second argument must be a one-param lambda for automatic V1→V2 rewrite; manually convert to V2 .fold(init, (tally, value) -> ...)",
-		})
-		return nil
+	// V1 .fold() takes the accumulator body in two shapes:
+	//   - explicit lambda: .fold(init, ctx -> ...ctx.tally...ctx.value...)
+	//   - query form:      .fold(init, this.tally.merge(...this.value...))
+	// where in the query form `this` IS the {tally, value} context. Both map
+	// to V2's .fold(init, (tally, value) -> ...); rewrite context field
+	// accesses to the bare `tally` / `value` names the two-param lambda binds.
+	var (
+		rewritten v1ast.Expr
+		unsafeRef bool
+		lamPos    syntax.Pos
+	)
+	switch arg := m.Args[1].Value.(type) {
+	case *v1ast.Lambda:
+		if arg.Discard {
+			// Discard param: the context is thrown away, so there is no
+			// recognisable tally/value to map. Flag for manual conversion.
+			t.rec.Rewritten(Change{
+				Line: m.NamePos.Line, Column: m.NamePos.Column,
+				Severity: SeverityWarning, Category: CategorySemanticChange,
+				RuleID:      RuleMethodDoesNotExist,
+				SpecRef:     "§13",
+				Explanation: "V1 .fold() second argument discards its context param; manually convert to V2 .fold(init, (tally, value) -> ...)",
+			})
+			return nil
+		}
+		rewritten, unsafeRef = rewriteFoldContext(arg.Body, arg.Param)
+		lamPos = pos(arg.ParamPos)
+	default:
+		// Query form: `this` is the fold context.
+		rewritten, unsafeRef = rewriteFoldContextThis(arg)
+		lamPos = pos(m.NamePos)
 	}
-
-	paramName := lam.Param
-	rewritten, unsafeRef := rewriteFoldContext(lam.Body, paramName)
 	if unsafeRef {
-		t.rec.Rewritten(Change{
+		// The body references the fold context as a whole object (bare `this`
+		// / bare param) or a field other than .tally/.value. V2's
+		// (tally, value) lambda has no single context object, so there is no
+		// faithful translation — flag Unsupported (not a soft Warning) so the
+		// broken best-effort V2 is not mistaken for a working migration.
+		t.rec.Unsupported(Change{
 			Line: m.NamePos.Line, Column: m.NamePos.Column,
-			Severity: SeverityWarning, Category: CategorySemanticChange,
-			RuleID:      RuleMethodDoesNotExist,
+			RuleID:      RuleUnsupportedConstruct,
 			SpecRef:     "§13",
-			Explanation: "V1 .fold() lambda references its context param outside .tally/.value; V2 has no single-value accessor — rewrite manually to use (tally, value) params",
+			Explanation: "V1 .fold() body references its context as a whole object (or outside .tally/.value); V2's (tally, value) lambda has no single context object — rewrite manually",
 		})
 		return nil
 	}
@@ -998,7 +1018,6 @@ func (t *translator) foldContextToTwoParam(m *v1ast.MethodCall, recv syntax.Expr
 		Explanation: "V1 .fold(init, ctx -> ...ctx.tally...ctx.value...) rewritten as V2 .fold(init, (tally, value) -> ...)",
 	})
 
-	lamPos := pos(lam.ParamPos)
 	return &syntax.MethodCallExpr{
 		Receiver:  recv,
 		Method:    "fold",
@@ -1183,29 +1202,67 @@ func sliceReceiverIsNonString(e v1ast.Expr) bool {
 // Returns (rewritten, unsafeRef) where unsafeRef is true when we found a
 // reference to `<paramName>` outside the .tally/.value pattern — the
 // caller should bail on the rewrite in that case.
+// foldCtxMatch parameterises the fold-context walk for the two V1 shapes: the
+// explicit-lambda form (context is a named param) and the query form (context
+// is `this`).
+type foldCtxMatch struct {
+	// isBare reports whether e is a bare reference to the WHOLE context
+	// (`param` / `this`) — which has no single-value V2 equivalent (unsafe).
+	isBare func(v1ast.Expr) bool
+	// isRecv reports whether e is the context used as a field-access receiver
+	// (so `<ctx>.tally` / `<ctx>.value` can be rewritten to bare idents).
+	isRecv func(v1ast.Expr) bool
+	// skipLambda reports whether a nested lambda rebinds the context and so
+	// must not be descended into.
+	skipLambda func(*v1ast.Lambda) bool
+}
+
+// rewriteFoldContext rewrites a V1 fold body given as an explicit lambda
+// `param -> ...`, mapping `param.tally` / `param.value` to bare tally/value.
 func rewriteFoldContext(e v1ast.Expr, paramName string) (v1ast.Expr, bool) {
+	return rewriteFoldCtx(e, foldCtxMatch{
+		isBare: func(x v1ast.Expr) bool { id, ok := x.(*v1ast.Ident); return ok && id.Name == paramName },
+		isRecv: func(x v1ast.Expr) bool { id, ok := x.(*v1ast.Ident); return ok && id.Name == paramName },
+		// Only a nested lambda that SHADOWS the param rebinds the context.
+		skipLambda: func(l *v1ast.Lambda) bool { return l.Param == paramName },
+	})
+}
+
+// rewriteFoldContextThis rewrites a V1 fold body given in query form, where
+// `this` is the {tally, value} context (e.g. `.fold({}, this.tally.merge(...))`),
+// mapping `this.tally` / `this.value` to bare tally/value. Any nested lambda
+// rebinds `this`, so those are not descended into.
+func rewriteFoldContextThis(e v1ast.Expr) (v1ast.Expr, bool) {
+	isThis := func(x v1ast.Expr) bool { _, ok := x.(*v1ast.ThisExpr); return ok }
+	return rewriteFoldCtx(e, foldCtxMatch{
+		isBare:     isThis,
+		isRecv:     isThis,
+		skipLambda: func(*v1ast.Lambda) bool { return true },
+	})
+}
+
+func rewriteFoldCtx(e v1ast.Expr, m foldCtxMatch) (v1ast.Expr, bool) {
 	unsafe := false
 	var walk func(v1ast.Expr) v1ast.Expr
 	walk = func(e v1ast.Expr) v1ast.Expr {
 		if e == nil {
 			return nil
 		}
+		if m.isBare(e) {
+			// Bare reference to the whole context — cannot safely rewrite.
+			unsafe = true
+			return e
+		}
 		switch n := e.(type) {
-		case *v1ast.Ident:
-			// Bare reference to the context param — cannot safely rewrite.
-			if n.Name == paramName {
-				unsafe = true
-			}
-			return n
 		case *v1ast.FieldAccess:
-			if id, ok := n.Recv.(*v1ast.Ident); ok && id.Name == paramName {
+			if m.isRecv(n.Recv) {
 				switch n.Seg.Name {
 				case "tally":
-					return &v1ast.Ident{Name: "tally", TokPos: id.TokPos}
+					return &v1ast.Ident{Name: "tally", TokPos: n.Recv.NodePos()}
 				case "value":
-					return &v1ast.Ident{Name: "value", TokPos: id.TokPos}
+					return &v1ast.Ident{Name: "value", TokPos: n.Recv.NodePos()}
 				default:
-					// <paramName>.something_else — unexpected, bail.
+					// <ctx>.something_else — unexpected, bail.
 					unsafe = true
 					return n
 				}
@@ -1228,9 +1285,9 @@ func rewriteFoldContext(e v1ast.Expr, paramName string) (v1ast.Expr, bool) {
 			n.Body = walk(n.Body)
 			return n
 		case *v1ast.Lambda:
-			// A nested lambda shadowing paramName binds a fresh value; don't
-			// descend into it (the param inside is a different variable).
-			if n.Param == paramName {
+			// A nested lambda that rebinds the context binds a fresh value;
+			// don't descend into it (the context inside is different).
+			if m.skipLambda(n) {
 				return n
 			}
 			n.Body = walk(n.Body)

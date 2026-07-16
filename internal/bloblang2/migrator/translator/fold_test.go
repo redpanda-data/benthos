@@ -2,6 +2,7 @@ package translator_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 
@@ -75,25 +76,31 @@ root.x = $params
 	}
 }
 
-// TestFoldBareContextRefIsFlagged — if the V1 lambda references the
-// context param directly (not via .tally/.value) the translator can't
-// mechanically rewrite; it falls through and records a Warning so the
-// user knows manual conversion is needed.
+// TestFoldBareContextRefIsFlagged — if the V1 lambda references the context
+// param as a whole object (not via .tally/.value) the translator can't
+// mechanically rewrite it (V2's (tally, value) lambda has no single context
+// object), so it records Unsupported rather than emit a broken best-effort
+// .fold that looks like a working migration.
 func TestFoldBareContextRefIsFlagged(t *testing.T) {
 	v1 := `root.x = this.xs.fold({}, item -> item)
 `
 	rep, err := translator.Migrate(context.Background(), v1, translator.Options{MinCoverage: 0})
-	if err != nil {
+	var cerr *translator.CoverageError
+	if errors.As(err, &cerr) {
+		rep = cerr.Report
+	} else if err != nil {
 		t.Fatalf("Migrate: %v", err)
 	}
-	var sawWarning bool
+	var sawUnsupported bool
 	for _, c := range rep.Changes {
-		if strings.Contains(c.Explanation, "fold") && c.Severity == translator.SeverityWarning {
-			sawWarning = true
+		if strings.Contains(c.Explanation, "fold") &&
+			c.Severity == translator.SeverityError &&
+			c.RuleID == translator.RuleUnsupportedConstruct {
+			sawUnsupported = true
 			break
 		}
 	}
-	if !sawWarning {
-		t.Errorf("expected a Warning change referring to .fold; got changes:\n%+v", rep.Changes)
+	if !sawUnsupported {
+		t.Errorf("expected an Unsupported (Error) change referring to .fold; got changes:\n%+v", rep.Changes)
 	}
 }
