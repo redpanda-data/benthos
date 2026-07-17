@@ -1,9 +1,33 @@
 package translator
 
 import (
+	"strings"
+
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/migrator/v1ast"
 )
+
+// flagDotPathArg flags the path-vs-literal-key divergence in get/exists/
+// without: V1 splits a string argument on "." and traverses it as a nested
+// path, whereas the emitted V2 uses the argument as a single literal key
+// (get -> input["k"], exists -> has_key("k"), without -> without(["k"])). A
+// dotted string-literal argument therefore diverges in both directions. This
+// records a Note (not a coverage-bumping change) so it can layer on top of the
+// method's own translation without double-counting the node.
+func (t *translator) flagDotPathArg(m *v1ast.MethodCall) {
+	for _, a := range m.Args {
+		lit, ok := a.Value.(*v1ast.Literal)
+		if ok && (lit.Kind == v1ast.LitString || lit.Kind == v1ast.LitRawString) && strings.Contains(lit.Str, ".") {
+			t.rec.Note(Change{
+				Line: m.NamePos.Line, Column: m.NamePos.Column,
+				Severity: SeverityWarning, Category: CategorySemanticChange,
+				RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+				Explanation: "V1 ." + m.Name + `("` + lit.Str + `") splits the argument on '.' and traverses it as a nested path; the emitted V2 treats it as a single literal key — results differ. Rewrite the path by hand (e.g. explicit field access).`,
+			})
+			return
+		}
+	}
+}
 
 // methodRewrite applies V1 → V2 method-shape translations on a V1 MethodCall.
 // Returns a non-nil V2 expression on success, or nil to signal "fall through
@@ -50,6 +74,33 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 				"{key, value} and replaces the value: use .map_values(v -> ...) when only the value is needed, " +
 				"or .map_entries((k, v) -> {\"key\": k, \"value\": ...}) when the key is needed",
 		}, true)
+	case "map":
+		// V1 .map(fn) applies fn to the WHOLE receiver value (fn's `this` /
+		// param is the whole value), for any type — it is NOT element-wise.
+		// V2 .map is element-wise and array-only, so a verbatim passthrough
+		// silently changes meaning. V2's apply-once-to-the-whole-value method
+		// is .into, so translate V1 .map -> V2 .into.
+		return t.queryFormRename(m, recv, "into", &Change{
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§13",
+			Explanation: "V1 .map(fn) applies fn to the whole value; rewritten to V2 .into(fn) (V2 .map is element-wise/array-only)",
+		}, false)
+	case "trim":
+		// V1 .trim() removes whitespace (matches V2). V1 .trim(cutset) removes
+		// the given characters — V2 .trim() takes no argument and has no cutset
+		// form, so drop the argument and flag; the character-set trim must be
+		// migrated by hand (e.g. a regex replace).
+		if len(m.Args) == 0 {
+			return nil // whitespace trim — identical, use the default 1:1
+		}
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+			Explanation: "V1 .trim(cutset) removes the given characters; V2 .trim() removes whitespace only and has no cutset form — the cutset argument was dropped, migrate manually",
+		})
+		return &syntax.MethodCallExpr{Receiver: recv, Method: "trim", MethodPos: pos(m.NamePos)}
 	case "enumerated":
 		return t.simpleRename(m, recv, "enumerate")
 	case "key_values":
@@ -77,6 +128,7 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 
 	// ----- Dynamic key access: .get(k) -> [k] -----
 	case "get":
+		t.flagDotPathArg(m)
 		return t.indexToBracket(m, recv)
 
 	// ----- Apply: recv.apply("name") -> name(recv) -----
@@ -85,16 +137,58 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 
 	// ----- Numeric coercion: V1 .number() -> V2 .float64() -----
 	case "number":
-		return t.rewrittenRename(m, recv, "float64",
-			Change{
-				RuleID:      RuleMethodDoesNotExist,
-				Severity:    SeverityWarning,
-				Category:    CategorySemanticChange,
-				Explanation: "V1 .number() is float64; V2 .float64() preserves that, but downstream code expecting int64 results may break",
+		ch := Change{
+			RuleID:      RuleMethodDoesNotExist,
+			Severity:    SeverityWarning,
+			Category:    CategorySemanticChange,
+			Explanation: "V1 .number() is float64; V2 .float64() preserves that, but downstream code expecting int64 results may break",
+		}
+		if len(m.Args) > 0 {
+			// V1 .number(default) uses the arg as a fallback on parse
+			// failure/null; V2 .float64() does not — the arg is inert.
+			ch.Explanation = "V1 .number(default) returns the default on parse failure/null; V2 .float64() does NOT use the argument as a fallback (it is inert) — wrap as .float64().catch(_ -> default) to preserve the fallback"
+		}
+		return t.rewrittenRename(m, recv, "float64", ch)
+	case "bool":
+		// V1 .bool() coerces permissively ("TRUE"/"t"/"1"/"0"/1/0 → bool); V2
+		// .bool() is strict (only real booleans and exact "true"/"false").
+		// V1 .bool(default) also falls back on failure/null; V2 does not. 1:1
+		// shape (bool exists in V2) — flag the semantic change.
+		expl := `V1 .bool() coerces strings like "TRUE"/"t"/"1"/"0" and numbers to bool; V2 .bool() errors on those — only real booleans (and exact "true"/"false") convert`
+		if len(m.Args) > 0 {
+			expl = "V1 .bool(default) coerces permissively and returns the default on failure/null; V2 .bool() is strict and does not use the argument as a fallback — wrap as .bool().catch(_ -> default) and pre-normalise non-boolean forms"
+		}
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+			Explanation: expl,
+		})
+		return nil
+	case "format_json":
+		// V1 .format_json() defaults to 4-space indentation; V2 defaults to
+		// compact (no indent). When no argument was given, emit an explicit
+		// 4-space indent so the migrated output matches V1. Explicit args pass
+		// through unchanged.
+		if len(m.Args) == 0 {
+			t.rec.Rewritten(Change{
+				Line: m.NamePos.Line, Column: m.NamePos.Column,
+				Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+				RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+				Explanation: `V1 .format_json() defaults to 4-space indentation; V2 defaults to compact — emitted .format_json("    ") to preserve V1's indented output`,
 			})
+			return &syntax.MethodCallExpr{
+				Receiver: recv, Method: "format_json", MethodPos: pos(m.NamePos),
+				Args: []syntax.CallArg{{Value: &syntax.LiteralExpr{
+					TokenPos: pos(m.NamePos), TokenType: syntax.STRING, Value: "    ",
+				}}},
+			}
+		}
+		return nil
 
 	// ----- Variadic .without("a","b","c") -> .without(["a","b","c"]) -----
 	case "without":
+		t.flagDotPathArg(m)
 		return t.variadicArgsToArray(m, recv, "without")
 	// ----- Variadic .with(...) and .zip(...) follow the same pattern.
 	case "with", "zip":
@@ -140,6 +234,7 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 
 	// ----- .exists(path) -> (path != null).catch(false) -----
 	case "exists":
+		t.flagDotPathArg(m)
 		return t.existsToNullCheck(m, recv)
 
 	// ----- V2 .catch requires a lambda; V1 accepts a plain value -----
@@ -159,6 +254,17 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	case "merge":
 		return t.mergePolymorphicRewrite(m, recv)
 	case "filter", "filter_entries", "all", "any":
+		if m.Name == "all" {
+			// V1 .all([]) on an EMPTY array returns false; V2 returns true
+			// (vacuous truth). A Note (not a coverage-bumping change) so it
+			// layers on top of queryFormRename's tally without double-counting.
+			t.rec.Note(Change{
+				Line: m.NamePos.Line, Column: m.NamePos.Column,
+				Severity: SeverityWarning, Category: CategorySemanticChange,
+				RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+				Explanation: "V1 .all() on an empty array returns false; V2 returns true (vacuous truth) — results differ on empty input",
+			})
+		}
 		// Pass the divergence as queryFormRename's note so the method node is
 		// tallied exactly once (Rewritten). Recording a separate Rewritten
 		// here and then calling queryFormRename — which tallies again — would
@@ -255,6 +361,19 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		// search is identical too. Verified against both engines. Falls through
 		// to the default 1:1 translation (counted Exact once). Do not re-add a
 		// "type-strict" flag — it was factually wrong.
+		//
+		// EXCEPTION: on an OBJECT receiver, V1 .contains(v) checks membership
+		// over the object's values, whereas V2 .contains() errors on objects.
+		// Only object-literal receivers are statically detectable; dynamic
+		// receivers can't be classified here.
+		if _, isObj := m.Recv.(*v1ast.ObjectLit); isObj {
+			t.rec.Note(Change{
+				Line: m.NamePos.Line, Column: m.NamePos.Column,
+				Severity: SeverityWarning, Category: CategorySemanticChange,
+				RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+				Explanation: "V1 .contains(v) on an object checks membership over its values; V2 .contains() errors on object receivers — use .values().contains(v)",
+			})
+		}
 		return nil
 	case "reverse":
 		// V1 .reverse() errors on empty arrays/strings; V2 returns empty.
@@ -267,7 +386,7 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 			Explanation: "V1 .reverse() errors on empty or non-sequence receivers; V2 returns the empty receiver",
 		})
 		return nil
-	case "abs", "floor", "ceil", "round":
+	case "abs", "floor", "ceil":
 		// V1 numeric methods return an untyped "number"; V2 preserves the
 		// typed variant (int64 stays int64, float64 stays float64). Runtime
 		// values compare equal but type-introspection / JSON serialisation
@@ -278,6 +397,20 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 			RuleID:      RuleMethodDoesNotExist,
 			SpecRef:     "§14#5",
 			Explanation: "V1 ." + m.Name + "() returns an unspecified numeric type; V2 preserves int64/float64 — downstream code branching on .type() may behave differently",
+		})
+		return nil
+	case "round":
+		// Two divergences: (1) the numeric-type change (as abs/floor/ceil
+		// above), and — more importantly — (2) the ROUNDING MODE. V1 rounds
+		// half away from zero (0.5 -> 1, 2.5 -> 3, -2.5 -> -3); V2 rounds half
+		// to even / banker's (0.5 -> 0, 2.5 -> 2). Values at .5 boundaries
+		// differ. 1:1 shape, flagged once via the Rewritten tally.
+		t.rec.Rewritten(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			SpecRef:     "§14#5",
+			Explanation: "V1 .round() rounds half AWAY FROM ZERO (2.5 -> 3); V2 .round() rounds half TO EVEN (banker's: 2.5 -> 2) — results differ at every .5 boundary. (V2 also preserves int64/float64 rather than an untyped number.)",
 		})
 		return nil
 	case "type":

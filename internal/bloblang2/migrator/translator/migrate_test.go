@@ -79,27 +79,16 @@ func TestApplyDefaults(t *testing.T) {
 	}
 }
 
-func TestMigrateModeMutationNoPrelude(t *testing.T) {
-	// Default mode: no `output = input` prelude.
-	rep, err := Migrate(context.Background(), "root.v = 1", Options{Mode: ModeMutation})
+func TestMigrateModeMutationInjectsPrelude(t *testing.T) {
+	// V1 `mutation` maps ONTO the input document (MapOnto), so the
+	// translator prepends `output = input` to keep unwritten fields
+	// passing through. ModeMutation is the default.
+	rep, err := Migrate(context.Background(), "root.v = 1", Options{Mode: ModeMutation, Verbose: true})
 	if err != nil {
 		t.Fatalf("mutation-mode translation should succeed: %v", err)
 	}
-	if strings.Contains(rep.V2Mapping, "output = input") {
-		t.Fatalf("mutation mode must not inject `output = input`; got:\n%s", rep.V2Mapping)
-	}
-}
-
-func TestMigrateModeMappingInjectsPrelude(t *testing.T) {
-	// mapping mode: translator prepends `output = input` so the V2
-	// result starts as the input document (matching V1 mapping's
-	// pass-through default).
-	rep, err := Migrate(context.Background(), "root.v = 1", Options{Mode: ModeMapping, Verbose: true})
-	if err != nil {
-		t.Fatalf("mapping-mode translation should succeed: %v", err)
-	}
 	if !strings.Contains(rep.V2Mapping, "output = input") {
-		t.Fatalf("mapping mode must inject `output = input`; got:\n%s", rep.V2Mapping)
+		t.Fatalf("mutation mode must inject `output = input`; got:\n%s", rep.V2Mapping)
 	}
 	// The prelude must be the *first* statement so subsequent field
 	// assignments build on top of the passed-through input.
@@ -107,5 +96,17 @@ func TestMigrateModeMappingInjectsPrelude(t *testing.T) {
 	idxBody := strings.Index(rep.V2Mapping, "output.v")
 	if idxBody < idxPrelude {
 		t.Fatalf("prelude must precede the translated body; got:\n%s", rep.V2Mapping)
+	}
+}
+
+func TestMigrateModeMappingNoPrelude(t *testing.T) {
+	// V1 `mapping` constructs a NEW document (MapPart — root starts empty),
+	// matching V2's empty `output`, so no prelude is injected.
+	rep, err := Migrate(context.Background(), "root.v = 1", Options{Mode: ModeMapping})
+	if err != nil {
+		t.Fatalf("mapping-mode translation should succeed: %v", err)
+	}
+	if strings.Contains(rep.V2Mapping, "output = input") {
+		t.Fatalf("mapping mode must not inject `output = input`; got:\n%s", rep.V2Mapping)
 	}
 }

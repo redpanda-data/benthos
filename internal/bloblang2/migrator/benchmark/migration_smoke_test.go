@@ -116,6 +116,9 @@ func TestMigrationSmoke(t *testing.T) {
 			rep, err := translator.Migrate(context.Background(), tc.v1, translator.Options{
 				Verbose:     true,
 				MinCoverage: 0.0001,
+				// V1 runner starts root empty (MapPart), so migrate in the
+				// matching empty-start mapping mode (no `output = input`).
+				Mode: translator.ModeMapping,
 			})
 			if err != nil {
 				t.Fatalf("migrate: %v", err)

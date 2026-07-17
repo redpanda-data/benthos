@@ -11,7 +11,10 @@ import (
 
 func mustMigrate(t *testing.T, v1 string) *translator.Report {
 	t.Helper()
-	rep, err := translator.Migrate(context.Background(), v1, translator.Options{MinCoverage: 0})
+	// ModeMapping so no `output = input` prelude is injected — these tests pin
+	// exact per-node coverage counts and assert rule presence, neither of which
+	// should include the mutation-mode prelude node.
+	rep, err := translator.Migrate(context.Background(), v1, translator.Options{MinCoverage: 0, Mode: translator.ModeMapping})
 	var cerr *translator.CoverageError
 	switch {
 	case err == nil:

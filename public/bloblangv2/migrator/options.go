@@ -56,10 +56,12 @@ type Options struct {
 	V2ImportPathRewriter V2ImportPathRewriter
 
 	// Mode selects how the V1 mapping's implicit root is treated.
-	// Default (zero value) is ModeMutation — V2's `output` semantics
-	// align with V1's `mutation` processor. Use ModeMapping when
-	// translating mappings authored for V1's `mapping` processor (the
-	// translator prepends `output = input`).
+	// Default (zero value) is ModeMutation: V1's `mutation` processor maps
+	// onto the input document, so the translator prepends `output = input`
+	// to preserve that pass-through default. Use ModeMapping when
+	// translating mappings authored for V1's `mapping` processor, whose
+	// `root` starts empty — no prelude is inserted (V2's empty `output`
+	// already matches).
 	Mode Mode
 
 	// IsNondeterministicFunc, when set, reports whether a V1 function name is

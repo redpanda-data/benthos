@@ -209,7 +209,10 @@ func (c *Collection) admit(name string, tc *spectest.TestCase, sub *spectest.Cas
 	}
 
 	// 3. Translate V1 -> V2.
-	rep, err := translator.Migrate(context.Background(), mapping, translator.Options{MinCoverage: 0, Files: files})
+	// ModeMapping: the V1 reference runner (v1Runner.Exec) starts root empty
+	// (value.Nothing) — bare-mapping / MapPart semantics — so the migration
+	// must use the matching empty-start mode (no `output = input` prelude).
+	rep, err := translator.Migrate(context.Background(), mapping, translator.Options{MinCoverage: 0, Files: files, Mode: translator.ModeMapping})
 	if err != nil {
 		c.skip(name, SkipTranslateFail, err.Error())
 		return

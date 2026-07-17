@@ -36,6 +36,7 @@ func ExampleMigrator_RegisterMethodRule() {
 	fmt.Println(strings.TrimSpace(report.V2Mapping))
 
 	// Output:
+	// output = input
 	// output.encoded = input?.payload.widget_encode_v2()
 }
 
@@ -62,5 +63,6 @@ func ExampleMigrator_RegisterFunctionRule() {
 	fmt.Println(strings.TrimSpace(report.V2Mapping))
 
 	// Output:
+	// output = input
 	// output.size = input.widget_size()
 }

@@ -327,18 +327,20 @@ type Options struct {
 	// Mode selects how the V1 mapping's implicit root is treated.
 	//
 	// V1 ships two Bloblang-executing processors with different root
-	// defaults:
-	//   - `mapping`  — `root` starts as the *input* document; a mapping
-	//                  that makes no assignments passes the input
-	//                  through unchanged.
-	//   - `mutation` — `root` starts as `{}`; a mapping that makes no
-	//                  assignments emits an empty object.
+	// defaults (see internal/bloblang/mapping/executor.go MapPart vs
+	// MapOnto):
+	//   - `mapping`  — `root` starts as `{}` (MapPart constructs a NEW
+	//                  document); a mapping that makes no assignments emits
+	//                  an empty object.
+	//   - `mutation` — `root` starts as the *input* document (MapOnto maps
+	//                  onto the existing part); a mutation that makes no
+	//                  assignments passes the input through unchanged.
 	//
-	// V2's `output` always starts as `{}`, matching V1's `mutation`. To
-	// preserve V1 `mapping` semantics the translator prepends an
-	// `output = input` statement to the V2 output when Mode is
-	// ModeMapping. When Mode is ModeMutation (or unset — the safe
-	// default), no prelude is inserted.
+	// V2's `output` always starts as `{}`, matching V1's `mapping`. To
+	// preserve V1 `mutation` semantics the translator prepends an
+	// `output = input` statement when Mode is ModeMutation. When Mode is
+	// ModeMapping, no prelude is inserted (V2's empty output already
+	// matches).
 	Mode Mode
 
 	// CustomMethodRules is keyed by V1 method name. Hooks registered
@@ -374,12 +376,14 @@ type Mode int
 
 const (
 	// ModeMutation is the default: V1 `mutation` processor semantics.
-	// `root` starts empty; no prelude injected by the translator.
+	// `root` starts as the input document, so the translator prepends
+	// `output = input` to preserve the mutate-in-place / pass-through
+	// default.
 	ModeMutation Mode = iota
 
-	// ModeMapping selects V1 `mapping` processor semantics. `root`
-	// starts as the input document; the translator prepends
-	// `output = input` so the V2 output behaves the same way.
+	// ModeMapping selects V1 `mapping` processor semantics. `root` starts
+	// empty (a new document), matching V2's empty `output`; no prelude is
+	// injected.
 	ModeMapping
 )
 

@@ -252,11 +252,11 @@ pipeline:
 	}
 }
 
-// TestModeMappingPrependsOutputInput verifies that the `mapping`
-// processor is migrated using ModeMapping — the bloblang translator
-// prepends `output = input` so unwritten fields pass through, matching
-// V1 mapping semantics.
-func TestModeMappingPrependsOutputInput(t *testing.T) {
+// TestModeMappingDoesNotPrepend verifies that the `mapping` processor is
+// migrated using ModeMapping — V1 `mapping` constructs a NEW document
+// (root starts empty, MapPart), matching V2's empty `output`, so NO
+// `output = input` prelude should be inserted.
+func TestModeMappingDoesNotPrepend(t *testing.T) {
 	in := `
 pipeline:
   processors:
@@ -266,15 +266,15 @@ pipeline:
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if !strings.Contains(rep.OutputYAML, "output = input") {
-		t.Fatalf("ModeMapping should prepend `output = input`, got:\n%s", rep.OutputYAML)
+	if strings.Contains(rep.OutputYAML, "output = input") {
+		t.Fatalf("ModeMapping should NOT prepend `output = input` (root starts empty), got:\n%s", rep.OutputYAML)
 	}
 }
 
-// TestModeMappingProcessorBloblangAlsoPrepends — the `bloblang`
-// processor shares semantics with `mapping`, so it must also use
-// ModeMapping.
-func TestModeMappingProcessorBloblangAlsoPrepends(t *testing.T) {
+// TestModeMappingProcessorBloblangAlsoDoesNotPrepend — the `bloblang`
+// processor shares mapping semantics, so it must also use ModeMapping (no
+// prelude).
+func TestModeMappingProcessorBloblangAlsoDoesNotPrepend(t *testing.T) {
 	in := `
 pipeline:
   processors:
@@ -284,15 +284,16 @@ pipeline:
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if !strings.Contains(rep.OutputYAML, "output = input") {
-		t.Fatalf("bloblang processor should use ModeMapping (prepend `output = input`), got:\n%s", rep.OutputYAML)
+	if strings.Contains(rep.OutputYAML, "output = input") {
+		t.Fatalf("bloblang processor (ModeMapping) should NOT prepend `output = input`, got:\n%s", rep.OutputYAML)
 	}
 }
 
-// TestModeMutationDoesNotPrepend verifies that the `mutation`
-// processor uses ModeMutation — V2's empty `output` aligns with V1's
-// `mutation` semantics, so no prelude should be inserted.
-func TestModeMutationDoesNotPrepend(t *testing.T) {
+// TestModeMutationPrepends verifies that the `mutation` processor uses
+// ModeMutation — V1 `mutation` maps ONTO the input document (MapOnto, root
+// starts as input), so the translator prepends `output = input` to preserve
+// the mutate-in-place default.
+func TestModeMutationPrepends(t *testing.T) {
 	in := `
 pipeline:
   processors:
@@ -302,8 +303,8 @@ pipeline:
 	if err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	if strings.Contains(rep.OutputYAML, "output = input") {
-		t.Fatalf("ModeMutation should NOT prepend `output = input`, got:\n%s", rep.OutputYAML)
+	if !strings.Contains(rep.OutputYAML, "output = input") {
+		t.Fatalf("ModeMutation should prepend `output = input` (root starts as input), got:\n%s", rep.OutputYAML)
 	}
 }
 

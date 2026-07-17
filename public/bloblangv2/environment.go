@@ -137,7 +137,16 @@ func (e *Environment) WithoutFunctions(names ...string) *Environment {
 	return clone
 }
 
-// OnlyPure returns a clone with impure plugins stripped out.
+// OnlyPure returns a clone with impure PLUGINS stripped out and future
+// impure-plugin registration rejected.
+//
+// NOTE: it does not currently strip impure STDLIB built-ins (e.g. now(),
+// uuid_v4(), random_int()) — the V2 stdlib does not yet carry per-entry
+// impurity metadata. To sandbox those, remove them explicitly with
+// WithoutFunctions("now", "uuid_v4", …) (which, unlike a bare re-registration,
+// is now honoured for both stdlib and plugin names). Extending OnlyPure to
+// cover impure stdlib built-ins requires marking impurity in the eval stdlib
+// and is tracked as a follow-up.
 func (e *Environment) OnlyPure() *Environment {
 	clone := e.Clone()
 	clone.onlyPure = true
@@ -656,12 +665,21 @@ func (e *Environment) resolverInputs() (
 	}
 
 	// Plugin names override any same-named stdlib entries. They have no
-	// opcode — dispatch falls back to interp.lookupMethod by name.
+	// opcode — dispatch falls back to interp.lookupMethod by name. Skip any
+	// plugin that WithoutMethods/WithoutFunctions removed, otherwise a
+	// sandboxed environment would silently re-expose it (the delete above
+	// only removed the stdlib entry).
 	for name, reg := range e.pluginMethods {
+		if _, removed := e.removedMethods[name]; removed {
+			continue
+		}
 		methods[name] = eval.MethodSpecToInfo(reg.spec)
 		delete(methodOpcodes, name)
 	}
 	for name, reg := range e.pluginFunctions {
+		if _, removed := e.removedFunctions[name]; removed {
+			continue
+		}
 		functions[name] = eval.FunctionSpecToInfo(reg.spec)
 		delete(functionOpcodes, name)
 	}
@@ -680,10 +698,18 @@ func (e *Environment) snapshotPlugins() (
 
 	methods = make(map[string]eval.MethodSpec, len(e.pluginMethods))
 	for name, reg := range e.pluginMethods {
+		// Honour WithoutMethods so a removed plugin is not dispatchable at
+		// runtime (resolverInputs already hides it from parse-time resolution).
+		if _, removed := e.removedMethods[name]; removed {
+			continue
+		}
 		methods[name] = reg.spec
 	}
 	functions = make(map[string]eval.FunctionSpec, len(e.pluginFunctions))
 	for name, reg := range e.pluginFunctions {
+		if _, removed := e.removedFunctions[name]; removed {
+			continue
+		}
 		functions[name] = reg.spec
 	}
 	return

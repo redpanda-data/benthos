@@ -3,6 +3,8 @@
 package migrator
 
 import (
+	"errors"
+
 	bloblmig "github.com/redpanda-data/benthos/v4/public/bloblangv2/migrator"
 )
 
@@ -33,10 +35,11 @@ func builtInRules() map[Target]Rule {
 
 // bloblangProcessorRule is the shared rule body for the three V1
 // mapping processors. The only per-processor variation is the
-// translator Mode: `mapping` and `bloblang` use ModeMapping (the
-// translator prepends `output = input` so unwritten fields pass
-// through unchanged), while `mutation` uses ModeMutation (no prelude
-// — V2's empty `output` matches V1's `mutation` semantics).
+// translator Mode: `mapping` and `bloblang` use ModeMapping (root
+// starts empty — a new document — matching V2's empty `output`, so no
+// prelude), while `mutation` uses ModeMutation (root starts as the
+// input document, so the translator prepends `output = input` to keep
+// unwritten fields passing through).
 //
 // Bodies that consist of a single `from "path"` statement are
 // rewritten to bloblang_v2_file, preserving the user's file-factoring
@@ -57,6 +60,15 @@ func bloblangProcessorRule(mode bloblmig.Mode) Rule {
 			// file-backed form pointing at the rewritten path.
 			_, rep, err := ctx.MigrateBloblang(body, mode)
 			if err != nil {
+				// A from-only body that resolves to nothing is 0%-coverage, so
+				// the inner migrate trips the coverage gate and returns a
+				// CoverageError — but the Report it carries still pinpoints the
+				// unresolved target. Surface that (actionable) reason rather
+				// than a bare coverage message.
+				var cerr *bloblmig.CoverageError
+				if errors.As(err, &cerr) && reportHasUnresolvedFrom(cerr.Report) {
+					return ctx.Unsupported("from target " + v1Path + " could not be resolved")
+				}
 				return ctx.Unsupported(err.Error())
 			}
 			// Even when MigrateBloblang returns success, the report

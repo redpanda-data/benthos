@@ -2001,7 +2001,15 @@ func (interp *Interpreter) Run(input any, metadata map[string]any) (output any, 
 			case recursionError:
 				err = errors.New("maximum recursion depth exceeded")
 			default:
-				panic(r) // re-panic for unexpected errors
+				// Defense in depth: a mapping must never crash the host
+				// process. Any other panic (e.g. an unbounded stdlib method
+				// overflowing, or a latent interpreter bug hit by adversarial
+				// input) is converted into a message-level runtime error
+				// rather than propagated. Recoverable panics only — fatal
+				// runtime conditions (true OOM, stack exhaustion) cannot be
+				// recovered and are instead guarded at the source (bounded
+				// allocation in repeat/range, the recursion depth cap).
+				err = fmt.Errorf("bloblang mapping panicked: %v", r)
 			}
 		}
 	}()

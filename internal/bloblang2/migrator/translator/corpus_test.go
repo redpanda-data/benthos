@@ -204,6 +204,9 @@ func runOne(interp spectest.Interpreter, tc *spectest.TestCase, fileLevel map[st
 		MinCoverage: 0.5,
 		Verbose:     true,
 		Files:       mergeFiles(fileLevel, tc.Files),
+		// The V1 reference runner starts root empty (MapPart / bare-mapping
+		// semantics), so migrate in the matching empty-start mode.
+		Mode: translator.ModeMapping,
 	})
 	if err != nil {
 		return outcome{outcomeTranslateFail, fmt.Sprintf("translate: %v", err)}

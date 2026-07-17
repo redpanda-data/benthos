@@ -34,7 +34,6 @@ pipeline:
 	// pipeline:
 	//   processors:
 	//     - bloblang_v2: |
-	//         output = input
 	//         output.id = input?.id
 }
 

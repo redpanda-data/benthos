@@ -162,18 +162,22 @@ func (t *translator) translateProgram(p *v1ast.Program) *syntax.Program {
 
 	out := &syntax.Program{}
 
-	// ModeMapping prelude: V1 `mapping` starts `root` as the input
-	// document, whereas V2 `output` starts as `{}`. Prepend an explicit
-	// `output = input` so a V1 mapping whose statements only tweak
-	// individual fields continues to pass the input through.
-	if t.rec.opts.Mode == ModeMapping {
+	// ModeMutation prelude: V1's `mutation` processor maps ONTO the existing
+	// message (MapOnto — `root` starts as the input document), whereas V1's
+	// `mapping` processor constructs a NEW document (MapPart — `root` starts
+	// as value.Nothing / empty). V2 `output` also starts empty, so it already
+	// matches V1 `mapping`; only `mutation` needs an explicit `output = input`
+	// prelude to preserve the mutate-in-place / pass-through default. (Getting
+	// this backwards silently leaks unassigned input fields on a mapping, or
+	// drops the whole document on a mutation.)
+	if t.rec.opts.Mode == ModeMutation {
 		t.rec.Rewritten(Change{
 			Line:        1,
 			Column:      1,
 			Severity:    SeverityInfo,
 			Category:    CategoryIdiomRewrite,
 			RuleID:      RuleRootToOutput,
-			Explanation: "ModeMapping: prepended `output = input` to preserve V1 mapping pass-through default",
+			Explanation: "ModeMutation: prepended `output = input` to preserve V1 mutation's mutate-in-place default (root starts as the input document)",
 		})
 		out.Stmts = append(out.Stmts, &syntax.Assignment{
 			TokenPos: syntax.Pos{Line: 1, Column: 1},

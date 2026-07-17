@@ -961,9 +961,23 @@ func (t *translator) flagNonBoolCond(cond v1ast.Expr, tokPos v1ast.Pos) {
 }
 
 // translateMatchExpr rewrites `match [subject] { cases }`.
+//
+// V1 rebinds `this` to the subject inside BOTH case patterns and bodies. V2
+// does not: the subject is reachable only through an explicit `as` binding,
+// and in the `as` form every non-wildcard case must be a boolean predicate
+// (bare value cases are an equality-match feature of the no-`as` form). So
+// when any case references `this`, we emit `match S as __match { … }`, rebind
+// `this` → `__match`, and convert equality-value patterns to
+// `__match == value` (boolean-predicate patterns pass through). Matches whose
+// cases never touch `this` keep the simpler equality form unchanged.
 func (t *translator) translateMatchExpr(m *v1ast.MatchExpr) syntax.Expr {
 	out := &syntax.MatchExpr{TokenPos: pos(m.TokPos), BindingSlot: -1}
+
+	rebind := m.Subject != nil && matchCasesReferenceThis(m)
+
 	if m.Subject != nil {
+		// The subject is evaluated in the OUTER context — translate it before
+		// pushing any `this` rebind.
 		out.Subject = t.translateExpr(m.Subject)
 	} else {
 		// Subject-less match (V1 boolean-case form). V2 requires each
@@ -977,6 +991,21 @@ func (t *translator) translateMatchExpr(m *v1ast.MatchExpr) syntax.Expr {
 			Explanation: "V1 boolean-case match coerces non-boolean case patterns; V2 errors when a case doesn't evaluate to bool",
 		})
 	}
+
+	const binding = "__match"
+	if rebind {
+		out.Binding = binding
+		t.rec.Note(Change{
+			Line: m.TokPos.Line, Column: m.TokPos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMatchSubjectRebinds,
+			SpecRef:     "§8",
+			Explanation: "V1 match rebinds `this` to the subject in case patterns and bodies; rewritten to V2 `match … as __match` with `this` → `__match` and equality-value patterns rewritten to `__match == value` — verify predicate-vs-equality classification of any dynamic case",
+		})
+		t.pushThisRebind(binding)
+		defer t.popThisRebind()
+	}
+
 	hasWildcard := false
 	for _, c := range m.Cases {
 		if c.Wildcard {
@@ -994,7 +1023,21 @@ func (t *translator) translateMatchExpr(m *v1ast.MatchExpr) syntax.Expr {
 		}
 		mc := syntax.MatchCase{Wildcard: c.Wildcard}
 		if c.Pattern != nil {
-			mc.Pattern = t.translateExpr(c.Pattern)
+			pat := t.translateExpr(c.Pattern)
+			if pat == nil {
+				continue
+			}
+			if rebind && !isPredicatePattern(c.Pattern) {
+				// Value pattern: V1 equality-matches it against the subject.
+				// In the `as` form that must be an explicit boolean predicate.
+				pat = &syntax.BinaryExpr{
+					Left:  &syntax.IdentExpr{TokenPos: pos(m.TokPos), Name: binding, SlotIndex: -1},
+					Op:    syntax.EQ,
+					OpPos: pos(m.TokPos),
+					Right: pat,
+				}
+			}
+			mc.Pattern = pat
 		}
 		if body := t.translateExpr(c.Body); body != nil {
 			mc.Body = body
@@ -1021,9 +1064,122 @@ func (t *translator) translateMatchExpr(m *v1ast.MatchExpr) syntax.Expr {
 				Name:     "deleted",
 			},
 		})
+	} else if !hasWildcard {
+		// A match without a `_` wildcard produces V1's nothing sentinel when
+		// no case matches — the assignment is skipped / the root passes
+		// through, exactly like an else-less `if`. V2 has no implicit
+		// passthrough. The if-without-else path is already flagged
+		// (RuleIfNoElseNothing); flag the match form the same way — it was
+		// previously silent outside a collection literal.
+		t.rec.Note(Change{
+			Line: m.TokPos.Line, Column: m.TokPos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleIfNoElseNothing,
+			SpecRef:     "§14#71",
+			Explanation: "V1 match without a wildcard (`_`) yields the nothing sentinel when no case matches (skipping the assignment / passing the root through); V2 has no implicit passthrough — add a `_ =>` case if that behaviour is required",
+		})
 	}
 	t.rec.Exact()
 	return out
+}
+
+// matchCasesReferenceThis reports whether any case pattern or body of a V1
+// match references `this`. When true, `this` denotes the subject (V1 rebinds
+// it), which requires the V2 `as`-binding form. Over-detection (e.g. a `this`
+// inside a nested lambda that rebinds it again) is harmless: the rebind stack
+// scopes correctly, so the only cost is an otherwise-unused `as` binding.
+func matchCasesReferenceThis(m *v1ast.MatchExpr) bool {
+	for _, c := range m.Cases {
+		if exprContainsThis(c.Pattern) || exprContainsThis(c.Body) {
+			return true
+		}
+	}
+	return false
+}
+
+// exprContainsThis reports whether e references `this` anywhere.
+func exprContainsThis(e v1ast.Expr) bool {
+	switch x := e.(type) {
+	case nil:
+		return false
+	case *v1ast.ThisExpr:
+		return true
+	case *v1ast.FunctionCall:
+		return anyContainsThis(x.Args)
+	case *v1ast.MethodCall:
+		return exprContainsThis(x.Recv) || anyContainsThis(x.Args)
+	case *v1ast.BinaryExpr:
+		return exprContainsThis(x.Left) || exprContainsThis(x.Right)
+	case *v1ast.UnaryExpr:
+		return exprContainsThis(x.Operand)
+	case *v1ast.ParenExpr:
+		return exprContainsThis(x.Inner)
+	case *v1ast.FieldAccess:
+		return exprContainsThis(x.Recv)
+	case *v1ast.MetaCall:
+		return exprContainsThis(x.Key)
+	case *v1ast.Lambda:
+		return exprContainsThis(x.Body)
+	case *v1ast.ArrayLit:
+		for _, el := range x.Elems {
+			if exprContainsThis(el) {
+				return true
+			}
+		}
+	case *v1ast.ObjectLit:
+		for _, en := range x.Entries {
+			if exprContainsThis(en.Key) || exprContainsThis(en.Value) {
+				return true
+			}
+		}
+	case *v1ast.IfExpr:
+		for _, br := range x.Branches {
+			if exprContainsThis(br.Cond) || exprContainsThis(br.Body) {
+				return true
+			}
+		}
+		return x.Else != nil && exprContainsThis(x.Else)
+	case *v1ast.MatchExpr:
+		if exprContainsThis(x.Subject) {
+			return true
+		}
+		for _, c := range x.Cases {
+			if exprContainsThis(c.Pattern) || exprContainsThis(c.Body) {
+				return true
+			}
+		}
+	case *v1ast.MapExpr:
+		return exprContainsThis(x.Recv) || exprContainsThis(x.Body)
+	}
+	return false
+}
+
+func anyContainsThis(args []v1ast.CallArg) bool {
+	for _, a := range args {
+		if exprContainsThis(a.Value) {
+			return true
+		}
+	}
+	return false
+}
+
+// isPredicatePattern reports whether a V1 match case pattern is a boolean
+// predicate (comparison / logical / negation) rather than a value to
+// equality-match against the subject. Determines whether the pattern must be
+// wrapped as `__match == value` in the V2 `as` form.
+func isPredicatePattern(p v1ast.Expr) bool {
+	switch n := p.(type) {
+	case *v1ast.ParenExpr:
+		return isPredicatePattern(n.Inner)
+	case *v1ast.BinaryExpr:
+		switch n.Op {
+		case v1ast.TokEq, v1ast.TokNeq, v1ast.TokLt, v1ast.TokLte, v1ast.TokGt, v1ast.TokGte, v1ast.TokAnd, v1ast.TokOr:
+			return true
+		}
+	case *v1ast.UnaryExpr:
+		return n.Op == v1ast.TokBang
+	}
+	return false
 }
 
 // translateMapExpr rewrites the path-scoped `recv.(expr)` form.

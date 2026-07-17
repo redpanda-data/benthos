@@ -21,6 +21,13 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/bloblang2/go/pratt/syntax"
 )
 
+// maxOutputElements bounds how large a value a single stdlib method may
+// eagerly allocate — repeat's output byte length and range's element count.
+// An unbounded count would panic (int overflow) or OOM the host process, and
+// OOM is not recoverable; capping at the source keeps such a mapping to a
+// message-level runtime error.
+const maxOutputElements = 1 << 26 // ~67 million
+
 // sharedMethods and sharedFunctions hold the static (non-lambda) stdlib
 // entries. They are built once and shared read-only across all interpreters.
 var (
@@ -267,6 +274,22 @@ func (interp *Interpreter) registerFunctions() {
 			}
 			if start == stop {
 				return []any{}
+			}
+			// Bound the element count to avoid unbounded allocation / OOM.
+			absStep := step
+			if absStep < 0 {
+				absStep = -absStep
+			}
+			var span int64
+			if stop > start {
+				span = stop - start
+			} else {
+				span = start - stop
+			}
+			// span < 0 or absStep <= 0 indicates int64 overflow on extreme
+			// bounds/step — treat as over-limit rather than trusting the math.
+			if span < 0 || absStep <= 0 || span/absStep+1 > int64(maxOutputElements) {
+				return NewError("range() would generate too many elements")
 			}
 			var result []any
 			if step > 0 {
@@ -904,10 +927,16 @@ func methodLowercase(receiver any, _ []any) any {
 	return strings.ToLower(s)
 }
 
-func methodTrim(receiver any, _ []any) any {
+func methodTrim(receiver any, args []any) any {
 	s, ok := receiver.(string)
 	if !ok {
 		return NewError(fmt.Sprintf("trim() requires string, got %T", receiver))
+	}
+	// V2 .trim() removes whitespace only and takes no arguments (spec §13).
+	// Reject a supplied argument rather than silently ignoring it — silent
+	// acceptance made a migrated V1 `.trim(cutset)` return the wrong string.
+	if len(args) > 0 {
+		return NewError("trim() takes no arguments (it removes whitespace; there is no cutset form)")
 	}
 	return strings.TrimSpace(s)
 }
@@ -1034,6 +1063,12 @@ func methodRepeat(receiver any, args []any) any {
 	}
 	if count < 0 {
 		return NewError("repeat() count must be non-negative")
+	}
+	// Bound the output length: strings.Repeat panics on int overflow and
+	// allocates the full result eagerly, so an unbounded count is a DoS /
+	// OOM vector. Divide first to avoid overflowing the check itself.
+	if len(s) > 0 && count > int64(maxOutputElements/len(s)) {
+		return NewError("repeat() output would exceed the maximum allowed length")
 	}
 	return strings.Repeat(s, int(count))
 }

@@ -102,8 +102,22 @@ tests:
       }
     output: {"result": "yes"} # FIXME-v1: verify — V1 compares 42 == false, falls through to _
 
-  - name: "dynamic case evaluating to boolean is runtime error"
-    skip: "V1 rebinds `this` inside match arms to the subject value, so `this.score` inside the arm references the subject not the original root; the intended semantic is not expressible without a let binding"
+  - name: "this rebinds to the subject inside match arms"
+    # V1 rebinds `this` to the subject inside case patterns and bodies. The
+    # migrator reproduces this via V2 `match … as __match` (this -> __match),
+    # so `this > 10` here is a predicate on the subject (score), not the root.
+    mapping: |
+      root.result = match this.score {
+        this > 10 => "high",
+        _ => "low",
+      }
+    cases:
+      - name: "predicate on subject matches"
+        input: {"score": 42}
+        output: {"result": "high"}
+      - name: "predicate on subject falls to wildcard"
+        input: {"score": 5}
+        output: {"result": "low"}
 
   - name: "dynamic boolean case error is catchable"
     skip: "V1 does not treat dynamic-boolean-case as an error, and .catch lambda-with-error-object syntax is V2-specific"
