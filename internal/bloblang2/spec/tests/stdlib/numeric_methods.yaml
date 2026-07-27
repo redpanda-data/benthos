@@ -323,3 +323,44 @@ tests:
     mapping: |
       output = 3.456.round(n: 2)
     output: 3.46
+
+  # --- floor/ceil/round on integer receivers: identity, same type (Section 13.8) ---
+
+  - name: "floor of integer is identity"
+    mapping: |
+      output.v = 5.floor()
+      output.t = 5.floor().type()
+    output: {"v": 5, "t": "int64"}
+
+  - name: "ceil of integer is identity"
+    mapping: |
+      output.v = (-7).ceil()
+      output.t = (-7).ceil().type()
+    output: {"v": -7, "t": "int64"}
+
+  - name: "round of integer is identity"
+    mapping: |
+      output.v = 42.round()
+    output: {"v": 42}
+
+  - name: "round of integer with decimals is identity"
+    mapping: |
+      output.v = 42.round(2)
+    output: {"v": 42}
+
+  - name: "floor of uint64 preserves type"
+    mapping: |
+      output.t = 5.uint64().floor().type()
+    output: {"t": "uint64"}
+
+  - name: "floor still works on floats after integer support"
+    mapping: |
+      output.v = 5.9.floor()
+    output: {"v": 5.0}
+
+  - name: "rounding methods on dynamic input do not depend on json number formatting"
+    mapping: |
+      output.a = input.i.round()
+      output.b = input.f.round()
+    input: {"i": 42, "f": 42.0}
+    output: {"a": 42, "b": 42.0}

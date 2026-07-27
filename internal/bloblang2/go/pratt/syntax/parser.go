@@ -313,8 +313,30 @@ func (p *parser) parseStatement() Stmt {
 		return p.parseIfStmt()
 	case MATCH:
 		return p.parseMatchStmt()
+	case THROW:
+		return p.parseThrowStmt()
 	default:
 		return p.parseAssignment()
+	}
+}
+
+// parseThrowStmt parses a bare `throw(message)` statement (spec Section
+// 8.4). The statement ends after the closing paren — postfix operations
+// (e.g. .catch()) are not valid on a throw statement.
+func (p *parser) parseThrowStmt() Stmt {
+	pos := p.tok.Pos
+	p.advance() // consume 'throw'
+	p.expect(LPAREN)
+	args, named := p.parseArgList()
+	p.expect(RPAREN)
+	return &ThrowStmt{
+		TokenPos: pos,
+		Call: &CallExpr{
+			TokenPos: pos,
+			Name:     "throw",
+			Args:     args,
+			Named:    named,
+		},
 	}
 }
 
@@ -1256,31 +1278,33 @@ func (p *parser) parseArgList() ([]CallArg, bool) {
 		return nil, false
 	}
 
-	// Detect named vs positional: peek for "ident :" pattern.
-	named := p.isNamedArgList()
-
+	// Args are parsed per-argument: an argument beginning with the
+	// "ident :" pattern is named, anything else is positional. Leading
+	// positionals followed by named args are allowed (spec Section 3.3);
+	// a positional argument AFTER a named one is a parse error.
 	var args []CallArg
+	sawNamed := false
 	for {
-		if named {
-			// Named mode: expect "name: value".
-			if p.tok.Type != IDENT {
-				p.error(p.tok.Pos, "cannot mix named and positional arguments in the same call")
+		if p.isNamedArgList() {
+			nameTok := p.expect(IDENT)
+			p.expect(COLON)
+			value := p.parseExpr(0)
+			args = append(args, CallArg{Name: nameTok.Literal, Value: value})
+			sawNamed = true
+		} else {
+			if sawNamed {
+				p.error(p.tok.Pos, "positional argument after named argument (positional arguments must come before named arguments)")
 				// Recovery: skip to ) or EOF.
 				for !p.at(RPAREN) && !p.at(EOF) {
 					p.advance()
 				}
 				break
 			}
-			nameTok := p.expect(IDENT)
-			p.expect(COLON)
-			value := p.parseExpr(0)
-			args = append(args, CallArg{Name: nameTok.Literal, Value: value})
-		} else {
-			// Positional mode: after parsing a value, check if ":"
-			// follows an identifier — that indicates named arg mixing.
 			value := p.parseExpr(0)
 			if p.at(COLON) {
-				p.error(p.tok.Pos, "cannot mix positional and named arguments in the same call")
+				// "expr :" where expr wasn't a bare identifier — a
+				// malformed named argument.
+				p.error(p.tok.Pos, "named argument name must be a bare identifier")
 				for !p.at(RPAREN) && !p.at(EOF) {
 					p.advance()
 				}
@@ -1292,8 +1316,12 @@ func (p *parser) parseArgList() ([]CallArg, bool) {
 			break
 		}
 		p.advance() // skip comma
+		if p.at(RPAREN) {
+			p.error(p.tok.Pos, "argument lists do not permit trailing commas")
+			break
+		}
 	}
-	return args, named
+	return args, sawNamed
 }
 
 // isNamedArgList checks if the argument list uses named arguments

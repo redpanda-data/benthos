@@ -48,7 +48,7 @@ export interface VarAssign {
 
 // --- Statements ---
 
-export type Stmt = Assignment | IfStmt | MatchStmt;
+export type Stmt = Assignment | IfStmt | MatchStmt | ThrowStmt;
 
 export interface Assignment {
   kind: "assignment";
@@ -65,6 +65,17 @@ export interface AssignTarget {
   varName: string;
   metaAccess: boolean;
   path: PathSegment[];
+}
+
+/**
+ * ThrowStmt is a bare `throw(message)` statement (spec Section 8.4): it
+ * evaluates the message and halts the mapping with the resulting error.
+ * Only valid in statement contexts (top-level, if/match statement bodies).
+ */
+export interface ThrowStmt {
+  kind: "throw_stmt";
+  pos: Pos;
+  call: CallExpr; // the throw(...) call; name is always "throw"
 }
 
 export interface IfStmt {

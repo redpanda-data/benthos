@@ -147,3 +147,29 @@ tests:
     mapping: |
       output.v = input.items?[0]
     output: {"v": null}
+
+  # --- ?[ guards a null receiver, NOT out-of-bounds (Section 3.1) ---
+
+  - name: "null-safe bracket on present empty array still errors out-of-bounds"
+    mapping: |
+      $items = []
+      output.v = $items?[0]
+    error: "out of bounds"
+
+  - name: "null-safe bracket on present array with invalid index errors"
+    mapping: |
+      $items = [1, 2]
+      output.v = $items?[5]
+    error: "out of bounds"
+
+  - name: "null-safe bracket negative index out-of-bounds errors"
+    mapping: |
+      $items = [1, 2]
+      output.v = $items?[-5]
+    error: "out of bounds"
+
+  - name: "bounds-safe idiom: null-safe bracket combined with catch"
+    input: {"items": []}
+    mapping: |
+      output.v = input.items?[0].catch(err -> null)
+    output: {"v": null}

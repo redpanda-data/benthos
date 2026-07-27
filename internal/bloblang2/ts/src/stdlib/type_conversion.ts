@@ -42,8 +42,10 @@ import {
   MAX_UINT32,
   MAX_INT64,
   MAX_UINT64,
+  compareCodepoints,
 } from "../value.js";
 import { strftimeFormat, DEFAULT_TIMESTAMP_FORMAT } from "./timestamp.js";
+import { stringifyValue } from "./json_stringify.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -103,19 +105,6 @@ function formatFloat32(f: number): string {
   return s;
 }
 
-/** Convert a Value to JSON with object keys sorted (matches Go's json.Marshal behavior). */
-function sortedToJSON(v: Value): unknown {
-  if (isArray(v)) return v.value.map(sortedToJSON);
-  if (isObject(v)) {
-    const obj: Record<string, unknown> = {};
-    const keys = [...v.value.keys()].sort();
-    for (const k of keys) {
-      obj[k] = sortedToJSON(v.value.get(k)!);
-    }
-    return obj;
-  }
-  return toJSON(v);
-}
 
 function cleanupTrailingZeros(s: string): string {
   if (!s.includes(".")) return s;
@@ -152,7 +141,7 @@ function valueToString(v: Value): Value {
         "cannot convert array to string: contains bytes value (convert bytes explicitly before embedding in containers)",
       );
     }
-    return mkString(JSON.stringify(toJSON(v)));
+    return mkString(stringifyValue(v, ""));
   }
   if (isObject(v)) {
     if (containsBytes(v)) {
@@ -160,7 +149,7 @@ function valueToString(v: Value): Value {
         "cannot convert object to string: contains bytes value (convert bytes explicitly before embedding in containers)",
       );
     }
-    return mkString(JSON.stringify(sortedToJSON(v)));
+    return mkString(stringifyValue(v, ""));
   }
   return mkError(`cannot convert ${typeName(v)} to string`);
 }

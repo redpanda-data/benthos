@@ -6,6 +6,7 @@ import type { Interpreter, MethodSpec } from "../interpreter.js";
 import type { ArgFolder } from "../resolver.js";
 import type { CallArg } from "../ast.js";
 import { TokenType } from "../token.js";
+import { simpleLower, simpleUpper } from "./case_mapping.js";
 
 /**
  * Convert Go regex replacement syntax to JS replacement syntax.
@@ -62,8 +63,8 @@ function toInt64(v: Value): bigint | null {
   if (isInt32(v)) return BigInt(v.value);
   if (isUint32(v)) return BigInt(v.value);
   if (isUint64(v)) return v.value;
-  if (isFloat64(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
-  if (isFloat32(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
+  if (isFloat64(v)) return isInt64RangeWholeFloat(v.value) ? BigInt(v.value) : null;
+  if (isFloat32(v)) return isInt64RangeWholeFloat(v.value) ? BigInt(v.value) : null;
   return null;
 }
 
@@ -155,7 +156,7 @@ export function registerStringMethods(interp: Interpreter): void {
     m((_i, recv) => {
       const s = requireString("uppercase", recv);
       if (typeof s !== "string") return s;
-      return mkString(s.toUpperCase());
+      return mkString(simpleUpper(s));
     }),
   );
 
@@ -164,7 +165,7 @@ export function registerStringMethods(interp: Interpreter): void {
     m((_i, recv) => {
       const s = requireString("lowercase", recv);
       if (typeof s !== "string") return s;
-      return mkString(s.toLowerCase());
+      return mkString(simpleLower(s));
     }),
   );
 
@@ -358,5 +359,18 @@ export function registerStringMethods(interp: Interpreter): void {
         return mkError("parse_int() cannot parse: " + s);
       }
     }),
+  );
+}
+
+// isInt64RangeWholeFloat reports whether a float is a whole number that
+// fits in int64. 2^63 is exactly representable as float64, so the upper
+// comparison must be exclusive (spec Section 13 preamble: checked
+// promotion — out-of-range values error, never wrap or saturate).
+function isInt64RangeWholeFloat(f: number): boolean {
+  return (
+    isFinite(f) &&
+    f === Math.trunc(f) &&
+    f < 9223372036854775808 &&
+    f >= -9223372036854775808
   );
 }

@@ -12,6 +12,7 @@ import {
   isArray,
   isObject,
   typeName,
+  compareCodepoints,
 } from "../value.js";
 
 export function registerObjectMethods(interp: Interpreter): void {
@@ -32,7 +33,7 @@ export function registerObjectMethods(interp: Interpreter): void {
       if (!isObject(recv)) {
         return mkError(`keys() requires object, got ${typeName(recv)}`);
       }
-      const keys = [...recv.value.keys()].sort();
+      const keys = [...recv.value.keys()].sort(compareCodepoints);
       return mkArray(keys.map(mkString));
     }),
   );
@@ -45,7 +46,7 @@ export function registerObjectMethods(interp: Interpreter): void {
         return mkError(`values() requires object, got ${typeName(recv)}`);
       }
       // Sort by keys for deterministic order.
-      const keys = [...recv.value.keys()].sort();
+      const keys = [...recv.value.keys()].sort(compareCodepoints);
       return mkArray(keys.map((k) => recv.value.get(k)!));
     }),
   );
@@ -81,6 +82,27 @@ export function registerObjectMethods(interp: Interpreter): void {
       return mkObject(result);
     }),
   );
+
+  // --- merge_deep ---
+  interp.registerMethod("merge_deep", {
+    fn: (_i, recv, args) => {
+      if (!isObject(recv)) {
+        return mkError(`merge_deep() requires object, got ${typeName(recv)}`);
+      }
+      if (args.length !== 1) {
+        return mkError("merge_deep() requires one argument");
+      }
+      const other = args[0]!;
+      if (!isObject(other)) {
+        return mkError("merge_deep() argument must be object");
+      }
+      return mkObject(mergeDeep(recv.value, other.value));
+    },
+    lambdaFn: null,
+    intrinsic: false,
+    acceptsNull: false,
+    params: [{ name: "other", default_: null, hasDefault: false }],
+  });
 
   // --- without (object version: takes array of string keys) ---
   interp.registerMethod(
@@ -131,4 +153,26 @@ export function registerObjectMethods(interp: Interpreter): void {
       return mkObject(result);
     }),
   );
+}
+
+/**
+ * Recursively merge b into a (spec Section 13.7): where both sides hold
+ * objects the merge recurses; on any other collision — scalars, arrays, or
+ * mixed shapes — the value from b replaces the value from a wholesale.
+ * There is no V1-style collision-into-array combining.
+ */
+function mergeDeep(
+  a: Map<string, Value>,
+  b: Map<string, Value>,
+): Map<string, Value> {
+  const result = new Map<string, Value>(a);
+  for (const [k, bv] of b) {
+    const av = result.get(k);
+    if (av !== undefined && isObject(av) && isObject(bv)) {
+      result.set(k, mkObject(mergeDeep(av.value, bv.value)));
+    } else {
+      result.set(k, bv);
+    }
+  }
+  return result;
 }

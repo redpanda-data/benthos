@@ -15,6 +15,7 @@ import type {
   Assignment,
   IfStmt,
   MatchStmt,
+  ThrowStmt,
   LiteralExpr,
   BinaryExpr,
   UnaryExpr,
@@ -302,7 +303,22 @@ export class Interpreter {
       case "match_stmt":
         this.execMatchStmt(stmt);
         break;
+      case "throw_stmt":
+        this.execThrowStmt(stmt);
+        break;
     }
+  }
+
+  // execThrowStmt executes a bare throw(message) statement (spec Section
+  // 8.4): the resulting error halts the mapping, exactly like an uncaught
+  // error from any other statement.
+  private execThrowStmt(t: ThrowStmt): void {
+    const value = this.evalExpr(t.call);
+    if (isError(value)) {
+      throw new RuntimeError(value.message);
+    }
+    // throw() always produces an error; anything else is unreachable.
+    throw new RuntimeError("throw() did not produce an error");
   }
 
   private execAssignment(a: Assignment): void {
@@ -1178,6 +1194,25 @@ export class Interpreter {
               );
             }
             current = spec.lambdaFn(this, current, lambdaArgs);
+          } else if (seg.named) {
+            // Named/mixed args on a path-collapsed method segment resolve
+            // against parameter metadata exactly like ordinary method calls.
+            const params = (spec.params ?? []).map((p) => ({
+              name: p.name,
+              default_: p.default_,
+              hasDefault: p.hasDefault,
+            }));
+            const resolved = this.resolveNamedArgs(
+              seg.args,
+              params,
+              "." + seg.name + "()",
+            );
+            if (isError(resolved)) return resolved;
+            const args = (resolved as { tag: "array"; value: Value[] }).value;
+            for (const a of args) {
+              if (isError(a)) return a;
+            }
+            current = spec.fn!(this, current, args);
           } else {
             const args = this.evalArgs(seg.args);
             for (const a of args) {
@@ -1214,20 +1249,37 @@ export class Interpreter {
       return mkArray(args);
     }
 
-    // Build named arg map.
-    const named = new Map<string, Value>();
-    for (const arg of callArgs) {
+    // Evaluate all args once, in order. The positional prefix (spec
+    // Section 3.3) fills params by index; named args fill the rest by name.
+    const evaled: Value[] = new Array(callArgs.length);
+    for (let i = 0; i < callArgs.length; i++) {
+      const arg = callArgs[i]!;
       const v: Value = arg.folded !== undefined
         ? mkFolded(arg.folded)
         : this.evalExpr(arg.value);
       if (isError(v)) return v;
-      named.set(arg.name, v);
+      evaled[i] = v;
+    }
+    let k = 0;
+    while (k < callArgs.length && callArgs[k]!.name === "") k++;
+    if (k > params.length) {
+      return mkError(
+        `${context}: accepts at most ${params.length} arguments, got ${k} positional`,
+      );
+    }
+    const named = new Map<string, Value>();
+    for (let i = k; i < callArgs.length; i++) {
+      named.set(callArgs[i]!.name, evaled[i]!);
     }
 
     // Map to positional based on parameter metadata.
     const args: Value[] = new Array(params.length);
     for (let i = 0; i < params.length; i++) {
       const p = params[i]!;
+      if (i < k) {
+        args[i] = evaled[i]!;
+        continue;
+      }
       const v = named.get(p.name);
       if (v !== undefined) {
         args[i] = v;
@@ -1237,6 +1289,22 @@ export class Interpreter {
         return mkError(
           `${context}: missing required argument "${p.name}"`,
         );
+      }
+    }
+    // Unknown named arguments are errors, never silently dropped (spec
+    // Section 13 preamble); a named arg targeting a positionally-filled
+    // param is likewise an error. The resolver catches these at compile
+    // time when the callee is known; this is the runtime backstop.
+    for (let i = 0; i < k && i < params.length; i++) {
+      if (named.has(params[i]!.name)) {
+        return mkError(
+          `${context}: named argument "${params[i]!.name}" already provided positionally`,
+        );
+      }
+    }
+    for (const name of named.keys()) {
+      if (!params.some((p) => p.name === name)) {
+        return mkError(`${context}: unknown named argument "${name}"`);
       }
     }
     return mkArray(args);
@@ -1265,14 +1333,17 @@ export class Interpreter {
     if (isError(resolved)) return resolved;
     const args = (resolved as { tag: "array"; value: Value[] }).value;
 
-    // Truncate trailing default-filled args.
+    // Truncate trailing default-filled args: the positional prefix is
+    // explicit by position; named args are explicit by name.
+    let k = 0;
+    while (k < e.args.length && e.args[k]!.name === "") k++;
     const provided = new Set<string>();
-    for (const arg of e.args) {
+    for (const arg of e.args.slice(k)) {
       provided.add(arg.name);
     }
-    let lastExplicit = -1;
+    let lastExplicit = k - 1;
     for (let i = 0; i < spec.params.length; i++) {
-      if (provided.has(spec.params[i]!.name)) {
+      if (i >= k && provided.has(spec.params[i]!.name)) {
         lastExplicit = i;
       }
     }
@@ -1642,12 +1713,18 @@ function reorderNamedCallArgs(
   args: CallArg[],
   params: MethodParam[],
 ): CallArg[] {
+  // The positional prefix (spec Section 3.3) stays in place; only the
+  // named suffix is reordered against the parameter list.
+  let k = 0;
+  while (k < args.length && args[k]!.name === "") k++;
   const byName = new Map<string, CallArg>();
-  for (const arg of args) {
+  for (const arg of args.slice(k)) {
     byName.set(arg.name, arg);
   }
-  const result: CallArg[] = [];
-  for (const p of params) {
+  const result: CallArg[] = args.slice(0, k);
+  for (let pi = 0; pi < params.length; pi++) {
+    if (pi < k) continue;
+    const p = params[pi]!;
     const arg = byName.get(p.name);
     if (arg !== undefined) {
       result.push(arg);

@@ -39,6 +39,7 @@ import {
   MAX_UINT32,
   MAX_UINT64,
   MAX_SAFE_FLOAT64,
+  compareCodepoints,
 } from "./value.js";
 
 // ---------------------------------------------------------------------------
@@ -612,15 +613,19 @@ function compareFloat(a: number, b: number, op: string): Value {
 }
 
 function stringCompare(a: string, b: string, op: string): Value {
+  // Spec Section 2.3: strings compare lexicographically by Unicode
+  // CODEPOINT, which differs from JS's native code-unit order for
+  // astral-plane characters.
+  const c = compareCodepoints(a, b);
   switch (op) {
     case ">":
-      return mkBool(a > b);
+      return mkBool(c > 0);
     case ">=":
-      return mkBool(a >= b);
+      return mkBool(c >= 0);
     case "<":
-      return mkBool(a < b);
+      return mkBool(c < 0);
     case "<=":
-      return mkBool(a <= b);
+      return mkBool(c <= 0);
     default:
       return FALSE;
   }

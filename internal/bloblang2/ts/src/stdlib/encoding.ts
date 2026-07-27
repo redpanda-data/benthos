@@ -43,8 +43,10 @@ import {
   typeName,
   NULL,
   toJSON,
+  compareCodepoints,
 } from "../value.js";
 import { strftimeFormat, DEFAULT_TIMESTAMP_FORMAT } from "./timestamp.js";
+import { stringifyValue } from "./json_stringify.js";
 
 // ---------------------------------------------------------------------------
 // JSON normalization (like Go's json.Number → int64/float64)
@@ -166,33 +168,6 @@ function checkJSONSerializable(v: Value): string {
   return "";
 }
 
-/**
- * Convert a Value to a JSON-compatible JS object with sorted keys
- * and timestamps formatted as strings.
- */
-function sortedJSONValue(v: Value): unknown {
-  if (isNull(v)) return null;
-  if (isBool(v)) return v.value;
-  if (isInt32(v)) return v.value;
-  if (isInt64(v)) return Number(v.value);
-  if (isUint32(v)) return v.value;
-  if (isUint64(v)) return Number(v.value);
-  if (isFloat32(v)) return v.value;
-  if (isFloat64(v)) return v.value;
-  if (isString(v)) return v.value;
-  if (isTimestamp(v)) return strftimeFormat(v.value, DEFAULT_TIMESTAMP_FORMAT, v.offsetMinutes);
-  if (isArray(v)) return v.value.map(sortedJSONValue);
-  if (isObject(v)) {
-    // Sort keys for deterministic output.
-    const obj: Record<string, unknown> = {};
-    const keys = [...v.value.keys()].sort();
-    for (const k of keys) {
-      obj[k] = sortedJSONValue(v.value.get(k)!);
-    }
-    return obj;
-  }
-  return toJSON(v);
-}
 
 // ---------------------------------------------------------------------------
 // Base64 helpers (works in both browser and Node.js)
@@ -302,28 +277,19 @@ export function registerEncoding(interp: Interpreter): void {
   interp.registerMethod("format_json", {
     fn: (_interp: Interpreter, receiver: Value, args: Value[]): Value => {
       let indent = "";
-      let escapeHTML = true;
+      let escapeHTML = false;
 
       if (args.length > 0 && isString(args[0]!)) {
         indent = args[0]!.value;
       }
-      if (args.length > 1 && isBool(args[1]!) && args[1]!.value) {
-        indent = ""; // no_indent overrides indent
-      }
-      if (args.length > 2 && isBool(args[2]!)) {
-        escapeHTML = args[2]!.value;
+      if (args.length > 1 && isBool(args[1]!)) {
+        escapeHTML = args[1]!.value;
       }
 
       const err = checkJSONSerializable(receiver);
       if (err) return mkError(err);
 
-      const jsValue = sortedJSONValue(receiver);
-      let result: string;
-      if (indent !== "") {
-        result = JSON.stringify(jsValue, null, indent);
-      } else {
-        result = JSON.stringify(jsValue);
-      }
+      let result = stringifyValue(receiver, indent);
 
       // HTML escaping: JSON.stringify doesn't escape <, >, & by default.
       if (escapeHTML) {
@@ -340,8 +306,7 @@ export function registerEncoding(interp: Interpreter): void {
     acceptsNull: true,
     params: [
       { name: "indent", default_: mkString(""), hasDefault: true },
-      { name: "no_indent", default_: mkBool(false), hasDefault: true },
-      { name: "escape_html", default_: mkBool(true), hasDefault: true },
+      { name: "escape_html", default_: mkBool(false), hasDefault: true },
     ],
   });
 

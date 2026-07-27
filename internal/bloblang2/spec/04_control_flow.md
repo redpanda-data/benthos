@@ -185,7 +185,7 @@ output.result = match input.x {
 
 **Sources of void:** Void is produced by an if-expression without a final `else` when no condition is true (including `else if` chains without a final `else`), by a match expression without `_` when no case matches (Section 4.2), by certain standard library methods when no result exists (e.g., `.find()` when no element matches — see Section 13.6), and by the `void()` builtin (Section 13.1) when the author wants to produce void explicitly. In all cases, void follows the same rules:
 
-**Summary of void behavior by context:**
+**Summary of void behavior by context** (see Section 8.9 for the full null / void / `deleted()` / error reference table):
 
 | Context | Behavior |
 |---------|----------|
@@ -298,6 +298,8 @@ output.label = if input.flag { "yes" } else { "no" }
 **Rationale for the boolean restriction:** In equality match, a case like `input.score >= 100` is almost always a mistake — the user meant to use `as` for boolean conditions, not compare the matched value against `true`/`false`. Rejecting boolean cases catches this common error. The trade-off is that you cannot equality-match on boolean values (`match input.flag { true => ..., false => ... }`). This is intentional: `if`/`else` handles the boolean case more clearly, and multi-way dispatch on a value that could be `true`, `false`, or a non-boolean is better expressed with `match ... as` or `if`/`else if`/`else` chains.
 
 **Compile-time vs runtime detection:** Boolean literals (`true`, `false`) as case expressions are caught at compile time as a convenience — their type is statically known. Dynamic expressions whose type is not known until runtime (e.g., `match x { $var => ... }` where `$var` happens to be boolean) produce the same error at runtime. In both cases, the fix is the same: use `match ... as` for boolean conditions, or `if`/`else` for boolean dispatch. The split in error timing reflects what the compiler can prove statically, not a semantic difference.
+
+**Error message requirement:** Because the runtime form of this error is data-dependent (see the lazy-check rules below — it can first appear in production on an input no test exercised), implementations **must** make both the compile-time and runtime error messages self-explanatory: they must state that a boolean case was found in an equality match and direct the user to the fix (e.g., `boolean case value in equality match (use 'as' for boolean conditions)`).
 
 **The runtime boolean-case check is lazy.** It only applies to cases that are actually evaluated. Cases in an equality match are evaluated in order, and the first one that matches selects the arm; subsequent case expressions are not evaluated and therefore do not trigger the boolean-case error. A later case that would have been boolean is only a runtime error if execution reaches it. The compile-time rejection of boolean *literals* is unaffected — literal `true`/`false` cases are rejected regardless of whether they would be reached at runtime.
 

@@ -149,6 +149,18 @@ type Assignment struct {
 func (a *Assignment) nodePos() Pos { return a.TokenPos }
 func (a *Assignment) stmtNode()    {}
 
+// ThrowStmt is a bare `throw(message)` statement (spec Section 8.4): it
+// evaluates the message and halts the mapping with the resulting error.
+// Only valid in statement contexts (top-level, if/match statement bodies).
+type ThrowStmt struct {
+	TriviaSet
+	TokenPos Pos
+	Call     *CallExpr // the throw(...) call; Name is always "throw"
+}
+
+func (t *ThrowStmt) nodePos() Pos { return t.TokenPos }
+func (t *ThrowStmt) stmtNode()    {}
+
 // AssignTarget represents the left-hand side of an assignment.
 type AssignTarget struct {
 	Pos        Pos // position of the target root token

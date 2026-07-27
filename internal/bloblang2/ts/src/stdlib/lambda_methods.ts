@@ -30,6 +30,7 @@ import {
   isNumeric,
   typeName,
   valuesEqual,
+  compareCodepoints,
 } from "../value.js";
 import { compareForSort, isSortable, isNaNValue } from "./array_methods.js";
 
@@ -42,8 +43,8 @@ function toInt64(v: Value): bigint | null {
   if (isInt32(v)) return BigInt(v.value);
   if (isUint32(v)) return BigInt(v.value);
   if (isUint64(v)) return v.value;
-  if (isFloat64(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
-  if (isFloat32(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
+  if (isFloat64(v)) return isInt64RangeWholeFloat(v.value) ? BigInt(v.value) : null;
+  if (isFloat32(v)) return isInt64RangeWholeFloat(v.value) ? BigInt(v.value) : null;
   return null;
 }
 
@@ -481,7 +482,10 @@ export function registerLambdaMethods(interp: Interpreter): void {
       if (lambda === null) return mkError("map_values() requires a lambda argument");
 
       const result = new Map<string, Value>();
-      for (const [k, v] of receiver.value) {
+      // Canonical object iteration order (spec Section 2.3).
+      const sortedKeys = [...receiver.value.keys()].sort(compareCodepoints);
+      for (const k of sortedKeys) {
+        const v = receiver.value.get(k)!;
         const val = interp.callLambda(lambda, [v]);
         if (isErrorV(val)) return val;
         if (isVoid(val)) return mkError("map_values() lambda returned void");
@@ -503,7 +507,10 @@ export function registerLambdaMethods(interp: Interpreter): void {
       if (lambda === null) return mkError("map_keys() requires a lambda argument");
 
       const result = new Map<string, Value>();
-      for (const [k, v] of receiver.value) {
+      // Canonical object iteration order (spec Section 2.3).
+      const sortedKeys = [...receiver.value.keys()].sort(compareCodepoints);
+      for (const k of sortedKeys) {
+        const v = receiver.value.get(k)!;
         const newKey = interp.callLambda(lambda, [mkString(k)]);
         if (isErrorV(newKey)) return newKey;
         if (isVoid(newKey)) return mkError("map_keys() lambda returned void");
@@ -528,7 +535,10 @@ export function registerLambdaMethods(interp: Interpreter): void {
       if (lambda === null) return mkError("map_entries() requires a lambda argument");
 
       const result = new Map<string, Value>();
-      for (const [k, v] of receiver.value) {
+      // Canonical object iteration order (spec Section 2.3).
+      const sortedKeys = [...receiver.value.keys()].sort(compareCodepoints);
+      for (const k of sortedKeys) {
+        const v = receiver.value.get(k)!;
         const entry = interp.callLambda(lambda, [mkString(k), v]);
         if (isErrorV(entry)) return entry;
         if (isVoid(entry)) return mkError("map_entries() lambda returned void");
@@ -561,7 +571,10 @@ export function registerLambdaMethods(interp: Interpreter): void {
       if (lambda === null) return mkError("filter_entries() requires a lambda argument");
 
       const result = new Map<string, Value>();
-      for (const [k, v] of receiver.value) {
+      // Canonical object iteration order (spec Section 2.3).
+      const sortedKeys = [...receiver.value.keys()].sort(compareCodepoints);
+      for (const k of sortedKeys) {
+        const v = receiver.value.get(k)!;
         const val = interp.callLambda(lambda, [mkString(k), v]);
         if (isErrorV(val)) return val;
         if (isVoid(val)) return mkError("filter_entries() lambda returned void");
@@ -666,4 +679,17 @@ export function registerLambdaMethods(interp: Interpreter): void {
     params: [{ name: "default", default_: null, hasDefault: false }],
     acceptsNull: false,
   });
+}
+
+// isInt64RangeWholeFloat reports whether a float is a whole number that
+// fits in int64. 2^63 is exactly representable as float64, so the upper
+// comparison must be exclusive (spec Section 13 preamble: checked
+// promotion — out-of-range values error, never wrap or saturate).
+function isInt64RangeWholeFloat(f: number): boolean {
+  return (
+    isFinite(f) &&
+    f === Math.trunc(f) &&
+    f < 9223372036854775808 &&
+    f >= -9223372036854775808
+  );
 }

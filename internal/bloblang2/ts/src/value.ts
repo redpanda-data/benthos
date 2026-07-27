@@ -591,3 +591,40 @@ export function toFloat64Unchecked(v: Value): number {
       return NaN;
   }
 }
+
+/**
+ * Compare two strings by Unicode CODEPOINT order (spec Section 2.3), not
+ * UTF-16 code-unit order. The two differ when one string contains an
+ * astral-plane character (>= U+10000, stored as a surrogate pair) and the
+ * other a code unit in U+E000..U+FFFF: code-unit comparison puts the astral
+ * character first, codepoint comparison puts it last. Matches Go's native
+ * string comparison (UTF-8 byte order == codepoint order).
+ *
+ * Used for the language's string comparison operators, .sort()/.sort_by()
+ * on strings, and canonical object key ordering (keys/values/iter/map_*
+ * iteration and JSON serialization).
+ */
+const SURROGATE_RE = /[\uD800-\uDFFF]/;
+
+export function compareCodepoints(a: string, b: string): number {
+  // Fast path: when neither string contains a UTF-16 surrogate code unit,
+  // every unit IS its codepoint, so native code-unit comparison equals
+  // codepoint comparison. The regex scan is engine-vectorized, keeping the
+  // common (BMP-only) case at near-native speed.
+  if (!SURROGATE_RE.test(a) && !SURROGATE_RE.test(b)) {
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+  // Slow path: full codepoint-by-codepoint comparison.
+  let i = 0;
+  let j = 0;
+  while (i < a.length && j < b.length) {
+    const ca = a.codePointAt(i)!;
+    const cb = b.codePointAt(j)!;
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    i += ca > 0xffff ? 2 : 1;
+    j += cb > 0xffff ? 2 : 1;
+  }
+  if (i < a.length) return 1;
+  if (j < b.length) return -1;
+  return 0;
+}

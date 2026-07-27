@@ -40,6 +40,10 @@
         },
         {
           "type": "SYMBOL",
+          "name": "throw_statement"
+        },
+        {
+          "type": "SYMBOL",
           "name": "map_declaration"
         },
         {
@@ -998,24 +1002,11 @@
       ]
     },
     "argument_list": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "positional_arguments"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "named_arguments"
-        }
-      ]
-    },
-    "positional_arguments": {
       "type": "SEQ",
       "members": [
         {
           "type": "SYMBOL",
-          "name": "_expression"
+          "name": "_argument"
         },
         {
           "type": "REPEAT",
@@ -1028,7 +1019,7 @@
               },
               {
                 "type": "SYMBOL",
-                "name": "_expression"
+                "name": "_argument"
               }
             ]
           }
@@ -1047,40 +1038,16 @@
         }
       ]
     },
-    "named_arguments": {
-      "type": "SEQ",
+    "_argument": {
+      "type": "CHOICE",
       "members": [
         {
           "type": "SYMBOL",
           "name": "named_argument"
         },
         {
-          "type": "REPEAT",
-          "content": {
-            "type": "SEQ",
-            "members": [
-              {
-                "type": "STRING",
-                "value": ","
-              },
-              {
-                "type": "SYMBOL",
-                "name": "named_argument"
-              }
-            ]
-          }
-        },
-        {
-          "type": "CHOICE",
-          "members": [
-            {
-              "type": "STRING",
-              "value": ","
-            },
-            {
-              "type": "BLANK"
-            }
-          ]
+          "type": "SYMBOL",
+          "name": "_expression"
         }
       ]
     },
@@ -1709,6 +1676,39 @@
         {
           "type": "SYMBOL",
           "name": "match_statement"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "throw_statement"
+        }
+      ]
+    },
+    "throw_statement": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "throw"
+        },
+        {
+          "type": "STRING",
+          "value": "("
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SYMBOL",
+              "name": "argument_list"
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "STRING",
+          "value": ")"
         }
       ]
     },

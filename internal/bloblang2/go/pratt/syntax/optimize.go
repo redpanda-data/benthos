@@ -35,6 +35,10 @@ func (o *optimizer) optimizeStmt(stmt Stmt) Stmt {
 		o.optimizeIfStmt(s)
 	case *MatchStmt:
 		o.optimizeMatchStmt(s)
+	case *ThrowStmt:
+		for i := range s.Call.Args {
+			s.Call.Args[i].Value = o.optimizeExpr(s.Call.Args[i].Value)
+		}
 	}
 	return stmt
 }

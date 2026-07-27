@@ -222,3 +222,76 @@ tests:
     mapping: |
       output.result = {"a": 1}.without([null])
     error: "string"
+
+  - name: "without treats dotted string as literal key not a path"
+    mapping: |
+      output.result = {"a.b": 1, "a": {"b": 2}}.without(["a.b"])
+    output: {"result": {"a": {"b": 2}}}
+
+  - name: "without dotted key does not walk into nested objects"
+    mapping: |
+      output.result = {"a": {"b": 1, "c": 2}}.without(["a.b"])
+    output: {"result": {"a": {"b": 1, "c": 2}}}
+
+  # --- merge_deep (Section 13.7): recurse on object-object, other wins otherwise ---
+
+  - name: "merge_deep recurses into nested objects"
+    mapping: |
+      output.result = {"cfg": {"host": "localhost", "port": 8080}}.merge_deep({"cfg": {"host": "remote"}})
+    output: {"result": {"cfg": {"host": "remote", "port": 8080}}}
+
+  - name: "merge_deep scalar collision other wins"
+    mapping: |
+      output.result = {"a": 1, "b": 2}.merge_deep({"a": 9})
+    output: {"result": {"a": 9, "b": 2}}
+
+  - name: "merge_deep arrays replaced not concatenated"
+    mapping: |
+      output.result = {"a": [1, 2]}.merge_deep({"a": [3]})
+    output: {"result": {"a": [3]}}
+
+  - name: "merge_deep mixed shapes other wins wholesale"
+    mapping: |
+      output.o2s = {"a": {"x": 1}}.merge_deep({"a": "s"})
+      output.s2o = {"a": "s"}.merge_deep({"a": {"x": 1}})
+    output: {"o2s": {"a": "s"}, "s2o": {"a": {"x": 1}}}
+
+  - name: "merge_deep recursion applies at every depth"
+    mapping: |
+      output.result = {"a": {"b": {"c": 1, "d": 2}}}.merge_deep({"a": {"b": {"c": 9}}})
+    output: {"result": {"a": {"b": {"c": 9, "d": 2}}}}
+
+  - name: "merge_deep disjoint keys union"
+    mapping: |
+      output.result = {"a": 1}.merge_deep({"b": 2})
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "merge_deep with empty other is identity"
+    mapping: |
+      output.result = {"a": {"b": 1}}.merge_deep({})
+    output: {"result": {"a": {"b": 1}}}
+
+  - name: "merge_deep does not modify originals"
+    mapping: |
+      $a = {"cfg": {"port": 8080}}
+      $b = {"cfg": {"host": "remote"}}
+      $m = $a.merge_deep($b)
+      output.a = $a
+      output.b = $b
+      output.m = $m
+    output: {"a": {"cfg": {"port": 8080}}, "b": {"cfg": {"host": "remote"}}, "m": {"cfg": {"host": "remote", "port": 8080}}}
+
+  - name: "merge_deep non-object argument errors"
+    mapping: |
+      output.result = {"a": 1}.merge_deep([1, 2])
+    error: "object"
+
+  - name: "merge_deep non-object receiver errors"
+    mapping: |
+      output.result = [1].merge_deep({"a": 1})
+    error: "object"
+
+  - name: "merge_deep arrays of objects replaced wholesale"
+    mapping: |
+      output.result = {"a": [{"x": 1}]}.merge_deep({"a": [{"y": 2}]})
+    output: {"result": {"a": [{"y": 2}]}}

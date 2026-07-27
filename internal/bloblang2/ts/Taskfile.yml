@@ -33,6 +33,11 @@ tasks:
     cmds:
       - npx vitest run
 
+  gen:case-tables:
+    desc: Regenerate src/stdlib/case_tables.ts from the Go toolchain's unicode tables
+    cmds:
+      - go run ./scripts/gen-case-tables > src/stdlib/case_tables.ts
+
   clean:
     desc: Remove build artifacts
     cmds:

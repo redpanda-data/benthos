@@ -374,6 +374,8 @@ func (r *resolver) resolveStmt(stmt Stmt) {
 		r.resolveIfStmt(s)
 	case *MatchStmt:
 		r.resolveMatchStmt(s)
+	case *ThrowStmt:
+		r.resolveCall(s.Call)
 	}
 }
 
@@ -554,6 +556,7 @@ func (r *resolver) resolveExpr(expr Expr) {
 		mi, miKnown := r.knownMethods[e.Method]
 		if miKnown {
 			r.checkMethodArity(e, mi)
+			r.checkMethodNamedArgs(e.MethodPos, e.Method, e.Args, mi)
 			r.applyArgFolder(mi.ArgFolder, e.Args, e.MethodPos, "."+e.Method+"()")
 		}
 		if r.methodOpcodes != nil {
@@ -631,6 +634,7 @@ func (r *resolver) resolveExpr(expr Expr) {
 			if seg.Kind == PathSegMethod {
 				if mi, ok := r.knownMethods[seg.Name]; ok {
 					r.checkMethodArityAt(seg.Pos, seg.Name, len(seg.Args), mi)
+					r.checkMethodNamedArgs(seg.Pos, seg.Name, seg.Args, mi)
 					r.applyArgFolder(mi.ArgFolder, seg.Args, seg.Pos, "."+seg.Name+"()")
 				}
 				if r.methodOpcodes != nil {
@@ -670,13 +674,13 @@ func (r *resolver) resolveExpr(expr Expr) {
 }
 
 func (r *resolver) resolveCall(e *CallExpr) {
-	// Validate named arg consistency.
+	// Validate named arg consistency. A positional prefix before the named
+	// args is legal (spec Section 3.3); the parser enforces the ordering.
 	if e.Named && len(e.Args) > 0 {
 		seen := make(map[string]bool)
 		for _, arg := range e.Args {
 			if arg.Name == "" {
-				r.error(e.TokenPos, "cannot mix positional and named arguments")
-				break
+				continue // positional prefix
 			}
 			if seen[arg.Name] {
 				r.error(e.TokenPos, fmt.Sprintf("duplicate named argument %q", arg.Name))
@@ -693,6 +697,7 @@ func (r *resolver) resolveCall(e *CallExpr) {
 			r.checkMapArity(e, m)
 		} else if fi, ok := r.knownFunctions[e.Name]; ok {
 			r.checkFunctionArity(e, fi)
+			r.checkFunctionNamedArgs(e, fi)
 			r.applyArgFolder(fi.ArgFolder, e.Args, e.TokenPos, e.Name+"()")
 			if r.functionOpcodes != nil {
 				e.FunctionOpcode = r.functionOpcodes[e.Name]
@@ -871,25 +876,36 @@ func (r *resolver) checkMapArity(e *CallExpr, m *MapDecl) {
 	}
 
 	if e.Named {
-		// Named args: check for unknown arg names.
-		paramNames := make(map[string]bool)
-		for _, p := range m.Params {
+		// Mixed/named call: a positional prefix fills params by position;
+		// named args fill the rest by name (spec Section 3.3).
+		k := 0
+		for k < len(e.Args) && e.Args[k].Name == "" {
+			k++
+		}
+		if k > total {
+			r.error(e.TokenPos, fmt.Sprintf("arity mismatch: %s() accepts at most %d arguments, got %d positional",
+				e.Name, total, k))
+			return
+		}
+		paramIndex := make(map[string]int, len(m.Params))
+		for i, p := range m.Params {
 			if !p.Discard {
-				paramNames[p.Name] = true
+				paramIndex[p.Name] = i
 			}
 		}
-		for _, arg := range e.Args {
-			if !paramNames[arg.Name] {
+		provided := make(map[string]bool, len(e.Args)-k)
+		for _, arg := range e.Args[k:] {
+			idx, known := paramIndex[arg.Name]
+			switch {
+			case !known:
 				r.error(e.TokenPos, fmt.Sprintf("unknown named argument %q", arg.Name))
+			case idx < k:
+				r.error(e.TokenPos, fmt.Sprintf("named argument %q already provided positionally", arg.Name))
 			}
-		}
-		// Check required params are provided.
-		provided := make(map[string]bool)
-		for _, arg := range e.Args {
 			provided[arg.Name] = true
 		}
-		for _, p := range m.Params {
-			if p.Discard {
+		for i, p := range m.Params {
+			if i < k || p.Discard {
 				continue
 			}
 			if !provided[p.Name] && p.Default == nil {
@@ -939,6 +955,86 @@ func (r *resolver) checkMethodArityAt(pos Pos, name string, nArgs int, mi Method
 	if nArgs > mi.Total {
 		r.error(pos, fmt.Sprintf("%s() accepts at most %d arguments, got %d",
 			name, mi.Total, nArgs))
+	}
+}
+
+// checkMethodNamedArgs validates named arguments against a method's declared
+// parameter names: unknown names are compile errors (spec Section 13 preamble
+// — extra or unknown arguments are errors), as are named calls missing a
+// required parameter. Methods without declared params (Total < 0) skip
+// validation — their args are validated at runtime.
+func (r *resolver) checkMethodNamedArgs(pos Pos, name string, args []CallArg, mi MethodInfo) {
+	if mi.Total < 0 || len(mi.Params) == 0 {
+		return
+	}
+	// A positional prefix fills params by position; named args fill the
+	// rest by name (spec Section 3.3). The parser enforces the ordering.
+	k := 0
+	for k < len(args) && args[k].Name == "" {
+		k++
+	}
+	if k == len(args) {
+		return // purely positional — count checks handle it
+	}
+	provided := make(map[string]bool, len(args)-k)
+	for _, arg := range args[k:] {
+		idx := -1
+		for i, p := range mi.Params {
+			if p.Name == arg.Name {
+				idx = i
+				break
+			}
+		}
+		switch {
+		case idx < 0:
+			r.error(pos, fmt.Sprintf("%s(): unknown named argument %q", name, arg.Name))
+		case idx < k:
+			r.error(pos, fmt.Sprintf("%s(): named argument %q already provided positionally", name, arg.Name))
+		}
+		provided[arg.Name] = true
+	}
+	for i, p := range mi.Params {
+		if i < k || p.HasDefault || provided[p.Name] {
+			continue
+		}
+		r.error(pos, fmt.Sprintf("%s(): missing required named argument %q", name, p.Name))
+	}
+}
+
+// checkFunctionNamedArgs is the function analogue of checkMethodNamedArgs.
+func (r *resolver) checkFunctionNamedArgs(e *CallExpr, fi FunctionInfo) {
+	if fi.Total < 0 || len(fi.Params) == 0 || !e.Named {
+		return
+	}
+	k := 0
+	for k < len(e.Args) && e.Args[k].Name == "" {
+		k++
+	}
+	if k == len(e.Args) {
+		return
+	}
+	provided := make(map[string]bool, len(e.Args)-k)
+	for _, arg := range e.Args[k:] {
+		idx := -1
+		for i, p := range fi.Params {
+			if p.Name == arg.Name {
+				idx = i
+				break
+			}
+		}
+		switch {
+		case idx < 0:
+			r.error(e.TokenPos, fmt.Sprintf("%s(): unknown named argument %q", e.Name, arg.Name))
+		case idx < k:
+			r.error(e.TokenPos, fmt.Sprintf("%s(): named argument %q already provided positionally", e.Name, arg.Name))
+		}
+		provided[arg.Name] = true
+	}
+	for i, p := range fi.Params {
+		if i < k || p.HasDefault || provided[p.Name] {
+			continue
+		}
+		r.error(e.TokenPos, fmt.Sprintf("%s(): missing required named argument %q", e.Name, p.Name))
 	}
 }
 

@@ -293,9 +293,34 @@ class Parser {
         return this.parseIfStmt();
       case TokenType.MATCH:
         return this.parseMatchStmt();
+      case TokenType.THROW:
+        return this.parseThrowStmt();
       default:
         return this.parseAssignment();
     }
+  }
+
+  // parseThrowStmt parses a bare `throw(message)` statement (spec Section
+  // 8.4). The statement ends after the closing paren — postfix operations
+  // (e.g. .catch()) are not valid on a throw statement.
+  private parseThrowStmt(): Stmt {
+    const pos = this.tok.pos;
+    this.advance(); // consume 'throw'
+    this.expect(TokenType.LPAREN);
+    const { args, named } = this.parseArgList();
+    this.expect(TokenType.RPAREN);
+    return {
+      kind: "throw_stmt",
+      pos,
+      call: {
+        kind: "call",
+        pos,
+        namespace: "",
+        name: "throw",
+        args,
+        named,
+      },
+    };
   }
 
   private parseAssignment(): Stmt | null {
@@ -1017,24 +1042,32 @@ class Parser {
   private parseArgList(): { args: CallArg[]; named: boolean } {
     if (this.at(TokenType.RPAREN)) return { args: [], named: false };
 
-    const named = this.isNamedArgList();
+    // Args are parsed per-argument: an argument beginning with the
+    // "ident :" pattern is named, anything else is positional. Leading
+    // positionals followed by named args are allowed (spec Section 3.3);
+    // a positional argument AFTER a named one is a parse error.
     const args: CallArg[] = [];
+    let sawNamed = false;
 
     for (;;) {
-      if (named) {
-        if (this.tok.type !== TokenType.IDENT) {
-          this.error(this.tok.pos, "cannot mix named and positional arguments in the same call");
-          while (!this.at(TokenType.RPAREN) && !this.at(TokenType.EOF)) this.advance();
-          break;
-        }
+      if (this.isNamedArgList()) {
         const nameTok = this.expect(TokenType.IDENT);
         this.expect(TokenType.COLON);
         const value = this.parseExpr(BP_NONE);
         args.push({ name: nameTok.literal, value });
+        sawNamed = true;
       } else {
+        if (sawNamed) {
+          this.error(
+            this.tok.pos,
+            "positional argument after named argument (positional arguments must come before named arguments)",
+          );
+          while (!this.at(TokenType.RPAREN) && !this.at(TokenType.EOF)) this.advance();
+          break;
+        }
         const value = this.parseExpr(BP_NONE);
         if (this.at(TokenType.COLON)) {
-          this.error(this.tok.pos, "cannot mix positional and named arguments in the same call");
+          this.error(this.tok.pos, "named argument name must be a bare identifier");
           while (!this.at(TokenType.RPAREN) && !this.at(TokenType.EOF)) this.advance();
           break;
         }
@@ -1042,9 +1075,13 @@ class Parser {
       }
       if (!this.at(TokenType.COMMA)) break;
       this.advance();
+      if (this.at(TokenType.RPAREN)) {
+        this.error(this.tok.pos, "argument lists do not permit trailing commas");
+        break;
+      }
     }
 
-    return { args, named };
+    return { args, named: sawNamed };
   }
 
   private isNamedArgList(): boolean {

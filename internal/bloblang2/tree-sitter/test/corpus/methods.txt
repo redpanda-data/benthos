@@ -36,11 +36,10 @@ output = input.name.trim().lowercase().replace_all(" ", "-")
         method: (identifier))
       method: (identifier)
       (argument_list
-        (positional_arguments
-          (string
-            (string_content))
-          (string
-            (string_content)))))))
+        (string
+          (string_content))
+        (string
+          (string_content))))))
 
 ==================
 Null-safe field access
@@ -127,15 +126,14 @@ output = input.name.replace_all(old: " ", new: "-")
         field: (identifier))
       method: (identifier)
       (argument_list
-        (named_arguments
-          (named_argument
-            name: (identifier)
-            value: (string
-              (string_content)))
-          (named_argument
-            name: (identifier)
-            value: (string
-              (string_content))))))))
+        (named_argument
+          name: (identifier)
+          value: (string
+            (string_content)))
+        (named_argument
+          name: (identifier)
+          value: (string
+            (string_content)))))))
 
 ==================
 Field access with keyword name
@@ -191,6 +189,29 @@ output = throw("error message")
     (assign_target)
     (call_expression
       (argument_list
-        (positional_arguments
-          (string
+        (string
+          (string_content))))))
+
+==================
+Mixed positional and named arguments
+==================
+
+output = input.name.replace_all(" ", new: "-")
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (method_call
+      receiver: (field_access
+        receiver: (input)
+        field: (identifier))
+      method: (identifier)
+      (argument_list
+        (string
+          (string_content))
+        (named_argument
+          name: (identifier)
+          value: (string
             (string_content)))))))

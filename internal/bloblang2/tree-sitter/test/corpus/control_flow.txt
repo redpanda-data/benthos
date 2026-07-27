@@ -180,3 +180,29 @@ match input.type {
                 (identifier)))
             (string
               (string_content))))))))
+
+==================
+Bare throw statement
+==================
+
+if input.bad {
+  throw("bad input")
+}
+throw("unconditional")
+
+---
+
+(source_file
+  (if_statement
+    (field_access
+      (input)
+      (identifier))
+    (statement_block
+      (throw_statement
+        (argument_list
+          (string
+            (string_content))))))
+  (throw_statement
+    (argument_list
+      (string
+        (string_content)))))

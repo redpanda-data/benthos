@@ -68,7 +68,7 @@ deleted().or("fallback")            # deletion marker
 nothing().or("fallback")            # internal nothing type
 ```
 
-V2 separates these cleanly: `.or()` handles null and void (absence of a value), `.catch()` handles only errors.
+V2 splits this along the axis that matters — *fallback values* versus *error handling*: `.or()` provides a fallback when there is nothing useful to use (null, void, or a `deleted()` marker), while `.catch()` handles only errors. Users can now always distinguish "the value was legitimately null/absent" from "an error occurred during evaluation" — the two conditions V1 conflated.
 
 ### The pipe `|` looks like logical OR but is coalesce
 

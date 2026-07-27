@@ -25,7 +25,7 @@ output@.kafka_topic = "processed" # Adds output metadata
 
 **Input type:** `input` holds the incoming message document, which can be any type — object, array, string, bytes, number, bool, or null. Most commonly it is an object (parsed from JSON), but raw/unstructured messages arrive as bytes or string. The type of `input` is determined by the runtime environment, not by Bloblang. Use `.type()` to check, and methods like `.parse_json()` or `.string()` to convert.
 
-**Reading non-existent fields:** Accessing a field that doesn't exist returns `null` rather than erroring:
+**Reading non-existent fields:** Accessing a field that doesn't exist returns `null` rather than erroring. This is deliberate — input shapes vary, and optional fields are the common case. The flip side is that a misspelled *field name* silently reads as `null` (only unresolved *root identifiers* are compile errors — Section 3.1). Where a field is required, fail loudly with `.not_null("message")` (Section 13.10):
 ```bloblang
 # output is initially {}
 output.field    # Returns null (field doesn't exist)

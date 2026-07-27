@@ -13,7 +13,7 @@ Access nested data: `input.user.email`, `output.result.id`
 
 **Important:** Bare identifiers (parameters and match bindings) are read-only and can only be used in expressions on the right-hand side. They cannot be assigned to.
 
-**Name resolution:** Every bare identifier in an expression must resolve to a bound name — a map parameter, lambda parameter, match `as` binding, map name, or standard library function name. Namespace-qualified references (`namespace::name`) also resolve to maps from imported modules. An unresolved bare identifier is a **compile-time error**. This catches typos like `inpt.field` (instead of `input.field`) at compile time rather than allowing them to parse and fail later. Resolution priority (innermost wins): parameters > maps > standard library functions. User-defined maps shadow standard library functions of the same name.
+**Name resolution:** Every bare identifier in an expression must resolve to a bound name — a map parameter, lambda parameter, match `as` binding, map name, or standard library function name. Namespace-qualified references (`namespace::name`) also resolve to maps from imported modules. An unresolved bare identifier is a **compile-time error**. This catches typos like `inpt.field` (instead of `input.field`) at compile time rather than allowing them to parse and fail later. **Note the scope of this check:** it applies to the *root identifier* only. Field names after `.` are dynamic and cannot be verified at compile time — a field-name typo (`input.naem`) reads as a missing field and returns `null` (Section 7.1). Where a field is required, use `.not_null("message")` (Section 13.10) to fail loudly instead of propagating null. Resolution priority (innermost wins): parameters > maps > standard library functions. User-defined maps shadow standard library functions of the same name.
 
 **Map and function name references:** When a bare identifier or qualified name resolves to a map or standard library function, it is only valid in two contexts: (1) as a call with parentheses — `double(x)`, `math::double(x)` — or (2) as an argument to a higher-order method — `.map(double)`, `.filter(math::is_positive)`. Using a map or function name as a general-purpose expression (e.g., `output.x = double`, `$fn = uuid_v4`) is a **compile-time error**. See Section 5.5 for details.
 
@@ -109,6 +109,16 @@ null?.uppercase()           # null (short-circuited: value is null)
 "hello"?.nonfield?.trim()   # ERROR: cannot access field on string (not null, wrong type)
 ```
 
+**`?[` guards a null receiver, not out-of-bounds.** If the receiver is present but the index is out of range, `?[` still throws — the `?` only covers "the container itself is null." Combine with `.catch()` for bounds safety:
+```bloblang
+$items = null
+$items?[0]                  # null (receiver is null — short-circuited)
+
+$items = []
+$items?[0]                  # ERROR: index out of bounds (receiver present, index invalid)
+$items?[0].catch(err -> null)  # null (bounds-safe: ?[ for null receiver, .catch for bounds)
+```
+
 ## 3.2 Operators
 
 **Precedence** (high to low):
@@ -124,6 +134,16 @@ null?.uppercase()           # null (short-circuited: value is null)
 **Associativity:**
 - **Left-associative:** Arithmetic (`+`, `-`, `*`, `/`, `%`), Logical (`&&`, `||`)
 - **Non-associative:** Comparison (`>`, `>=`, `<`, `<=`), Equality (`==`, `!=`)
+
+**Short-circuit evaluation:** `&&` and `||` evaluate their left operand first and only evaluate the right operand when the left does not determine the result: `&&` skips the right operand when the left is `false`; `||` skips it when the left is `true`. A skipped right operand is **neither evaluated nor type-checked** — its side effects do not occur, errors it would raise are not raised, and a non-boolean right operand is not rejected. When the right operand *is* evaluated, it must be a boolean (a non-boolean value is a runtime error, per Section 2.3). The left operand must always be a boolean.
+
+```bloblang
+false && throw("never runs")    # false (RHS skipped — no error)
+true || throw("never runs")     # true  (RHS skipped — no error)
+true && throw("boom")           # ERROR: boom (RHS evaluated)
+false && 5                      # false (RHS skipped — not type-checked)
+true && 5                       # ERROR: && requires booleans (RHS evaluated)
+```
 
 **Lambda arrow (`->`):** The `->` token is not a binary operator and does not participate in the precedence hierarchy. A lambda is recognized by its distinct prefix — `identifier ->` or `(params) ->` — which the parser can identify before any precedence comparison. The arrow then consumes the entire right-hand side as the lambda body. For example, `x -> x + 1` parses as `x -> (x + 1)`.
 
@@ -161,7 +181,7 @@ output.time = now()
 output.roll = random_int(1, 6)
 ```
 
-**Named arguments:** Functions and user maps support named arguments:
+**Named arguments:** Functions, user maps, and methods support named arguments. A call may use positional arguments, named arguments, or **leading positionals followed by named arguments** — the common form for filling required parameters positionally while selecting specific optionals by name:
 ```bloblang
 # Positional (order matters)
 output.result = some_function(arg1, arg2, arg3)
@@ -170,8 +190,14 @@ output.result = some_function(arg1, arg2, arg3)
 output.result = some_function(param1: arg1, param2: arg2, param3: arg3)
 output.result = some_function(param3: arg3, param1: arg1, param2: arg2)
 
-# Cannot mix positional and named
-output.result = some_function(arg1, param2: arg2)  # ERROR
+# Mixed: leading positionals, then named (fills param1 positionally)
+output.result = some_function(arg1, param3: arg3)
+
+# A positional argument AFTER a named one is a parse error
+output.result = some_function(param1: arg1, arg2)  # ERROR
+
+# A named argument targeting a positionally-filled parameter is a compile error
+output.result = some_function(arg1, param1: arg2)  # ERROR
 
 # Duplicate named arguments are a compile-time error
 output.result = some_function(param1: arg1, param1: arg2)  # ERROR

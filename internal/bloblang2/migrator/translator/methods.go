@@ -109,18 +109,7 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		// V1 .map_each_key == V2 .map_keys (exact match — both take lambda).
 		return t.queryFormRename(m, recv, "map_keys", nil, false)
 	case "assign":
-		// V1 .assign() is a deep recursive merge of nested objects; V2
-		// .merge() is shallow at the top level (nested values are
-		// replaced, not recursively merged). Flag so callers audit
-		// nested object usage.
-		return t.rewrittenRename(m, recv, "merge",
-			Change{
-				RuleID:      RuleMethodDoesNotExist,
-				Severity:    SeverityWarning,
-				Category:    CategorySemanticChange,
-				SpecRef:     "§14#50",
-				Explanation: "V1 .assign() recursively deep-merges nested objects; V2 .merge() replaces nested values rather than merging",
-			})
+		return t.assignRewrite(m, recv)
 
 	// ----- Array indexing: .index(n) -> [n] -----
 	case "index":
@@ -166,25 +155,7 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		})
 		return nil
 	case "format_json":
-		// V1 .format_json() defaults to 4-space indentation; V2 defaults to
-		// compact (no indent). When no argument was given, emit an explicit
-		// 4-space indent so the migrated output matches V1. Explicit args pass
-		// through unchanged.
-		if len(m.Args) == 0 {
-			t.rec.Rewritten(Change{
-				Line: m.NamePos.Line, Column: m.NamePos.Column,
-				Severity: SeverityInfo, Category: CategoryIdiomRewrite,
-				RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
-				Explanation: `V1 .format_json() defaults to 4-space indentation; V2 defaults to compact — emitted .format_json("    ") to preserve V1's indented output`,
-			})
-			return &syntax.MethodCallExpr{
-				Receiver: recv, Method: "format_json", MethodPos: pos(m.NamePos),
-				Args: []syntax.CallArg{{Value: &syntax.LiteralExpr{
-					TokenPos: pos(m.NamePos), TokenType: syntax.STRING, Value: "    ",
-				}}},
-			}
-		}
-		return nil
+		return t.formatJSONRewrite(m, recv)
 
 	// ----- Variadic .without("a","b","c") -> .without(["a","b","c"]) -----
 	case "without":
@@ -454,6 +425,15 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 			RuleID:      RuleMethodDoesNotExist,
 			Explanation: "V1 .string() strips trailing zeros from integer-valued floats; V2 preserves the float form (5.0 stays \"5.0\")",
 		})
+		// V1 .string() on OBJECT/ARRAY receivers HTML-escapes the JSON
+		// output (json.Marshal escapes <, >, &); V2 .string() does not
+		// escape. Data containing those characters serializes differently.
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID:      RuleMethodDoesNotExist,
+			Explanation: "V1 .string() on object/array receivers HTML-escapes the JSON output (< > & become \\u003c \\u003e \\u0026); V2 .string() does not escape — use .format_json(escape_html: true) to reproduce V1's output for containers",
+		})
 		return nil
 	}
 	return nil
@@ -480,7 +460,19 @@ func (t *translator) catchValueToLambda(m *v1ast.MethodCall, recv syntax.Expr) s
 			SpecRef:     "§12.2",
 			Explanation: "V1 .catch(err -> ...) receives the error message as a string; V2 receives an error object of shape {\"what\": msg}",
 		})
-		return nil
+		if m.Args[0].Name == "" {
+			return nil // positional passthrough is valid V2
+		}
+		// V1 names this parameter "fallback"; V2's is "fn", so a named
+		// passthrough would not compile. Re-emit the lambda positionally.
+		lam := t.translateExpr(arg)
+		if lam == nil {
+			return nil
+		}
+		return &syntax.MethodCallExpr{
+			Receiver: recv, Method: "catch", MethodPos: pos(m.NamePos),
+			Args: []syntax.CallArg{{Value: lam}},
+		}
 	}
 	value := t.translateExpr(arg)
 	if value == nil {
@@ -1214,6 +1206,146 @@ func (t *translator) orToOrPlusCatch(m *v1ast.MethodCall, recv syntax.Expr) synt
 	}
 }
 
+// formatJSONRewrite translates V1 .format_json(indent = "    ", no_indent =
+// false, escape_html = true) to V2 .format_json(indent = "", escape_html =
+// false). The defaults differ on BOTH parameters and V2 has no no_indent
+// (compact output is the indent: "" default), so the rewrite always emits
+// explicit indent and escape_html arguments computed from the V1 call —
+// preserving V1's byte output exactly.
+func (t *translator) formatJSONRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+	// Collect V1 args by position/name: (indent, no_indent, escape_html).
+	var indentArg, noIndentArg, escapeArg v1ast.Expr
+	for i, a := range m.Args {
+		switch {
+		case a.Name == "indent" || (a.Name == "" && i == 0):
+			indentArg = a.Value
+		case a.Name == "no_indent" || (a.Name == "" && i == 1):
+			noIndentArg = a.Value
+		case a.Name == "escape_html" || (a.Name == "" && i == 2):
+			escapeArg = a.Value
+		default:
+			// Unknown argument — invalid V1; fall through to the 1:1 path.
+			return nil
+		}
+	}
+
+	litStr := func(v string) syntax.Expr {
+		return &syntax.LiteralExpr{TokenPos: pos(m.NamePos), TokenType: syntax.STRING, Value: v}
+	}
+	litTrue := func() syntax.Expr {
+		return &syntax.LiteralExpr{TokenPos: pos(m.NamePos), TokenType: syntax.TRUE, Value: "true"}
+	}
+
+	// Effective V2 indent: V1 no_indent=true means compact (V2 indent "");
+	// otherwise the V1 indent arg, defaulting to V1's 4-space indent.
+	var indentExpr syntax.Expr
+	switch ni := noIndentArg.(type) {
+	case nil:
+		// no no_indent arg — use indent handling below.
+	case *v1ast.Literal:
+		if ni.Kind == v1ast.LitBool && ni.Bool {
+			indentExpr = litStr("")
+		}
+		// Literal false behaves as absent.
+	default:
+		// Dynamic no_indent cannot be translated — V2 removed the parameter.
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+			Explanation: "V1 .format_json() no_indent argument is a dynamic expression; V2 has no no_indent parameter (compact output is indent: \"\") — the argument was dropped, rewrite by hand (e.g. indent: if <cond> { \"\" } else { \"    \" })",
+		})
+	}
+	if indentExpr == nil {
+		if indentArg != nil {
+			indentExpr = t.translateExpr(indentArg)
+			if indentExpr == nil {
+				return nil
+			}
+		} else {
+			indentExpr = litStr("    ") // V1 default: 4-space indent
+		}
+	}
+
+	// Effective V2 escape_html: pass an explicit arg through, else V1's
+	// escaping-on default.
+	var escapeExpr syntax.Expr
+	if escapeArg != nil {
+		escapeExpr = t.translateExpr(escapeArg)
+		if escapeExpr == nil {
+			return nil
+		}
+	} else {
+		escapeExpr = litTrue()
+	}
+
+	t.rec.Rewritten(Change{
+		Line: m.NamePos.Line, Column: m.NamePos.Column,
+		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+		RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+		Explanation: `V1 .format_json() defaults to 4-space indentation with HTML escaping; V2 defaults to compact and unescaped — emitted explicit indent/escape_html arguments to preserve V1's output`,
+	})
+	return &syntax.MethodCallExpr{
+		Receiver: recv, Method: "format_json", MethodPos: pos(m.NamePos),
+		Named: true,
+		Args: []syntax.CallArg{
+			{Name: "indent", Value: indentExpr},
+			{Name: "escape_html", Value: escapeExpr},
+		},
+	}
+}
+
+// emitMergeCall emits `recv.<method>(arg)` for the merge-family rewrites,
+// recording the given change.
+func (t *translator) emitMergeCall(m *v1ast.MethodCall, recv syntax.Expr, method string, c Change) syntax.Expr {
+	arg := t.translateExpr(m.Args[0].Value)
+	if arg == nil {
+		return nil
+	}
+	c.Line, c.Column = m.NamePos.Line, m.NamePos.Column
+	t.rec.Rewritten(c)
+	return &syntax.MethodCallExpr{
+		Receiver:  recv,
+		Method:    method,
+		MethodPos: pos(m.NamePos),
+		Args:      []syntax.CallArg{{Value: arg}},
+	}
+}
+
+// isDefinitelyNonArrayExpr reports whether a V1 expression is statically
+// known to produce a non-array value (scalar literal or object literal).
+func isDefinitelyNonArrayExpr(e v1ast.Expr) bool {
+	switch e.(type) {
+	case *v1ast.Literal, *v1ast.ObjectLit:
+		return true
+	}
+	return false
+}
+
+// assignRewrite handles V1 .assign(). For OBJECT receivers V1 .assign() is a
+// deep recursive merge where the argument's value replaces on any non-object
+// collision — exactly V2 .merge_deep(). For ARRAY receivers V1 .assign()
+// concatenates. Statically-known array shapes translate to .concat; the
+// object path translates to .merge_deep with a caveat for receivers that
+// could be arrays at runtime.
+func (t *translator) assignRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+	if len(m.Args) != 1 {
+		return nil
+	}
+	if isArrayExpr(m.Recv) && isArrayExpr(m.Args[0].Value) {
+		return t.emitMergeCall(m, recv, "concat", Change{
+			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+			RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
+			Explanation: "V1 .assign() on array receiver+arg concatenates — rewritten as V2 .concat()",
+		})
+	}
+	return t.emitMergeCall(m, recv, "merge_deep", Change{
+		Severity: SeverityWarning, Category: CategorySemanticChange,
+		RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
+		Explanation: "V1 .assign() deep-merges with argument-wins collisions — V2 .merge_deep() matches exactly for object receivers; if this receiver can be an ARRAY at runtime V1 concatenates instead (use .concat())",
+	})
+}
+
 // mergePolymorphicRewrite handles V1 .merge(). V1 is polymorphic:
 //
 //   - Object receiver + object arg  → object-level merge (V2 .merge)
@@ -1224,34 +1356,74 @@ func (t *translator) orToOrPlusCatch(m *v1ast.MethodCall, recv syntax.Expr) synt
 // or a known array-returning method call), we rewrite to `.concat`.
 // Otherwise we leave the call as `.merge` and emit a warning.
 func (t *translator) mergePolymorphicRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
-	if len(m.Args) == 1 && isArrayExpr(m.Recv) && isArrayExpr(m.Args[0].Value) {
-		// Rewrite to V2 .concat(arg).
-		arg := t.translateExpr(m.Args[0].Value)
-		if arg == nil {
-			return nil
-		}
-		t.rec.Rewritten(Change{
-			Line: m.NamePos.Line, Column: m.NamePos.Column,
-			Severity: SeverityInfo, Category: CategoryIdiomRewrite,
-			RuleID:      RuleMethodDoesNotExist,
-			SpecRef:     "§14#50",
-			Explanation: "V1 .merge() on array receiver+arg rewritten as V2 .concat() (V2 .merge is object-only)",
-		})
-		return &syntax.MethodCallExpr{
-			Receiver:  recv,
-			Method:    "concat",
-			MethodPos: pos(m.NamePos),
-			Args:      []syntax.CallArg{{Value: arg}},
+	// V1 array-merge dispatch. V1 .merge() with an ARRAY receiver
+	// concatenates an array argument and APPENDS a non-array argument;
+	// with an OBJECT receiver and a non-object argument it is a silent
+	// no-op. V2 splits these: .concat (arrays), .append (single element),
+	// .merge_deep (objects). Statically-known shapes translate exactly;
+	// partially-known shapes get the closest translation plus a Warning.
+	if len(m.Args) == 1 {
+		recvArray := isArrayExpr(m.Recv)
+		argArray := isArrayExpr(m.Args[0].Value)
+		argNonArray := isDefinitelyNonArrayExpr(m.Args[0].Value)
+		switch {
+		case recvArray && argArray:
+			// Exact: array-array merge is concatenation.
+			return t.emitMergeCall(m, recv, "concat", Change{
+				Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+				RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
+				Explanation: "V1 .merge() on array receiver+arg rewritten as V2 .concat() (V2 .merge is object-only)",
+			})
+		case recvArray && argNonArray:
+			// Exact: V1 array.merge(non-array) appends the single value.
+			return t.emitMergeCall(m, recv, "append", Change{
+				Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+				RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
+				Explanation: "V1 .merge() on an array receiver with a non-array argument appends the value — rewritten as V2 .append()",
+			})
+		case recvArray:
+			// Array receiver, unknown argument shape: V1 concatenates an
+			// array argument but appends anything else.
+			return t.emitMergeCall(m, recv, "concat", Change{
+				Severity: SeverityWarning, Category: CategorySemanticChange,
+				RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
+				Explanation: "V1 .merge() on an array receiver concatenates array arguments but APPENDS non-array arguments; emitted V2 .concat(), which errors on a non-array argument — use .append() if the argument is a single element",
+			})
+		case argArray:
+			// Array argument, unknown receiver shape: V1 concatenates for
+			// an array receiver but silently no-ops for an object receiver.
+			return t.emitMergeCall(m, recv, "concat", Change{
+				Severity: SeverityWarning, Category: CategorySemanticChange,
+				RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
+				Explanation: "V1 .merge() with an array argument concatenates when the receiver is an array but is a silent no-op when the receiver is an object; emitted V2 .concat(), which errors on an object receiver — audit the receiver's type",
+			})
 		}
 	}
-	// Default: pass through as .merge() with a warning.
+	if len(m.Args) != 1 {
+		return nil // invalid V1 arity — fall through to the 1:1 path
+	}
+	// Default (object or statically-indeterminate shape): V1 object .merge()
+	// is a DEEP merge that combines colliding non-object values into arrays.
+	// V2 .merge() is shallow; V2 .merge_deep() recurses like V1 but on any
+	// non-object collision the argument's value replaces (never combines
+	// into an array). Rewrite to .merge_deep() — the closest V2 semantic —
+	// and flag the residual divergence.
+	arg := t.translateExpr(m.Args[0].Value)
+	if arg == nil {
+		return nil
+	}
 	t.rec.Rewritten(Change{
 		Line: m.NamePos.Line, Column: m.NamePos.Column,
 		Severity: SeverityWarning, Category: CategorySemanticChange,
 		RuleID: RuleMethodDoesNotExist, SpecRef: "§14#50",
-		Explanation: "V1 .merge() is polymorphic (objects AND arrays); V2 .merge is object-only — use .concat(other) for arrays",
+		Explanation: "V1 .merge() deep-merges and combines colliding non-object values into arrays; rewritten to V2 .merge_deep(), which recurses into nested objects but on any other collision the argument's value replaces — audit mappings that rely on collision-into-array combining. V2 .merge_deep() is also object-only: if this receiver can be an array at runtime, use .concat() instead (V1 array merge = concatenation)",
 	})
-	return nil
+	return &syntax.MethodCallExpr{
+		Receiver:  recv,
+		Method:    "merge_deep",
+		MethodPos: pos(m.NamePos),
+		Args:      []syntax.CallArg{{Value: arg}},
+	}
 }
 
 // isArrayExpr reports whether a V1 expression is statically known to

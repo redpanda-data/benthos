@@ -336,7 +336,21 @@ func (interp *Interpreter) execStmt(stmt syntax.Stmt) {
 		interp.execIfStmt(s)
 	case *syntax.MatchStmt:
 		interp.execMatchStmt(s)
+	case *syntax.ThrowStmt:
+		interp.execThrowStmt(s)
 	}
+}
+
+// execThrowStmt executes a bare throw(message) statement (spec Section
+// 8.4): the resulting error halts the mapping, exactly like an uncaught
+// error from any other statement.
+func (interp *Interpreter) execThrowStmt(t *syntax.ThrowStmt) {
+	value := interp.evalExpr(t.Call)
+	if IsError(value) {
+		panic(runtimeError{message: ErrorMessage(value)})
+	}
+	// throw() always produces an error; anything else is unreachable.
+	panic(runtimeError{message: "throw() did not produce an error"})
 }
 
 func (interp *Interpreter) execAssignment(a *syntax.Assignment) {
@@ -1502,25 +1516,68 @@ func (interp *Interpreter) resolveNamedArgs(callArgs []syntax.CallArg, params []
 		return args
 	}
 
-	// Build named arg map.
-	named := make(map[string]any, len(callArgs))
-	for _, arg := range callArgs {
+	// Evaluate all args once, in order. The positional prefix (spec
+	// Section 3.3) fills params by index; named args fill the rest by name.
+	evaled := make([]any, len(callArgs))
+	for i, arg := range callArgs {
+		if arg.Folded != nil {
+			evaled[i] = arg.Folded
+			continue
+		}
 		v := interp.evalExpr(arg.Value)
 		if IsError(v) {
 			return v
 		}
-		named[arg.Name] = v
+		evaled[i] = v
+	}
+	k := 0
+	for k < len(callArgs) && callArgs[k].Name == "" {
+		k++
+	}
+	if k > len(params) {
+		return NewError(fmt.Sprintf("%s: accepts at most %d arguments, got %d positional", context, len(params), k))
+	}
+	named := make(map[string]any, len(callArgs)-k)
+	for i := k; i < len(callArgs); i++ {
+		named[callArgs[i].Name] = evaled[i]
 	}
 
 	// Map to positional based on parameter metadata.
 	args := make([]any, len(params))
 	for i, p := range params {
+		if i < k {
+			args[i] = evaled[i]
+			continue
+		}
 		if v, ok := named[p.Name]; ok {
 			args[i] = v
 		} else if p.HasDefault {
 			args[i] = p.Default
 		} else {
 			return NewError(fmt.Sprintf("%s: missing required argument %q", context, p.Name))
+		}
+	}
+	// Unknown named arguments are errors, never silently dropped (spec
+	// Section 13 preamble); a named arg targeting a positionally-filled
+	// param is likewise an error. The resolver catches these at compile
+	// time when the callee is known; this is the runtime backstop.
+	for i, p := range params {
+		if i < k {
+			if _, dup := named[p.Name]; dup {
+				return NewError(fmt.Sprintf("%s: named argument %q already provided positionally", context, p.Name))
+			}
+		}
+	}
+	for name := range named {
+		found := false
+		for _, p := range params {
+			if p.Name == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return NewError(fmt.Sprintf("%s: unknown named argument %q", context, name))
 		}
 	}
 	return args
@@ -1582,14 +1639,18 @@ func (interp *Interpreter) resolveNamedFuncArgs(e *syntax.CallExpr, spec Functio
 	args := resolved.([]any)
 
 	// Truncate trailing default-filled args: find the last parameter position
-	// that was explicitly provided and trim the slice there.
-	provided := make(map[string]bool, len(e.Args))
-	for _, arg := range e.Args {
+	// that was explicitly provided (positionally or by name) and trim there.
+	k := 0
+	for k < len(e.Args) && e.Args[k].Name == "" {
+		k++
+	}
+	provided := make(map[string]bool, len(e.Args)-k)
+	for _, arg := range e.Args[k:] {
 		provided[arg.Name] = true
 	}
-	lastExplicit := -1
+	lastExplicit := k - 1
 	for i, p := range spec.Params {
-		if provided[p.Name] {
+		if i >= k && provided[p.Name] {
 			lastExplicit = i
 		}
 	}
@@ -1603,12 +1664,22 @@ func (interp *Interpreter) resolveNamedFuncArgs(e *syntax.CallExpr, spec Functio
 // parameter metadata. Missing optional args are omitted (the method handles
 // missing trailing args via len(args) checks internally).
 func reorderNamedCallArgs(args []syntax.CallArg, params []MethodParam) []syntax.CallArg {
-	byName := make(map[string]syntax.CallArg, len(args))
-	for _, arg := range args {
+	// The positional prefix (spec Section 3.3) stays in place; only the
+	// named suffix is reordered against the parameter list.
+	k := 0
+	for k < len(args) && args[k].Name == "" {
+		k++
+	}
+	byName := make(map[string]syntax.CallArg, len(args)-k)
+	for _, arg := range args[k:] {
 		byName[arg.Name] = arg
 	}
 	result := make([]syntax.CallArg, 0, len(params))
-	for _, p := range params {
+	result = append(result, args[:k]...)
+	for i, p := range params {
+		if i < k {
+			continue
+		}
 		if arg, ok := byName[p.Name]; ok {
 			result = append(result, arg)
 		} else if !p.HasDefault {
@@ -1692,21 +1763,29 @@ func (interp *Interpreter) bindPositionalParamsStack(params []syntax.Param, args
 
 // bindNamedMapParamsFromArgs binds pre-evaluated named arguments to map params.
 func (interp *Interpreter) bindNamedMapParamsFromArgs(s *scope, m *syntax.MapDecl, e *syntax.CallExpr, evaledArgs []any) string {
-	// Build name→value map from pre-evaluated args.
-	named := make(map[string]any, len(evaledArgs))
-	for i, arg := range e.Args {
+	// The positional prefix (spec Section 3.3) binds params by position;
+	// named args bind the rest by name.
+	k := 0
+	for k < len(e.Args) && e.Args[k].Name == "" {
+		k++
+	}
+	named := make(map[string]any, len(evaledArgs)-k)
+	for i := k; i < len(e.Args); i++ {
 		if i < len(evaledArgs) {
-			named[arg.Name] = evaledArgs[i]
+			named[e.Args[i].Name] = evaledArgs[i]
 		}
 	}
 
-	// Bind each non-discard param from named args or defaults.
-	for _, mp := range m.Params {
+	// Bind each non-discard param from the positional prefix, named args,
+	// or defaults.
+	for pi, mp := range m.Params {
 		if mp.Discard {
 			continue
 		}
 		var val any
-		if v, ok := named[mp.Name]; ok {
+		if pi < k && pi < len(evaledArgs) {
+			val = evaledArgs[pi]
+		} else if v, ok := named[mp.Name]; ok {
 			val = v
 		} else if mp.Default != nil {
 			val = interp.evalExpr(mp.Default)
@@ -1915,7 +1994,11 @@ func toInt64(v any) (int64, bool) {
 		if n != math.Trunc(n) || math.IsNaN(n) || math.IsInf(n, 0) {
 			return 0, false
 		}
-		if n > math.MaxInt64 || n < math.MinInt64 {
+		// math.MaxInt64 rounds UP to 2^63 as a float64, so the upper bound
+		// must be exclusive: a float equal to 2^63 is out of int64 range,
+		// and letting it through hits Go's implementation-defined (and
+		// platform-dependent) float-to-int conversion.
+		if n >= 9223372036854775808.0 || n < math.MinInt64 {
 			return 0, false
 		}
 		return int64(n), true
@@ -1924,7 +2007,7 @@ func toInt64(v any) (int64, bool) {
 		if f != math.Trunc(f) || math.IsNaN(f) || math.IsInf(f, 0) {
 			return 0, false
 		}
-		if f > math.MaxInt64 || f < math.MinInt64 {
+		if f >= 9223372036854775808.0 || f < math.MinInt64 {
 			return 0, false
 		}
 		return int64(f), true

@@ -158,12 +158,28 @@ tests:
       output = {"a": 1}.format_json(indent: "\t")
     output: "{\n\t\"a\": 1\n}"
 
-  # --- format_json: escape_html ---
+  # --- format_json: escape_html (default false - escaping is opt-in) ---
 
-  - name: "format_json escapes html by default"
+  - name: "format_json does not escape html by default"
     mapping: |
       output = {"html": "<b>hi</b>"}.format_json()
+    output: '{"html":"<b>hi</b>"}'
+
+  - name: "format_json escape_html true opts in to escaping"
+    mapping: |
+      output = {"html": "<b>hi</b>"}.format_json(escape_html: true)
     output: '{"html":"\u003cb\u003ehi\u003c/b\u003e"}'
+
+  - name: "format_json ampersand escaped only when opted in"
+    mapping: |
+      output.plain = {"email": "a&b@c.dev"}.format_json()
+      output.escaped = {"email": "a&b@c.dev"}.format_json(escape_html: true)
+    output: {"plain": '{"email":"a&b@c.dev"}', "escaped": '{"email":"a\u0026b@c.dev"}'}
+
+  - name: "format_json no_indent is not a parameter"
+    mapping: |
+      output = {"a": 1}.format_json(no_indent: true)
+    compile_error: "no_indent"
 
   - name: "format_json escape_html false"
     mapping: |
@@ -361,3 +377,27 @@ tests:
     mapping: |
       output = "68656c6c6f".decode(scheme: "hex").string()
     output: "hello"
+
+  # --- Mixed args on format_json ---
+
+  - name: "format_json mixed indent and named escape"
+    mapping: |
+      output = {"h": "<b>"}.format_json("", escape_html: true)
+    output: '{"h":"\u003cb\u003e"}'
+
+  # --- Exact int64/uint64 serialization in containers (Section 13.2) ---
+
+  - name: "large int64 in object serializes exactly via string conversion"
+    mapping: |
+      output = {"n": 9223372036854775807}.string()
+    output: '{"n":9223372036854775807}'
+
+  - name: "large int64 in array serializes exactly via format_json"
+    mapping: |
+      output = [9223372036854775807].format_json()
+    output: '[9223372036854775807]'
+
+  - name: "large uint64 in object serializes exactly"
+    mapping: |
+      output = {"n": "18446744073709551615".uint64()}.format_json()
+    output: '{"n":18446744073709551615}'

@@ -2,11 +2,18 @@
 
 All implementations must provide these functions and methods. This is the complete required standard library — implementations may offer additional functions and methods beyond this list.
 
-**Namespace sharing:** Standard library functions share the same namespace as user-defined maps. User-defined maps shadow standard library functions of the same name. Resolution priority: parameters > maps > standard library functions. Like map names, standard library function names without parentheses can be passed as arguments to higher-order methods (e.g., `.sort_by(abs)`) but cannot be used as general-purpose expressions or stored in variables (Section 5.5).
+**Namespace sharing:** Standard library functions share the same namespace as user-defined maps. User-defined maps shadow standard library functions of the same name. Resolution priority: parameters > maps > standard library functions. Like map names, standard library function names without parentheses can in principle be passed as arguments to higher-order methods, but they cannot be used as general-purpose expressions or stored in variables (Section 5.5). **Note:** in practice this applies to user-defined and namespaced maps — no current standard library function has the unary shape a higher-order method expects (they are generators, constructors, and control functions). To sort by absolute value, use a lambda or a map:
 
-**Named arguments and arity:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps (Section 5.3): positional and named arguments cannot be mixed in the same call, duplicate named arguments are a compile-time error, and extra or mismatched arguments are errors. Parameters with default values may be omitted (Section 5.1). Parameters marked with `?` in their signatures are truly optional — they may be omitted entirely, and the method's documented behavior applies when they are absent.
+```bloblang
+[3, -1, 2].sort_by(x -> x.abs())     # Lambda form
 
-**Parameter type promotion:** When a method or function signature documents a specific numeric type (e.g., `int64`), any numeric type is accepted. Integer parameters accept any numeric value that is a whole number — float values like `2.0` are accepted but `1.5` is an error (consistent with indexing rules in Section 3.1). Float parameters accept any numeric type (integers are promoted to float using the standard promotion rules in Section 2.3). In all cases, checked promotion applies — values that cannot be represented exactly in the target type are a runtime error.
+map mag(x) { x.abs() }
+[3, -1, 2].sort_by(mag)              # Map-reference form (Section 5.5)
+```
+
+**Named arguments and arity:** All standard library functions and methods support named arguments using the parameter names shown in their signatures. For example, `random_int(min: 1, max: 100)` and `.replace_all(old: "x", new: "y")` are valid. The same rules apply as for user maps (Section 5.3): leading positional arguments may be followed by named arguments (never the reverse), a named argument may not target a positionally-filled parameter, duplicate named arguments are a compile-time error, and extra or unknown arguments are errors. Parameters with default values may be omitted (Section 5.1). Parameters marked with `?` in their signatures are truly optional — they may be omitted entirely, and the method's documented behavior applies when they are absent.
+
+**Parameter type promotion:** When a method or function signature documents a specific numeric type (e.g., `int64`), any numeric type is accepted. Integer parameters accept any numeric value that is a whole number — float values like `2.0` are accepted but `1.5` is an error (consistent with indexing rules in Section 3.1). Float parameters accept any numeric type (integers are promoted to float using the standard promotion rules in Section 2.3). In all cases, checked promotion applies — values that cannot be represented exactly in the target type are a runtime error. **The same rule applies to method receivers** documented with a specific numeric type: for example, `.ts_from_unix_milli()` documents an int64 receiver, so `2000.0.ts_from_unix_milli()` (a whole-number float) is accepted while a fractional receiver like `2000.5.ts_from_unix_milli()` is a runtime error — never silently truncated. (Methods that document their own float handling, such as `.ts_from_unix()`'s sub-second float support and the truncating `.int64()` conversion, are exceptions and say so explicitly.)
 
 **Lambda return values — void and `deleted()`:** Unless a method's documentation explicitly states otherwise, void and `deleted()` as lambda return values are runtime errors. The bullets below describe what the listed methods do when their *lambda* returns void, `deleted()`, or an error — receiver behaviour is covered separately in each method's documentation. (As a rule, only `.or()` and `.catch()` accept void or `deleted()` as a *receiver*; every other method errors on such a receiver, `.into()` included.)
 
@@ -33,7 +40,7 @@ Return the current timestamp. Each call returns a fresh timestamp — consecutiv
 
 - **Parameters:** none
 - **Returns:** timestamp (stored zone: process local)
-- **Example:** `now().ts_unix()` → `1709500000`
+- **Example:** `now().ts_unix()` → `1709294400`
 
 ### `random_int(min, max)`
 
@@ -69,14 +76,22 @@ Construct a timestamp from individual components.
 - **Parameters:**
   - `year` (int64)
   - `month` (int64, 1–12)
-  - `day` (int64, 1–31)
+  - `day` (int64, 1 to the number of days in the given month/year — calendar-validated, leap-year aware)
   - `hour` (int64, 0–23, default `0`)
   - `minute` (int64, 0–59, default `0`)
   - `second` (int64, 0–59, default `0`)
   - `nano` (int64, 0–999999999, default `0`)
   - `timezone` (string, IANA timezone name or `"UTC"`, default `"UTC"`)
 - **Returns:** timestamp (stored zone is the `timezone` argument)
-- **Errors:** if any component is out of range, or if the timezone is not recognized
+- **Errors:** if any component is out of range, if the timezone is not recognized, if the date is **calendar-invalid** (e.g. `timestamp(2024, 2, 30)`, or Feb 29 in a non-leap year), or if the wall-clock time **does not exist in the given timezone** because a DST transition skips it (e.g. 02:30 on a spring-forward night). Validation is strict: invalid inputs are never normalized or rolled over into a neighbouring day/hour.
+- **Validation examples:**
+  ```bloblang
+  timestamp(2024, 2, 29)                                   # OK: 2024 is a leap year
+  timestamp(2023, 2, 29)                                   # ERROR: day 29 does not exist in 2023-02
+  timestamp(2024, 2, 30)                                   # ERROR: day 30 does not exist in 2024-02
+  timestamp(2024, 4, 31)                                   # ERROR: day 31 does not exist in 2024-04
+  timestamp(2024, 3, 10, 2, 30, 0, 0, "America/New_York")  # ERROR: skipped by a DST transition
+  ```
 - **Examples:**
   ```bloblang
   timestamp(2024, 3, 1)                                    # 2024-03-01T00:00:00Z
@@ -167,6 +182,11 @@ Same rules as any other void: assigning `void()` to a field skips the assignment
 output.status = if input.override_status { input.override_status } else { void() }
 # Equivalent to the if-without-else form but explicit
 
+# void() vs deleted() on assignment — "leave as-is" vs "remove":
+output.status = "pending"
+output.status = if input.reset { deleted() } else { void() }
+# If reset: field REMOVED. Otherwise: assignment skipped, keeps "pending".
+
 # Use inside a map result when no output is desired for some inputs
 map classify(val) {
   if val > 0 { "positive" }
@@ -194,7 +214,7 @@ Convert a value to its string representation.
   - Null: `"null"`
   - Timestamp: RFC 3339 format with shortest-precision fractional seconds — trailing zeros are removed and the fractional part (including `.`) is omitted entirely when zero. Examples: `"2024-03-01T12:00:00Z"`, `"2024-03-01T12:00:00.123Z"`. UTC is represented as `Z`. This matches `.ts_format()` with default arguments.
   - Bytes: UTF-8 decode (error if bytes are not valid UTF-8)
-  - Array, object: compact JSON (equivalent to `.format_json()` with default parameters — object keys sorted lexicographically by Unicode codepoint value)
+  - Array, object: compact JSON (equivalent to `.format_json()` with default parameters — object keys in canonical ascending codepoint order, no HTML escaping)
   - Lambda: error
   - **Containers with bytes:** If an array or object contains a bytes value (at any nesting depth), `.string()` errors — bytes have no implicit serialization format. Convert bytes explicitly before including them in structures that will be stringified (e.g., use `.encode("base64")` or `.string()` on individual bytes values before embedding them in arrays or objects).
 - **Examples:**
@@ -363,7 +383,7 @@ Return the length of a sequence, or the number of keys in an object.
 Check if a sequence contains the given target.
 
 - **Receiver:** string, array, bytes
-- **Parameters:** `target` — string (for string/bytes receiver) or any (for array receiver)
+- **Parameters:** `target` — string (for string receiver), bytes (for bytes receiver), or any (for array receiver)
 - **Returns:** bool
 - **Semantics:**
   - **string:** searches for a substring
@@ -397,7 +417,7 @@ Return the index of the first occurrence of the target, or -1 if not found.
 
 ### `.slice(low, high?)`
 
-Extract a subsequence. `low` is inclusive, `high` is exclusive. When `high` is omitted, the slice extends to the end of the sequence. Negative indices count from the end. Indices are clamped to the length — out-of-bounds indices do not error. If `low >= high` after clamping, returns an empty value of the same type.
+Extract a subsequence. `low` is inclusive, `high` is exclusive. When `high` is omitted, the slice extends to the end of the sequence. Negative indices count from the end. Indices are clamped to the sequence bounds at **both ends** — out-of-bounds indices do not error: after negative-index resolution, a `low` below the start clamps to `0` and a `high` beyond the end clamps to the length. `"hello".slice(-100, 3)` therefore behaves as `"hello".slice(0, 3)`. If `low >= high` after clamping, returns an empty value of the same type.
 
 - **Receiver:** string, array, bytes
 - **Parameters:** `low` (int64), `high` (int64, optional — defaults to sequence length when omitted)
@@ -435,19 +455,28 @@ Reverse a sequence.
 
 ### `.uppercase()`
 
-Convert a string to uppercase.
+Convert a string to uppercase using **Unicode simple case mapping**: each codepoint maps 1:1 via the Unicode `Simple_Uppercase_Mapping` table, locale-independently. Codepoint length never changes. Characters whose only uppercase form is multi-character under full case mapping are left unchanged (`"ß".uppercase()` → `"ß"`, not `"SS"`), and no locale special-casing is applied (no Turkish dotted/dotless-i rules).
 
 - **Receiver:** string
 - **Returns:** string
-- **Example:** `"hello".uppercase()` → `"HELLO"`
+- **Examples:**
+  ```bloblang
+  "hello".uppercase()   # "HELLO"
+  "ß".uppercase()       # "ß" (no simple uppercase form — unchanged)
+  "café".uppercase()    # "CAFÉ"
+  ```
 
 ### `.lowercase()`
 
-Convert a string to lowercase.
+Convert a string to lowercase using **Unicode simple case mapping**: each codepoint maps 1:1 via the Unicode `Simple_Lowercase_Mapping` table, locale-independently. Codepoint length never changes, and no context rules apply — `"Σ"` maps to `"σ"` even in word-final position (no final-sigma rule), and `"İ"` (U+0130) maps to `"i"` (one codepoint, not `i` + combining dot).
 
 - **Receiver:** string
 - **Returns:** string
-- **Example:** `"HELLO".lowercase()` → `"hello"`
+- **Examples:**
+  ```bloblang
+  "HELLO".lowercase()   # "hello"
+  "ΟΔΟΣ".lowercase()    # "οδοσ" (simple mapping: no final-sigma context rule)
+  ```
 
 ### `.trim()`
 
@@ -724,6 +753,11 @@ Convert an array to an array of `{"index": i, "value": v}` objects.
 
 - **Receiver:** array
 - **Returns:** array of objects
+- **Note:** The wrapper field is deliberately named `index` (an int64 position), not `key` — it is not the `{"key", "value"}` entry shape used by `.collect()` (Section 13.6) and `.iter()` (Section 13.7), whose `key` must be a string. To feed `.enumerate()` output into `.collect()`, rename and stringify explicitly:
+  ```bloblang
+  ["a", "b"].enumerate().map(e -> {"key": e.index.string(), "value": e.value}).collect()
+  # {"0": "a", "1": "b"}
+  ```
 - **Example:**
   ```bloblang
   ["a", "b", "c"].enumerate()
@@ -863,7 +897,7 @@ Convert an array of `{"key": k, "value": v}` objects back into an object. Last v
   [{"key": "a", "value": 1, "extra": true}].collect()                 # {"a": 1} (extra fields ignored)
   [{"key": "a", "value": 1}, {"bad": true}].collect()                 # ERROR: element missing "key"/"value" fields
   ```
-- **Note:** `.collect()` returns an object, and object key ordering is not preserved (Section 2.3). Sorting entries before `.collect()` (e.g., `.iter().sort_by(e -> e.key).collect()`) does not produce an object with ordered iteration — the sort order is lost. JSON serialization is deterministic (keys sorted lexicographically by `.format_json()` and `.string()`), but iteration order via `.iter()`, `.keys()`, and `.values()` is not guaranteed.
+- **Note:** `.collect()` returns an object, and objects enumerate in the canonical ascending-key order regardless of input order (Section 2.3). Sorting entries before `.collect()` (e.g., `.iter().sort_by(e -> e.key).collect()`) is therefore a no-op — the result iterates and serializes identically either way. `.collect()`'s "last value wins" refers to the input ARRAY order (later elements override earlier ones), which is well-defined.
 
 ---
 
@@ -871,20 +905,20 @@ Convert an array of `{"key": k, "value": v}` objects back into an object. Last v
 
 ### `.iter()`
 
-Convert an object to an array of `{"key": k, "value": v}` objects. Order is not guaranteed.
+Convert an object to an array of `{"key": k, "value": v}` objects, entries in the canonical ascending-key order (Section 2.3).
 
 - **Receiver:** object
 - **Returns:** array of objects (each with string field `"key"` and any-typed field `"value"`)
 - **Examples:**
   ```bloblang
   {"a": 1, "b": 2}.iter()
-  # [{"key": "a", "value": 1}, {"key": "b", "value": 2}] (order not guaranteed)
+  # [{"key": "a", "value": 1}, {"key": "b", "value": 2}] (canonical ascending-key order)
 
   # Extract keys
-  {"a": 1, "b": 2}.iter().map(e -> e.key)         # ["a", "b"] (order not guaranteed)
+  {"a": 1, "b": 2}.iter().map(e -> e.key)         # ["a", "b"] (canonical ascending-key order)
 
   # Extract values
-  {"a": 1, "b": 2}.iter().map(e -> e.value)        # [1, 2] (order not guaranteed)
+  {"a": 1, "b": 2}.iter().map(e -> e.value)        # [1, 2] (canonical ascending-key order)
 
   # Complex transforms — use iter/collect
   {"a": 1, "b": 2}.iter().map(e -> {"key": e.key.uppercase(), "value": e.value * 10}).collect()
@@ -898,25 +932,25 @@ Convert an object to an array of `{"key": k, "value": v}` objects. Order is not 
 
 ### `.keys()`
 
-Return the keys of an object as an array of strings. Order is not guaranteed.
+Return the keys of an object as an array of strings, in the canonical ascending Unicode-codepoint order (Section 2.3).
 
 - **Receiver:** object
 - **Returns:** array of strings
 - **Examples:**
   ```bloblang
-  {"a": 1, "b": 2}.keys()           # ["a", "b"] (order not guaranteed)
+  {"a": 1, "b": 2}.keys()           # ["a", "b"] (canonical ascending-key order)
   {}.keys()                          # []
   ```
 
 ### `.values()`
 
-Return the values of an object as an array. Order is not guaranteed, but corresponds to the same order as `.keys()` within a single call.
+Return the values of an object as an array, in the canonical ascending order of their keys (Section 2.3).
 
 - **Receiver:** object
 - **Returns:** array of any
 - **Examples:**
   ```bloblang
-  {"a": 1, "b": 2}.values()         # [1, 2] (order not guaranteed)
+  {"a": 1, "b": 2}.values()         # [1, 2] (canonical ascending-key order)
   {}.values()                        # []
   ```
 
@@ -935,7 +969,7 @@ Check if an object contains the given key.
 
 ### `.merge(other)`
 
-Merge two objects. If both objects contain the same key, the value from `other` wins.
+Merge two objects **shallowly**: if both objects contain the same key, the value from `other` wins — **wholesale**, at the top level only. Nested objects are replaced, not recursively merged; the same applies to arrays and every other value type. For recursive merging use `.merge_deep()`. (Bloblang V1's `merge` was a deep merge that combined colliding values into arrays — V2's `.merge` is neither.)
 
 - **Receiver:** object
 - **Parameters:** `other` (object)
@@ -944,6 +978,34 @@ Merge two objects. If both objects contain the same key, the value from `other` 
   ```bloblang
   {"a": 1, "b": 2}.merge({"b": 3, "c": 4})   # {"a": 1, "b": 3, "c": 4}
   {"a": 1}.merge({})                            # {"a": 1}
+
+  # Shallow: the whole nested object from `other` replaces, "port" is dropped
+  {"cfg": {"host": "localhost", "port": 8080}}.merge({"cfg": {"host": "remote"}})
+  # {"cfg": {"host": "remote"}}
+  ```
+
+### `.merge_deep(other)`
+
+Merge two objects **recursively**: where both objects hold an object at the same key, the merge recurses into them; on any other collision — scalars, arrays, or mixed shapes (object vs non-object) — the value from `other` replaces the value from the receiver wholesale. Arrays are never concatenated and colliding values are never combined into arrays. (This differs from Bloblang V1's `merge`, which combined colliding non-object values into arrays — the V1→V2 migrator flags that residual divergence when it rewrites V1 `merge` calls to `.merge_deep()`.)
+
+- **Receiver:** object
+- **Parameters:** `other` (object)
+- **Returns:** object
+- **Errors:** if the argument is not an object
+- **Examples:**
+  ```bloblang
+  # Recurses where both sides are objects — "port" survives
+  {"cfg": {"host": "localhost", "port": 8080}}.merge_deep({"cfg": {"host": "remote"}})
+  # {"cfg": {"host": "remote", "port": 8080}}
+
+  # Non-object collision: other wins wholesale
+  {"a": 1}.merge_deep({"a": 2})                     # {"a": 2}
+  {"a": [1, 2]}.merge_deep({"a": [3]})              # {"a": [3]} (arrays replaced, not concatenated)
+  {"a": {"x": 1}}.merge_deep({"a": "scalar"})       # {"a": "scalar"} (mixed shapes: other wins)
+
+  # Recursion applies at every depth
+  {"a": {"b": {"c": 1, "d": 2}}}.merge_deep({"a": {"b": {"c": 9}}})
+  # {"a": {"b": {"c": 9, "d": 2}}}
   ```
 
 ### `.without(keys)`
@@ -953,11 +1015,18 @@ Return a new object with the specified keys removed. Keys that don't exist are i
 - **Receiver:** object
 - **Parameters:** `keys` (array of strings)
 - **Returns:** object
+- **Semantics:** Each key is a **literal top-level key** — consistent with string keys everywhere else in the language (indexing, object literals), a `.` inside a key string has no special meaning. `.without(["a.b"])` removes the literal key `"a.b"`, never the nested path `a → b`. (This differs from Bloblang V1, whose `without` walked dot-separated paths.) To remove a nested key, target the nested object:
+  ```bloblang
+  # Remove input.a.b (nested), keeping the rest of input.a
+  output = input
+  output.a = input.a.without(["b"])
+  ```
 - **Examples:**
   ```bloblang
   {"a": 1, "b": 2, "c": 3}.without(["a", "c"])   # {"b": 2}
   {"a": 1}.without(["x"])                          # {"a": 1}
   {"a": 1, "b": 2}.without([])                     # {"a": 1, "b": 2}
+  {"a.b": 1, "a": {"b": 2}}.without(["a.b"])       # {"a": {"b": 2}} (literal key removed)
   ```
 
 ### `.map_values(fn)`
@@ -979,7 +1048,7 @@ Transform the values of an object, keeping keys unchanged. Returns a new object.
 
 ### `.map_keys(fn)`
 
-Transform the keys of an object, keeping values unchanged. Returns a new object. If multiple keys map to the same new key, last value wins.
+Transform the keys of an object, keeping values unchanged. Returns a new object. Entries are visited in the canonical ascending-key order (Section 2.3); if multiple keys map to the same new key, last value wins — i.e. the value from the lexicographically-largest colliding source key.
 
 - The lambda must return a value for every entry — void is an error
 - If the lambda returns `deleted()`, the entry is omitted from the result (the `deleted()` check runs before the type check, so this does not trigger a type error)
@@ -996,7 +1065,7 @@ Transform the keys of an object, keeping values unchanged. Returns a new object.
 
 ### `.map_entries(fn)`
 
-Transform both keys and values of an object. The lambda receives two parameters (key, value) and must return an object with `"key"` (string) and `"value"` (any) fields. If multiple entries produce the same key, last value wins. **Errors:** lambda returns a non-object, returned object is missing `"key"` or `"value"` field, or `"key"` is not a string.
+Transform both keys and values of an object. The lambda receives two parameters (key, value) and must return an object with `"key"` (string) and `"value"` (any) fields. Entries are visited in the canonical ascending-key order (Section 2.3); if multiple entries produce the same key, last value wins — i.e. the value from the lexicographically-largest colliding source key. **Errors:** lambda returns a non-object, returned object is missing `"key"` or `"value"` field, or `"key"` is not a string.
 
 - The lambda must return a value for every entry — void is an error
 - If the lambda returns `deleted()`, the entry is omitted from the result
@@ -1033,6 +1102,7 @@ Return the absolute value. For signed integer types, errors if the result overfl
 
 - **Receiver:** any numeric type
 - **Returns:** same type as receiver
+- **Float edge values:** `NaN.abs()` is `NaN` (IEEE 754); `(-0.0).abs()` is `0.0` (indistinguishable from `-0.0` — they compare equal and render identically, Section 2.3); `(-Infinity).abs()` is `Infinity`.
 - **Examples:**
   ```bloblang
   (-5).abs()      # 5 (int64)
@@ -1045,8 +1115,8 @@ Return the absolute value. For signed integer types, errors if the result overfl
 
 Return the largest integer value less than or equal to the number.
 
-- **Receiver:** float32, float64
-- **Returns:** same float type as receiver
+- **Receiver:** any numeric type. Integer receivers (int32, int64, uint32, uint64) are returned unchanged, same type — an integer is already its own floor. This keeps the method total over dynamically-typed numeric data (JSON `42` parses as int64, `42.0` as float64).
+- **Returns:** same type as receiver
 - **Examples:**
   ```bloblang
   3.7.floor()     # 3.0 (float64)
@@ -1057,8 +1127,8 @@ Return the largest integer value less than or equal to the number.
 
 Return the smallest integer value greater than or equal to the number.
 
-- **Receiver:** float32, float64
-- **Returns:** same float type as receiver
+- **Receiver:** any numeric type. Integer receivers (int32, int64, uint32, uint64) are returned unchanged, same type — an integer is already its own ceil. This keeps the method total over dynamically-typed numeric data (JSON `42` parses as int64, `42.0` as float64).
+- **Returns:** same type as receiver
 - **Examples:**
   ```bloblang
   3.2.ceil()      # 4.0 (float64)
@@ -1069,9 +1139,9 @@ Return the smallest integer value greater than or equal to the number.
 
 Round a float to `n` decimal places using **half-even rounding** (banker's rounding, IEEE 754 default). Defaults to `0` (round to nearest integer). Negative `n` rounds to powers of 10: `-1` rounds to nearest 10, `-2` to nearest 100, etc.
 
-- **Receiver:** float32, float64
+- **Receiver:** any numeric type. Integer receivers (int32, int64, uint32, uint64) are returned unchanged, same type — an integer is already round at any precision. This keeps the method total over dynamically-typed numeric data (JSON `42` parses as int64, `42.0` as float64).
 - **Parameters:** `n` (int64, default `0` — number of decimal places; negative values round to powers of 10)
-- **Returns:** same float type as receiver
+- **Returns:** same type as receiver
 - **Examples:**
   ```bloblang
   3.7.round()        # 4.0 (default: round to nearest integer)
@@ -1162,7 +1232,7 @@ Convert a timestamp to a Unix timestamp (seconds since epoch).
 
 - **Receiver:** timestamp
 - **Returns:** int64
-- **Example:** `now().ts_unix()` → `1709500000`
+- **Example:** `now().ts_unix()` → `1709294400`
 
 ### `.ts_unix_milli()`
 
@@ -1170,7 +1240,7 @@ Convert a timestamp to a Unix timestamp in milliseconds.
 
 - **Receiver:** timestamp
 - **Returns:** int64
-- **Example:** `now().ts_unix_milli()` → `1709500000000`
+- **Example:** `now().ts_unix_milli()` → `1709294400000`
 
 ### `.ts_unix_micro()`
 
@@ -1178,7 +1248,7 @@ Convert a timestamp to a Unix timestamp in microseconds.
 
 - **Receiver:** timestamp
 - **Returns:** int64
-- **Example:** `now().ts_unix_micro()` → `1709500000000000`
+- **Example:** `now().ts_unix_micro()` → `1709294400000000`
 
 ### `.ts_unix_nano()`
 
@@ -1186,7 +1256,7 @@ Convert a timestamp to a Unix timestamp in nanoseconds.
 
 - **Receiver:** timestamp
 - **Returns:** int64
-- **Example:** `now().ts_unix_nano()` → `1709500000000000000`
+- **Example:** `now().ts_unix_nano()` → `1709294400000000000`
 
 ### `.ts_from_unix()`
 
@@ -1198,9 +1268,9 @@ Convert a Unix timestamp (seconds since epoch) to a timestamp. Integer receivers
 - **Returns:** timestamp
 - **Examples:**
   ```bloblang
-  1709500000.ts_from_unix()       # timestamp: 2024-03-03T...Z (second precision)
-  1709500000.5.ts_from_unix()     # timestamp: 2024-03-03T...500000000Z (sub-second)
-  1709500000.123456.ts_from_unix()  # ~microsecond precision (float64 limit)
+  1709294400.ts_from_unix()       # timestamp: 2024-03-01T12:00:00Z (second precision)
+  1709294400.5.ts_from_unix()     # timestamp: 2024-03-01T12:00:00.5Z (sub-second)
+  1709294400.123456.ts_from_unix()  # ~microsecond precision (float64 limit)
   ```
 
 ### `.ts_from_unix_milli()`
@@ -1211,8 +1281,8 @@ Convert a Unix timestamp in milliseconds to a timestamp. Provides exact millisec
 - **Returns:** timestamp
 - **Examples:**
   ```bloblang
-  1709500000000.ts_from_unix_milli()       # same as 1709500000.ts_from_unix()
-  1709500000123.ts_from_unix_milli()       # exact millisecond precision
+  1709294400000.ts_from_unix_milli()       # same as 1709294400.ts_from_unix()
+  1709294400123.ts_from_unix_milli()       # exact millisecond precision
   ```
 
 ### `.ts_from_unix_micro()`
@@ -1223,8 +1293,8 @@ Convert a Unix timestamp in microseconds to a timestamp. Provides exact microsec
 - **Returns:** timestamp
 - **Examples:**
   ```bloblang
-  1709500000000000.ts_from_unix_micro()       # same as 1709500000.ts_from_unix()
-  1709500000123456.ts_from_unix_micro()       # exact microsecond precision
+  1709294400000000.ts_from_unix_micro()       # same as 1709294400.ts_from_unix()
+  1709294400123456.ts_from_unix_micro()       # exact microsecond precision
   ```
 
 ### `.ts_from_unix_nano()`
@@ -1235,8 +1305,8 @@ Convert a Unix timestamp in nanoseconds to a timestamp. Provides exact nanosecon
 - **Returns:** timestamp
 - **Examples:**
   ```bloblang
-  1709500000000000000.ts_from_unix_nano()          # same as 1709500000.ts_from_unix()
-  1709500000123456789.ts_from_unix_nano()          # exact nanosecond precision
+  1709294400000000000.ts_from_unix_nano()          # same as 1709294400.ts_from_unix()
+  1709294400123456789.ts_from_unix_nano()          # exact nanosecond precision
   now().ts_unix_nano().ts_from_unix_nano()          # lossless round-trip
   ```
 
@@ -1336,15 +1406,14 @@ Parse a JSON string into a value. Errors if the string is not valid JSON.
   `1e3`.parse_json()                # 1000.0 (float64: has exponent)
   ```
 
-### `.format_json(indent = "", no_indent = false, escape_html = true)`
+### `.format_json(indent = "", escape_html = false)`
 
-Serialize a value to a JSON string. Object keys are sorted lexicographically by Unicode codepoint value (consistent with string comparison semantics in Section 2.3). Timestamp values are formatted as RFC 3339 strings (Section 2.3). **Note:** Since object key ordering is not preserved (Section 2.3) and keys are sorted on output, `.parse_json().format_json()` may produce different key ordering than the original JSON string.
+Serialize a value to a JSON string. Object keys are emitted in the canonical enumeration order — ascending by Unicode codepoint (Section 2.3, consistent with string comparison semantics). Timestamp values are formatted as RFC 3339 strings (Section 2.3). **Note:** Since insertion order is never observable (Section 2.3) and keys are emitted sorted, `.parse_json().format_json()` may produce different key ordering than the original JSON string.
 
 - **Receiver:** any type (except bytes)
 - **Parameters:**
-  - `indent` (string, default `""`) — Indentation string. When non-empty, each element in a JSON object or array begins on a new line, indented with one or more copies of this string according to nesting depth.
-  - `no_indent` (bool, default `false`) — Disable indentation entirely, overriding `indent`. Produces compact output with no extra whitespace.
-  - `escape_html` (bool, default `true`) — Escape HTML-sensitive characters (`<`, `>`, `&`) as Unicode escape sequences in strings.
+  - `indent` (string, default `""`) — Indentation string. The default `""` produces compact output with no extra whitespace. When non-empty, each element in a JSON object or array begins on a new line, indented with one or more copies of this string according to nesting depth.
+  - `escape_html` (bool, default `false`) — Escape HTML-sensitive characters (`<`, `>`, `&`) as Unicode escape sequences in strings. Off by default — escaping is an explicit opt-in for output embedded in HTML contexts. (Bloblang V1's `format_json` escaped by default and also had a redundant `no_indent` parameter; V2 has neither — compact output is the `indent: ""` default.)
 - **Returns:** string
 - **Errors:** if the value is or contains a bytes value (at any nesting depth). Bytes have no implicit JSON serialization — use `.encode("base64")` or `.encode("hex")` before serializing. NaN and Infinity float values also error (not representable in JSON).
 - **Numeric serialization:**
@@ -1357,8 +1426,8 @@ Serialize a value to a JSON string. Object keys are sorted lexicographically by 
   {"time": now()}.format_json()                            # `{"time":"2024-03-01T12:00:00Z"}`
   {"name": "Alice", "age": 30}.format_json(indent: "  ")   # pretty-printed with 2-space indent
   {"name": "Alice"}.format_json(indent: "\t")              # pretty-printed with tab indent
-  {"html": "<b>hi</b>"}.format_json()                      # `{"html":"\u003cb\u003ehi\u003c/b\u003e"}`
-  {"html": "<b>hi</b>"}.format_json(escape_html: false)    # `{"html":"<b>hi</b>"}`
+  {"html": "<b>hi</b>"}.format_json()                      # `{"html":"<b>hi</b>"}` (no escaping by default)
+  {"html": "<b>hi</b>"}.format_json(escape_html: true)     # `{"html":"\u003cb\u003ehi\u003c/b\u003e"}` (opt-in escaping)
   ```
 
 ### `.encode(scheme)`

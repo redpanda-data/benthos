@@ -121,3 +121,17 @@ tests:
       output = input.n.type()
     input: {"n": {_type: "float64", value: "NaN"}}
     output: "float64"
+
+  # --- NaN through .abs() (Section 13.8) ---
+
+  - name: "abs of NaN is NaN"
+    mapping: |
+      output = input.n.abs() != input.n.abs()
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: true
+
+  - name: "abs of negative infinity is positive infinity"
+    mapping: |
+      output = input.n.abs() == input.p
+    input: {"n": {_type: "float64", value: "-Infinity"}, "p": {_type: "float64", value: "Infinity"}}
+    output: true

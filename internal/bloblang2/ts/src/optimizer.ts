@@ -46,6 +46,11 @@ function optimizeStmt(stmt: Stmt): Stmt {
     case "match_stmt":
       optimizeMatchStmt(stmt);
       return stmt;
+    case "throw_stmt":
+      for (const arg of stmt.call.args) {
+        arg.value = optimizeExpr(arg.value);
+      }
+      return stmt;
   }
 }
 

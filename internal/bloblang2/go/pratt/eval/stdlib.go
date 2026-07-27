@@ -358,11 +358,25 @@ func (interp *Interpreter) registerFunctions() {
 			if nano < 0 || nano > 999999999 {
 				return NewError(fmt.Sprintf("timestamp(): nano %d out of range (0-999999999)", nano))
 			}
+			// Strict calendar validation (spec Section 13.1): a day that
+			// does not exist in the given month/year errors — never
+			// normalized Go-style (Feb 30 must not become Mar 1).
+			if maxDay := daysInMonth(int(year), time.Month(month)); day > int64(maxDay) {
+				return NewError(fmt.Sprintf("timestamp(): day %d does not exist in %04d-%02d (month has %d days)", day, year, month, maxDay))
+			}
 			loc, err := time.LoadLocation(tz)
 			if err != nil {
 				return NewError("timestamp(): unknown timezone " + tz)
 			}
-			return time.Date(int(year), time.Month(month), int(day), int(hour), int(minute), int(sec), int(nano), loc)
+			tm := time.Date(int(year), time.Month(month), int(day), int(hour), int(minute), int(sec), int(nano), loc)
+			// A wall-clock time skipped by a DST transition normalizes to a
+			// different clock reading — reject rather than silently shift
+			// (spec Section 13.1: non-existent local times error).
+			if tm.Year() != int(year) || tm.Month() != time.Month(month) || tm.Day() != int(day) ||
+				tm.Hour() != int(hour) || tm.Minute() != int(minute) {
+				return NewError(fmt.Sprintf("timestamp(): %04d-%02d-%02d %02d:%02d does not exist in %s (skipped by a DST transition)", year, month, day, hour, minute, tz))
+			}
+			return tm
 		},
 		Params: []FunctionParam{
 			{Name: "year"},
@@ -377,6 +391,12 @@ func (interp *Interpreter) registerFunctions() {
 	})
 
 	interp.registerMessageFunctions()
+}
+
+// daysInMonth returns the number of days in the given month/year
+// (leap-year aware) — day 0 of the following month.
+func daysInMonth(year int, m time.Month) int {
+	return time.Date(year, m+1, 0, 0, 0, 0, 0, time.UTC).Day()
 }
 
 func (interp *Interpreter) registerMethods() {
@@ -436,6 +456,7 @@ func (interp *Interpreter) registerMethods() {
 	interp.RegisterMethod("values", m(methodValues))
 	interp.RegisterMethod("has_key", m(methodHasKey))
 	interp.RegisterMethod("merge", m(methodMerge))
+	interp.RegisterMethod("merge_deep", MethodSpec{Fn: methodMergeDeep, Params: []MethodParam{{Name: "other"}}})
 	interp.RegisterMethod("without", m(methodWithout))
 	interp.RegisterMethod("iter", m(methodIter))
 	interp.RegisterMethod("collect", m(methodCollect))
@@ -463,8 +484,7 @@ func (interp *Interpreter) registerMethods() {
 	interp.RegisterMethod("parse_json", m(methodParseJSON))
 	interp.RegisterMethod("format_json", MethodSpec{Fn: methodFormatJSON, AcceptsNull: true, Params: []MethodParam{
 		{Name: "indent", Default: "", HasDefault: true},
-		{Name: "no_indent", Default: false, HasDefault: true},
-		{Name: "escape_html", Default: true, HasDefault: true},
+		{Name: "escape_html", Default: false, HasDefault: true},
 	}})
 	interp.RegisterMethod("encode", MethodSpec{Fn: methodEncode, Params: []MethodParam{
 		{Name: "scheme"},
@@ -563,20 +583,20 @@ func methodString(receiver any, _ []any) any {
 		if containsBytes(v) {
 			return NewError("cannot convert array to string: contains bytes value (convert bytes explicitly before embedding in containers)")
 		}
-		b, err := json.Marshal(sortedJSON(v))
+		s, err := marshalJSONNoEscape(sortedJSON(v))
 		if err != nil {
 			return NewError("cannot convert array to string: " + err.Error())
 		}
-		return string(b)
+		return s
 	case map[string]any:
 		if containsBytes(v) {
 			return NewError("cannot convert object to string: contains bytes value (convert bytes explicitly before embedding in containers)")
 		}
-		b, err := json.Marshal(sortedJSON(v))
+		s, err := marshalJSONNoEscape(sortedJSON(v))
 		if err != nil {
 			return NewError("cannot convert object to string: " + err.Error())
 		}
-		return string(b)
+		return s
 	default:
 		return NewError(fmt.Sprintf("cannot convert %T to string", receiver))
 	}
@@ -1212,8 +1232,10 @@ func methodFloor(receiver any, _ []any) any {
 		return math.Floor(v)
 	case float32:
 		return float32(math.Floor(float64(v)))
+	case int32, int64, uint32, uint64:
+		return v // identity: floor of an integer is itself (spec Section 13.8)
 	default:
-		return NewError(fmt.Sprintf("floor() requires float, got %T", receiver))
+		return NewError(fmt.Sprintf("floor() requires a numeric receiver, got %T", receiver))
 	}
 }
 
@@ -1223,8 +1245,10 @@ func methodCeil(receiver any, _ []any) any {
 		return math.Ceil(v)
 	case float32:
 		return float32(math.Ceil(float64(v)))
+	case int32, int64, uint32, uint64:
+		return v // identity: ceil of an integer is itself (spec Section 13.8)
 	default:
-		return NewError(fmt.Sprintf("ceil() requires float, got %T", receiver))
+		return NewError(fmt.Sprintf("ceil() requires a numeric receiver, got %T", receiver))
 	}
 }
 
@@ -1243,8 +1267,10 @@ func methodRound(receiver any, args []any) any {
 		return roundFloat(v, n)
 	case float32:
 		return float32(roundFloat(float64(v), n))
+	case int32, int64, uint32, uint64:
+		return v // identity: an integer is already round at any precision (spec Section 13.8)
 	default:
-		return NewError(fmt.Sprintf("round() requires float, got %T", receiver))
+		return NewError(fmt.Sprintf("round() requires a numeric receiver, got %T", receiver))
 	}
 }
 
@@ -1502,6 +1528,42 @@ func methodMerge(receiver any, args []any) any {
 	return result
 }
 
+func methodMergeDeep(receiver any, args []any) any {
+	obj, ok := receiver.(map[string]any)
+	if !ok {
+		return NewError(fmt.Sprintf("merge_deep() requires object, got %T", receiver))
+	}
+	if len(args) != 1 {
+		return NewError("merge_deep() requires one argument")
+	}
+	other, ok := args[0].(map[string]any)
+	if !ok {
+		return NewError("merge_deep() argument must be object")
+	}
+	return mergeDeep(obj, other)
+}
+
+// mergeDeep recursively merges b into a (spec Section 13.7): where both
+// sides hold objects the merge recurses; on any other collision — scalars,
+// arrays, or mixed shapes — the value from b replaces the value from a
+// wholesale. There is no V1-style collision-into-array combining.
+func mergeDeep(a, b map[string]any) map[string]any {
+	result := make(map[string]any, len(a)+len(b))
+	for k, v := range a {
+		result[k] = v
+	}
+	for k, bv := range b {
+		if am, aok := result[k].(map[string]any); aok {
+			if bm, bok := bv.(map[string]any); bok {
+				result[k] = mergeDeep(am, bm)
+				continue
+			}
+		}
+		result[k] = bv
+	}
+	return result
+}
+
 func methodWithout(receiver any, args []any) any {
 	obj, ok := receiver.(map[string]any)
 	if !ok {
@@ -1537,10 +1599,42 @@ func methodIter(receiver any, _ []any) any {
 		return NewError(fmt.Sprintf("iter() requires object, got %T", receiver))
 	}
 	result := make([]any, 0, len(obj))
-	for k, v := range obj {
-		result = append(result, map[string]any{"key": k, "value": v})
+	for _, k := range sortedObjKeys(obj) {
+		result = append(result, map[string]any{"key": k, "value": obj[k]})
 	}
 	return result
+}
+
+// sortedObjKeys returns an object's keys in ascending Unicode codepoint
+// order — the canonical object iteration order (spec Section 2.3). Every
+// order-observable object iteration (iter, map_values, map_keys,
+// map_entries, filter_entries) must walk keys in this order.
+func sortedObjKeys(obj map[string]any) []string {
+	keys := make([]string, 0, len(obj))
+	for k := range obj {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// marshalJSONNoEscape marshals a value to compact JSON without HTML
+// escaping (SetEscapeHTML(false)), matching the spec's .string() and
+// format_json() defaults. encoding/json sorts object keys, giving the
+// canonical serialization order.
+func marshalJSONNoEscape(v any) (string, error) {
+	var buf strings.Builder
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return "", err
+	}
+	// Encoder adds a trailing newline — remove it.
+	result := buf.String()
+	if len(result) > 0 && result[len(result)-1] == '\n' {
+		result = result[:len(result)-1]
+	}
+	return result, nil
 }
 
 func methodCollect(receiver any, _ []any) any {
@@ -1754,9 +1848,9 @@ func normalizeJSONNumbers(v any) any {
 }
 
 func methodFormatJSON(receiver any, args []any) any {
-	// Args mapped by RegisterMethodWithParams: [indent, no_indent, escape_html]
+	// Args mapped by RegisterMethodWithParams: [indent, escape_html]
 	indent := ""
-	escapeHTML := true
+	escapeHTML := false
 
 	if len(args) > 0 {
 		if s, ok := args[0].(string); ok {
@@ -1764,12 +1858,7 @@ func methodFormatJSON(receiver any, args []any) any {
 		}
 	}
 	if len(args) > 1 {
-		if b, ok := args[1].(bool); ok && b {
-			indent = "" // no_indent overrides indent
-		}
-	}
-	if len(args) > 2 {
-		if b, ok := args[2].(bool); ok {
+		if b, ok := args[1].(bool); ok {
 			escapeHTML = b
 		}
 	}

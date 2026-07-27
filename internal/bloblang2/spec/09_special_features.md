@@ -120,7 +120,7 @@ output.items = [1, if false { 2 }, 3]     # ERROR: void — missing else branch
 input.items.map(x -> if x > 0 { x } else { deleted() })  # Negatives removed (intentional)
 input.items.map(x -> if x > 0 { x })                      # ERROR: void when x <= 0 (missing else)
 ```
-See Section 4.1 for full void semantics.
+See Section 4.1 for full void semantics, and Section 8.9 for the reference table distinguishing null, void, `deleted()`, and errors.
 
 **Nested structures (recursive deletion):**
 ```bloblang

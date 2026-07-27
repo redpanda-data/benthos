@@ -24,8 +24,8 @@ function toInt64(v: Value): bigint | null {
   if (isInt32(v)) return BigInt(v.value);
   if (isUint32(v)) return BigInt(v.value);
   if (isUint64(v)) return v.value;
-  if (isFloat64(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
-  if (isFloat32(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
+  if (isFloat64(v)) return isInt64RangeWholeFloat(v.value) ? BigInt(v.value) : null;
+  if (isFloat32(v)) return isInt64RangeWholeFloat(v.value) ? BigInt(v.value) : null;
   return null;
 }
 
@@ -119,5 +119,18 @@ export function registerNumericMethods(interp: Interpreter): void {
       if (isInt32(recv) || isInt64(recv) || isUint32(recv) || isUint64(recv)) return recv;
       return mkError(`round() requires numeric, got ${typeName(recv)}`);
     }),
+  );
+}
+
+// isInt64RangeWholeFloat reports whether a float is a whole number that
+// fits in int64. 2^63 is exactly representable as float64, so the upper
+// comparison must be exclusive (spec Section 13 preamble: checked
+// promotion — out-of-range values error, never wrap or saturate).
+function isInt64RangeWholeFloat(f: number): boolean {
+  return (
+    isFinite(f) &&
+    f === Math.trunc(f) &&
+    f < 9223372036854775808 &&
+    f >= -9223372036854775808
   );
 }

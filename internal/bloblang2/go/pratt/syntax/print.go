@@ -206,6 +206,10 @@ func (p *printer) printStmt(stmt Stmt) {
 		p.printIfStmt(s)
 	case *MatchStmt:
 		p.printMatchStmt(s)
+	case *ThrowStmt:
+		p.write("throw(")
+		p.printArgs(s.Call.Args, s.Call.Named)
+		p.write(")")
 	default:
 		p.write(fmt.Sprintf("/* unknown stmt: %T */", stmt))
 	}
@@ -606,11 +610,12 @@ func (p *printer) printCall(c *CallExpr) {
 }
 
 func (p *printer) printArgs(args []CallArg, named bool) {
+	_ = named // namedness is per-argument: a mixed call has an unnamed positional prefix
 	for i, a := range args {
 		if i > 0 {
 			p.write(", ")
 		}
-		if named {
+		if a.Name != "" {
 			p.write(a.Name)
 			p.write(": ")
 		}

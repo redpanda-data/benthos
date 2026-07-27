@@ -29,6 +29,7 @@ import {
   typeName,
   valuesEqual,
   promoteChecked,
+  compareCodepoints,
 } from "../value.js";
 
 // ---------------------------------------------------------------------------
@@ -91,11 +92,9 @@ function compareForSort(a: Value, b: Value): Value {
     return mkInt64(0n);
   }
 
-  // String comparison.
+  // String comparison (by Unicode codepoint, spec Section 2.3).
   if (isString(a) && isString(b)) {
-    return mkInt64(
-      a.value < b.value ? -1n : a.value > b.value ? 1n : 0n,
-    );
+    return mkInt64(BigInt(compareCodepoints(a.value, b.value)));
   }
 
   // Timestamp comparison.
@@ -403,13 +402,16 @@ export function registerArrayMethods(interp: Interpreter): void {
       if (!isObject(recv)) {
         return mkError(`iter() requires object, got ${typeName(recv)}`);
       }
+      // Canonical object iteration order: ascending key codepoint order
+      // (spec Section 2.3).
+      const keys = [...recv.value.keys()].sort(compareCodepoints);
       const result: Value[] = [];
-      for (const [k, v] of recv.value) {
+      for (const k of keys) {
         result.push(
           mkObject(
             new Map<string, Value>([
               ["key", mkString(k)],
-              ["value", v],
+              ["value", recv.value.get(k)!],
             ]),
           ),
         );

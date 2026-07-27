@@ -559,7 +559,8 @@ func (interp *Interpreter) methodMapValues(receiver any, args []syntax.CallArg) 
 	}
 	var argBuf [1]any
 	result := make(map[string]any, len(obj))
-	for k, v := range obj {
+	for _, k := range sortedObjKeys(obj) {
+		v := obj[k]
 		argBuf[0] = v
 		val := interp.callLambda(lambda, argBuf[:])
 		if IsError(val) {
@@ -587,7 +588,8 @@ func (interp *Interpreter) methodMapKeys(receiver any, args []syntax.CallArg) an
 	}
 	var argBuf [1]any
 	result := make(map[string]any, len(obj))
-	for k, v := range obj {
+	for _, k := range sortedObjKeys(obj) {
+		v := obj[k]
 		argBuf[0] = k
 		newKey := interp.callLambda(lambda, argBuf[:])
 		if IsError(newKey) {
@@ -619,7 +621,8 @@ func (interp *Interpreter) methodMapEntries(receiver any, args []syntax.CallArg)
 	}
 	var argBuf2 [2]any
 	result := make(map[string]any, len(obj))
-	for k, v := range obj {
+	for _, k := range sortedObjKeys(obj) {
+		v := obj[k]
 		argBuf2[0] = k
 		argBuf2[1] = v
 		entry := interp.callLambda(lambda, argBuf2[:])
@@ -660,7 +663,8 @@ func (interp *Interpreter) methodFilterEntries(receiver any, args []syntax.CallA
 	}
 	var argBuf2 [2]any
 	result := make(map[string]any, len(obj))
-	for k, v := range obj {
+	for _, k := range sortedObjKeys(obj) {
+		v := obj[k]
 		argBuf2[0] = k
 		argBuf2[1] = v
 		val := interp.callLambda(lambda, argBuf2[:])

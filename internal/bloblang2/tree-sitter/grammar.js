@@ -55,6 +55,7 @@ module.exports = grammar({
         $.assignment,
         $.if_statement,
         $.match_statement,
+        $.throw_statement,
         $.map_declaration,
         $.import_statement,
       ),
@@ -246,13 +247,14 @@ module.exports = grammar({
     qualified_name: ($) =>
       seq(field("namespace", $.identifier), "::", field("name", $.identifier)),
 
-    argument_list: ($) => choice($.positional_arguments, $.named_arguments),
+    // Each argument is independently positional (a bare expression) or
+    // named ("name: value"). Leading positionals followed by named args
+    // are allowed (spec Section 3.3); the positional-before-named ordering
+    // is enforced semantically, not in the grammar.
+    argument_list: ($) =>
+      seq($._argument, repeat(seq(",", $._argument)), optional(",")),
 
-    positional_arguments: ($) =>
-      seq($._expression, repeat(seq(",", $._expression)), optional(",")),
-
-    named_arguments: ($) =>
-      seq($.named_argument, repeat(seq(",", $.named_argument)), optional(",")),
+    _argument: ($) => choice($.named_argument, $._expression),
 
     named_argument: ($) =>
       seq(field("name", $.identifier), ":", field("value", $._expression)),
@@ -338,7 +340,12 @@ module.exports = grammar({
       seq("{", repeat(choice($._statement, $._newline)), "}"),
 
     _statement: ($) =>
-      choice($.assignment, $.if_statement, $.match_statement),
+      choice($.assignment, $.if_statement, $.match_statement, $.throw_statement),
+
+    // Bare `throw(message)` statement (spec Section 8.4) — halts the
+    // mapping with the resulting error. No postfix operations may follow.
+    throw_statement: ($) =>
+      seq("throw", "(", optional($.argument_list), ")"),
 
     // match_expr := 'match' expr? ('as' id)? '{' match_cases '}'
     // No _newline inside — match cases are comma-separated, so newlines

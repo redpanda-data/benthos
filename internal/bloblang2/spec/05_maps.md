@@ -44,7 +44,10 @@ output.calc = calculate(x: 1, y: 2, z: 3)
 # Using defaults — positional (trailing optional args omitted)
 output.price = format_price(99.99)                # "USD 99.99"
 output.price = format_price(99.99, "EUR")         # "EUR 99.99"
-output.price = format_price(99.99, "EUR", 0)      # "EUR 100"
+output.price = format_price(99.99, "EUR", 3)      # "EUR 99.99" (float .string() keeps the point)
+
+# Mixed: positional required arg, named optional (Section 3.3)
+output.price = format_price(99.99, decimals: 3)    # "USD 99.99"
 
 # Using defaults — named (missing optional args use defaults)
 output.price = format_price(amount: 99.99)                          # "USD 99.99"
@@ -54,7 +57,7 @@ output.price = format_price(amount: 99.99, currency: "EUR")         # "EUR 99.99
 
 Maps are **isolated functions**: they take zero or more parameters, optionally declare variables, and return a value. They cannot reference `input` or `output`.
 
-**Argument styles:** Functions can be called with positional or named arguments, but not both in the same call.
+**Argument styles:** Functions can be called with positional arguments, named arguments, or leading positionals followed by named arguments (Section 3.3). A positional argument after a named one is a parse error, and a named argument may not target a parameter already filled positionally.
 
 **Default parameters:** Parameters may have default values (`param = literal`). Parameters with defaults must come after all required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`) — expressions, function calls, and references to other parameters are not allowed in defaults. **Note:** Since there is no timestamp literal syntax, timestamp defaults are not possible. Use `null` with `.or()` as a workaround: `map query(start = null) { $s = start.or(now()); ... }`.
 
@@ -136,10 +139,10 @@ output = walk_tree(input)
 - Parameters are available as bare identifiers within the map body (e.g., `data.field`)
 - Variables declared within maps (using `$`) can be reassigned
 - **Discard parameters (`_`):** `_` can be used as a parameter name to accept and ignore an argument. It is not bound — referencing `_` in the body is a compile error. Multiple `_` parameters are allowed in the same parameter list. Discard parameters cannot have defaults.
-- Call with positional arguments (match order) or named arguments (match names)
-- **Cannot mix** positional and named arguments in the same call
-- **`_` restricts to positional calls:** Maps with any `_` parameters can only be called positionally. Named calls to such maps are a compile error since `_` has no name to target.
-- **Arity:** Positional calls must provide at least the required parameter count and at most the total parameter count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
+- Call with positional arguments (match order), named arguments (match names), or leading positionals followed by named arguments (Section 3.3)
+- A positional argument after a named argument is a parse error; a named argument targeting a positionally-filled parameter is a compile error
+- **`_` restricts to positional calls:** Maps with any `_` parameters can only be called positionally. Calls with any named arguments to such maps are a compile error since `_` has no name to target.
+- **Arity:** Positional calls must provide at least the required parameter count and at most the total parameter count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Mixed calls must cover every required parameter between the positional prefix (by position) and the named arguments (by name); parameters filled neither way must have defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
 - **Parameter shadowing:** Parameter names shadow any map names with the same name within the map body. The parameter always wins. Imported namespaces are not affected since they use `::` syntax — `namespace::func()` is always unambiguous regardless of parameter names.
 
 ```bloblang

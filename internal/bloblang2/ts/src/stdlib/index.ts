@@ -101,11 +101,16 @@ export function stdlibNames(): {
   for (const [name, spec] of functions) {
     let required = 0;
     let total = 0;
-    for (const p of spec.params) {
+    const params = spec.params.map((p) => {
       total++;
       if (!p.hasDefault) required++;
-    }
-    functionInfos.set(name, { required, total, argFolder: spec.argFolder });
+      return {
+        name: p.name,
+        hasDefault: p.hasDefault,
+        acceptsLambda: false,
+      };
+    });
+    functionInfos.set(name, { required, total, params, argFolder: spec.argFolder });
   }
 
   return { methods: methodInfos, functions: functionInfos };

@@ -30,7 +30,7 @@ root.x = $params
 			wants: []string{
 				".fold({},",
 				"(tally, value) ->",
-				"tally.merge(",
+				"tally.merge_deep(",
 				"value?.key",
 				"value?.value",
 			},
@@ -52,7 +52,7 @@ root.x = $params
 			wants: []string{
 				".fold([],",
 				"(tally, value) ->",
-				"tally.merge([value])",
+				"tally.concat([value])",
 			},
 		},
 	}

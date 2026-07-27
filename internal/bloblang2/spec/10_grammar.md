@@ -13,7 +13,7 @@ output.tier = if input.score >= 90 { "gold" }
 else if input.score >= 50 { "silver" }
 else { "bronze" }
 ```
-This is safe because none of these tokens can begin a valid statement (`statement := assignment | if_stmt | match_stmt`), so there is no ambiguity between continuation and a new statement.
+This is safe because none of these tokens can begin a valid statement (`statement := assignment | if_stmt | match_stmt | throw_stmt`), so there is no ambiguity between continuation and a new statement.
 
 **Operator continuation:** Newlines are also suppressed when the preceding non-whitespace token cannot end a complete expression — specifically: binary operators (`+`, `-`, `*`, `/`, `%`, `==`, `!=`, `>`, `>=`, `<`, `<=`, `&&`, `||`), unary operators (`!`, `-`), assignment (`=`), arrows (`=>`, `->`), and colons (`:`). This allows multi-line expressions without requiring parentheses:
 ```bloblang
@@ -56,7 +56,7 @@ This is safe because none of these tokens can be the final token of a valid expr
 
 program         := NL? (top_level_statement (NL top_level_statement)*)? NL?
 top_level_statement := statement | map_decl | import_stmt
-statement       := assignment | if_stmt | match_stmt
+statement       := assignment | if_stmt | match_stmt | throw_stmt
 
 # Statement contexts (top-level, if/match statement bodies): can assign to output, metadata, or variables
 assignment      := assign_target '=' expression
@@ -64,6 +64,10 @@ assign_target   := 'output' metadata_accessor? path_component* | var_ref path_co
 
 # Expression contexts (map bodies, lambda blocks, if/match expressions): can only assign to variables
 var_assignment  := var_ref path_component* '=' expression
+
+# Bare throw statement (Section 8.4): halts the mapping with the error.
+# Ends at the closing paren — no postfix operations may follow.
+throw_stmt      := 'throw' '(' [arg_list] ')'
 
 map_decl        := 'map' identifier '(' [param_list] ')' '{' NL? (var_assignment NL)* expression NL? '}'
 param_list      := param (',' param)*
@@ -157,9 +161,13 @@ array           := '[' [expression (',' expression)* ','?] ']'
 object          := '{' NL? [key_value (',' NL? key_value)* ','?] NL? '}'
 key_value       := expression ':' expression
 
-arg_list        := positional_args | named_args
-positional_args := arg_value (',' arg_value)* ','?
-named_args      := identifier ':' arg_value (',' identifier ':' arg_value)* ','?
+# Leading positional args may be followed by named args (Section 3.3);
+# a positional arg after a named one is a parse error. Note: argument
+# lists do NOT permit trailing commas (unlike array/object literals).
+arg_list        := positional_args | named_args | positional_args ',' named_args
+positional_args := arg_value (',' arg_value)*
+named_args      := named_arg (',' named_arg)*
+named_arg       := identifier ':' arg_value
 arg_value       := expression | lambda_expr        # Lambdas are only valid here
 word            := [a-zA-Z_][a-zA-Z0-9_]*          # Raw lexical pattern (includes keywords and reserved names)
 identifier      := word - keyword - reserved_name    # Excludes keywords and reserved names; used for variable/map/param names
@@ -185,10 +193,10 @@ reserved_name   := 'deleted' | 'throw' | 'void'     # Reserved function names (S
 - **Indexing:** `[expr]` on objects (string index), arrays (numeric index, must be whole number), strings (codepoint position, returns int64), bytes (byte position, returns int64). Negative indices supported for arrays, strings, and bytes. Indexing is a `postfix_op` and can follow any expression — including function calls, method chains, and literals.
 - **Null-safe:** `?.` and `?[` short-circuit to `null` for field access and indexing; `?.method()` short-circuits to `null` for method calls.
 - **Map calls:** `name(arg)` or `namespace::name(arg)` (positional or named arguments). Map names and namespace-qualified references can be passed directly as arguments to higher-order methods (e.g., `.map(double)`) — the compiler resolves them at compile time (Section 5.5). They are not runtime values and cannot be stored in variables.
-- **Named arguments:** `func(a: 1, b: 2)` - cannot mix with positional arguments. Duplicate named arguments are a compile-time error.
+- **Named arguments:** `func(a: 1, b: 2)`, or mixed with a leading positional prefix — `func(1, b: 2)` (Section 3.3). A positional argument after a named one is a parse error; a named argument targeting a positionally-filled parameter and duplicate named arguments are compile-time errors.
 - **Default parameters:** `map foo(x, y = 10) { ... }` or `(x, y = 10) -> expr`. Parameters with defaults must come after required parameters. Default values must be literals (`42`, `"hello"`, `true`, `false`, `null`). Discard parameters (`_`) cannot have defaults.
 - **Discard parameters:** `_` is allowed as a parameter in maps and lambdas. It accepts an argument but does not bind it — `_` cannot be referenced in the body. Multiple `_` parameters are allowed. Maps or lambdas with `_` parameters can only be called positionally (named calls are a compile error).
-- **Arity:** Positional calls must provide at least the required parameter count and at most the total count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
+- **Arity:** Positional calls must provide at least the required parameter count and at most the total count. Named calls must provide all required parameters; missing parameters with defaults use their defaults. Mixed calls must cover every required parameter between the positional prefix and the named arguments. Extra or unknown arguments are errors. Arity mismatches are compile-time errors when detectable, runtime errors otherwise.
 - **Lambdas:** Single param `x -> expr`, multi-param `(a, b) -> expr`, with defaults `(a, b = 0) -> expr`, discard `_ -> expr` or `(_, b) -> expr`, block `x -> { ... }`. Lambda parameters are available as bare identifiers within the lambda body. `_` parameters are not bound and cannot be referenced. **Position restriction:** lambdas only appear as the `arg_value` of a positional or named argument — they are not general expressions. Any other position (assignment RHS, collection literal, operator operand, paren_expr, etc.) is a parse error. Whether a specific callee accepts a lambda at a given argument position is enforced by a semantic pass against the callee's signature.
 - **Side effects:**
   - Expressions cannot assign to `output` or `output@`

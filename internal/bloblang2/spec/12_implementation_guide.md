@@ -115,6 +115,13 @@ Include:
 - Clear description
 - Suggested fix when possible
 
+**Name the kind of "nothing":** When an error involves null, void, or
+`deleted()` (Section 8.9), the message must say *which* — "received void
+(did you forget an `else` branch?)" and "cannot call method on deleted value"
+diagnose themselves; a generic "invalid value" does not. The three conditions
+have different fixes, so conflating them in messages costs users real
+debugging time.
+
 ## 12.5 Performance Expectations
 
 **Lazy evaluation benefits:**

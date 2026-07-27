@@ -261,7 +261,7 @@ func nodeEqual(a, b any, path string) (string, bool) {
 		return fmt.Sprintf("%s: kind %s vs %s", path, va.Kind(), vb.Kind()), false
 	}
 	switch va.Kind() {
-	case reflect.Ptr, reflect.Interface:
+	case reflect.Pointer, reflect.Interface:
 		if va.IsNil() && vb.IsNil() {
 			return "", true
 		}

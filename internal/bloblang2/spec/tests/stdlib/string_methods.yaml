@@ -265,3 +265,45 @@ tests:
     mapping: |
       output = "".repeat(5)
     output: ""
+
+  # --- Unicode SIMPLE case mapping (Section 13.5): per-codepoint 1:1, ---
+  # --- locale-independent, codepoint length never changes ---
+
+  - name: "uppercase eszett has no simple uppercase and is unchanged"
+    mapping: |
+      output.v = "ß".uppercase()
+      output.len = "ß".uppercase().length()
+    output: {"v": "ß", "len": 1}
+
+  - name: "uppercase applies simple mapping to accented characters"
+    mapping: |
+      output.v = "café".uppercase()
+    output: {"v": "CAFÉ"}
+
+  - name: "lowercase dotted capital I maps to single codepoint i"
+    mapping: |
+      output.v = "İ".lowercase()
+      output.len = "İ".lowercase().length()
+    output: {"v": "i", "len": 1}
+
+  - name: "lowercase sigma has no final-sigma context rule"
+    mapping: |
+      output.v = "ΟΔΟΣ".lowercase()
+    output: {"v": "οδοσ"}
+
+  - name: "uppercase lowercase dz digraph maps to uppercase form"
+    mapping: |
+      output.v = "ǳ".uppercase()
+    output: {"v": "Ǳ"}
+
+  - name: "lowercase uppercase digraph maps to lowercase form"
+    mapping: |
+      output.v = "Ǆ".lowercase()
+    output: {"v": "ǆ"}
+
+  - name: "case mapping applies to astral-plane codepoints"
+    mapping: |
+      output.lower = "𐐀".lowercase()
+      output.upper = "𐐨".uppercase()
+      output.uncased = "𝕬".lowercase()
+    output: {"lower": "𐐨", "upper": "𐐀", "uncased": "𝕬"}

@@ -41,6 +41,8 @@ export interface FunctionInfo {
   required: number;
   /** Total params (required + optional). -1 means no arity checking. */
   total: number;
+  /** Per-parameter metadata, parallel to declared positions. */
+  params?: MethodParamInfo[];
   /**
    * argFolder, if set, is invoked by the resolver to precompute literal
    * arguments (see ArgFolder docs).
@@ -241,6 +243,9 @@ class Resolver {
       case "match_stmt":
         this.resolveMatchStmt(stmt);
         break;
+      case "throw_stmt":
+        this.resolveCall(stmt.call);
+        break;
     }
   }
 
@@ -404,14 +409,12 @@ class Resolver {
   }
 
   private resolveCall(e: CallExpr): void {
-    // Validate named arg consistency.
+    // Validate named arg consistency. A positional prefix before the named
+    // args is legal (spec Section 3.3); the parser enforces the ordering.
     if (e.named && e.args.length > 0) {
       const seen = new Set<string>();
       for (const arg of e.args) {
-        if (!arg.name) {
-          this.error(e.pos, "cannot mix positional and named arguments");
-          break;
-        }
+        if (!arg.name) continue; // positional prefix
         if (seen.has(arg.name)) {
           this.error(e.pos, `duplicate named argument "${arg.name}"`);
         }
@@ -426,6 +429,7 @@ class Resolver {
       } else if (this.knownFunctions.has(e.name)) {
         const fi = this.knownFunctions.get(e.name)!;
         this.checkFunctionArity(e, fi);
+        this.checkFunctionNamedArgs(e, fi);
         this.applyArgFolder(fi.argFolder, e.args, e.pos, `${e.name}()`);
       } else {
         this.error(e.pos, `unknown function or map "${e.name}"`);
@@ -508,6 +512,15 @@ class Resolver {
     }
     for (const seg of expr.segments) {
       if (seg.index) this.resolveExpr(seg.index);
+      if (seg.segKind === "method") {
+        // Path-collapsed method segments get the same arity and named-arg
+        // validation as ordinary method calls (spec Sections 3.3, 13).
+        this.checkMethodCallArity({
+          method: seg.name,
+          methodPos: seg.pos,
+          args: seg.args,
+        });
+      }
       if (seg.args.length > 0) {
         const mi = seg.segKind === "method" ? this.methodInfo(seg.name) : null;
         if (mi?.argFolder) {
@@ -629,18 +642,34 @@ class Resolver {
     }
 
     if (e.named) {
-      const paramNames = new Set(m.params.filter((p) => !p.discard).map((p) => p.name));
-      for (const arg of e.args) {
-        if (!paramNames.has(arg.name)) {
-          this.error(e.pos, `unknown named argument "${arg.name}"`);
-        }
+      // Mixed/named call: a positional prefix fills params by position;
+      // named args fill the rest by name (spec Section 3.3).
+      let k = 0;
+      while (k < e.args.length && e.args[k]!.name === "") k++;
+      if (k > total) {
+        this.error(e.pos, `arity mismatch: ${e.name}() accepts at most ${total} arguments, got ${k} positional`);
+        return;
       }
-      const provided = new Set(e.args.map((a) => a.name));
-      for (const p of m.params) {
-        if (!p.discard && !provided.has(p.name) && !p.default_) {
+      const paramIndex = new Map<string, number>();
+      m.params.forEach((p, i) => {
+        if (!p.discard) paramIndex.set(p.name, i);
+      });
+      const provided = new Set<string>();
+      for (const arg of e.args.slice(k)) {
+        const idx = paramIndex.get(arg.name);
+        if (idx === undefined) {
+          this.error(e.pos, `unknown named argument "${arg.name}"`);
+        } else if (idx < k) {
+          this.error(e.pos, `named argument "${arg.name}" already provided positionally`);
+        }
+        provided.add(arg.name);
+      }
+      m.params.forEach((p, i) => {
+        if (i < k || p.discard) return;
+        if (!provided.has(p.name) && !p.default_) {
           this.error(e.pos, `arity mismatch: missing required named argument "${p.name}"`);
         }
-      }
+      });
     } else {
       if (e.args.length < required) {
         this.error(e.pos, `arity mismatch: ${e.name}() requires at least ${required} arguments, got ${e.args.length}`);
@@ -680,6 +709,77 @@ class Resolver {
         `.${e.method}() accepts at most ${info.total} arguments, got ${e.args.length}`,
       );
     }
+    this.checkMethodNamedArgs(e, info);
+  }
+
+  /**
+   * Validate named arguments against a method's declared parameter names:
+   * unknown names are compile errors (spec Section 13 preamble — extra or
+   * unknown arguments are errors), as are named calls missing a required
+   * parameter. Methods without declared params skip validation (runtime
+   * handles their args).
+   */
+  private checkMethodNamedArgs(
+    e: {
+      method: string;
+      methodPos: Pos;
+      args: { name: string; value: Expr }[];
+    },
+    info: MethodInfo,
+  ): void {
+    const params = info.params;
+    if (!params || params.length === 0) return;
+    // A positional prefix fills params by position; named args fill the
+    // rest by name (spec Section 3.3). The parser enforces the ordering.
+    let k = 0;
+    while (k < e.args.length && e.args[k]!.name === "") k++;
+    if (k === e.args.length) return; // purely positional — count checks handle it
+    const provided = new Set<string>();
+    for (const arg of e.args.slice(k)) {
+      const idx = params.findIndex((p) => p.name === arg.name);
+      if (idx < 0) {
+        this.error(
+          e.methodPos,
+          `.${e.method}(): unknown named argument "${arg.name}"`,
+        );
+      } else if (idx < k) {
+        this.error(
+          e.methodPos,
+          `.${e.method}(): named argument "${arg.name}" already provided positionally`,
+        );
+      }
+      provided.add(arg.name);
+    }
+    params.forEach((p, i) => {
+      if (i < k || p.hasDefault || provided.has(p.name)) return;
+      this.error(
+        e.methodPos,
+        `.${e.method}(): missing required named argument "${p.name}"`,
+      );
+    });
+  }
+
+  /** Function analogue of checkMethodNamedArgs (spec Section 3.3). */
+  private checkFunctionNamedArgs(e: CallExpr, fi: FunctionInfo): void {
+    const params = fi.params;
+    if (fi.total < 0 || !params || params.length === 0 || !e.named) return;
+    let k = 0;
+    while (k < e.args.length && e.args[k]!.name === "") k++;
+    if (k === e.args.length) return;
+    const provided = new Set<string>();
+    for (const arg of e.args.slice(k)) {
+      const idx = params.findIndex((p) => p.name === arg.name);
+      if (idx < 0) {
+        this.error(e.pos, `${e.name}(): unknown named argument "${arg.name}"`);
+      } else if (idx < k) {
+        this.error(e.pos, `${e.name}(): named argument "${arg.name}" already provided positionally`);
+      }
+      provided.add(arg.name);
+    }
+    params.forEach((p, i) => {
+      if (i < k || p.hasDefault || provided.has(p.name)) return;
+      this.error(e.pos, `${e.name}(): missing required named argument "${p.name}"`);
+    });
   }
 
   private checkMapRefArity(pos: Pos, displayName: string, m: MapDecl): void {

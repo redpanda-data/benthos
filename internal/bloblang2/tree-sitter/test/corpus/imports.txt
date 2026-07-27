@@ -33,7 +33,6 @@ output = math::double(input.x)
         namespace: (identifier)
         name: (identifier))
       (argument_list
-        (positional_arguments
-          (field_access
-            receiver: (input)
-            field: (identifier)))))))
+        (field_access
+          receiver: (input)
+          field: (identifier))))))

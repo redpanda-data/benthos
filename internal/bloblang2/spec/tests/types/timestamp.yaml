@@ -242,3 +242,75 @@ tests:
     mapping: |
       output.t = timestamp(2024, 3, 1).type()
     output: {"t": "timestamp"}
+
+  # --- Strict calendar validation (Section 13.1): invalid dates error, never roll over ---
+
+  - name: "timestamp feb 29 in leap year is valid"
+    mapping: |
+      output = timestamp(2024, 2, 29).ts_format("%Y-%m-%d")
+    output: "2024-02-29"
+
+  - name: "timestamp feb 29 in non-leap year errors"
+    mapping: |
+      output = timestamp(2023, 2, 29)
+    error: "does not exist"
+
+  - name: "timestamp feb 30 errors instead of rolling over"
+    mapping: |
+      output = timestamp(2024, 2, 30)
+    error: "does not exist"
+
+  - name: "timestamp day 31 in a 30-day month errors"
+    mapping: |
+      output = timestamp(2024, 4, 31)
+    error: "does not exist"
+
+  - name: "timestamp century non-leap year feb 29 errors"
+    mapping: |
+      output = timestamp(1900, 2, 29)
+    error: "does not exist"
+
+  - name: "timestamp year-400 leap year feb 29 is valid"
+    mapping: |
+      output = timestamp(2000, 2, 29).ts_format("%Y-%m-%d")
+    output: "2000-02-29"
+
+  # --- DST-gap wall-clock times error (Section 13.1) ---
+
+  - name: "timestamp in DST spring-forward gap errors"
+    mapping: |
+      output = timestamp(2024, 3, 10, 2, 30, 0, 0, "America/New_York")
+    error: "does not exist"
+
+  - name: "timestamp just before DST gap is valid"
+    mapping: |
+      output = timestamp(2024, 3, 10, 1, 30, 0, 0, "America/New_York").ts_format("%H:%M")
+    output: "01:30"
+
+  - name: "timestamp just after DST gap is valid"
+    mapping: |
+      output = timestamp(2024, 3, 10, 3, 30, 0, 0, "America/New_York").ts_format("%H:%M")
+    output: "03:30"
+
+  - name: "timestamp DST fall-back ambiguous time picks the earlier instant"
+    mapping: |
+      output = timestamp(2024, 11, 3, 1, 30, 0, 0, "America/New_York").ts_unix()
+    output: 1730611800
+
+  - name: "timestamp two-digit year is not remapped to 19xx"
+    mapping: |
+      output = timestamp(50, 6, 1).ts_format("%Y-%m-%d")
+    output: "0050-06-01"
+
+  - name: "timestamp two-digit year with timezone"
+    # Year-50 Paris is LMT (+00:09:21). Pin the INSTANT rather than the
+    # rendered clock: sub-minute historical offsets render minute-granular
+    # in implementations that store zone offsets in minutes.
+    mapping: |
+      output = timestamp(50, 6, 1, 12, 0, 0, 0, "Europe/Paris").ts_unix()
+    output: -60576206961
+
+  - name: "timestamp year zero leap day is valid"
+    mapping: |
+      output = timestamp(0, 2, 29).ts_format("%Y-%m-%d")
+    output: "0000-02-29"

@@ -132,14 +132,15 @@ output.result = throw("fatal error")  # No .catch(), stops execution
 
 When a `throw()` error is **not caught** by `.catch()`, it halts the entire mapping and no subsequent statements execute.
 
-**Conditional throw in statement context:** To validate input and halt the mapping when a condition fails, use `throw()` on the right-hand side of an assignment inside an if statement. The error propagates past the assignment and halts the mapping — the assignment itself never completes:
+**Throw statements:** `throw()` is also valid as a **bare statement** in statement contexts (top-level, if/match statement bodies) — the sanctioned form for validate-and-halt logic:
 ```bloblang
 if input.amount < 0 {
-  output = throw("amount must be non-negative")
+  throw("amount must be non-negative")
 }
 # Execution continues here only if amount >= 0
 output.amount = input.amount
 ```
+A throw statement evaluates its message and halts the mapping with the resulting error. It ends at the closing parenthesis — postfix operations are not valid on a throw statement (`throw("x").catch(...)` is a parse error in statement position; a statement-level throw cannot be caught). The older `output = throw("...")` assignment form remains valid — the error propagates out of the right-hand side before the assignment completes — but the bare statement says what it means.
 
 ## 8.5 Null-Safe vs Error-Safe
 
@@ -252,3 +253,35 @@ output.valid = if [ "int32", "int64" ].contains(input.value.type()) {
 # not_null() - assert non-null
 output.name = input.name.not_null("name is required")
 ```
+
+## 8.9 The Four Kinds of "Nothing" — Reference
+
+Bloblang V2 distinguishes four conditions that other languages often blur into
+one. Each is produced differently, rescued differently, and behaves differently
+by context. This table is the single reference; the linked sections have full
+semantics.
+
+| | **`null`** (§2.4) | **void** (§4.1) | **`deleted()`** (§9.2) | **error** (§8.1) |
+|---|---|---|---|---|
+| **Meaning** | A legitimate "no value" *data value* | "No value was produced" — usually a missing branch | Active removal marker | An operation failed |
+| **Produced by** | Missing field read, JSON `null`, explicit `null` | `if` without `else`, non-exhaustive `match`, `.find()` no match, `void()` | `deleted()` | Type mismatch, out-of-bounds, failed parse, `throw()` |
+| **Rescued by** | `?.` / `?[` (guards a null receiver), `.or()` | `.or()`; `.catch()` passes it through | `.or()`; `.catch()` passes it through | `.catch()` only |
+| **Field assignment** | Field exists with `null` | Assignment skipped (target unchanged) | Field removed | Propagates; halts mapping if uncaught |
+| **Variable declaration** | Allowed | Runtime error | Runtime error | Propagates |
+| **Collection literal** | Allowed (`[1, null]`) | Error | Element/field omitted | Propagates |
+| **Method receiver** | Error unless method accepts null (`.type()` does) | Error (except `.or()` / `.catch()`) | Error (except `.or()` / `.catch()`) | Methods skipped; error flows to next `.catch()` |
+| **JSON output** | `"field": null` | Field absent | Field absent | n/a (mapping fails) |
+
+Two rules of thumb fall out of the table:
+
+- **`.or()` is the "give me a fallback" operator** — it activates on all three
+  value-shaped kinds of nothing (null, void, deleted) but never on errors.
+- **`.catch()` is the "handle the failure" operator** — it activates only on
+  errors and lets every kind of nothing flow through untouched.
+
+Note one deliberate asymmetry: `null` is a real value you can store and compare,
+while void and `deleted()` are transient signals that cannot be stored. A
+consequence worth knowing: `.or()` cannot distinguish a legitimately-found
+`null` from "nothing there" — `[null, 1].find(x -> x == null).or("x")` returns
+`"x"`, not `null`. If null is meaningful data in your domain, test for it
+explicitly rather than defaulting over it.

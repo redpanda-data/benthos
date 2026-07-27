@@ -15,12 +15,11 @@ output = input.items.map(x -> x * 2)
         field: (identifier))
       method: (identifier)
       (argument_list
-        (positional_arguments
-          (lambda_expression
-            parameters: (identifier)
-            body: (binary_expression
-              left: (identifier)
-              right: (integer))))))))
+        (lambda_expression
+          parameters: (identifier)
+          body: (binary_expression
+            left: (identifier)
+            right: (integer)))))))
 
 ==================
 Multi-parameter lambda
@@ -39,16 +38,15 @@ output = input.items.fold((acc, x) -> acc + x)
         field: (identifier))
       method: (identifier)
       (argument_list
-        (positional_arguments
-          (lambda_expression
-            parameters: (parameter_list
-              (parameter
-                (identifier))
-              (parameter
-                (identifier)))
-            body: (binary_expression
-              left: (identifier)
-              right: (identifier))))))))
+        (lambda_expression
+          parameters: (parameter_list
+            (parameter
+              (identifier))
+            (parameter
+              (identifier)))
+          body: (binary_expression
+            left: (identifier)
+            right: (identifier)))))))
 
 ==================
 Discard lambda
@@ -67,10 +65,9 @@ output = input.items.map(_ -> "x")
         field: (identifier))
       method: (identifier)
       (argument_list
-        (positional_arguments
-          (lambda_expression
-            body: (string
-              (string_content))))))))
+        (lambda_expression
+          body: (string
+            (string_content)))))))
 
 ==================
 Lambda with block body
@@ -92,16 +89,15 @@ output = input.items.map(x -> {
         field: (identifier))
       method: (identifier)
       (argument_list
-        (positional_arguments
-          (lambda_expression
-            parameters: (identifier)
-            body: (lambda_block
-              (expr_body
-                (var_assignment
-                  (variable)
-                  (binary_expression
-                    left: (identifier)
-                    right: (integer)))
+        (lambda_expression
+          parameters: (identifier)
+          body: (lambda_block
+            (expr_body
+              (var_assignment
+                (variable)
                 (binary_expression
-                  left: (variable)
-                  right: (integer))))))))))
+                  left: (identifier)
+                  right: (integer)))
+              (binary_expression
+                left: (variable)
+                right: (integer)))))))))

@@ -320,3 +320,25 @@ tests:
     mapping: |
       output = "".bytes().reverse()
     output: {_type: "bytes", value: ""}
+
+  # --- .slice() clamps at BOTH ends (Section 13.4) ---
+
+  - name: "slice low below range clamps to zero on string"
+    mapping: |
+      output = "hello".slice(-100, 3)
+    output: "hel"
+
+  - name: "slice low below range clamps to zero on array"
+    mapping: |
+      output = [1, 2, 3, 4, 5].slice(-100, 3)
+    output: [1, 2, 3]
+
+  - name: "slice high beyond end clamps to length on array"
+    mapping: |
+      output = [1, 2, 3].slice(1, 100)
+    output: [2, 3]
+
+  - name: "slice both bounds out of range clamps to full sequence"
+    mapping: |
+      output = "hey".slice(-100, 100)
+    output: "hey"

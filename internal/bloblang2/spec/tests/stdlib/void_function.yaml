@@ -202,3 +202,17 @@ tests:
     input_metadata: {"void": "inbound"}
     output: {"x": "inbound"}
     output_metadata: {"void": "routed"}
+
+  # --- void() vs deleted() on assignment: leave-as-is vs remove (Section 13.1) ---
+
+  - name: "void() vs deleted() from the same conditional assignment"
+    mapping: |
+      output.status = "pending"
+      output.status = if input.reset { deleted() } else { void() }
+    cases:
+      - name: "reset true removes the field"
+        input: {"reset": true}
+        output: {}
+      - name: "reset false keeps prior value"
+        input: {"reset": false}
+        output: {"status": "pending"}

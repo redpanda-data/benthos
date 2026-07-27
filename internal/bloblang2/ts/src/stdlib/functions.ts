@@ -32,8 +32,8 @@ function toInt64(v: Value): bigint | null {
   if (isInt32(v)) return BigInt(v.value);
   if (isUint32(v)) return BigInt(v.value);
   if (isUint64(v)) return v.value;
-  if (isFloat64(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
-  if (isFloat32(v)) return isFinite(v.value) ? BigInt(Math.trunc(v.value)) : null;
+  if (isFloat64(v)) return isInt64RangeWholeFloat(v.value) ? BigInt(v.value) : null;
+  if (isFloat32(v)) return isInt64RangeWholeFloat(v.value) ? BigInt(v.value) : null;
   return null;
 }
 
@@ -234,26 +234,49 @@ export function registerFunctions(interp: Interpreter): void {
         );
       }
 
+      // Strict calendar validation (spec Section 13.1): a day that does
+      // not exist in the given month/year errors — never normalized
+      // (Feb 30 must not become Mar 1).
+      const dim = daysInMonth(Number(year), Number(month));
+      if (Number(day) > dim) {
+        return mkError(
+          `timestamp(): day ${day} does not exist in ${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")} (month has ${dim} days)`,
+        );
+      }
+
       // Build the Date. For non-UTC, try Intl API.
       // JavaScript Date doesn't natively support arbitrary IANA timezones
       // for construction, so we build in UTC and adjust for offset.
       let date: Date;
       if (tz === "UTC") {
-        date = new Date(
-          Date.UTC(
-            Number(year),
-            Number(month) - 1,
-            Number(day),
-            Number(hour),
-            Number(minute),
-            Number(sec),
-          ),
+        date = utcDateFromComponents(
+          Number(year),
+          Number(month),
+          Number(day),
+          Number(hour),
+          Number(minute),
+          Number(sec),
         );
-        // Fix year < 100.
-        if (year >= 0n && year < 100n) {
-          date.setUTCFullYear(Number(year));
+        // Calendar round-trip (belt and braces on top of daysInMonth):
+        // a normalized component means the requested date does not exist.
+        if (
+          date.getUTCFullYear() !== Number(year) ||
+          date.getUTCMonth() + 1 !== Number(month) ||
+          date.getUTCDate() !== Number(day)
+        ) {
+          return mkError(
+            `timestamp(): day ${day} does not exist in ${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}`,
+          );
         }
       } else {
+        // Intl formats years before 1 CE era-less (year 0 renders as "1"),
+        // which breaks the offset derivation below — reject explicitly
+        // rather than emit a misleading error or a wrong instant.
+        if (year < 1n) {
+          return mkError(
+            "timestamp(): years before 1 CE with a non-UTC timezone are not supported by this implementation",
+          );
+        }
         // Use a best-effort approach: construct in UTC, then try to find offset.
         try {
           // Build an ISO string and parse with the timezone.
@@ -274,49 +297,82 @@ export function registerFunctions(interp: Interpreter): void {
           formatter.format(new Date());
 
           // Build a UTC date then find the offset at that point in time.
-          const utcDate = new Date(
-            Date.UTC(
-              Number(year),
-              Number(month) - 1,
-              Number(day),
-              Number(hour),
-              Number(minute),
-              Number(sec),
-            ),
+          const utcDate = utcDateFromComponents(
+            Number(year),
+            Number(month),
+            Number(day),
+            Number(hour),
+            Number(minute),
+            Number(sec),
           );
-          // Get the offset by formatting the UTC date in the target timezone.
-          const parts = new Intl.DateTimeFormat("en-US", {
+          // tzOffsetMs returns the zone's UTC offset at the given instant,
+          // derived by formatting the instant in the target zone.
+          const tzOffsetMs = (instant: Date): number => {
+            const parts = new Intl.DateTimeFormat("en-US", {
+              timeZone: tz,
+              year: "numeric",
+              month: "numeric",
+              day: "numeric",
+              hour: "numeric",
+              minute: "numeric",
+              second: "numeric",
+              hourCycle: "h23",
+            }).formatToParts(instant);
+            const getPart = (type: string) =>
+              parseInt(
+                parts.find((p) => p.type === type)?.value ?? "0",
+                10,
+              );
+            const tzDate = utcDateFromComponents(
+              getPart("year"),
+              getPart("month"),
+              getPart("day"),
+              getPart("hour"),
+              getPart("minute"),
+              getPart("second"),
+            );
+            return tzDate.getTime() - instant.getTime();
+          };
+          // Two-pass offset derivation: the offset at the naive instant can
+          // be wrong within ~1 day of a DST transition, so re-derive the
+          // offset at the first estimate and re-adjust. (The utc time we
+          // want satisfies utc + offset(utc) = desired local time.)
+          const offset1 = tzOffsetMs(utcDate);
+          let candidate = new Date(utcDate.getTime() - offset1);
+          const offset2 = tzOffsetMs(candidate);
+          if (offset2 !== offset1) {
+            candidate = new Date(utcDate.getTime() - offset2);
+          }
+          date = candidate;
+          const tzOffsetMinutes = Math.round(tzOffsetMs(date) / 60000);
+
+          void isoStr; // suppress unused warning
+
+          // A wall-clock time skipped by a DST transition normalizes to
+          // a different clock reading — reject rather than silently shift
+          // (spec Section 13.1: non-existent local times error).
+          const rt = new Intl.DateTimeFormat("en-US", {
             timeZone: tz,
             year: "numeric",
             month: "numeric",
             day: "numeric",
             hour: "numeric",
             minute: "numeric",
-            second: "numeric",
-            hour12: false,
-          }).formatToParts(utcDate);
-          const getPart = (type: string) =>
-            parseInt(
-              parts.find((p) => p.type === type)?.value ?? "0",
-              10,
+            hourCycle: "h23",
+          }).formatToParts(date);
+          const rtPart = (type: string) =>
+            parseInt(rt.find((p) => p.type === type)?.value ?? "0", 10);
+          if (
+            rtPart("year") !== Number(year) ||
+            rtPart("month") !== Number(month) ||
+            rtPart("day") !== Number(day) ||
+            rtPart("hour") !== Number(hour) ||
+            rtPart("minute") !== Number(minute)
+          ) {
+            return mkError(
+              `timestamp(): ${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")} ${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} does not exist in ${tz} (skipped by a DST transition)`,
             );
-          const tzDate = new Date(
-            Date.UTC(
-              getPart("year"),
-              getPart("month") - 1,
-              getPart("day"),
-              getPart("hour"),
-              getPart("minute"),
-              getPart("second"),
-            ),
-          );
-          const offsetMs = tzDate.getTime() - utcDate.getTime();
-          // The local time in the tz is utcDate + offset. We want the UTC time
-          // such that utc + offset = desired local time. So utc = local - offset.
-          date = new Date(utcDate.getTime() - offsetMs);
-          const tzOffsetMinutes = Math.round(offsetMs / 60000);
-
-          void isoStr; // suppress unused warning
+          }
 
           const ms = BigInt(date.getTime());
           const nanos = ms * 1000000n + nano;
@@ -341,4 +397,49 @@ export function registerFunctions(interp: Interpreter): void {
       { name: "timezone", default_: mkString("UTC"), hasDefault: true },
     ],
   });
+}
+
+/**
+ * Build a Date from proleptic-Gregorian wall-clock components read as UTC.
+ * Date.UTC maps years 0-99 to 1900+year, so those years are constructed via
+ * a +400-year proxy (identical leapness across the Gregorian 400-year cycle
+ * — Feb 29 survives construction exactly when valid) and re-stamped with
+ * setUTCFullYear, which recomputes the epoch from the stored components.
+ */
+function utcDateFromComponents(
+  year: number,
+  month: number,
+  day: number,
+  hour: number,
+  minute: number,
+  sec: number,
+): Date {
+  const proxied = year >= 0 && year < 100;
+  const y = proxied ? year + 400 : year;
+  const d = new Date(Date.UTC(y, month - 1, day, hour, minute, sec));
+  if (proxied) d.setUTCFullYear(year);
+  return d;
+}
+
+/** Days in the given month/year, leap-year aware (spec Section 13.1). */
+function daysInMonth(year: number, month: number): number {
+  const lengths = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month === 2) {
+    const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+    return leap ? 29 : 28;
+  }
+  return lengths[month - 1]!;
+}
+
+// isInt64RangeWholeFloat reports whether a float is a whole number that
+// fits in int64. 2^63 is exactly representable as float64, so the upper
+// comparison must be exclusive (spec Section 13 preamble: checked
+// promotion — out-of-range values error, never wrap or saturate).
+function isInt64RangeWholeFloat(f: number): boolean {
+  return (
+    isFinite(f) &&
+    f === Math.trunc(f) &&
+    f < 9223372036854775808 &&
+    f >= -9223372036854775808
+  );
 }

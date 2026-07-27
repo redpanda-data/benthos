@@ -82,11 +82,10 @@ output = input.replace_all(
       receiver: (input)
       method: (identifier)
       (argument_list
-        (positional_arguments
-          (string
-            (string_content))
-          (string
-            (string_content)))))))
+        (string
+          (string_content))
+        (string
+          (string_content))))))
 
 ==================
 Multiline if else chain
@@ -266,19 +265,18 @@ output = input.items.map(x -> {
         field: (identifier))
       method: (identifier)
       (argument_list
-        (positional_arguments
-          (lambda_expression
-            parameters: (identifier)
-            body: (lambda_block
-              (expr_body
-                (var_assignment
-                  (variable)
-                  (binary_expression
-                    left: (identifier)
-                    right: (integer)))
+        (lambda_expression
+          parameters: (identifier)
+          body: (lambda_block
+            (expr_body
+              (var_assignment
+                (variable)
                 (binary_expression
-                  left: (variable)
-                  right: (integer))))))))))
+                  left: (identifier)
+                  right: (integer)))
+              (binary_expression
+                left: (variable)
+                right: (integer)))))))))
 
 ==================
 Blank lines between statements
@@ -325,17 +323,15 @@ output.result =
           field: (identifier))
         method: (identifier)
         (argument_list
-          (positional_arguments
-            (lambda_expression
-              parameters: (identifier)
-              body: (binary_expression
-                left: (identifier)
-                right: (integer))))))
-      method: (identifier)
-      (argument_list
-        (positional_arguments
           (lambda_expression
             parameters: (identifier)
             body: (binary_expression
               left: (identifier)
-              right: (integer))))))))
+              right: (integer)))))
+      method: (identifier)
+      (argument_list
+        (lambda_expression
+          parameters: (identifier)
+          body: (binary_expression
+            left: (identifier)
+            right: (integer)))))))
