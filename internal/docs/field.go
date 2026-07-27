@@ -88,6 +88,12 @@ type FieldSpec struct {
 	// Description of the field purpose (in Asciidoc).
 	Description string `json:"description,omitempty"`
 
+	// ShortDescription is a plain text summary of the field purpose, suitable
+	// for rendering as inline help within a form UI. Unlike Description it
+	// contains no markup and spans at most a sentence or two. When empty
+	// consumers are expected to fall back to Description.
+	ShortDescription string `json:"short_description,omitempty"`
+
 	// IsAdvanced is true for optional fields that will not be present in most
 	// configs.
 	IsAdvanced bool `json:"is_advanced,omitempty"`

@@ -212,6 +212,15 @@ func (c *ConfigField) Description(d string) *ConfigField {
 	return c
 }
 
+// ShortDescription adds a plain text summary of the field to be shown as inline
+// help within a form UI, where the full Description would be too verbose. It
+// should contain no markup and span at most a sentence or two. When unset,
+// consumers fall back to the value provided by Description.
+func (c *ConfigField) ShortDescription(d string) *ConfigField {
+	c.field.ShortDescription = d
+	return c
+}
+
 // Advanced marks a config field as being advanced, and therefore it will not
 // appear in simplified documentation examples.
 func (c *ConfigField) Advanced() *ConfigField {
