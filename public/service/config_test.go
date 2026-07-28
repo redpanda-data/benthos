@@ -3,6 +3,7 @@
 package service
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -604,4 +605,32 @@ a: {}
 			}
 		})
 	}
+}
+
+func TestConfigFieldShortDescription(t *testing.T) {
+	spec := NewConfigSpec().
+		Fields(
+			NewStringField("a").
+				Description("A verbose description containing `markup` and a caveat that would be unsuitable for a form UI.").
+				ShortDescription("Plain text summary of a."),
+			NewStringField("b").
+				Description("Only a description."),
+		)
+
+	fields := spec.component.Config.Children
+	require.Len(t, fields, 2)
+
+	assert.Equal(t, "Plain text summary of a.", fields[0].ShortDescription)
+	assert.Empty(t, fields[1].ShortDescription, "must not be inferred from Description")
+
+	// Setting a short description must leave the documentation description
+	// untouched, as the two serve different consumers.
+	assert.Equal(t, "A verbose description containing `markup` and a caveat that would be unsuitable for a form UI.", fields[0].Description)
+
+	// Consumers read the field from the marshalled schema, and are expected to
+	// fall back to description when it is absent.
+	encoded, err := json.Marshal(fields)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"short_description":"Plain text summary of a."`)
+	assert.Equal(t, 1, strings.Count(string(encoded), "short_description"))
 }
