@@ -28,6 +28,8 @@ import {
   isArray,
   isObject,
   compareCodepoints,
+  formatFloat,
+  formatFloat32,
 } from "../value.js";
 import { strftimeFormat, DEFAULT_TIMESTAMP_FORMAT } from "./timestamp.js";
 
@@ -45,7 +47,8 @@ function write(v: Value, indent: string, pad: string): string {
   if (isBool(v)) return v.value ? "true" : "false";
   if (isInt64(v) || isUint64(v)) return v.value.toString(); // exact — never via float64
   if (isInt32(v) || isUint32(v)) return String(v.value);
-  if (isFloat32(v) || isFloat64(v)) return JSON.stringify(v.value);
+  if (isFloat64(v)) return jsonFloat(formatFloat(v.value));
+  if (isFloat32(v)) return jsonFloat(formatFloat32(v.value));
   if (isString(v)) return JSON.stringify(v.value);
   if (isTimestamp(v)) {
     return JSON.stringify(
@@ -73,4 +76,14 @@ function write(v: Value, indent: string, pad: string): string {
   // Bytes / other non-serializable tags: callers pre-validate; this line is
   // unreachable through the public paths.
   return "null";
+}
+
+// jsonFloat guards the spec float rendering for JSON contexts: NaN and
+// Infinity are not representable (format_json pre-validates and never hits
+// this; .string() on containers catches the throw and errors).
+function jsonFloat(s: string): string {
+  if (s === "NaN" || s === "Infinity" || s === "-Infinity") {
+    throw new Error(s + " is not representable in JSON");
+  }
+  return s;
 }

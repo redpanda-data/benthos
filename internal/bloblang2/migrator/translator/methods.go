@@ -174,8 +174,8 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 	// directly. The V1 Go-layout variants (`format_timestamp`,
 	// `parse_timestamp`) cannot be auto-rewritten because V2 has no
 	// Go-layout method — flag with a Note instead.
-	case "ts_strftime", "format_timestamp_strftime":
-		return t.simpleRename(m, recv, "ts_format")
+	case "ts_format", "ts_strftime", "format_timestamp_strftime":
+		return t.tsFormatRewrite(m, recv)
 	case "ts_strptime", "parse_timestamp_strptime":
 		return t.simpleRename(m, recv, "ts_parse")
 	case "format_timestamp", "parse_timestamp":
@@ -407,6 +407,11 @@ func (t *translator) methodRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax
 		})
 		return nil
 	case "index_of":
+		// V1 names the parameter "value"; V2 names it "target" — strip to
+		// positional so the passthrough compiles.
+		for i := range m.Args {
+			m.Args[i].Name = ""
+		}
 		// V1 .index_of on strings counts bytes; V2 counts codepoints.
 		t.rec.Note(Change{
 			Line: m.NamePos.Line, Column: m.NamePos.Column,
@@ -639,7 +644,10 @@ func (t *translator) queryFormRename(m *v1ast.MethodCall, recv syntax.Expr, newN
 			if keepElement {
 				t.keepElementOnBareIf(lam, m.NamePos)
 			}
-			args = append(args, syntax.CallArg{Name: a.Name, Value: lam})
+			// Emit positionally: V1 parameter names on lambda methods
+			// ("query", "emit", ...) don't match V2's ("fn"), so a named
+			// passthrough would not compile.
+			args = append(args, syntax.CallArg{Value: lam})
 			wrapped = didWrap
 			continue
 		}
@@ -647,7 +655,7 @@ func (t *translator) queryFormRename(m *v1ast.MethodCall, recv syntax.Expr, newN
 		if v == nil {
 			return nil
 		}
-		args = append(args, syntax.CallArg{Name: a.Name, Value: v})
+		args = append(args, syntax.CallArg{Value: v})
 	}
 	switch {
 	case note != nil:
@@ -1283,7 +1291,7 @@ func (t *translator) formatJSONRewrite(m *v1ast.MethodCall, recv syntax.Expr) sy
 		Line: m.NamePos.Line, Column: m.NamePos.Column,
 		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
 		RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
-		Explanation: `V1 .format_json() defaults to 4-space indentation with HTML escaping; V2 defaults to compact and unescaped — emitted explicit indent/escape_html arguments to preserve V1's output`,
+		Explanation: `V1 .format_json() defaults to 4-space indentation with HTML escaping; V2 defaults to compact and unescaped — emitted explicit indent/escape_html arguments to preserve V1's output. Residual difference: V2 renders whole-value floats with a decimal point (8.0, not 8)`,
 	})
 	return &syntax.MethodCallExpr{
 		Receiver: recv, Method: "format_json", MethodPos: pos(m.NamePos),
@@ -1292,6 +1300,54 @@ func (t *translator) formatJSONRewrite(m *v1ast.MethodCall, recv syntax.Expr) sy
 			{Name: "indent", Value: indentExpr},
 			{Name: "escape_html", Value: escapeExpr},
 		},
+	}
+}
+
+// tsFormatRewrite handles the V1 ts_format family (ts_format, ts_strftime,
+// format_timestamp_strftime). V1 accepts an optional second `tz` argument
+// selecting the rendered zone; V2 ts_format renders in the timestamp's
+// STORED zone and takes only a format string, so a tz argument is dropped
+// with a warning.
+func (t *translator) tsFormatRewrite(m *v1ast.MethodCall, recv syntax.Expr) syntax.Expr {
+	if len(m.Args) == 0 || len(m.Args) > 2 {
+		return t.simpleRename(m, recv, "ts_format")
+	}
+	var formatArg v1ast.Expr
+	var tzPresent bool
+	for i, a := range m.Args {
+		switch {
+		case a.Name == "format" || (a.Name == "" && i == 0):
+			formatArg = a.Value
+		case a.Name == "tz" || (a.Name == "" && i == 1):
+			tzPresent = true
+		default:
+			return t.simpleRename(m, recv, "ts_format") // unknown shape — 1:1
+		}
+	}
+	if formatArg == nil {
+		return t.simpleRename(m, recv, "ts_format")
+	}
+	format := t.translateExpr(formatArg)
+	if format == nil {
+		return nil
+	}
+	if tzPresent {
+		t.rec.Note(Change{
+			Line: m.NamePos.Line, Column: m.NamePos.Column,
+			Severity: SeverityWarning, Category: CategorySemanticChange,
+			RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+			Explanation: "V1 ." + m.Name + "() accepts a tz argument selecting the rendered zone; V2 ts_format() renders in the timestamp's stored zone — the tz argument was dropped and the rendered zone may differ. Construct the timestamp with the desired zone (e.g. timestamp(..., timezone: ...)) instead",
+		})
+	}
+	t.rec.Rewritten(Change{
+		Line: m.NamePos.Line, Column: m.NamePos.Column,
+		Severity: SeverityInfo, Category: CategoryIdiomRewrite,
+		RuleID: RuleMethodDoesNotExist, SpecRef: "§13",
+		Explanation: "V1 ." + m.Name + "() normalized to V2 .ts_format(format)",
+	})
+	return &syntax.MethodCallExpr{
+		Receiver: recv, Method: "ts_format", MethodPos: pos(m.NamePos),
+		Args: []syntax.CallArg{{Value: format}},
 	}
 }
 

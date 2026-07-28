@@ -1939,6 +1939,20 @@ func sortedJSON(v any) any {
 		return result
 	case time.Time:
 		return formatTimestamp(val)
+	case float64:
+		if math.IsNaN(val) || math.IsInf(val, 0) {
+			return v // let encoding/json raise its unsupported-value error
+		}
+		// Floats serialize with a decimal point or exponent (spec Section
+		// 13.11) so format_json -> parse_json preserves the float type and
+		// .string() renders a float identically bare or nested.
+		return json.RawMessage(formatFloat(val, 64))
+	case float32:
+		f := float64(val)
+		if math.IsNaN(f) || math.IsInf(f, 0) {
+			return v
+		}
+		return json.RawMessage(formatFloat(f, 32))
 	default:
 		return v
 	}

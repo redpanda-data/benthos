@@ -104,6 +104,57 @@ func TestRegisterMethodWithParams(t *testing.T) {
 	}
 }
 
+// TestRegisterMethodMixedArgs pins that plugin-registered methods ride the
+// full mixed positional+named call machinery (spec Section 3.3): a leading
+// positional prefix followed by named args works, unknown names and named
+// args targeting positionally-filled params are compile errors.
+func TestRegisterMethodMixedArgs(t *testing.T) {
+	env := bloblangv2.NewEmptyEnvironment()
+	spec := bloblangv2.NewPluginSpec().
+		Param(bloblangv2.NewStringParam("suffix")).
+		Param(bloblangv2.NewInt64Param("count").Default(int64(1)))
+
+	err := env.RegisterMethod("append_n", spec, func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+		suffix, err := args.GetString("suffix")
+		if err != nil {
+			return nil, err
+		}
+		count, err := args.GetInt64("count")
+		if err != nil {
+			return nil, err
+		}
+		return bloblangv2.StringMethod(func(s string) (any, error) {
+			return s + strings.Repeat(suffix, int(count)), nil
+		}), nil
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	// Positional prefix + named optional.
+	exec, err := env.Parse(`output = input.append_n("!", count: 2)`)
+	if err != nil {
+		t.Fatalf("parse mixed call: %v", err)
+	}
+	out, err := exec.Query("hi")
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if out != "hi!!" {
+		t.Fatalf("expected hi!!, got %#v", out)
+	}
+
+	// Unknown named arg is a compile error.
+	if _, err := env.Parse(`output = input.append_n("!", bogus: 2)`); err == nil {
+		t.Fatalf("expected compile error for unknown named argument")
+	}
+
+	// Named arg targeting a positionally-filled param is a compile error.
+	if _, err := env.Parse(`output = input.append_n("!", suffix: "?")`); err == nil {
+		t.Fatalf("expected compile error for positionally-filled named argument")
+	}
+}
+
 func TestRegisterMethodDefaultApplied(t *testing.T) {
 	env := bloblangv2.NewEmptyEnvironment()
 	spec := bloblangv2.NewPluginSpec().

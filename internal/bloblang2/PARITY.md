@@ -168,7 +168,7 @@ Plumbing sketch:
 | `get` | method | ✅ | |
 | `keys` | method | ✅ | |
 | `map_each_key` | method | ✅ | Lambda predicate via plugin lambda support. |
-| `merge` | method | ✅ | |
+| `merge` | method | ✅ | V1 deep-merges and combines colliding non-object values into arrays; V2 `.merge` is shallow — the migrator rewrites object merges to `.merge_deep` (argument wins on collision) and array merges to `.concat`/`.append`, with warnings on the residual divergences. |
 | `values` | method | ✅ | |
 | `with` | method | ✅ | V2 takes a single array of dot-paths (V1 was variadic). |
 

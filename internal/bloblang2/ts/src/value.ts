@@ -628,3 +628,48 @@ export function compareCodepoints(a: string, b: string): number {
   if (j < b.length) return -1;
   return 0;
 }
+
+export function formatFloat(f: number): string {
+  if (Number.isNaN(f)) return "NaN";
+  if (f === Infinity) return "Infinity";
+  if (f === -Infinity) return "-Infinity";
+  if (f === 0 && 1 / f === -Infinity) return "0.0"; // negative zero
+  let s = String(f);
+  // Ensure the string contains a decimal point or exponent.
+  if (!s.includes(".") && !s.includes("e") && !s.includes("E")) {
+    s += ".0";
+  }
+  return s;
+}
+
+/** Format a float32 value using the shortest representation that round-trips through float32. */
+export function formatFloat32(f: number): string {
+  if (Number.isNaN(f)) return "NaN";
+  if (f === Infinity) return "Infinity";
+  if (f === -Infinity) return "-Infinity";
+  if (f === 0 && 1 / f === -Infinity) return "0.0"; // negative zero
+  // Find shortest representation that round-trips through float32.
+  for (let prec = 1; prec <= 9; prec++) {
+    const s = f.toPrecision(prec);
+    if (Math.fround(parseFloat(s)) === f) {
+      let result = cleanupTrailingZeros(s);
+      // Ensure decimal point.
+      if (!result.includes(".") && !result.includes("e") && !result.includes("E")) {
+        result += ".0";
+      }
+      return result;
+    }
+  }
+  let s = String(f);
+  if (!s.includes(".") && !s.includes("e") && !s.includes("E")) {
+    s += ".0";
+  }
+  return s;
+}
+
+function cleanupTrailingZeros(s: string): string {
+  if (!s.includes(".")) return s;
+  s = s.replace(/(\.\d*?)0+$/, "$1");
+  s = s.replace(/\.$/, "");
+  return s;
+}

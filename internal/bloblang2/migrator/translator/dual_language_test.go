@@ -54,8 +54,11 @@ func TestDualStrings(t *testing.T) {
 		{"re_match", `root = this.s.re_match("^h.*o$")`, s("hello")},
 		// format_json with no args: V1 defaults to a 4-space indent; the
 		// migrator emits an explicit "    " so V2 matches. Single-key object
-		// keeps output key-order deterministic across engines.
-		{"format_json default indent", `root = this.o.format_json().string()`, map[string]any{"o": map[string]any{"a": 1.0}}},
+		// keeps output key-order deterministic across engines. The value is
+		// deliberately fractional: whole-value floats are a DECLARED residual
+		// divergence (V1 renders 1, V2 renders 1.0 — see formatJSONRewrite's
+		// explanation), so a whole float here would not be an equivalence case.
+		{"format_json default indent", `root = this.o.format_json().string()`, map[string]any{"o": map[string]any{"a": 1.5}}},
 	})
 }
 

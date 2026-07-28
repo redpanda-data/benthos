@@ -43,6 +43,8 @@ import {
   MAX_INT64,
   MAX_UINT64,
   compareCodepoints,
+  formatFloat,
+  formatFloat32,
 } from "../value.js";
 import { strftimeFormat, DEFAULT_TIMESTAMP_FORMAT } from "./timestamp.js";
 import { stringifyValue } from "./json_stringify.js";
@@ -67,51 +69,11 @@ function containsBytes(v: Value): boolean {
   return false;
 }
 
-function formatFloat(f: number): string {
-  if (Number.isNaN(f)) return "NaN";
-  if (f === Infinity) return "Infinity";
-  if (f === -Infinity) return "-Infinity";
-  if (f === 0 && 1 / f === -Infinity) return "0.0"; // negative zero
-  let s = String(f);
-  // Ensure the string contains a decimal point or exponent.
-  if (!s.includes(".") && !s.includes("e") && !s.includes("E")) {
-    s += ".0";
-  }
-  return s;
-}
-
-/** Format a float32 value using the shortest representation that round-trips through float32. */
-function formatFloat32(f: number): string {
-  if (Number.isNaN(f)) return "NaN";
-  if (f === Infinity) return "Infinity";
-  if (f === -Infinity) return "-Infinity";
-  if (f === 0 && 1 / f === -Infinity) return "0.0"; // negative zero
-  // Find shortest representation that round-trips through float32.
-  for (let prec = 1; prec <= 9; prec++) {
-    const s = f.toPrecision(prec);
-    if (Math.fround(parseFloat(s)) === f) {
-      let result = cleanupTrailingZeros(s);
-      // Ensure decimal point.
-      if (!result.includes(".") && !result.includes("e") && !result.includes("E")) {
-        result += ".0";
-      }
-      return result;
-    }
-  }
-  let s = String(f);
-  if (!s.includes(".") && !s.includes("e") && !s.includes("E")) {
-    s += ".0";
-  }
-  return s;
-}
+// formatFloat / formatFloat32 live in value.ts (shared with json_stringify).
 
 
-function cleanupTrailingZeros(s: string): string {
-  if (!s.includes(".")) return s;
-  s = s.replace(/(\.\d*?)0+$/, "$1");
-  s = s.replace(/\.$/, "");
-  return s;
-}
+
+
 
 function valueToString(v: Value): Value {
   if (isNull(v)) return mkString("null");
@@ -141,7 +103,11 @@ function valueToString(v: Value): Value {
         "cannot convert array to string: contains bytes value (convert bytes explicitly before embedding in containers)",
       );
     }
-    return mkString(stringifyValue(v, ""));
+    try {
+      return mkString(stringifyValue(v, ""));
+    } catch (e) {
+      return mkError(`cannot convert ${typeName(v)} to string: ${(e as Error).message}`);
+    }
   }
   if (isObject(v)) {
     if (containsBytes(v)) {
@@ -149,7 +115,11 @@ function valueToString(v: Value): Value {
         "cannot convert object to string: contains bytes value (convert bytes explicitly before embedding in containers)",
       );
     }
-    return mkString(stringifyValue(v, ""));
+    try {
+      return mkString(stringifyValue(v, ""));
+    } catch (e) {
+      return mkError(`cannot convert ${typeName(v)} to string: ${(e as Error).message}`);
+    }
   }
   return mkError(`cannot convert ${typeName(v)} to string`);
 }

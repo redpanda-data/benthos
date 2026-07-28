@@ -32,4 +32,18 @@ func TestCoverageProbe(t *testing.T) {
 	for _, r := range reasons {
 		t.Logf("  %-26s %d", r, counts[benchmark.SkipReason(r)])
 	}
+
+	// Equivalence floor (Phase 7's core promise is that the migrator
+	// surfaces divergences — a translator regression that silently
+	// de-equivalences corpus cases must FAIL, not log). Rates at the time
+	// the floor was set: 50.7% accepted, 124 output-mismatch skips.
+	// Recalibrate deliberately when the corpus or translator changes on
+	// purpose — never loosen to make a red build green without
+	// understanding which cases de-equivalenced.
+	if rate := float64(len(coll.Cases)) / float64(max(total, 1)); rate < 0.50 {
+		t.Errorf("corpus V1≡V2 acceptance rate %.1f%% fell below the 50.0%% floor — a translator change has de-equivalenced previously-matching cases", 100*rate)
+	}
+	if n := counts[benchmark.SkipOutputMismatch]; n > 135 {
+		t.Errorf("corpus output-mismatch skips grew to %d (ceiling 135) — a translator change has introduced new V1/V2 output divergences", n)
+	}
 }

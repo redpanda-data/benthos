@@ -401,3 +401,32 @@ tests:
     mapping: |
       output = {"n": "18446744073709551615".uint64()}.format_json()
     output: '{"n":18446744073709551615}'
+
+  # --- Floats serialize with a decimal point in JSON (Section 13.11) ---
+
+  - name: "whole float in object keeps decimal point"
+    mapping: |
+      output = {"f": 8.0}.format_json()
+    output: '{"f":8.0}'
+
+  - name: "format_json round-trip preserves float type"
+    mapping: |
+      output = {"f": 8.0}.format_json().parse_json().f.type()
+    output: "float64"
+
+  - name: "float renders identically bare and nested via string conversion"
+    mapping: |
+      output.bare = 5.0.string()
+      output.nested = {"f": 5.0}.string()
+    output: {"bare": "5.0", "nested": '{"f":5.0}'}
+
+  - name: "float32 in container keeps decimal point"
+    mapping: |
+      output = {"f": 1.5.float32()}.format_json()
+    output: '{"f":1.5}'
+
+  - name: "string conversion of container with NaN errors"
+    input: {"n": {_type: "float64", value: "NaN"}}
+    mapping: |
+      output = {"f": input.n}.string()
+    error: "NaN"

@@ -138,3 +138,50 @@ output.timestamp = match input.date_format {
 }
 ```
 
+## Validation (Bare Throw Statements)
+
+```bloblang
+# Halt the mapping when input is invalid (Section 8.4)
+if input.amount < 0 {
+  throw("amount must be non-negative")
+}
+if input.user_id == null {
+  throw("user_id is required")
+}
+output.amount = input.amount
+```
+
+## Deep vs Shallow Object Merging
+
+```bloblang
+# .merge is shallow: colliding nested objects are replaced wholesale
+{"cfg": {"host": "a", "port": 1}}.merge({"cfg": {"host": "b"}})
+# {"cfg": {"host": "b"}}                  — "port" is gone
+
+# .merge_deep recurses into object-object collisions
+{"cfg": {"host": "a", "port": 1}}.merge_deep({"cfg": {"host": "b"}})
+# {"cfg": {"host": "b", "port": 1}}       — "port" survives
+
+# Overlay defaults with per-message settings
+output.config = default_config().merge_deep(input.overrides)
+```
+
+## Mixed Positional and Named Arguments
+
+```bloblang
+# Fill required parameters positionally, select optionals by name (Section 3.3)
+map format_price(amount, currency = "USD", decimals = 2) {
+  currency + " " + amount.round(decimals).string()
+}
+output.price = format_price(99.99, decimals: 3)          # "USD 99.99"
+output.pretty = input.doc.format_json("  ", escape_html: true)
+```
+
+## JSON Output Control
+
+```bloblang
+output.compact = input.doc.format_json()                  # compact, unescaped
+output.pretty = input.doc.format_json(indent: "  ")       # pretty-printed
+output.for_html = input.doc.format_json(escape_html: true) # <, >, & escaped
+# Keys always serialize in ascending codepoint order (Section 2.3)
+```
