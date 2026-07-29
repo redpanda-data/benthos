@@ -22,7 +22,7 @@ require (
 	github.com/itchyny/gojq v0.12.19
 	github.com/itchyny/timefmt-go v0.1.8
 	github.com/jmespath/go-jmespath v0.4.0
-	github.com/klauspost/compress v1.18.6
+	github.com/klauspost/compress v1.19.1
 	github.com/klauspost/pgzip v1.2.6
 	github.com/linkedin/goavro/v2 v2.15.0
 	github.com/matoous/go-nanoid/v2 v2.1.0
