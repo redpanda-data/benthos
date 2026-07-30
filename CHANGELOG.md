@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.77.0 - 2026-07-30
+
+### Added
+
+- Config: Added `ShortDescription` field to support improved UI help text. (@prakhargarg105)
+
 ## 4.76.0 - 2026-06-25
 
 ### Added
