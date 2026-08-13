@@ -6,6 +6,9 @@ import (
 	"maps"
 	"net/http"
 	"sort"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 // Namespaced wraps a child metrics exporter and exposes a Type API that
@@ -14,6 +17,7 @@ type Namespaced struct {
 	labels   map[string]string
 	mappings []*Mapping
 	child    Type
+	cleanup  *namespacedCleanup
 }
 
 // NewNamespaced wraps a metrics exporter and adds prefixes and custom labels.
@@ -35,6 +39,16 @@ func Noop() *Namespaced {
 func (n *Namespaced) WithStats(s Type) *Namespaced {
 	newNs := *n
 	newNs.child = s
+	return &newNs
+}
+
+// WithCleanup returns a metrics exporter scope that removes all series created
+// through it when closed, where supported by the underlying exporter.
+func (n *Namespaced) WithCleanup() *Namespaced {
+	newNs := *n
+	newNs.cleanup = &namespacedCleanup{
+		stats: map[string]StatDeleter{},
+	}
 	return &newNs
 }
 
@@ -101,40 +115,118 @@ func (n *Namespaced) getPathAndLabels(path string) (newPath string, labelKeys, l
 type counterVecWithStatic struct {
 	staticValues []string
 	child        StatCounterVec
+	path         string
+	cleanup      *namespacedCleanup
 }
 
 func (c *counterVecWithStatic) With(values ...string) StatCounter {
 	newValues := make([]string, 0, len(c.staticValues)+len(values))
 	newValues = append(newValues, c.staticValues...)
 	newValues = append(newValues, values...)
-	return c.child.With(newValues...)
+	stat := c.child.With(newValues...)
+	if c.cleanup != nil {
+		c.cleanup.track(cleanupKey("counter", c.path, newValues), stat)
+	}
+	return stat
 }
 
 type timerVecWithStatic struct {
 	staticValues []string
 	child        StatTimerVec
+	path         string
+	cleanup      *namespacedCleanup
 }
 
 func (c *timerVecWithStatic) With(values ...string) StatTimer {
 	newValues := make([]string, 0, len(c.staticValues)+len(values))
 	newValues = append(newValues, c.staticValues...)
 	newValues = append(newValues, values...)
-	return c.child.With(newValues...)
+	stat := c.child.With(newValues...)
+	if c.cleanup != nil {
+		c.cleanup.track(cleanupKey("timer", c.path, newValues), stat)
+	}
+	return stat
 }
 
 type gaugeVecWithStatic struct {
 	staticValues []string
 	child        StatGaugeVec
+	path         string
+	cleanup      *namespacedCleanup
 }
 
 func (c *gaugeVecWithStatic) With(values ...string) StatGauge {
 	newValues := make([]string, 0, len(c.staticValues)+len(values))
 	newValues = append(newValues, c.staticValues...)
 	newValues = append(newValues, values...)
-	return c.child.With(newValues...)
+	stat := c.child.With(newValues...)
+	if c.cleanup != nil {
+		c.cleanup.track(cleanupKey("gauge", c.path, newValues), stat)
+	}
+	return stat
 }
 
 //------------------------------------------------------------------------------
+
+type namespacedCleanup struct {
+	mut    sync.Mutex
+	stats  map[string]StatDeleter
+	closed bool
+}
+
+func cleanupKey(kind, path string, labelValues []string) string {
+	var b strings.Builder
+	writePart := func(value string) {
+		b.WriteString(strconv.Itoa(len(value)))
+		b.WriteByte(':')
+		b.WriteString(value)
+	}
+	writePart(kind)
+	writePart(path)
+	for _, value := range labelValues {
+		writePart(value)
+	}
+	return b.String()
+}
+
+func (c *namespacedCleanup) track(key string, stat any) {
+	deleter, ok := stat.(StatDeleter)
+	if !ok {
+		return
+	}
+	c.mut.Lock()
+	if c.closed {
+		c.mut.Unlock()
+		deleter.Delete()
+		return
+	}
+	if _, exists := c.stats[key]; !exists {
+		c.stats[key] = deleter
+	}
+	c.mut.Unlock()
+}
+
+func (c *namespacedCleanup) close() {
+	c.mut.Lock()
+	if c.closed {
+		c.mut.Unlock()
+		return
+	}
+	c.closed = true
+	stats := c.stats
+	c.stats = nil
+	c.mut.Unlock()
+
+	for _, stat := range stats {
+		stat.Delete()
+	}
+}
+
+func (n *Namespaced) track(kind, path string, labelValues []string, stat any) {
+	if n.cleanup != nil {
+		n.cleanup.track(cleanupKey(kind, path, labelValues), stat)
+	}
+}
 
 // GetCounter returns an editable counter stat for a given path.
 func (n *Namespaced) GetCounter(path string) StatCounter {
@@ -143,9 +235,13 @@ func (n *Namespaced) GetCounter(path string) StatCounter {
 		return DudStat{}
 	}
 	if len(labelKeys) > 0 {
-		return n.child.GetCounterVec(path, labelKeys...).With(labelValues...)
+		stat := n.child.GetCounterVec(path, labelKeys...).With(labelValues...)
+		n.track("counter", path, labelValues, stat)
+		return stat
 	}
-	return n.child.GetCounter(path)
+	stat := n.child.GetCounter(path)
+	n.track("counter", path, nil, stat)
+	return stat
 }
 
 // GetCounterVec returns an editable counter stat for a given path with labels,
@@ -165,9 +261,19 @@ func (n *Namespaced) GetCounterVec(path string, labelNames ...string) StatCounte
 		return &counterVecWithStatic{
 			staticValues: staticValues,
 			child:        n.child.GetCounterVec(path, newNames...),
+			path:         path,
+			cleanup:      n.cleanup,
 		}
 	}
-	return n.child.GetCounterVec(path, labelNames...)
+	child := n.child.GetCounterVec(path, labelNames...)
+	if n.cleanup == nil {
+		return child
+	}
+	return &counterVecWithStatic{
+		child:   child,
+		path:    path,
+		cleanup: n.cleanup,
+	}
 }
 
 // GetTimer returns an editable timer stat for a given path.
@@ -177,9 +283,13 @@ func (n *Namespaced) GetTimer(path string) StatTimer {
 		return DudStat{}
 	}
 	if len(labelKeys) > 0 {
-		return n.child.GetTimerVec(path, labelKeys...).With(labelValues...)
+		stat := n.child.GetTimerVec(path, labelKeys...).With(labelValues...)
+		n.track("timer", path, labelValues, stat)
+		return stat
 	}
-	return n.child.GetTimer(path)
+	stat := n.child.GetTimer(path)
+	n.track("timer", path, nil, stat)
+	return stat
 }
 
 // GetTimerVec returns an editable timer stat for a given path with labels,
@@ -199,9 +309,19 @@ func (n *Namespaced) GetTimerVec(path string, labelNames ...string) StatTimerVec
 		return &timerVecWithStatic{
 			staticValues: staticValues,
 			child:        n.child.GetTimerVec(path, newNames...),
+			path:         path,
+			cleanup:      n.cleanup,
 		}
 	}
-	return n.child.GetTimerVec(path, labelNames...)
+	child := n.child.GetTimerVec(path, labelNames...)
+	if n.cleanup == nil {
+		return child
+	}
+	return &timerVecWithStatic{
+		child:   child,
+		path:    path,
+		cleanup: n.cleanup,
+	}
 }
 
 // GetGauge returns an editable gauge stat for a given path.
@@ -211,9 +331,13 @@ func (n *Namespaced) GetGauge(path string) StatGauge {
 		return DudStat{}
 	}
 	if len(labelKeys) > 0 {
-		return n.child.GetGaugeVec(path, labelKeys...).With(labelValues...)
+		stat := n.child.GetGaugeVec(path, labelKeys...).With(labelValues...)
+		n.track("gauge", path, labelValues, stat)
+		return stat
 	}
-	return n.child.GetGauge(path)
+	stat := n.child.GetGauge(path)
+	n.track("gauge", path, nil, stat)
+	return stat
 }
 
 // GetGaugeVec returns an editable gauge stat for a given path with labels,
@@ -233,12 +357,26 @@ func (n *Namespaced) GetGaugeVec(path string, labelNames ...string) StatGaugeVec
 		return &gaugeVecWithStatic{
 			staticValues: staticValues,
 			child:        n.child.GetGaugeVec(path, newNames...),
+			path:         path,
+			cleanup:      n.cleanup,
 		}
 	}
-	return n.child.GetGaugeVec(path, labelNames...)
+	child := n.child.GetGaugeVec(path, labelNames...)
+	if n.cleanup == nil {
+		return child
+	}
+	return &gaugeVecWithStatic{
+		child:   child,
+		path:    path,
+		cleanup: n.cleanup,
+	}
 }
 
 // Close stops aggregating stats and cleans up resources.
 func (n *Namespaced) Close() error {
+	if n.cleanup != nil {
+		n.cleanup.close()
+		return nil
+	}
 	return n.child.Close()
 }

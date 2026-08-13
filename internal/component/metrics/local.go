@@ -66,6 +66,37 @@ func (l *LocalTiming) Timing(delta int64) {
 	l.lock.Unlock()
 }
 
+type localStatRef struct {
+	*LocalStat
+	owner *Local
+	path  string
+}
+
+func (l *localStatRef) Delete() {
+	l.owner.mut.Lock()
+	if l.owner.flatCounters[l.path] == l.LocalStat {
+		delete(l.owner.flatCounters, l.path)
+	}
+	l.owner.mut.Unlock()
+}
+
+type localTimingRef struct {
+	*LocalTiming
+	owner *Local
+	path  string
+}
+
+func (l *localTimingRef) Delete() {
+	l.owner.mut.Lock()
+	if l.owner.flatTimings[l.path] == l.LocalTiming {
+		delete(l.owner.flatTimings, l.path)
+		l.LocalTiming.lock.Lock()
+		l.LocalTiming.t.Stop()
+		l.LocalTiming.lock.Unlock()
+	}
+	l.owner.mut.Unlock()
+}
+
 //------------------------------------------------------------------------------
 
 // Local is a metrics aggregator that stores metrics locally.
@@ -231,7 +262,11 @@ func (l *Local) GetCounterVec(path string, k ...string) StatCounterVec {
 			l.flatCounters[newPath] = st
 		}
 		l.mut.Unlock()
-		return st
+		return &localStatRef{
+			LocalStat: st,
+			owner:     l,
+			path:      newPath,
+		}
 	})
 }
 
@@ -247,7 +282,11 @@ func (l *Local) GetTimerVec(path string, k ...string) StatTimerVec {
 			l.flatTimings[newPath] = st
 		}
 		l.mut.Unlock()
-		return st
+		return &localTimingRef{
+			LocalTiming: st,
+			owner:       l,
+			path:        newPath,
+		}
 	})
 }
 
@@ -264,7 +303,11 @@ func (l *Local) GetGaugeVec(path string, k ...string) StatGaugeVec {
 			l.flatCounters[newPath] = st
 		}
 		l.mut.Unlock()
-		return st
+		return &localStatRef{
+			LocalStat: st,
+			owner:     l,
+			path:      newPath,
+		}
 	})
 }
 
