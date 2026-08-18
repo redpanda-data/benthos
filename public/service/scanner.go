@@ -38,6 +38,20 @@ func (r *ScannerSourceDetails) Name() string {
 	return r.details.Name
 }
 
+// SetSizeHint sets the total size in bytes of the source to details. This is a
+// hint only, used by scanner implementations in order to pre-allocate buffers,
+// and must never be relied upon for correctness as the underlying source may
+// change between it being measured and read.
+func (r *ScannerSourceDetails) SetSizeHint(size int64) {
+	r.details.SizeHint = size
+}
+
+// SizeHint returns the total size in bytes of the source, or zero if it has not
+// been set.
+func (r *ScannerSourceDetails) SizeHint() int64 {
+	return r.details.SizeHint
+}
+
 // BatchScannerCreator is an interface implemented by Benthos scanner plugins.
 // Calls to Create must create a new instantiation of BatchScanner that consumes
 // the provided io.ReadCloser, produces batches of messages (batches containing

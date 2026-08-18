@@ -119,7 +119,10 @@ type codecRPublic struct {
 
 func (r *codecRPublic) Create(rdr io.ReadCloser, aFn service.AckFunc, details *service.ScannerSourceDetails) (DeprecatedFallbackStream, error) {
 	sDetails := service.NewScannerSourceDetails()
-	sDetails.SetName(details.Name())
+	if details != nil {
+		sDetails.SetName(details.Name())
+		sDetails.SetSizeHint(details.SizeHint())
+	}
 
 	os, err := r.newCtor.Create(rdr, aFn, sDetails)
 	if err != nil {

@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Input `file`: The known file size is now passed to the scanner as a hint, allowing the `to_the_end` scanner to pre-allocate its read buffer instead of growing it repeatedly via `io.ReadAll`. This avoids the transient double-buffering that previously made peak memory roughly twice the file size when reading a whole file (measured ~59% fewer bytes allocated, and 36 allocations down to 2, for a 64 MiB file). The size is treated purely as a hint and never affects the bytes returned. (@rockdatasrl001)
+
 ## 4.77.0 - 2026-07-30
 
 ### Added

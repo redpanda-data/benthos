@@ -24,6 +24,12 @@ type Scanner interface {
 // by codec implementations in order to determine the underlying data format.
 type SourceDetails struct {
 	Name string
+
+	// SizeHint is the total number of bytes of the source, when known, and is
+	// zero otherwise. It is a hint only, provided so that implementations can
+	// pre-allocate buffers, and must never be relied upon for correctness as
+	// the underlying source may change between it being measured and read.
+	SizeHint int64
 }
 
 // Creator is an interface implemented by all scanners, which allows components

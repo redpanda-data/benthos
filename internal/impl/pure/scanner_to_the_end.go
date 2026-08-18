@@ -37,7 +37,13 @@ func toTheEndScannerCreatorFromParsed(conf *service.ParsedConfig) (s *toTheEndSc
 type toTheEndScannerCreator struct{}
 
 func (l *toTheEndScannerCreator) Create(rdr io.ReadCloser, aFn service.AckFunc, details *service.ScannerSourceDetails) (service.BatchScanner, error) {
-	return service.AutoAggregateBatchScannerAcks(&toTheEndScanner{r: rdr}, aFn), nil
+	// The size hint is used to pre-allocate the read buffer only, and is absent
+	// for sources of unknown length.
+	var sizeHint int64
+	if details != nil {
+		sizeHint = details.SizeHint()
+	}
+	return service.AutoAggregateBatchScannerAcks(&toTheEndScanner{r: rdr, sizeHint: sizeHint}, aFn), nil
 }
 
 func (l *toTheEndScannerCreator) Close(context.Context) error {
@@ -45,14 +51,45 @@ func (l *toTheEndScannerCreator) Close(context.Context) error {
 }
 
 type toTheEndScanner struct {
-	r io.ReadCloser
+	r        io.ReadCloser
+	sizeHint int64
+}
+
+// readAllHinted is io.ReadAll with a starting capacity hint.
+//
+// Semantics are identical to io.ReadAll; the hint is purely an optimisation.
+// If the source is larger than the hint the buffer grows exactly as before,
+// paying the copy only for the excess; if smaller, the read ends early. This
+// matters because a file can be appended to between Stat and read.
+//
+// The +1 on capacity is deliberate: the loop can only Read while cap > len, so
+// a buffer sized exactly to the content would find len == cap on the final
+// iteration and grow once more, reintroducing the reallocation this avoids.
+func readAllHinted(r io.Reader, hint int64) ([]byte, error) {
+	if hint < 0 {
+		hint = 0
+	}
+	buf := make([]byte, 0, hint+1)
+	for {
+		if len(buf) == cap(buf) {
+			buf = append(buf, 0)[:len(buf)]
+		}
+		n, err := r.Read(buf[len(buf):cap(buf)])
+		buf = buf[:len(buf)+n]
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			return buf, err
+		}
+	}
 }
 
 func (t *toTheEndScanner) NextBatch(ctx context.Context) (service.MessageBatch, error) {
 	if t.r == nil {
 		return nil, io.EOF
 	}
-	mBytes, err := io.ReadAll(t.r)
+	mBytes, err := readAllHinted(t.r, t.sizeHint)
 	if err != nil {
 		return nil, err
 	}
