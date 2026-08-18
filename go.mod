@@ -1,6 +1,6 @@
 module github.com/redpanda-data/benthos/v4
 
-go 1.26.4
+go 1.26.6
 
 require (
 	cuelang.org/go v0.17.1
