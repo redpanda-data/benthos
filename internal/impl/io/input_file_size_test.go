@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"testing"
 	"time"
 
@@ -17,23 +16,11 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
-	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
-// sizeCapture records the source details observed by a scanner, so that a test
-// can assert on what the file input actually propagated.
-var sizeCapture = struct {
-	sync.Mutex
-	sizes map[string]int64
-}{sizes: map[string]int64{}}
-
-func init() {
-	scannertestutil.MustRegisterDetailsCaptureScanner("capture_size_test", func(details *service.ScannerSourceDetails) {
-		sizeCapture.Lock()
-		sizeCapture.sizes[filepath.Base(details.Name())] = details.SizeHint()
-		sizeCapture.Unlock()
-	})
-}
+// capturedSizes reports the source details observed by the capture_size_test
+// scanner, so that a test can assert on what the file input propagated.
+var capturedSizes = scannertestutil.MustRegisterDetailsCaptureScanner("capture_size_test")
 
 // TestFileInputPropagatesSize asserts that the file input reads Size() from the
 // Stat it already performs and passes it to the scanner, for regular files.
@@ -67,10 +54,12 @@ file:
 	assert.Equal(t, content, string(tran.Payload.Get(0).AsBytes()))
 	require.NoError(t, tran.Ack(t.Context(), nil))
 
-	sizeCapture.Lock()
-	got := sizeCapture.sizes["sized.txt"]
-	sizeCapture.Unlock()
-
+	var got int64
+	for _, c := range capturedSizes() {
+		if filepath.Base(c.Name) == "sized.txt" {
+			got = c.SizeHint
+		}
+	}
 	assert.Equal(t, int64(len(content)), got,
 		"file input should propagate the size it already obtained from Stat")
 }

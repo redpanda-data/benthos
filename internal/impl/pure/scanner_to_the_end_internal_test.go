@@ -106,7 +106,7 @@ func TestReadAllHintedExactHintDoesNotRealloc(t *testing.T) {
 
 			assert.Equal(t, content, act)
 			assert.Len(t, act, size)
-			assert.Equal(t, size+1, cap(act), "buffer was reallocated despite an exact hint")
+			assert.Equal(t, max(size+1, minPreallocHint), cap(act), "buffer was reallocated despite an exact hint")
 		})
 	}
 }

@@ -7,7 +7,6 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,22 +37,9 @@ test:
 	testutil.ScannerTestSuite(t, rdr, nil, inputBytes, "hello", "world", "this", "is", "compressed")
 }
 
-// hintCapture records the source details observed by the capture_hint_test
+// capturedHints reports the source details observed by the capture_hint_test
 // scanner, so a test can assert on what a wrapping scanner propagated.
-var hintCapture = struct {
-	sync.Mutex
-	name string
-	size int64
-}{}
-
-func init() {
-	testutil.MustRegisterDetailsCaptureScanner("capture_hint_test", func(details *service.ScannerSourceDetails) {
-		hintCapture.Lock()
-		hintCapture.name = details.Name()
-		hintCapture.size = details.SizeHint()
-		hintCapture.Unlock()
-	})
-}
+var capturedHints = testutil.MustRegisterDetailsCaptureScanner("capture_hint_test")
 
 // TestDecompressScannerStripsSizeHint asserts that a size hint, which
 // describes the compressed stream, is not forwarded to the child scanner
@@ -92,11 +78,11 @@ test:
 	require.NoError(t, err)
 	assert.Equal(t, "helloXworldXthisXisXcompressed", string(mBytes))
 
-	hintCapture.Lock()
-	capturedName, capturedSize := hintCapture.name, hintCapture.size
-	hintCapture.Unlock()
-	assert.Equal(t, "compressed.gz", capturedName, "name should survive the decompress layer")
-	assert.Zero(t, capturedSize, "compressed size hint should not reach the child scanner")
+	captures := capturedHints()
+	require.NotEmpty(t, captures)
+	last := captures[len(captures)-1]
+	assert.Equal(t, "compressed.gz", last.Name, "name should survive the decompress layer")
+	assert.Zero(t, last.SizeHint, "compressed size hint should not reach the child scanner")
 
 	require.NoError(t, strm.Close(t.Context()))
 }

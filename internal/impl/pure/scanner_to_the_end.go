@@ -51,38 +51,62 @@ type toTheEndScanner struct {
 	sizeHint int64
 }
 
-// maxPreallocHint caps the capacity pre-allocated from a size hint. The hint
-// originates from external data (typically a Stat) and can be wildly wrong:
-// procfs files report multi-terabyte sizes, and a custom filesystem can return
-// anything, including values for which make() panics outright (above the
-// runtime's allocation limit, or overflowing hint+1). io.ReadAll bounded
-// memory by growing incrementally, so pre-allocation must not turn a bogus
-// hint into an enormous up-front allocation. Content beyond the clamp still
-// reads correctly, paying only the incremental growth it always used to.
-const maxPreallocHint = 1 << 30
+const (
+	// maxPreallocHint caps the capacity pre-allocated from a size hint. The
+	// hint originates from external data (typically a Stat) and can be wildly
+	// wrong: procfs files report multi-terabyte sizes, and a custom
+	// filesystem can return anything, including values for which make()
+	// panics outright (above the runtime's allocation limit, or overflowing
+	// hint+1). io.ReadAll bounded memory by growing incrementally, so
+	// pre-allocation must not turn a bogus hint into a memory spike that can
+	// take out a constrained deployment before a single byte is read. 128 MiB
+	// covers typical whole-stream messages while bounding the blast radius of
+	// a wrong hint; content beyond the clamp reads correctly, growing by
+	// doubling.
+	maxPreallocHint = 128 << 20
+
+	// minPreallocHint floors the pre-allocated capacity at io.ReadAll's own
+	// starting size, so a hint that underestimates wildly (a file appended to
+	// after being measured) doesn't begin with pathologically small reads.
+	minPreallocHint = 512
+
+	// maxReturnWaste is the largest gap between the returned buffer's
+	// capacity and its content that readAllHinted will leave in place. Beyond
+	// it the content is copied down, as callers hold the returned bytes for
+	// the lifetime of the message and would otherwise pin the excess. Below
+	// it a copy costs more than the memory it reclaims.
+	maxReturnWaste = 64 << 10
+)
 
 // readAllHinted is io.ReadAll with a starting capacity hint.
 //
-// Semantics are identical to io.ReadAll; the hint is purely an optimisation.
-// If the source is larger than the hint the buffer grows exactly as before,
-// paying the copy only for the excess; if smaller, the read ends early. This
-// matters because a file can be appended to between Stat and read.
+// The bytes and error returned are identical to io.ReadAll for every hint
+// value; the hint only shapes allocation. A hint of zero or below means the
+// size is unknown, in which case io.ReadAll is used directly.
 //
-// A hint of zero or below means the size is unknown, in which case io.ReadAll
-// is used directly: its growth strategy starts at 512 bytes, which beats
-// growing from an empty buffer.
-//
-// The +1 on capacity is deliberate: the loop can only Read while cap > len, so
-// a buffer sized exactly to the content would find len == cap on the final
-// iteration and grow once more, reintroducing the reallocation this avoids.
+// An accurate hint reads the content into a single allocation returned as-is:
+// the +1 on capacity is deliberate, as the loop can only Read while
+// cap > len, so a buffer sized exactly to the content would find len == cap
+// on the final iteration and grow once more, reintroducing the reallocation
+// this avoids. A hint that falls short (the source grew after being measured,
+// or exceeds the clamp) grows by doubling, keeping cumulative allocation
+// linear in the content size much like io.ReadAll's own chunking. A buffer
+// returned with meaningfully more capacity than content (the source shrank,
+// or the measurement was wrong) is copied down first, so a wrong hint can't
+// pin excess memory for the lifetime of the returned bytes.
 func readAllHinted(r io.Reader, hint int64) ([]byte, error) {
 	if hint <= 0 {
 		return io.ReadAll(r)
 	}
-	buf := make([]byte, 0, min(hint, maxPreallocHint)+1)
+	buf := make([]byte, 0, max(min(hint, maxPreallocHint)+1, minPreallocHint))
 	for {
 		if len(buf) == cap(buf) {
-			buf = append(buf, 0)[:len(buf)]
+			// The +1 serves the same purpose as on the initial allocation:
+			// content ending exactly at a doubled capacity can observe EOF in
+			// the spare byte rather than forcing one more doubling.
+			grown := make([]byte, len(buf), 2*cap(buf)+1)
+			copy(grown, buf)
+			buf = grown
 		}
 		n, err := r.Read(buf[len(buf):cap(buf)])
 		buf = buf[:len(buf)+n]
@@ -90,13 +114,10 @@ func readAllHinted(r io.Reader, hint int64) ([]byte, error) {
 			if err == io.EOF {
 				err = nil
 			}
-			// A hint that overestimated the content (the source shrank between
-			// being measured and read, or the measurement was wrong) would
-			// otherwise leave the caller pinning the whole pre-allocated array
-			// for as long as it holds the returned bytes; copy down when the
-			// waste exceeds the content. An accurate hint leaves cap at len+1
-			// and never pays this copy.
-			if int64(cap(buf)) > int64(len(buf))*2 {
+			// The error path skips the copy-down: the only caller discards
+			// the buffer when err != nil, and io.ReadAll's contract covers
+			// contents and error, not capacity.
+			if err == nil && cap(buf)-len(buf) > maxReturnWaste {
 				buf = append(make([]byte, 0, len(buf)), buf...)
 			}
 			return buf, err

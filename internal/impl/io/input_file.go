@@ -168,9 +168,11 @@ func (f *fileConsumer) getReader(ctx context.Context) (scannerInfo, error) {
 		modTimeUTC = fInfo.ModTime().UTC()
 
 		// Only regular files have a meaningful size to pre-allocate against, a
-		// FIFO, device or directory does not.
-		if fInfo.Mode().IsRegular() {
-			details.SetSizeHint(fInfo.Size())
+		// FIFO, device or directory does not. The positivity check keeps the
+		// documented SizeHint contract (zero means unknown, never negative)
+		// even when a custom filesystem misreports a size.
+		if s := fInfo.Size(); s > 0 && fInfo.Mode().IsRegular() {
+			details.SetSizeHint(s)
 		}
 	} else {
 		f.log.Errorf("Failed to read metadata from file '%v': %v", nextPath, err)

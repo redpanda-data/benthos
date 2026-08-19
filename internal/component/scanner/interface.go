@@ -33,10 +33,12 @@ type SourceDetails struct {
 	// for correctness as the underlying source may change between it being
 	// measured and read.
 	//
-	// A scanner that wraps a child scanner and transforms the length of the
-	// stream (such as decompress) must clear the hint before forwarding
-	// details, as it describes the stream the wrapper reads, not the one the
-	// child does.
+	// A scanner that wraps a child scanner and materially transforms the
+	// length of the stream (such as decompress) must clear the hint before
+	// forwarding details, as it describes the stream the wrapper reads, not
+	// the one the child does. A wrapper that shortens the stream by only a
+	// bounded few bytes (such as skip_bom) may forward the hint unchanged, as
+	// it remains a tight upper bound.
 	SizeHint int64
 }
 
