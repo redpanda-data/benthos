@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/hex"
 	"io"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,50 +41,18 @@ test:
 // hintCapture records the source details observed by the capture_hint_test
 // scanner, so a test can assert on what a wrapping scanner propagated.
 var hintCapture = struct {
+	sync.Mutex
 	name string
 	size int64
 }{}
 
 func init() {
-	service.MustRegisterBatchScannerCreator("capture_hint_test",
-		service.NewConfigSpec().Field(service.NewObjectField("").Default(map[string]any{})),
-		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
-			return &captureHintScannerCreator{}, nil
-		})
-}
-
-type captureHintScannerCreator struct{}
-
-func (c *captureHintScannerCreator) Create(rdr io.ReadCloser, aFn service.AckFunc, details *service.ScannerSourceDetails) (service.BatchScanner, error) {
-	hintCapture.name = details.Name()
-	hintCapture.size = details.SizeHint()
-	return service.AutoAggregateBatchScannerAcks(&captureHintScanner{r: rdr}, aFn), nil
-}
-
-func (c *captureHintScannerCreator) Close(context.Context) error { return nil }
-
-type captureHintScanner struct {
-	r io.ReadCloser
-}
-
-func (c *captureHintScanner) NextBatch(ctx context.Context) (service.MessageBatch, error) {
-	if c.r == nil {
-		return nil, io.EOF
-	}
-	b, err := io.ReadAll(c.r)
-	if err != nil {
-		return nil, err
-	}
-	_ = c.r.Close()
-	c.r = nil
-	return service.MessageBatch{service.NewMessage(b)}, nil
-}
-
-func (c *captureHintScanner) Close(ctx context.Context) error {
-	if c.r == nil {
-		return nil
-	}
-	return c.r.Close()
+	testutil.MustRegisterDetailsCaptureScanner("capture_hint_test", func(details *service.ScannerSourceDetails) {
+		hintCapture.Lock()
+		hintCapture.name = details.Name()
+		hintCapture.size = details.SizeHint()
+		hintCapture.Unlock()
+	})
 }
 
 // TestDecompressScannerStripsSizeHint asserts that a size hint, which
@@ -123,8 +92,11 @@ test:
 	require.NoError(t, err)
 	assert.Equal(t, "helloXworldXthisXisXcompressed", string(mBytes))
 
-	assert.Equal(t, "compressed.gz", hintCapture.name, "name should survive the decompress layer")
-	assert.Zero(t, hintCapture.size, "compressed size hint should not reach the child scanner")
+	hintCapture.Lock()
+	capturedName, capturedSize := hintCapture.name, hintCapture.size
+	hintCapture.Unlock()
+	assert.Equal(t, "compressed.gz", capturedName, "name should survive the decompress layer")
+	assert.Zero(t, capturedSize, "compressed size hint should not reach the child scanner")
 
 	require.NoError(t, strm.Close(t.Context()))
 }

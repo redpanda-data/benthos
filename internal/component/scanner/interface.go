@@ -32,6 +32,11 @@ type SourceDetails struct {
 	// implementations can pre-allocate buffers, and must never be relied upon
 	// for correctness as the underlying source may change between it being
 	// measured and read.
+	//
+	// A scanner that wraps a child scanner and transforms the length of the
+	// stream (such as decompress) must clear the hint before forwarding
+	// details, as it describes the stream the wrapper reads, not the one the
+	// child does.
 	SizeHint int64
 }
 

@@ -134,6 +134,20 @@ func TestReadAllHintedHugeHintDoesNotPanic(t *testing.T) {
 	}
 }
 
+// TestReadAllHintedOverHintReleasesExcess asserts that a hint which grossly
+// overestimates the content (a file truncated between Stat and read, or a
+// misreporting filesystem) does not leave the returned slice pinning the
+// whole pre-allocated array for the lifetime of the message.
+func TestReadAllHintedOverHintReleasesExcess(t *testing.T) {
+	const size = 4096
+	content := randomBytes(size)
+
+	act, err := readAllHinted(&shortReader{r: bytes.NewReader(content), max: 512}, 1<<20)
+	require.NoError(t, err)
+	assert.Equal(t, content, act)
+	assert.Less(t, cap(act), size*2+1, "over-hinted buffer was not copied down")
+}
+
 // TestReadAllHintedGrowsWhenHintTooSmall asserts the buffer still grows to fit
 // content larger than the hint, the case where a file is appended to between
 // Stat and read.

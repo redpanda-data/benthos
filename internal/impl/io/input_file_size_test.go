@@ -3,9 +3,7 @@
 package io_test
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -15,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	scannertestutil "github.com/redpanda-data/benthos/v4/internal/component/scanner/testutil"
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
@@ -29,48 +28,11 @@ var sizeCapture = struct {
 }{sizes: map[string]int64{}}
 
 func init() {
-	service.MustRegisterBatchScannerCreator("capture_size_test",
-		service.NewConfigSpec().Field(service.NewObjectField("").Default(map[string]any{})),
-		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchScannerCreator, error) {
-			return &captureSizeScannerCreator{}, nil
-		})
-}
-
-type captureSizeScannerCreator struct{}
-
-func (c *captureSizeScannerCreator) Create(rdr io.ReadCloser, aFn service.AckFunc, details *service.ScannerSourceDetails) (service.BatchScanner, error) {
-	if details != nil {
+	scannertestutil.MustRegisterDetailsCaptureScanner("capture_size_test", func(details *service.ScannerSourceDetails) {
 		sizeCapture.Lock()
 		sizeCapture.sizes[filepath.Base(details.Name())] = details.SizeHint()
 		sizeCapture.Unlock()
-	}
-	return service.AutoAggregateBatchScannerAcks(&captureSizeScanner{r: rdr}, aFn), nil
-}
-
-func (c *captureSizeScannerCreator) Close(context.Context) error { return nil }
-
-type captureSizeScanner struct {
-	r io.ReadCloser
-}
-
-func (c *captureSizeScanner) NextBatch(ctx context.Context) (service.MessageBatch, error) {
-	if c.r == nil {
-		return nil, io.EOF
-	}
-	b, err := io.ReadAll(c.r)
-	if err != nil {
-		return nil, err
-	}
-	_ = c.r.Close()
-	c.r = nil
-	return service.MessageBatch{service.NewMessage(b)}, nil
-}
-
-func (c *captureSizeScanner) Close(ctx context.Context) error {
-	if c.r == nil {
-		return nil
-	}
-	return c.r.Close()
+	})
 }
 
 // TestFileInputPropagatesSize asserts that the file input reads Size() from the

@@ -90,6 +90,15 @@ func readAllHinted(r io.Reader, hint int64) ([]byte, error) {
 			if err == io.EOF {
 				err = nil
 			}
+			// A hint that overestimated the content (the source shrank between
+			// being measured and read, or the measurement was wrong) would
+			// otherwise leave the caller pinning the whole pre-allocated array
+			// for as long as it holds the returned bytes; copy down when the
+			// waste exceeds the content. An accurate hint leaves cap at len+1
+			// and never pays this copy.
+			if int64(cap(buf)) > int64(len(buf))*2 {
+				buf = append(make([]byte, 0, len(buf)), buf...)
+			}
 			return buf, err
 		}
 	}
