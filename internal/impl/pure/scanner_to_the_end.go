@@ -5,6 +5,7 @@ package pure
 import (
 	"context"
 	"io"
+	"math"
 
 	"github.com/redpanda-data/benthos/v4/public/service"
 )
@@ -55,21 +56,41 @@ type toTheEndScanner struct {
 	sizeHint int64
 }
 
+// defaultReadAllCap matches the initial buffer capacity io.ReadAll uses. Sources
+// without a useful size hint (sockets, stdin, and other unbounded streams that
+// route through this scanner) therefore keep io.ReadAll's allocation profile
+// rather than growing up from a single byte.
+const defaultReadAllCap = 512
+
+// hintedCap converts a caller-supplied size hint into the capacity to
+// pre-allocate.
+//
+// The hint is floored at defaultReadAllCap so that a small, absent, or negative
+// hint never allocates worse than io.ReadAll would, and capped just below
+// math.MaxInt64 so the +1 below cannot overflow to a negative capacity —
+// SetSizeHint is exported, so the hint is untrusted input.
+//
+// The +1 is deliberate: the read loop can only Read while cap > len, so a buffer
+// sized to exactly the content would find len == cap on the final iteration and
+// grow once more, reintroducing the reallocation this avoids.
+func hintedCap(hint int64) int64 {
+	if hint < defaultReadAllCap {
+		hint = defaultReadAllCap
+	}
+	if hint > math.MaxInt64-1 {
+		hint = math.MaxInt64 - 1
+	}
+	return hint + 1
+}
+
 // readAllHinted is io.ReadAll with a starting capacity hint.
 //
 // Semantics are identical to io.ReadAll; the hint is purely an optimisation.
 // If the source is larger than the hint the buffer grows exactly as before,
 // paying the copy only for the excess; if smaller, the read ends early. This
 // matters because a file can be appended to between Stat and read.
-//
-// The +1 on capacity is deliberate: the loop can only Read while cap > len, so
-// a buffer sized exactly to the content would find len == cap on the final
-// iteration and grow once more, reintroducing the reallocation this avoids.
 func readAllHinted(r io.Reader, hint int64) ([]byte, error) {
-	if hint < 0 {
-		hint = 0
-	}
-	buf := make([]byte, 0, hint+1)
+	buf := make([]byte, 0, hintedCap(hint))
 	for {
 		if len(buf) == cap(buf) {
 			buf = append(buf, 0)[:len(buf)]
