@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package service
 
@@ -33,22 +33,32 @@ func (r *ScannerSourceDetails) SetName(name string) {
 }
 
 // Name returns a filename (or other equivalent name of the source), or an
-// empty string if it has not been set.
+// empty string if it has not been set. It is safe to call on a nil receiver,
+// as details are optional.
 func (r *ScannerSourceDetails) Name() string {
+	if r == nil {
+		return ""
+	}
 	return r.details.Name
 }
 
 // SetSizeHint sets the total size in bytes of the source to details. This is a
 // hint only, used by scanner implementations in order to pre-allocate buffers,
 // and must never be relied upon for correctness as the underlying source may
-// change between it being measured and read.
+// change between it being measured and read. A zero size is indistinguishable
+// from the hint not being set at all, so implementations treat zero as
+// unknown.
 func (r *ScannerSourceDetails) SetSizeHint(size int64) {
 	r.details.SizeHint = size
 }
 
-// SizeHint returns the total size in bytes of the source, or zero if it has not
-// been set.
+// SizeHint returns the total size in bytes of the source, or zero if it is
+// unknown or has not been set. It is safe to call on a nil receiver, as
+// details are optional.
 func (r *ScannerSourceDetails) SizeHint() int64 {
+	if r == nil {
+		return 0
+	}
 	return r.details.SizeHint
 }
 

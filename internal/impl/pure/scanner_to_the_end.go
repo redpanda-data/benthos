@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package pure
 
@@ -37,13 +37,9 @@ func toTheEndScannerCreatorFromParsed(conf *service.ParsedConfig) (s *toTheEndSc
 type toTheEndScannerCreator struct{}
 
 func (l *toTheEndScannerCreator) Create(rdr io.ReadCloser, aFn service.AckFunc, details *service.ScannerSourceDetails) (service.BatchScanner, error) {
-	// The size hint is used to pre-allocate the read buffer only, and is absent
+	// The size hint is used to pre-allocate the read buffer only, and is zero
 	// for sources of unknown length.
-	var sizeHint int64
-	if details != nil {
-		sizeHint = details.SizeHint()
-	}
-	return service.AutoAggregateBatchScannerAcks(&toTheEndScanner{r: rdr, sizeHint: sizeHint}, aFn), nil
+	return service.AutoAggregateBatchScannerAcks(&toTheEndScanner{r: rdr, sizeHint: details.SizeHint()}, aFn), nil
 }
 
 func (l *toTheEndScannerCreator) Close(context.Context) error {
@@ -55,6 +51,16 @@ type toTheEndScanner struct {
 	sizeHint int64
 }
 
+// maxPreallocHint caps the capacity pre-allocated from a size hint. The hint
+// originates from external data (typically a Stat) and can be wildly wrong:
+// procfs files report multi-terabyte sizes, and a custom filesystem can return
+// anything, including values for which make() panics outright (above the
+// runtime's allocation limit, or overflowing hint+1). io.ReadAll bounded
+// memory by growing incrementally, so pre-allocation must not turn a bogus
+// hint into an enormous up-front allocation. Content beyond the clamp still
+// reads correctly, paying only the incremental growth it always used to.
+const maxPreallocHint = 1 << 30
+
 // readAllHinted is io.ReadAll with a starting capacity hint.
 //
 // Semantics are identical to io.ReadAll; the hint is purely an optimisation.
@@ -62,14 +68,18 @@ type toTheEndScanner struct {
 // paying the copy only for the excess; if smaller, the read ends early. This
 // matters because a file can be appended to between Stat and read.
 //
+// A hint of zero or below means the size is unknown, in which case io.ReadAll
+// is used directly: its growth strategy starts at 512 bytes, which beats
+// growing from an empty buffer.
+//
 // The +1 on capacity is deliberate: the loop can only Read while cap > len, so
 // a buffer sized exactly to the content would find len == cap on the final
 // iteration and grow once more, reintroducing the reallocation this avoids.
 func readAllHinted(r io.Reader, hint int64) ([]byte, error) {
-	if hint < 0 {
-		hint = 0
+	if hint <= 0 {
+		return io.ReadAll(r)
 	}
-	buf := make([]byte, 0, hint+1)
+	buf := make([]byte, 0, min(hint, maxPreallocHint)+1)
 	for {
 		if len(buf) == cap(buf) {
 			buf = append(buf, 0)[:len(buf)]

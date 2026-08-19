@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package io
 
@@ -173,7 +173,7 @@ func (f *fileConsumer) getReader(ctx context.Context) (scannerInfo, error) {
 			details.SetSizeHint(fInfo.Size())
 		}
 	} else {
-		f.log.Errorf("Failed to read metadata from file '%v'", nextPath)
+		f.log.Errorf("Failed to read metadata from file '%v': %v", nextPath, err)
 	}
 
 	scanner, err := f.scannerCtor.Create(file, func(ctx context.Context, err error) error {

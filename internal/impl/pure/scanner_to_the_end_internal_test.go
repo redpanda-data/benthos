@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package pure
 
@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math"
 	"math/rand"
 	"testing"
 
@@ -110,6 +111,29 @@ func TestReadAllHintedExactHintDoesNotRealloc(t *testing.T) {
 	}
 }
 
+// TestReadAllHintedHugeHintDoesNotPanic asserts that an absurdly large hint —
+// a procfs file reporting terabytes, a custom filesystem returning garbage, or
+// a value for which make(0, hint+1) would panic outright — is clamped rather
+// than trusted. Previously io.ReadAll simply ignored such values by growing
+// incrementally, so this must never become a new failure mode.
+func TestReadAllHintedHugeHintDoesNotPanic(t *testing.T) {
+	content := randomBytes(4096)
+
+	for _, hint := range []int64{
+		maxPreallocHint + 1,
+		1 << 40,
+		1 << 62,
+		math.MaxInt64,
+	} {
+		t.Run(fmt.Sprintf("hint=%v", hint), func(t *testing.T) {
+			act, err := readAllHinted(&shortReader{r: bytes.NewReader(content), max: 512}, hint)
+			require.NoError(t, err)
+			assert.Equal(t, content, act)
+			assert.LessOrEqual(t, cap(act), maxPreallocHint+1, "hint was not clamped")
+		})
+	}
+}
+
 // TestReadAllHintedGrowsWhenHintTooSmall asserts the buffer still grows to fit
 // content larger than the hint, the case where a file is appended to between
 // Stat and read.
@@ -164,6 +188,23 @@ func BenchmarkToTheEndReadAllHinted(b *testing.B) {
 	b.SetBytes(benchSize)
 	for b.Loop() {
 		buf, err := readAllHinted(&repeatReader{remaining: benchSize, chunk: 32 * 1024}, benchSize)
+		if err != nil {
+			b.Fatal(err)
+		}
+		if len(buf) != benchSize {
+			b.Fatalf("unexpected length %v", len(buf))
+		}
+	}
+}
+
+// BenchmarkToTheEndReadAllUnhinted guards the no-hint path (every source that
+// isn't a regular file), which must stay on par with io.ReadAll rather than
+// growing a buffer from scratch.
+func BenchmarkToTheEndReadAllUnhinted(b *testing.B) {
+	b.ReportAllocs()
+	b.SetBytes(benchSize)
+	for b.Loop() {
+		buf, err := readAllHinted(&repeatReader{remaining: benchSize, chunk: 32 * 1024}, 0)
 		if err != nil {
 			b.Fatal(err)
 		}

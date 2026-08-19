@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package scanner
 
@@ -26,9 +26,12 @@ type SourceDetails struct {
 	Name string
 
 	// SizeHint is the total number of bytes of the source, when known, and is
-	// zero otherwise. It is a hint only, provided so that implementations can
-	// pre-allocate buffers, and must never be relied upon for correctness as
-	// the underlying source may change between it being measured and read.
+	// zero otherwise. A source measured as empty is therefore
+	// indistinguishable from one of unknown size, and implementations must
+	// treat zero as unknown. It is a hint only, provided so that
+	// implementations can pre-allocate buffers, and must never be relied upon
+	// for correctness as the underlying source may change between it being
+	// measured and read.
 	SizeHint int64
 }
 
