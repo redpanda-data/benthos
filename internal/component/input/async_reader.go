@@ -173,12 +173,27 @@ func (r *AsyncReader) loop() {
 	// was cut short rather than receiving a real ack/nack, ok must be false
 	// so the caller never calls BackfillComplete for unconfirmed rows.
 	runBackfillPhase := func(sr BackfillAsync) (ok bool) {
-		var pendingBackfillAcks sync.WaitGroup
-		var interruptedByHardStop atomic.Bool
+		var (
+			pendingAcks           sync.WaitGroup
+			interruptedByHardStop atomic.Bool
+		)
 		defer func() {
-			r.mgr.Logger().Debug("Waiting for pending backfill acks to resolve.")
-			pendingBackfillAcks.Wait()
-			r.mgr.Logger().Debug("Pending backfill acks resolved.")
+			done := make(chan struct{})
+			go func() {
+				pendingAcks.Wait()
+				close(done)
+			}()
+
+			// A downstream batching policy with no period configured only
+			// flushes on count/byte_size/check, so trailing backfill acks
+			// can stall here indefinitely if nothing else fills the batch.
+			select {
+			case <-done:
+			case <-time.After(60 * time.Second):
+				r.mgr.Logger().Warn("Waiting on pending backfill acks for input %v; verify downstream batching policy has a period to flush partial batches.", r.typeStr)
+				<-done
+			}
+
 			if interruptedByHardStop.Load() {
 				ok = false
 			}
@@ -237,9 +252,9 @@ func (r *AsyncReader) loop() {
 				return false
 			}
 
-			pendingBackfillAcks.Add(1)
+			pendingAcks.Add(1)
 			go func(m message.Batch, aFn AsyncAckFn, rChan chan error) {
-				defer pendingBackfillAcks.Done()
+				defer pendingAcks.Done()
 
 				var res error
 				select {

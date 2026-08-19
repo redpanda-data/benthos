@@ -72,13 +72,13 @@ func (r *mockBackfillAsyncReader) BackfillReadBatch(ctx context.Context) (messag
 
 	batch := message.Batch{message.NewPart(payload)}
 	return batch, func(ctx context.Context, err error) error {
-		r.record("snapshot-ack-" + string(rune('0'+idx)))
+		r.record("backfill-ack-" + string(rune('0'+idx)))
 		return nil
 	}, nil
 }
 
 func (r *mockBackfillAsyncReader) BackfillComplete(ctx context.Context) error {
-	r.record("snapshot-complete")
+	r.record("backfill-complete")
 	close(r.backfillCompleteCalled)
 	return nil
 }
@@ -159,9 +159,9 @@ func TestAsyncReaderSnapshotPhaseBarrier(t *testing.T) {
 
 	events := readerImpl.Events()
 	require.Len(t, events, 4)
-	assert.Equal(t, "snapshot-ack-1", events[0])
-	assert.Equal(t, "snapshot-ack-0", events[1])
-	assert.Equal(t, "snapshot-complete", events[2])
+	assert.Equal(t, "backfill-ack-1", events[0])
+	assert.Equal(t, "backfill-ack-0", events[1])
+	assert.Equal(t, "backfill-complete", events[2])
 	assert.Equal(t, "stream-ack-0", events[3])
 }
 
