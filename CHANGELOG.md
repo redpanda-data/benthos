@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 
 - Input `websocket`: Added a `max_message_size` field that bounds the size of individual inbound messages via the underlying connection's read limit. (@prakhargarg105)
 
+### Fixed
+
+- Input `file`: The known file size is now passed to the scanner as a hint, allowing the `to_the_end` scanner to pre-allocate its read buffer instead of growing it repeatedly via `io.ReadAll`. This avoids the transient double-buffering that previously made peak memory roughly twice the file size when reading a whole file (measured ~59% fewer bytes allocated, and 36 allocations down to 2, for a 64 MiB file). The size is treated purely as a hint and never affects the bytes returned: sources of unknown size retain the exact `io.ReadAll` behaviour, pre-allocation from a hint is capped at 128 MiB to guard against wildly wrong sizes, a hint that overestimates the content does not pin the excess capacity for the message's lifetime, and the `decompress` scanner strips the hint before it reaches its child, as it describes the compressed stream. Deprecated string `codec` configs are unaffected. (@rockdatasrl001)
+
 ## 4.77.0 - 2026-07-30
 
 ### Added

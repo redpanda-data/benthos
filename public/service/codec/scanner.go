@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package codec
 
@@ -118,10 +118,11 @@ type codecRPublic struct {
 }
 
 func (r *codecRPublic) Create(rdr io.ReadCloser, aFn service.AckFunc, details *service.ScannerSourceDetails) (DeprecatedFallbackStream, error) {
-	sDetails := service.NewScannerSourceDetails()
-	sDetails.SetName(details.Name())
-
-	os, err := r.newCtor.Create(rdr, aFn, sDetails)
+	// The details are passed through wholesale rather than copied field by
+	// field: a copy silently drops any field this layer doesn't know about
+	// (which is how SizeHint was originally lost here), and the downstream
+	// Create is nil-safe.
+	os, err := r.newCtor.Create(rdr, aFn, details)
 	if err != nil {
 		return nil, err
 	}
