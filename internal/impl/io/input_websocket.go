@@ -5,6 +5,7 @@ package io
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -53,6 +54,9 @@ func websocketInputSpec() *service.ConfigSpec {
 				string(wsOpenMsgTypeText):   "Text data open_message. The text message payload is interpreted as UTF-8 encoded text data.",
 			}).Description("An optional flag to indicate the data type of open_message.").
 				Advanced().Default(string(wsOpenMsgTypeBinary)),
+			service.NewIntField("max_message_size").
+				Description("An optional maximum size in bytes for individual messages received from the server. When a message exceeding this limit is received the connection is closed with a 1009 (message too big) status and the input reconnects. A value of 0 disables the limit.").
+				Advanced().Default(0),
 			service.NewAutoRetryNacksToggleField(),
 			service.NewTLSToggledField("tls"),
 		).
@@ -104,6 +108,7 @@ type websocketReader struct {
 
 	openMsgType wsOpenMsgType
 	openMsg     []byte
+	maxMsgSize  int
 }
 
 func newWebsocketReaderFromParsed(conf *service.ParsedConfig, mgr bundle.NewManagement) (*websocketReader, error) {
@@ -129,6 +134,12 @@ func newWebsocketReaderFromParsed(conf *service.ParsedConfig, mgr bundle.NewMana
 	}
 	if ws.reqSigner, err = conf.HTTPRequestAuthSignerFromParsed(); err != nil {
 		return nil, err
+	}
+	if ws.maxMsgSize, err = conf.FieldInt("max_message_size"); err != nil {
+		return nil, err
+	}
+	if ws.maxMsgSize < 0 {
+		return nil, fmt.Errorf("max_message_size must not be negative, got %v", ws.maxMsgSize)
 	}
 	var openMsgStr, openMsgTypeStr string
 	if openMsgTypeStr, err = conf.FieldString("open_message_type"); err != nil {
@@ -182,6 +193,10 @@ func (w *websocketReader) getConn(ctx context.Context) (*websocket.Conn, error) 
 		}
 	} else if client, res, err = dialer.Dial(w.urlStr, headers); err != nil {
 		return nil, err
+	}
+
+	if w.maxMsgSize > 0 {
+		client.SetReadLimit(int64(w.maxMsgSize))
 	}
 
 	return client, nil
@@ -240,6 +255,12 @@ func (w *websocketReader) ReadBatch(ctx context.Context) (message.Batch, input.A
 
 	_, data, err := client.ReadMessage()
 	if err != nil {
+		if errors.Is(err, websocket.ErrReadLimit) {
+			w.log.Error("Closing connection: received a message exceeding max_message_size")
+		}
+		// A read limit breach leaves the underlying socket open, so close
+		// before abandoning the connection for the reconnect path.
+		_ = client.Close()
 		w.lock.Lock()
 		w.client = nil
 		w.lock.Unlock()

@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Input `websocket`: Added a `max_message_size` field that bounds the size of individual inbound messages via the underlying connection's read limit. (@prakhargarg105)
+
 ## 4.77.0 - 2026-07-30
 
 ### Added
