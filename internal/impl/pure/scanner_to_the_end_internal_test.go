@@ -91,13 +91,15 @@ type errReader struct{ err error }
 
 func (e *errReader) Read([]byte) (int, error) { return 0, e.err }
 
-// TestReadAllHintedExactHintDoesNotRealloc asserts that an accurate hint
-// results in exactly one allocation, by checking the returned buffer still has
-// the capacity it was created with. This is the test that catches a regression
-// of the +1 subtlety: sizing the buffer to exactly the content length would
-// find len == cap on the final iteration and grow once more.
+// TestReadAllHintedExactHintDoesNotRealloc asserts that an accurate hint at or
+// above the default floor results in exactly one allocation, by checking the
+// returned buffer still has the capacity it was created with. This is the test
+// that catches a regression of the +1 subtlety: sizing the buffer to exactly the
+// content length would find len == cap on the final iteration and grow once more.
 func TestReadAllHintedExactHintDoesNotRealloc(t *testing.T) {
-	for _, size := range []int{1, 512, 4096, 1 << 20} {
+	// Sizes are >= defaultReadAllCap so the floor does not apply and the exact
+	// hint is honoured; the sub-floor case is covered by TestReadAllHintedFloor.
+	for _, size := range []int{defaultReadAllCap, 4096, 1 << 20} {
 		t.Run(fmt.Sprintf("size=%v", size), func(t *testing.T) {
 			content := randomBytes(size)
 
@@ -106,7 +108,36 @@ func TestReadAllHintedExactHintDoesNotRealloc(t *testing.T) {
 
 			assert.Equal(t, content, act)
 			assert.Len(t, act, size)
-			assert.Equal(t, max(size+1, minPreallocHint), cap(act), "buffer was reallocated despite an exact hint")
+			assert.Equal(t, size+1, cap(act), "buffer was reallocated despite an exact hint")
+		})
+	}
+}
+
+// TestHintedCap asserts the hint is floored at the io.ReadAll default and
+// clamped at the pre-allocation cap, so a bogus value (up to and including
+// math.MaxInt64, where an unguarded +1 would overflow) can neither panic
+// make() nor spike memory. The clamping is unit tested in isolation here as
+// well as through readAllHinted below.
+func TestHintedCap(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		hint int64
+		exp  int64
+	}{
+		{"negative is floored", -5, defaultReadAllCap + 1},
+		{"zero is floored", 0, defaultReadAllCap + 1},
+		{"below default is floored", 100, defaultReadAllCap + 1},
+		{"exactly default", defaultReadAllCap, defaultReadAllCap + 1},
+		{"above default is honoured", 4096, 4097},
+		{"exactly the clamp", maxPreallocHint, maxPreallocHint + 1},
+		{"above the clamp", maxPreallocHint + 1, maxPreallocHint + 1},
+		{"max int64 does not overflow", math.MaxInt64, maxPreallocHint + 1},
+		{"max int64 minus one does not overflow", math.MaxInt64 - 1, maxPreallocHint + 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := hintedCap(test.hint)
+			assert.Equal(t, test.exp, got)
+			assert.Positive(t, got, "capacity must stay positive (no overflow)")
 		})
 	}
 }
@@ -146,6 +177,27 @@ func TestReadAllHintedOverHintReleasesExcess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, content, act)
 	assert.Less(t, cap(act), size*2+1, "over-hinted buffer was not copied down")
+}
+
+// TestReadAllHintedFloor asserts that a small positive hint still allocates
+// the io.ReadAll-sized buffer rather than growing up from a tiny one, so a
+// stale hint for a source that has since grown keeps io.ReadAll's profile.
+// (A hint of zero or below delegates to io.ReadAll itself, covered by the
+// differential test above.)
+func TestReadAllHintedFloor(t *testing.T) {
+	const contentLen = 10 // < defaultReadAllCap, so it fits without any growth
+	for _, hint := range []int64{1, 100, defaultReadAllCap} {
+		t.Run(fmt.Sprintf("hint=%v", hint), func(t *testing.T) {
+			content := randomBytes(contentLen)
+
+			act, err := readAllHinted(&shortReader{r: bytes.NewReader(content), max: 4}, hint)
+			require.NoError(t, err)
+
+			assert.Equal(t, content, act)
+			assert.Equal(t, defaultReadAllCap+1, cap(act),
+				"sub-floor hint should allocate the default-sized buffer")
+		})
+	}
 }
 
 // TestReadAllHintedGrowsWhenHintTooSmall asserts the buffer still grows to fit
