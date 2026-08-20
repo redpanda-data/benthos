@@ -3,6 +3,7 @@
 package io
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -192,6 +193,69 @@ open_message_type: %v
 			require.NoError(t, m.Close(ctx))
 		})
 	}
+}
+
+func TestWebsocketMaxMessageSize(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{}
+
+		var ws *websocket.Conn
+		var err error
+		if ws, err = upgrader.Upgrade(w, r, nil); err != nil {
+			return
+		}
+
+		defer ws.Close()
+
+		if err = ws.WriteMessage(websocket.BinaryMessage, []byte("small")); err != nil {
+			t.Error(err)
+		}
+		if err = ws.WriteMessage(websocket.BinaryMessage, bytes.Repeat([]byte("x"), 1024)); err != nil {
+			t.Error(err)
+		}
+
+		// Wait for the client to drop the connection.
+		_, _, _ = ws.ReadMessage()
+	}))
+	t.Cleanup(server.Close)
+
+	wsURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	wsURL.Scheme = "ws"
+
+	pConf, err := websocketInputSpec().ParseYAML(fmt.Sprintf(`
+url: %v
+max_message_size: 100
+`, wsURL.String()), nil)
+	require.NoError(t, err)
+
+	m, err := newWebsocketReaderFromParsed(pConf, mock.NewManager())
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	require.NoError(t, m.Connect(ctx))
+
+	actMsg, _, err := m.ReadBatch(ctx)
+	require.NoError(t, err)
+	require.Equal(t, "small", string(actMsg.Get(0).AsBytes()))
+
+	_, _, err = m.ReadBatch(ctx)
+	require.ErrorIs(t, err, component.ErrNotConnected)
+
+	require.NoError(t, m.Close(ctx))
+}
+
+func TestWebsocketMaxMessageSizeNegative(t *testing.T) {
+	pConf, err := websocketInputSpec().ParseYAML(`
+url: ws://localhost:4195/get/ws
+max_message_size: -1
+`, nil)
+	require.NoError(t, err)
+
+	_, err = newWebsocketReaderFromParsed(pConf, mock.NewManager())
+	require.ErrorContains(t, err, "max_message_size must not be negative")
 }
 
 func TestWebsocketClose(t *testing.T) {
