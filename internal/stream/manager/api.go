@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -127,18 +126,6 @@ func extractEnvOverrides(raw []byte) (overrides map[string]string, stripped []by
 		return nil, nil, err
 	}
 	return overrides, stripped, nil
-}
-
-// envLookupWithOverrides builds an envLookupFunc that checks request-supplied
-// overrides first, falling back to real OS environment variables — so a
-// caller-supplied value takes precedence over a same-named OS env var.
-func envLookupWithOverrides(overrides map[string]string) func(context.Context, string) (string, bool) {
-	return func(_ context.Context, name string) (string, bool) {
-		if v, ok := overrides[name]; ok {
-			return v, true
-		}
-		return os.LookupEnv(name)
-	}
 }
 
 // HandleStreamsCRUD is an http.HandleFunc for returning maps of active benthos
@@ -360,15 +347,17 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		reader := config.NewReader("", nil)
+		var readerOpts []config.OptFunc
 		if len(overrides) > 0 {
-			reader = config.NewReader("", nil, config.OptUseEnvLookupFunc(envLookupWithOverrides(overrides)))
+			readerOpts = append(readerOpts, config.OptAddEnvLookupOverrides(overrides))
 		}
+		reader := config.NewReader("", nil, readerOpts...)
 
 		if confBytes, err = reader.ReplaceEnvVariables(context.TODO(), confBytes); err != nil {
 			var errEnvMissing *config.ErrMissingEnvVars
 			if ignoreLints && errors.As(err, &errEnvMissing) {
 				confBytes = errEnvMissing.BestAttempt
+				err = nil
 			} else {
 				return
 			}
@@ -618,10 +607,11 @@ func (m *Type) HandleResourceCRUD(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		reader := config.NewReader("", nil)
+		var readerOpts []config.OptFunc
 		if len(overrides) > 0 {
-			reader = config.NewReader("", nil, config.OptUseEnvLookupFunc(envLookupWithOverrides(overrides)))
+			readerOpts = append(readerOpts, config.OptAddEnvLookupOverrides(overrides))
 		}
+		reader := config.NewReader("", nil, readerOpts...)
 
 		if confBytes, requestErr = reader.ReplaceEnvVariables(r.Context(), confBytes); requestErr != nil {
 			var errEnvMissing *config.ErrMissingEnvVars

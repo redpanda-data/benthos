@@ -389,6 +389,128 @@ func TestTypeAPIStreamEnvOverrides(t *testing.T) {
 	r.ServeHTTP(response, request)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
+	// Mixed: a single config references two variables, one supplied by the
+	// request "env" override and the other left to resolve from the real OS
+	// environment, in the same request — both must resolve correctly.
+	t.Setenv("MIXED_OS_ONLY", "root.woof = 7")
+
+	request = genRequest("POST", "/streams/envmixed?chilled=true", map[string]any{
+		"env": map[string]any{
+			"MIXED_OVERRIDE": "root.meow = 5",
+		},
+		"input": map[string]any{
+			"generate": map[string]any{
+				"mapping": "${MIXED_OVERRIDE}\n${MIXED_OS_ONLY}",
+			},
+		},
+		"output": map[string]any{
+			"drop": map[string]any{},
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	request = genRequest("GET", "/streams/envmixed", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	info = parseGetBody(t, response.Body)
+	assert.Equal(t, "root.meow = 5\nroot.woof = 7", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+
+	request = genRequest("DELETE", "/streams/envmixed", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	// Mixed with a default value: the presence of an "env" override must not
+	// disturb the `${FOO:default}` fallback syntax for a *different*,
+	// entirely unset variable.
+	request = genRequest("POST", "/streams/envmixeddefault?chilled=true", map[string]any{
+		"env": map[string]any{
+			"MIXED_OVERRIDE": "root.meow = 5",
+		},
+		"input": map[string]any{
+			"generate": map[string]any{
+				"mapping": "${MIXED_OVERRIDE}\n${THIS_VAR_IS_ALSO_NOT_SET_24680:root.woof = 9}",
+			},
+		},
+		"output": map[string]any{
+			"drop": map[string]any{},
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	request = genRequest("GET", "/streams/envmixeddefault", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	info = parseGetBody(t, response.Body)
+	assert.Equal(t, "root.meow = 5\nroot.woof = 9", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+
+	request = genRequest("DELETE", "/streams/envmixeddefault", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	// Mixed with an escaped placeholder: the presence of an "env" override
+	// must not cause a `${{FOO}}` escape to be unescaped *and then*
+	// interpolated, which would leak the real OS value of a variable the
+	// caller explicitly asked to be left as literal text.
+	t.Setenv("MIXED_ESCAPED", "leaked-os-value")
+
+	request = genRequest("POST", "/streams/envmixedescape?chilled=true", map[string]any{
+		"env": map[string]any{
+			"MIXED_OVERRIDE": "root.meow = 5",
+		},
+		"input": map[string]any{
+			"generate": map[string]any{
+				"mapping": "root.v = \"${{MIXED_ESCAPED}}\"",
+			},
+		},
+		"output": map[string]any{
+			"drop": map[string]any{},
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	request = genRequest("GET", "/streams/envmixedescape", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	info = parseGetBody(t, response.Body)
+	assert.Equal(t, `root.v = "${MIXED_ESCAPED}"`, gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+
+	request = genRequest("DELETE", "/streams/envmixedescape", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	// Mixed, still missing: the request "env" resolves one of two referenced
+	// variables but the second is provided by neither the override nor the
+	// OS environment — this must still 400, an override elsewhere in the
+	// same config doesn't grant a free pass for an unrelated missing var.
+	request = genRequest("POST", "/streams/envmixedmissing", map[string]any{
+		"env": map[string]any{
+			"MIXED_OVERRIDE": "root.meow = 5",
+		},
+		"input": map[string]any{
+			"generate": map[string]any{
+				"mapping": "${MIXED_OVERRIDE}\n${THIS_VAR_IS_DEFINITELY_NOT_SET_67890}",
+			},
+		},
+		"output": map[string]any{
+			"drop": map[string]any{},
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+
 	// Missing var: neither the request "env" nor the OS environment provides
 	// the referenced variable, this still errors exactly as it did before
 	// "env" existed.
@@ -1159,6 +1281,64 @@ output:
 	files, err = os.ReadDir(osDir)
 	require.NoError(t, err)
 	assert.Empty(t, files)
+
+	// Mixed: a single field template references two variables, one supplied
+	// by the request "env" override and the other left to resolve from the
+	// real OS environment, in the same request — both must resolve and
+	// combine correctly.
+	mixedSubDir := "mixedsub"
+	mixedDir := filepath.Join(overrideDir, mixedSubDir)
+	require.NoError(t, os.MkdirAll(mixedDir, 0o750))
+
+	t.Setenv("ENV_MIXED_SUB_DIR", mixedSubDir)
+
+	request = genRequest("POST", "/resources/cache/envmixedcache?chilled=true", map[string]any{
+		"env": map[string]any{
+			"ENV_MIXED_BASE_DIR": overrideDir,
+		},
+		"file": map[string]any{
+			"directory": "${ENV_MIXED_BASE_DIR}/${ENV_MIXED_SUB_DIR}",
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	// A dedicated pipe/channel, distinct from feed_in_env above: the
+	// envcacheuser stream created earlier is still running and would race
+	// this one for messages if they shared a pipe.
+	mixedTChan := make(chan message.Transaction)
+	bmgr.SetPipe("feed_in_env_mixed", mixedTChan)
+
+	streamConf, err = testutil.StreamFromYAML(`
+input:
+  inproc: feed_in_env_mixed
+output:
+  cache:
+    key: '${! json("id") }'
+    target: envmixedcache
+`)
+	require.NoError(t, err)
+
+	request = genYAMLRequest("POST", "/streams/envmixedcacheuser?chilled=true", streamConf)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	select {
+	case mixedTChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte(`{"id":"mixed","content":"hello world"}`)}), resChan):
+	case <-time.After(time.Second * 5):
+		t.Fatal("timed out")
+	}
+	select {
+	case <-resChan:
+	case <-time.After(time.Second * 5):
+		t.Fatal("timed out")
+	}
+
+	files, err = os.ReadDir(mixedDir)
+	require.NoError(t, err)
+	assert.Len(t, files, 1)
 
 	// Non-string "env" value: 400, same contract as the streams endpoint.
 	request = genRequest("POST", "/resources/cache/envcachebad", map[string]any{

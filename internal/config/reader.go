@@ -187,6 +187,30 @@ func OptUseEnvLookupFunc(fn func(context.Context, string) (string, bool)) OptFun
 	}
 }
 
+// OptAddEnvLookupOverrides adds a set of environment variable values that take
+// precedence over the reader's existing lookup func, with any name absent from
+// the overrides falling through to it. Since the default lookup func reads the
+// OS environment this means an override shadows a same-named OS env var, while
+// everything else continues to resolve from the OS as usual.
+//
+// Because this wraps the lookup func rather than the config document, all
+// interpolation syntax keeps working normally: a `${FOO:default}` still falls
+// back to its default when FOO is neither overridden nor set, and a `${{FOO}}`
+// escape is still left alone.
+func OptAddEnvLookupOverrides(overrides map[string]string) OptFunc {
+	return func(r *Reader) {
+		// Captured at option-application time rather than read from r inside
+		// the closure, otherwise the func would recurse into itself.
+		fallback := r.envLookupFunc
+		r.envLookupFunc = func(ctx context.Context, name string) (string, bool) {
+			if v, ok := overrides[name]; ok {
+				return v, true
+			}
+			return fallback(ctx, name)
+		}
+	}
+}
+
 //------------------------------------------------------------------------------
 
 func (r *Reader) lintCtx() docs.LintContext {
