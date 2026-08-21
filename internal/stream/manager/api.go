@@ -85,47 +85,67 @@ func (m *Type) lintStreamConfigNode(node *yaml.Node) (lints []string) {
 
 // extractEnvOverrides pulls an optional top-level "env" field out of a raw
 // config document, returning its values and the document with that field
-// removed. If no "env" field is present, overrides is nil and stripped is
-// the input unchanged.
+// removed. If no "env" field is present, overrides is nil and stripped is the
+// input unchanged.
+//
+// The document is edited at the yaml.Node level rather than being decoded to
+// generic Go values and re-encoded. A config body is a template, so it carries
+// two properties that a decode/re-encode round trip destroys: scalars whose
+// implicit YAML type would be re-resolved on the way out (`2024-01-02` coming
+// back as a timestamp, `0123456` as octal), and the caller's own quoting
+// around a `${VAR}`, which is what stops an interpolated value containing YAML
+// metacharacters from altering the document's structure. Editing nodes keeps
+// every untouched scalar byte-for-byte as it was written.
 func extractEnvOverrides(raw []byte) (overrides map[string]string, stripped []byte, err error) {
-	var generic any
-	if err = yaml.Unmarshal(raw, &generic); err != nil {
-		return nil, nil, err
+	// A body is only guaranteed to parse once substitution has run: the
+	// documented `${VAR: default}` form puts a `: ` inside an otherwise plain
+	// scalar. A body we cannot parse has no "env" field we could find, so
+	// leave it alone and let the existing downstream path report the error.
+	var doc yaml.Node
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, raw, nil
 	}
-	gObj := gabs.Wrap(generic)
-	envField := gObj.S("env")
-	if envField == nil {
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
 		return nil, raw, nil
 	}
 
-	// Decode into map[string]any first rather than map[string]string
-	// directly: yaml.v3 silently stringifies scalars (ints, bools, floats,
-	// null) when unmarshalling into a string-typed map, which would defeat
-	// the "strings only" contract below. Explicit type assertions catch
-	// those cases as well as nested maps/sequences.
-	envBytes, _ := yaml.Marshal(envField.Data())
-	var rawOverrides map[string]any
-	if err = yaml.Unmarshal(envBytes, &rawOverrides); err != nil {
-		return nil, nil, fmt.Errorf("field env: %w", err)
-	}
-	overrides = make(map[string]string, len(rawOverrides))
-	for k, v := range rawOverrides {
-		s, ok := v.(string)
-		if !ok {
-			return nil, nil, fmt.Errorf("field env: value of '%v' must be a string", k)
+	root := doc.Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		if root.Content[i].Value != "env" {
+			continue
 		}
-		overrides[k] = s
-	}
 
-	_ = gObj.Delete("env")
-	var node yaml.Node
-	if err = node.Encode(gObj.Data()); err != nil {
-		return nil, nil, err
+		envNode := root.Content[i+1]
+		if envNode.Kind == yaml.AliasNode {
+			envNode = envNode.Alias
+		}
+		switch {
+		case envNode.Kind == yaml.MappingNode:
+			overrides = make(map[string]string, len(envNode.Content)/2)
+			for j := 0; j+1 < len(envNode.Content); j += 2 {
+				k, v := envNode.Content[j], envNode.Content[j+1]
+				// The lookup func contract is func(context.Context, string)
+				// (string, bool), backed by os.LookupEnv, so only strings are
+				// accepted. The node tag distinguishes a quoted "5" from a
+				// bare 5, which a decode into map[string]string would not.
+				if v.Kind != yaml.ScalarNode || v.Tag != "!!str" {
+					return nil, nil, fmt.Errorf("field env: value of '%v' must be a string", k.Value)
+				}
+				overrides[k.Value] = v.Value
+			}
+		case envNode.Tag == "!!null":
+			// An explicit `env:` with no value, treated as no overrides.
+		default:
+			return nil, nil, errors.New("field env: must be an object of string values")
+		}
+
+		root.Content = append(root.Content[:i], root.Content[i+2:]...)
+		if stripped, err = yaml.Marshal(&doc); err != nil {
+			return nil, nil, err
+		}
+		return overrides, stripped, nil
 	}
-	if stripped, err = yaml.Marshal(&node); err != nil {
-		return nil, nil, err
-	}
-	return overrides, stripped, nil
+	return nil, raw, nil
 }
 
 // HandleStreamsCRUD is an http.HandleFunc for returning maps of active benthos
@@ -357,7 +377,6 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 			var errEnvMissing *config.ErrMissingEnvVars
 			if ignoreLints && errors.As(err, &errEnvMissing) {
 				confBytes = errEnvMissing.BestAttempt
-				err = nil
 			} else {
 				return
 			}

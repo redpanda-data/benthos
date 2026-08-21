@@ -548,6 +548,115 @@ func TestTypeAPIStreamEnvOverrides(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
 }
 
+// The streams API's request bodies are config *templates*: they are not
+// necessarily valid YAML until after env var substitution has run, and their
+// scalars must survive the round-trip through env override extraction exactly
+// as the caller wrote them.
+func TestTypeAPIStreamEnvOverridesPreserveDocument(t *testing.T) {
+	res, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr := manager.New(res)
+	r := router(mgr)
+
+	// The documented `${VAR: default}` form puts a `: ` inside what is
+	// otherwise a plain scalar, so this body only parses as YAML once the
+	// substitution has happened. Extracting `env` must not require parsing
+	// the body first, and must not fail the request when it cannot.
+	t.Run("accepts a body only valid after substitution", func(t *testing.T) {
+		request := genYAMLRequest("POST", "/streams/envtemplateonly?chilled=true", `
+input:
+  generate:
+    interval: 1h
+    mapping: ${STREAM_ENV_UNSET_MAPPING: root.id = "x"}
+output:
+  drop: {}
+`)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		request = genRequest("GET", "/streams/envtemplateonly", nil)
+		response = httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		info := parseGetBody(t, response.Body)
+		assert.Equal(t, `root.id = "x"`, gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+	})
+
+	// Quoting is a property of the YAML node, not of the decoded value, so
+	// re-serialising the document from decoded values drops the caller's own
+	// quotes around an interpolation. Here the override value contains a
+	// `: `, which parses as a nested mapping the moment those quotes are lost.
+	t.Run("preserves quoting around interpolations", func(t *testing.T) {
+		request := genYAMLRequest("POST", "/streams/envquoted?chilled=true", `
+env:
+  ENV_QUOTED_VALUE: 'a: b'
+input:
+  generate:
+    interval: 1h
+    mapping: 'root.v = "${ENV_QUOTED_VALUE}"'
+output:
+  drop: {}
+`)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		request = genRequest("GET", "/streams/envquoted", nil)
+		response = httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		info := parseGetBody(t, response.Body)
+		assert.Equal(t, `root.v = "a: b"`, gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+	})
+}
+
+// A scalar the caller never referenced must not be re-resolved by YAML's
+// implicit typing just because an `env` field is present elsewhere in the body.
+func TestTypeAPIStreamEnvOverridesPreserveScalars(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	res, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr := manager.New(res)
+	r := router(mgr)
+
+	// `2024-01-02` is a valid YAML timestamp, so a decode/re-encode round
+	// trip rewrites it as `2024-01-02T00:00:00Z` and the output writes to a
+	// different file than the one the caller asked for.
+	request := genYAMLRequest("POST", "/streams/envscalars?chilled=true", `
+env:
+  ENV_SCALAR_MAPPING: root.id = "x"
+input:
+  generate:
+    count: 1
+    interval: 1ms
+    mapping: ${ENV_SCALAR_MAPPING}
+output:
+  file:
+    path: 2024-01-02
+`)
+	response := httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	var names []string
+	assert.Eventually(t, func() bool {
+		entries, err := os.ReadDir(".")
+		if err != nil {
+			return false
+		}
+		names = names[:0]
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		return len(names) > 0
+	}, time.Second*5, time.Millisecond*10)
+	assert.Equal(t, []string{"2024-01-02"}, names)
+}
+
 func TestTypeAPIPatch(t *testing.T) {
 	res, err := bmanager.New(bmanager.NewResourceConfig())
 	require.NoError(t, err)
@@ -1339,6 +1448,82 @@ output:
 	files, err = os.ReadDir(mixedDir)
 	require.NoError(t, err)
 	assert.Len(t, files, 1)
+
+	// Fallback: no "env" field in the request at all, the referenced variable
+	// resolves from the real OS environment exactly as it did before "env"
+	// existed.
+	fallbackDir := filepath.Join(tmpDir, "fallback")
+	require.NoError(t, os.MkdirAll(fallbackDir, 0o750))
+
+	t.Setenv("ENV_FALLBACK_CACHE_DIR", fallbackDir)
+
+	request = genRequest("POST", "/resources/cache/envfallbackcache?chilled=true", map[string]any{
+		"file": map[string]any{
+			"directory": "${ENV_FALLBACK_CACHE_DIR}",
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	fallbackTChan := make(chan message.Transaction)
+	bmgr.SetPipe("feed_in_env_fallback", fallbackTChan)
+
+	streamConf, err = testutil.StreamFromYAML(`
+input:
+  inproc: feed_in_env_fallback
+output:
+  cache:
+    key: '${! json("id") }'
+    target: envfallbackcache
+`)
+	require.NoError(t, err)
+
+	request = genYAMLRequest("POST", "/streams/envfallbackcacheuser?chilled=true", streamConf)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	select {
+	case fallbackTChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte(`{"id":"fallback","content":"hello world"}`)}), resChan):
+	case <-time.After(time.Second * 5):
+		t.Fatal("timed out")
+	}
+	select {
+	case <-resChan:
+	case <-time.After(time.Second * 5):
+		t.Fatal("timed out")
+	}
+
+	files, err = os.ReadDir(fallbackDir)
+	require.NoError(t, err)
+	assert.Len(t, files, 1)
+
+	// Missing var: neither the request "env" nor the OS environment provides
+	// the referenced variable, this still errors exactly as it did before
+	// "env" existed.
+	request = genRequest("POST", "/resources/cache/envcachemissing", map[string]any{
+		"env": map[string]any{
+			"ENV_UNRELATED_VAR": "unused",
+		},
+		"file": map[string]any{
+			"directory": "${ENV_MISSING_CACHE_DIR}",
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.Contains(t, response.Body.String(), "required environment variables were not set")
+
+	// Regression: a body with no "env" field that is only valid YAML once
+	// substitution has run must be accepted, as it was before "env" existed.
+	request = genYAMLRequest("POST", "/resources/cache/envcachetemplateonly?chilled=true", `
+file:
+  directory: ${ENV_UNSET_CACHE_DIR: `+fallbackDir+`}
+`)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
 	// Non-string "env" value: 400, same contract as the streams endpoint.
 	request = genRequest("POST", "/resources/cache/envcachebad", map[string]any{
