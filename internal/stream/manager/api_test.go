@@ -298,6 +298,134 @@ func TestTypeAPIBasicOperations(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
 }
 
+// TestTypeAPIStreamEnvOverrides covers the optional per-request "env" field
+// accepted by POST/PUT /streams/{id}, which supplies template values for
+// `${FOO}`-style placeholders in the rest of the config body.
+func TestTypeAPIStreamEnvOverrides(t *testing.T) {
+	res, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr := manager.New(res)
+	r := router(mgr)
+
+	confWithEnv := func(env map[string]any) map[string]any {
+		c := map[string]any{
+			"input": map[string]any{
+				"generate": map[string]any{
+					"mapping": "${FOO}",
+				},
+			},
+			"output": map[string]any{
+				"drop": map[string]any{},
+			},
+		}
+		if env != nil {
+			c["env"] = env
+		}
+		return c
+	}
+
+	// Core case: no OS env var set at all, the request "env" field alone
+	// supplies FOO.
+	request := genRequest("POST", "/streams/envoverride?chilled=true", confWithEnv(map[string]any{
+		"FOO": "root.meow = 5",
+	}))
+	response := httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	request = genRequest("GET", "/streams/envoverride", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	info := parseGetBody(t, response.Body)
+	assert.Equal(t, "root.meow = 5", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+
+	request = genRequest("DELETE", "/streams/envoverride", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	// Precedence: an OS env var and a request "env" override of the same
+	// name are both present, the request value must win.
+	t.Setenv("FOO", "root.meow = 99")
+
+	request = genRequest("POST", "/streams/envprecedence?chilled=true", confWithEnv(map[string]any{
+		"FOO": "root.meow = 5",
+	}))
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	request = genRequest("GET", "/streams/envprecedence", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	info = parseGetBody(t, response.Body)
+	assert.Equal(t, "root.meow = 5", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+
+	request = genRequest("DELETE", "/streams/envprecedence", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	// Fallback: the OS env var is still set (from t.Setenv above) but the
+	// request supplies no "env" field at all, the OS value is used
+	// unaffected, matching pre-existing behaviour.
+	request = genRequest("POST", "/streams/envfallback?chilled=true", confWithEnv(nil))
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	request = genRequest("GET", "/streams/envfallback", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	info = parseGetBody(t, response.Body)
+	assert.Equal(t, "root.meow = 99", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+
+	request = genRequest("DELETE", "/streams/envfallback", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	// Missing var: neither the request "env" nor the OS environment provides
+	// the referenced variable, this still errors exactly as it did before
+	// "env" existed.
+	request = genRequest("POST", "/streams/envmissing", map[string]any{
+		"input": map[string]any{
+			"generate": map[string]any{
+				"mapping": "${THIS_VAR_IS_DEFINITELY_NOT_SET_12345}",
+			},
+		},
+		"output": map[string]any{
+			"drop": map[string]any{},
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+
+	// Non-string "env" value: the whole request is a 400, mirroring the
+	// os.LookupEnv contract of returning only strings.
+	request = genRequest("POST", "/streams/envbadtype", map[string]any{
+		"env": map[string]any{
+			"FOO": 3,
+		},
+		"input": map[string]any{
+			"generate": map[string]any{
+				"mapping": "${FOO}",
+			},
+		},
+		"output": map[string]any{
+			"drop": map[string]any{},
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+}
+
 func TestTypeAPIPatch(t *testing.T) {
 	res, err := bmanager.New(bmanager.NewResourceConfig())
 	require.NoError(t, err)
@@ -960,6 +1088,90 @@ file:
 	file2Bytes, err := os.ReadFile(filepath.Join(dir2, "second"))
 	require.NoError(t, err)
 	assert.Equal(t, `{"id":"second","content":"hello world 2"}`, string(file2Bytes))
+}
+
+// TestResourceAPIEnvOverrides covers the same per-request "env" field for
+// POST /resources/{type}/{id}, reusing the same extraction/lookup seam as
+// the streams endpoint.
+func TestResourceAPIEnvOverrides(t *testing.T) {
+	bmgr, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	tChan := make(chan message.Transaction)
+	bmgr.SetPipe("feed_in_env", tChan)
+
+	mgr := manager.New(bmgr)
+	r := router(mgr)
+
+	tmpDir := t.TempDir()
+	overrideDir := filepath.Join(tmpDir, "override")
+	require.NoError(t, os.MkdirAll(overrideDir, 0o750))
+	osDir := filepath.Join(tmpDir, "os")
+	require.NoError(t, os.MkdirAll(osDir, 0o750))
+
+	// Precedence: an OS env var of the same name points elsewhere, the
+	// request-supplied "env" override must be the one that's used.
+	t.Setenv("ENV_OVERRIDE_CACHE_DIR", osDir)
+
+	request := genRequest("POST", "/resources/cache/envcache?chilled=true", map[string]any{
+		"env": map[string]any{
+			"ENV_OVERRIDE_CACHE_DIR": overrideDir,
+		},
+		"file": map[string]any{
+			"directory": "${ENV_OVERRIDE_CACHE_DIR}",
+		},
+	})
+	response := httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	streamConf, err := testutil.StreamFromYAML(`
+input:
+  inproc: feed_in_env
+output:
+  cache:
+    key: '${! json("id") }'
+    target: envcache
+`)
+	require.NoError(t, err)
+
+	request = genYAMLRequest("POST", "/streams/envcacheuser?chilled=true", streamConf)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	resChan := make(chan error)
+	select {
+	case tChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte(`{"id":"first","content":"hello world"}`)}), resChan):
+	case <-time.After(time.Second * 5):
+		t.Fatal("timed out")
+	}
+	select {
+	case <-resChan:
+	case <-time.After(time.Second * 5):
+		t.Fatal("timed out")
+	}
+
+	files, err := os.ReadDir(overrideDir)
+	require.NoError(t, err)
+	assert.Len(t, files, 1)
+
+	files, err = os.ReadDir(osDir)
+	require.NoError(t, err)
+	assert.Empty(t, files)
+
+	// Non-string "env" value: 400, same contract as the streams endpoint.
+	request = genRequest("POST", "/resources/cache/envcachebad", map[string]any{
+		"env": map[string]any{
+			"ENV_OVERRIDE_CACHE_DIR": 3,
+		},
+		"file": map[string]any{
+			"directory": "${ENV_OVERRIDE_CACHE_DIR}",
+		},
+	})
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
 }
 
 func TestAPIReady(t *testing.T) {

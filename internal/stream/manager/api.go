@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +41,8 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 	}
 	m.manager.RegisterEndpoint(
 		"/resources/{type}/{id}",
-		"POST: Create or replace a given resource configuration of a specified type. Types supported are `cache`, `input`, `output`, `processor` and `rate_limit`.",
+		"POST: Create or replace a given resource configuration of a specified type. Types supported are `cache`, `input`, `output`, `processor` and `rate_limit`."+
+			" An optional top-level `env` object of string values may be included in the body to override environment variables referenced by the config for this request only.",
 		m.HandleResourceCRUD,
 	)
 	m.manager.RegisterEndpoint(
@@ -52,7 +54,8 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 		"/streams/{id}",
 		"Perform CRUD operations on streams, supporting POST (Create),"+
 			" GET (Read), PUT (Update), PATCH (Patch update)"+
-			" and DELETE (Delete).",
+			" and DELETE (Delete)."+
+			" An optional top-level `env` object of string values may be included in the POST/PUT body to override environment variables referenced by the config for this request only.",
 		m.HandleStreamCRUD,
 	)
 	m.manager.RegisterEndpoint(
@@ -79,6 +82,63 @@ func (m *Type) lintStreamConfigNode(node *yaml.Node) (lints []string) {
 		lints = append(lints, dLint.Error())
 	}
 	return
+}
+
+// extractEnvOverrides pulls an optional top-level "env" field out of a raw
+// config document, returning its values and the document with that field
+// removed. If no "env" field is present, overrides is nil and stripped is
+// the input unchanged.
+func extractEnvOverrides(raw []byte) (overrides map[string]string, stripped []byte, err error) {
+	var generic any
+	if err = yaml.Unmarshal(raw, &generic); err != nil {
+		return nil, nil, err
+	}
+	gObj := gabs.Wrap(generic)
+	envField := gObj.S("env")
+	if envField == nil {
+		return nil, raw, nil
+	}
+
+	// Decode into map[string]any first rather than map[string]string
+	// directly: yaml.v3 silently stringifies scalars (ints, bools, floats,
+	// null) when unmarshalling into a string-typed map, which would defeat
+	// the "strings only" contract below. Explicit type assertions catch
+	// those cases as well as nested maps/sequences.
+	envBytes, _ := yaml.Marshal(envField.Data())
+	var rawOverrides map[string]any
+	if err = yaml.Unmarshal(envBytes, &rawOverrides); err != nil {
+		return nil, nil, fmt.Errorf("field env: %w", err)
+	}
+	overrides = make(map[string]string, len(rawOverrides))
+	for k, v := range rawOverrides {
+		s, ok := v.(string)
+		if !ok {
+			return nil, nil, fmt.Errorf("field env: value of '%v' must be a string", k)
+		}
+		overrides[k] = s
+	}
+
+	_ = gObj.Delete("env")
+	var node yaml.Node
+	if err = node.Encode(gObj.Data()); err != nil {
+		return nil, nil, err
+	}
+	if stripped, err = yaml.Marshal(&node); err != nil {
+		return nil, nil, err
+	}
+	return overrides, stripped, nil
+}
+
+// envLookupWithOverrides builds an envLookupFunc that checks request-supplied
+// overrides first, falling back to real OS environment variables — so a
+// caller-supplied value takes precedence over a same-named OS env var.
+func envLookupWithOverrides(overrides map[string]string) func(context.Context, string) (string, bool) {
+	return func(_ context.Context, name string) (string, bool) {
+		if v, ok := overrides[name]; ok {
+			return v, true
+		}
+		return os.LookupEnv(name)
+	}
 }
 
 // HandleStreamsCRUD is an http.HandleFunc for returning maps of active benthos
@@ -295,7 +355,17 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 
 		ignoreLints := r.URL.Query().Get("chilled") == "true"
 
-		if confBytes, err = config.NewReader("", nil).ReplaceEnvVariables(context.TODO(), confBytes); err != nil {
+		var overrides map[string]string
+		if overrides, confBytes, err = extractEnvOverrides(confBytes); err != nil {
+			return
+		}
+
+		reader := config.NewReader("", nil)
+		if len(overrides) > 0 {
+			reader = config.NewReader("", nil, config.OptUseEnvLookupFunc(envLookupWithOverrides(overrides)))
+		}
+
+		if confBytes, err = reader.ReplaceEnvVariables(context.TODO(), confBytes); err != nil {
 			var errEnvMissing *config.ErrMissingEnvVars
 			if ignoreLints && errors.As(err, &errEnvMissing) {
 				confBytes = errEnvMissing.BestAttempt
@@ -543,7 +613,17 @@ func (m *Type) HandleResourceCRUD(w http.ResponseWriter, r *http.Request) {
 
 		ignoreLints := r.URL.Query().Get("chilled") == "true"
 
-		if confBytes, requestErr = config.NewReader("", nil).ReplaceEnvVariables(r.Context(), confBytes); requestErr != nil {
+		var overrides map[string]string
+		if overrides, confBytes, requestErr = extractEnvOverrides(confBytes); requestErr != nil {
+			return
+		}
+
+		reader := config.NewReader("", nil)
+		if len(overrides) > 0 {
+			reader = config.NewReader("", nil, config.OptUseEnvLookupFunc(envLookupWithOverrides(overrides)))
+		}
+
+		if confBytes, requestErr = reader.ReplaceEnvVariables(r.Context(), confBytes); requestErr != nil {
 			var errEnvMissing *config.ErrMissingEnvVars
 			if ignoreLints && errors.As(requestErr, &errEnvMissing) {
 				confBytes = errEnvMissing.BestAttempt
