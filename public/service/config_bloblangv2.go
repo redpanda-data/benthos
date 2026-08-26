@@ -17,6 +17,9 @@ import (
 //
 // Bloblang V2 is a separate language from V1 with its own parser and plugin
 // registry; see public/bloblangv2 for details.
+//
+// Experimental: Bloblang V2 is experimental and may change outside of major
+// version releases.
 func NewBloblangV2Field(name string) *ConfigField {
 	tf := docs.FieldBloblangV2(name, "")
 	return &ConfigField{field: tf}
@@ -25,6 +28,9 @@ func NewBloblangV2Field(name string) *ConfigField {
 // FieldBloblangV2 accesses a field from a parsed config that was defined with
 // NewBloblangV2Field and returns either a *bloblangv2.Executor or an error if
 // the mapping was invalid.
+//
+// Experimental: Bloblang V2 is experimental and may change outside of major
+// version releases.
 func (p *ParsedConfig) FieldBloblangV2(path ...string) (*bloblangv2.Executor, error) {
 	v, exists := p.i.Field(path...)
 	if !exists {

@@ -360,6 +360,15 @@ func (c *ConfigSpec) Beta() *ConfigSpec {
 	return c
 }
 
+// Experimental sets a documentation label on the component indicating that its
+// configuration spec is experimental, meaning it is available for early
+// adopters to try out but its behaviour and configuration may change outside
+// of major version releases. Plugins are considered stable by default.
+func (c *ConfigSpec) Experimental() *ConfigSpec {
+	c.component.Status = docs.StatusExperimental
+	return c
+}
+
 // Deprecated sets a documentation label on the component indicating that it is
 // now deprecated. Plugins are considered stable by default.
 func (c *ConfigSpec) Deprecated() *ConfigSpec {

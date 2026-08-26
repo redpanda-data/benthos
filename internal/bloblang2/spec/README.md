@@ -1,5 +1,7 @@
 # Bloblang V2 Technical Specification
 
+> **Experimental.** Bloblang V2 is made available for early adopters. We're actively looking for feedback, and the language — including behaviour pinned by this specification — may change in response outside of major version releases.
+
 ## Core Principles
 
 - **Explicit Context Management** - No implicit behavior

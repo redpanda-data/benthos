@@ -9,6 +9,12 @@
 // languages with separate parsers, interpreters, and plugin registries;
 // plugins registered against one cannot be used from the other.
 //
+// Experimental: Bloblang V2 and this package are experimental, made
+// available for early adopters. We are actively looking for feedback on the
+// language and its tooling, and details of both — including the types and
+// methods in this package — may change in response outside of major version
+// releases.
+//
 // The core types are:
 //
 //   - Environment: an isolated registry of methods and functions that

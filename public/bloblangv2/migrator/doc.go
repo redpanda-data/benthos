@@ -36,8 +36,10 @@
 //
 // # Stability
 //
-// Public types and methods follow semantic versioning. The wrapped AST
-// shapes intentionally mirror the internal AST 1:1 but evolve
-// independently of the internal types — internal refactors never
-// reach the public surface.
+// Experimental: this package is part of Bloblang V2, which is made
+// available for early adopters. We are actively looking for feedback, and
+// the public types and methods here may change in response outside of major
+// version releases. The wrapped AST shapes intentionally mirror the
+// internal AST 1:1 but evolve independently of the internal types —
+// internal refactors never reach the public surface.
 package migrator

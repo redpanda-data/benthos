@@ -36,7 +36,9 @@
 //
 // # Stability
 //
-// Public types and methods follow semantic versioning. The walker
-// implementation is private to the package and may evolve
-// independently of the public surface.
+// Experimental: this package is part of the Bloblang V2 tooling, which is
+// made available for early adopters. We are actively looking for feedback,
+// and the public types and methods here may change in response outside of
+// major version releases. The walker implementation is private to the
+// package and may evolve independently of the public surface.
 package migrator

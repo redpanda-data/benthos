@@ -20,6 +20,7 @@ func init() {
 
 func bloblangV2ProcConfig() *service.ConfigSpec {
 	return service.NewConfigSpec().
+		Experimental().
 		Categories("Mapping", "Parsing").
 		Field(service.NewBloblangV2Field("")).
 		Summary("Executes a Bloblang V2 mapping on messages, producing a new document that replaces (or filters) the original message.").
@@ -27,6 +28,14 @@ func bloblangV2ProcConfig() *service.ConfigSpec {
 Bloblang V2 is a redesigned mapping language with explicit input/output
 contexts and deterministic evaluation. See the V2 specification in
 `+"`internal/bloblang2/spec`"+` for the full language reference.
+
+== Experimental feature
+
+Bloblang V2 and this processor are experimental, made available for early
+adopters. We are actively looking for feedback on the language and its
+tooling, and details of both may change in response outside of major version
+releases. The V1 `+"`mapping`"+`, `+"`mutation`"+` and `+"`bloblang`"+`
+processors remain the stable choice for production pipelines.
 
 == Input and output semantics
 
@@ -57,6 +66,38 @@ output@ = input@
 
 This differs from the V1 `+"`mapping`"+` processor, which preserves metadata
 by default.
+
+== Migrating from Bloblang V1
+
+A migrator tool converts existing configs to Bloblang V2 automatically. It
+parses each V1 mapping (`+"`bloblang`"+`, `+"`mapping`"+` and
+`+"`mutation`"+` processors, plus in-line Bloblang plugin fields) and
+translates it construct-by-construct into an equivalent V2 mapping,
+rewriting the config to use this processor (or `+"`bloblang_v2_file`"+`
+for mappings loaded with `+"`from \"path\"`"+`, following and translating
+any V1 import files along the way).
+
+Where V1 and V2 semantics genuinely differ the migrator does not guess
+silently: each such rewrite is reported with a severity and an explanation
+of the behavioural difference, constructs with no V2 equivalent are marked
+unsupported and left for manual attention, and a per-file coverage ratio
+summarises how much translated cleanly.
+
+A short guide:
+
+1. Preview what would change without writing anything:
+`+"`rpk connect migrate v5 --check ./config.yaml`"+`.
+2. Run the migration for real: `+"`rpk connect migrate v5 ./config.yaml`"+`
+writes a sibling `+"`config.v5.yaml`"+` (use `+"`--in-place`"+` to
+overwrite, which keeps a `+"`.bak`"+` backup).
+3. Review every reported warning — each one names a V1/V2 semantic
+divergence in your mapping — and address anything marked unsupported.
+4. Validate the migrated config against representative data before swapping
+it into production.
+
+For programmatic migration the same machinery is available as Go APIs:
+`+"`public/service/migrator`"+` operates on whole configs and
+`+"`public/bloblangv2/migrator`"+` on individual mappings.
 `).
 		Example("Mapping with metadata preserved", `
 Given JSON documents containing an array of fans, reduce them to just the ID

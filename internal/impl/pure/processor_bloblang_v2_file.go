@@ -22,6 +22,7 @@ func init() {
 
 func bloblangV2FileProcConfig() *service.ConfigSpec {
 	return service.NewConfigSpec().
+		Experimental().
 		Categories("Mapping", "Parsing").
 		Field(service.NewStringField("").
 			Description("Path to a Bloblang V2 mapping file. The file is read once at processor construction; subsequent file changes are picked up only when the config is reloaded.")).
@@ -32,9 +33,17 @@ mapping lives in its own file. The file is loaded and compiled once when the
 processor is constructed; the resulting executor is reused for every message,
 so there is no per-message file-system overhead.
 
+== Experimental feature
+
+Bloblang V2 and this processor are experimental, made available for early
+adopters. We are actively looking for feedback on the language and its
+tooling, and details of both may change in response outside of major version
+releases.
+
 This is the V2 equivalent of writing `+"`bloblang: 'from \"path\"'`"+` against
 the V1 processor. The migrator rewrites such configs to this processor when
-upgrading to V2.
+upgrading to V2 — see the `+"`bloblang_v2`"+` processor docs for a guide to
+the migrator tool.
 
 Paths are resolved through the host filesystem (typically relative to the
 working directory the process started in).

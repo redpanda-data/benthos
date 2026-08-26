@@ -2,6 +2,8 @@
 
 A redesign of the Bloblang mapping language for Redpanda Connect V5. Bloblang V2 is backed by a formal specification, designed for explicit context management, predictable behavior, and first-class tooling support.
 
+> **Experimental.** Bloblang V2 is made available for early adopters. We're actively looking for feedback on the language and its tooling, and details of both may change in response outside of major version releases.
+
 See [`spec/PROPOSAL.md`](spec/PROPOSAL.md) for the motivation and design rationale.
 
 ## Directory Layout

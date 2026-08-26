@@ -148,12 +148,12 @@ Documentation disagreements with the implementation are called out in
 
 ## Known gaps
 
-- **No `bloblang2:` benthos processor yet.** `internal/bloblang2/` ships
-  a full parallel language implementation (Go engine, TypeScript
-  engine, tree-sitter grammar, LSP) but it isn't wired into the
-  pipeline runtime as a registerable processor. Migrated V2 mappings
-  can be compiled and run through `internal/bloblang2` directly, and
-  the `demo/` directory has a local web playground, but there's no
-  config-level `processors: [{ bloblang2: "..." }]` entry. Adding a
-  minimal processor wrapper so V2 can replace `bloblang` / `mapping` /
-  `mutation` inside a real Benthos config is outstanding work.
+- **Experimental status.** Bloblang V2 and the migrator are made
+  available for early adopters; behaviour and public APIs may change in
+  response to feedback outside of major version releases.
+- V2 is wired into the pipeline runtime via the `bloblang_v2` and
+  `bloblang_v2_file` processors (`internal/impl/pure/`), and
+  `public/service/migrator` rewrites whole configs onto them. Remaining
+  language-level gaps (custom lint rules, interpolated strings, the
+  V1/V2 plugin-registry split) are tracked in
+  [`../REMAINING.md`](../REMAINING.md).
