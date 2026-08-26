@@ -9,6 +9,11 @@ All notable changes to this project will be documented in this file.
 
 - Input `websocket`: The default value of `max_message_size` has changed from `0` (unlimited) to `33554432` (32 MiB). An unlimited read allows the websocket server to make the process allocate an unbounded amount of memory with a single streamed message. Pipelines that receive larger messages must now set `max_message_size` explicitly; a value of `0` restores the previous unlimited behaviour. (@Leward)
 
+### Fixed
+
+- Input `websocket`: Connection attempts (dial and upgrade handshake) now honor context cancellation. Previously, unresponsive servers could
+  block graceful shutdown for up to the default 45s handshake timeout. (@Leward)
+
 ## 4.78.0 - 2026-08-20
 
 ### Added

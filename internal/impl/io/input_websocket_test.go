@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -314,4 +315,109 @@ url: %v
 
 	wg.Wait()
 	close(closeChan)
+}
+
+// newWebsocketReader returns a websocketReader configured to connect to the websocket server listening on addr.
+func newWebsocketReader(t *testing.T, addr net.Addr) *websocketReader {
+	t.Helper()
+
+	pConf, err := websocketInputSpec().ParseYAML("url: ws://"+addr.String()+"\n", nil)
+	require.NoError(t, err)
+
+	m, err := newWebsocketReaderFromParsed(pConf, mock.NewManager())
+	require.NoError(t, err)
+
+	return m
+}
+
+// newHangingWebsocketReader returns a reader pointed at a listener that accepts
+// TCP connections but never answers the handshake, along with the accept channel
+// of that listener.
+func newHangingWebsocketReader(t *testing.T) (*websocketReader, <-chan struct{}) {
+	t.Helper()
+
+	addr, accepted := newHangingListener(t)
+	return newWebsocketReader(t, addr), accepted
+}
+
+// newUnreachableWebsocketReader returns a reader pointed at a closed port. A dial
+// there fails immediately, so a context error proves no dial was attempted.
+func newUnreachableWebsocketReader(t *testing.T) *websocketReader {
+	t.Helper()
+
+	return newWebsocketReader(t, newUnreachableAddr(t))
+}
+
+// TestWebsocketConnectContextDone tests that Connect reports the context error
+// when the context is done before or during the websocket handshake.
+func TestWebsocketConnectContextDone(t *testing.T) {
+	tests := []struct {
+		name string
+		// setUp returns a reader and a context that is already done, or that becomes
+		// done while the dial waits for the handshake response. It also returns the
+		// accept channel to check after Connect returns, or nil for a case where no
+		// accept is expected.
+		setUp   func(*testing.T) (*websocketReader, context.Context, <-chan struct{})
+		wantErr error
+	}{
+		{
+			name: "canceled before dialing",
+			setUp: func(t *testing.T) (*websocketReader, context.Context, <-chan struct{}) {
+				ctx, cancel := context.WithCancel(t.Context())
+				cancel()
+				// The port is closed, so a dial fails at once. Only a context check
+				// before the dial can give context.Canceled here.
+				return newUnreachableWebsocketReader(t), ctx, nil
+			},
+			wantErr: context.Canceled,
+		},
+		{
+			name: "canceled while dialing",
+			setUp: func(t *testing.T) (*websocketReader, context.Context, <-chan struct{}) {
+				m, accepted := newHangingWebsocketReader(t)
+
+				ctx, cancel := context.WithCancel(t.Context())
+				t.Cleanup(cancel)
+				// Cancel from the accept, not from a timer, so the dial always waits
+				// for the handshake response when the context becomes done.
+				go func() {
+					<-accepted
+					cancel()
+				}()
+
+				return m, ctx, nil
+			},
+			wantErr: context.Canceled,
+		},
+		{
+			name: "deadline exceeded while dialing",
+			setUp: func(t *testing.T) (*websocketReader, context.Context, <-chan struct{}) {
+				m, accepted := newHangingWebsocketReader(t)
+
+				// A context carries its deadline from the start, so this case cannot
+				// take its trigger from the accept. The accept check after Connect
+				// returns proves the deadline expired during the handshake.
+				ctx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+				t.Cleanup(cancel)
+
+				return m, ctx, accepted
+			},
+			wantErr: context.DeadlineExceeded,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			m, ctx, accepted := test.setUp(t)
+
+			err := awaitWithin(t, 500*time.Millisecond, "Connect", func() error {
+				return m.Connect(ctx)
+			})
+			require.ErrorIs(t, err, test.wantErr)
+
+			if accepted != nil {
+				requireAccepted(t, 5*time.Second, accepted)
+			}
+		})
+	}
 }
