@@ -135,16 +135,11 @@ func (w *websocketWriter) dial(ctx context.Context) (conn *websocket.Conn, res *
 	if w.proxyURLParsed != nil {
 		dialer.Proxy = http.ProxyURL(w.proxyURLParsed)
 	}
-
 	if w.tlsEnabled {
 		dialer.TLSClientConfig = w.tlsConf
-		if conn, res, err = dialer.Dial(w.urlStr, headers); err != nil {
-			return
-		}
-	} else if conn, res, err = dialer.Dial(w.urlStr, headers); err != nil {
-		return
 	}
 
+	conn, res, err = dialContext(ctx, dialer, w.urlStr, headers)
 	return
 }
 
