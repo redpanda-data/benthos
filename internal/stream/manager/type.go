@@ -240,6 +240,13 @@ func (m *Type) Delete(ctx context.Context, id string) error {
 	delete(m.streams, id)
 	m.lock.Unlock()
 
+	// Purge the deleted stream's metric series from exporters that support
+	// deletion, otherwise they accumulate (and are exposed by pull based
+	// exporters) for the lifetime of the process.
+	if purger, ok := m.manager.Metrics().(metrics.LabelPurger); ok {
+		purger.DeleteSeriesPartialMatch(map[string]string{"stream": id})
+	}
+
 	return nil
 }
 

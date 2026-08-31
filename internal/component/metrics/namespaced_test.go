@@ -256,3 +256,43 @@ root = this.replace_all("bar","baz")`, log.Noop())
 	assert.Contains(t, body, `"gaugetwo{extra1=\"extravalue1\",extra2=\"extravalue2\",label2=\"value3\",static1=\"sbaz1\"}":12`)
 	assert.Contains(t, body, `"timertwo{extra1=\"extravalue1\",extra2=\"extravalue2\",label3=\"value4\",label4=\"value5\",static1=\"sbaz1\"}":{"p50":13,"p90":13,"p99":13}`)
 }
+
+type purgeTrackingDud struct {
+	metrics.DudType
+
+	purged []map[string]string
+}
+
+func (p *purgeTrackingDud) DeleteSeriesPartialMatch(labels map[string]string) {
+	cp := make(map[string]string, len(labels))
+	for k, v := range labels {
+		cp[k] = v
+	}
+	p.purged = append(p.purged, cp)
+}
+
+func TestNamespacedDeleteSeriesPartialMatch(t *testing.T) {
+	child := &purgeTrackingDud{}
+	nm := metrics.NewNamespaced(child).WithLabels("stream", "foo")
+
+	purger, ok := any(nm).(interface {
+		DeleteSeriesPartialMatch(labels map[string]string)
+	})
+	require.True(t, ok, "Namespaced should expose series deletion")
+
+	purger.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
+	assert.Equal(t, []map[string]string{{"stream": "foo"}}, child.purged)
+}
+
+func TestNamespacedDeleteSeriesPartialMatchNoopChild(t *testing.T) {
+	nm := metrics.Noop()
+
+	purger, ok := any(nm).(interface {
+		DeleteSeriesPartialMatch(labels map[string]string)
+	})
+	require.True(t, ok, "Namespaced should expose series deletion")
+
+	assert.NotPanics(t, func() {
+		purger.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
+	})
+}

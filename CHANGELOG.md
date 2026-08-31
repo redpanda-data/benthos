@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Streams mode: Deleting a stream (via `DELETE /streams/{id}`, or the delete performed by a stream update) now purges the stream's metric series (labeled `stream="<id>"`) from metrics exporters that support series deletion, instead of leaving them registered with frozen values until the process restarts. Plugin metrics exporters opt in by implementing the new optional `service.MetricsExporterSeriesDeleter` interface. (@squiidz)
+
 ## 4.78.0 - 2026-08-20
 
 ### Added

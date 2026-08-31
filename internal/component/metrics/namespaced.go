@@ -75,6 +75,15 @@ func (n *Namespaced) HandlerFunc() http.HandlerFunc {
 	return n.child.HandlerFunc()
 }
 
+// DeleteSeriesPartialMatch deletes all metric series containing labels
+// matching all of the provided label key/value pairs, when the child metrics
+// target supports it. Otherwise it is a no-op.
+func (n *Namespaced) DeleteSeriesPartialMatch(labels map[string]string) {
+	if purger, ok := n.child.(LabelPurger); ok {
+		purger.DeleteSeriesPartialMatch(labels)
+	}
+}
+
 //------------------------------------------------------------------------------
 
 func (n *Namespaced) getPathAndLabels(path string) (newPath string, labelKeys, labelValues []string) {
