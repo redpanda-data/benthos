@@ -247,6 +247,17 @@ max_message_size: 100
 	require.NoError(t, m.Close(ctx))
 }
 
+func TestWebsocketMaxMessageSizeDefault(t *testing.T) {
+	pConf, err := websocketInputSpec().ParseYAML(`
+url: ws://localhost:4195/get/ws
+`, nil)
+	require.NoError(t, err)
+
+	m, err := newWebsocketReaderFromParsed(pConf, mock.NewManager())
+	require.NoError(t, err)
+	require.Equal(t, defaultMaxMessageSize, m.maxMsgSize)
+}
+
 func TestWebsocketMaxMessageSizeNegative(t *testing.T) {
 	pConf, err := websocketInputSpec().ParseYAML(`
 url: ws://localhost:4195/get/ws
