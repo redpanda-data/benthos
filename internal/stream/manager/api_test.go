@@ -301,6 +301,33 @@ func TestTypeAPIBasicOperations(t *testing.T) {
 // TestTypeAPIStreamEnvOverrides covers the optional per-request "env" field
 // accepted by POST/PUT /streams/{id}, which supplies template values for
 // `${FOO}`-style placeholders in the rest of the config body.
+// streamTemplate renders a minimal stream config as the string that travels
+// inside an envelope body's `template` field. JSON is used because it is valid
+// YAML, and because it saves hand-quoting mappings into a YAML scalar.
+func streamTemplate(mapping string) string {
+	b, err := json.Marshal(map[string]any{
+		"input":  map[string]any{"generate": map[string]any{"mapping": mapping}},
+		"output": map[string]any{"drop": map[string]any{}},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+// envelopeRequest builds a request in the envelope form, carrying per-request
+// env overrides alongside the config template. A nil env omits the field.
+func envelopeRequest(verb, url string, env map[string]string, template string) *http.Request {
+	body := map[string]any{"template": template}
+	if env != nil {
+		body["env"] = env
+	}
+	return genRequest(verb, url, body)
+}
+
+// TestTypeAPIStreamEnvOverrides covers the envelope request form accepted by
+// POST/PUT /streams/{id}, which supplies template values for `${FOO}`-style
+// placeholders in the config.
 func TestTypeAPIStreamEnvOverrides(t *testing.T) {
 	res, err := bmanager.New(bmanager.NewResourceConfig())
 	require.NoError(t, err)
@@ -308,250 +335,181 @@ func TestTypeAPIStreamEnvOverrides(t *testing.T) {
 	mgr := manager.New(res)
 	r := router(mgr)
 
-	confWithEnv := func(env map[string]any) map[string]any {
-		c := map[string]any{
-			"input": map[string]any{
-				"generate": map[string]any{
-					"mapping": "${FOO}",
-				},
-			},
-			"output": map[string]any{
-				"drop": map[string]any{},
-			},
-		}
-		if env != nil {
-			c["env"] = env
-		}
-		return c
+	readMapping := func(t *testing.T, id string) any {
+		t.Helper()
+		request := genRequest("GET", "/streams/"+id, nil)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		return gabs.Wrap(parseGetBody(t, response.Body).Config).S("input", "generate", "mapping").Data()
 	}
 
-	// Core case: no OS env var set at all, the request "env" field alone
-	// supplies FOO.
-	request := genRequest("POST", "/streams/envoverride?chilled=true", confWithEnv(map[string]any{
-		"FOO": "root.meow = 5",
-	}))
-	response := httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	t.Run("the envelope alone supplies a var with no OS env var set", func(t *testing.T) {
+		request := envelopeRequest("POST", "/streams/envoverride?chilled=true",
+			map[string]string{"FOO": "root.meow = 5"}, streamTemplate("${FOO}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	request = genRequest("GET", "/streams/envoverride", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	info := parseGetBody(t, response.Body)
-	assert.Equal(t, "root.meow = 5", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
-
-	request = genRequest("DELETE", "/streams/envoverride", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-
-	// Precedence: an OS env var and a request "env" override of the same
-	// name are both present, the request value must win.
-	t.Setenv("FOO", "root.meow = 99")
-
-	request = genRequest("POST", "/streams/envprecedence?chilled=true", confWithEnv(map[string]any{
-		"FOO": "root.meow = 5",
-	}))
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-
-	request = genRequest("GET", "/streams/envprecedence", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	info = parseGetBody(t, response.Body)
-	assert.Equal(t, "root.meow = 5", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
-
-	request = genRequest("DELETE", "/streams/envprecedence", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-
-	// Fallback: the OS env var is still set (from t.Setenv above) but the
-	// request supplies no "env" field at all, the OS value is used
-	// unaffected, matching pre-existing behaviour.
-	request = genRequest("POST", "/streams/envfallback?chilled=true", confWithEnv(nil))
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-
-	request = genRequest("GET", "/streams/envfallback", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	info = parseGetBody(t, response.Body)
-	assert.Equal(t, "root.meow = 99", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
-
-	request = genRequest("DELETE", "/streams/envfallback", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-
-	// Mixed: a single config references two variables, one supplied by the
-	// request "env" override and the other left to resolve from the real OS
-	// environment, in the same request — both must resolve correctly.
-	t.Setenv("MIXED_OS_ONLY", "root.woof = 7")
-
-	request = genRequest("POST", "/streams/envmixed?chilled=true", map[string]any{
-		"env": map[string]any{
-			"MIXED_OVERRIDE": "root.meow = 5",
-		},
-		"input": map[string]any{
-			"generate": map[string]any{
-				"mapping": "${MIXED_OVERRIDE}\n${MIXED_OS_ONLY}",
-			},
-		},
-		"output": map[string]any{
-			"drop": map[string]any{},
-		},
+		assert.Equal(t, "root.meow = 5", readMapping(t, "envoverride"))
 	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	request = genRequest("GET", "/streams/envmixed", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	info = parseGetBody(t, response.Body)
-	assert.Equal(t, "root.meow = 5\nroot.woof = 7", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+	t.Run("an override takes precedence over an OS env var", func(t *testing.T) {
+		t.Setenv("FOO", "root.meow = 99")
 
-	request = genRequest("DELETE", "/streams/envmixed", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		request := envelopeRequest("POST", "/streams/envprecedence?chilled=true",
+			map[string]string{"FOO": "root.meow = 5"}, streamTemplate("${FOO}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	// Mixed with a default value: the presence of an "env" override must not
-	// disturb the `${FOO:default}` fallback syntax for a *different*,
-	// entirely unset variable.
-	request = genRequest("POST", "/streams/envmixeddefault?chilled=true", map[string]any{
-		"env": map[string]any{
-			"MIXED_OVERRIDE": "root.meow = 5",
-		},
-		"input": map[string]any{
-			"generate": map[string]any{
-				"mapping": "${MIXED_OVERRIDE}\n${THIS_VAR_IS_ALSO_NOT_SET_24680:root.woof = 9}",
-			},
-		},
-		"output": map[string]any{
-			"drop": map[string]any{},
-		},
+		assert.Equal(t, "root.meow = 5", readMapping(t, "envprecedence"))
 	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	request = genRequest("GET", "/streams/envmixeddefault", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	info = parseGetBody(t, response.Body)
-	assert.Equal(t, "root.meow = 5\nroot.woof = 9", gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+	// The original request form, unchanged: no envelope, so the body is the
+	// config itself and every variable resolves from the OS as it always has.
+	t.Run("a raw body falls back to the OS env var", func(t *testing.T) {
+		t.Setenv("FOO", "root.meow = 99")
 
-	request = genRequest("DELETE", "/streams/envmixeddefault", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		request := genRequest("POST", "/streams/envfallback?chilled=true", map[string]any{
+			"input":  map[string]any{"generate": map[string]any{"mapping": "${FOO}"}},
+			"output": map[string]any{"drop": map[string]any{}},
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	// Mixed with an escaped placeholder: the presence of an "env" override
-	// must not cause a `${{FOO}}` escape to be unescaped *and then*
-	// interpolated, which would leak the real OS value of a variable the
-	// caller explicitly asked to be left as literal text.
-	t.Setenv("MIXED_ESCAPED", "leaked-os-value")
-
-	request = genRequest("POST", "/streams/envmixedescape?chilled=true", map[string]any{
-		"env": map[string]any{
-			"MIXED_OVERRIDE": "root.meow = 5",
-		},
-		"input": map[string]any{
-			"generate": map[string]any{
-				"mapping": "root.v = \"${{MIXED_ESCAPED}}\"",
-			},
-		},
-		"output": map[string]any{
-			"drop": map[string]any{},
-		},
+		assert.Equal(t, "root.meow = 99", readMapping(t, "envfallback"))
 	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	request = genRequest("GET", "/streams/envmixedescape", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-	info = parseGetBody(t, response.Body)
-	assert.Equal(t, `root.v = "${MIXED_ESCAPED}"`, gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+	// A single config references two variables, one supplied by the envelope
+	// and the other left to resolve from the real OS environment.
+	t.Run("overrides and OS vars resolve together in one config", func(t *testing.T) {
+		t.Setenv("MIXED_OS_ONLY", "root.woof = 7")
 
-	request = genRequest("DELETE", "/streams/envmixedescape", nil)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		request := envelopeRequest("POST", "/streams/envmixed?chilled=true",
+			map[string]string{"MIXED_OVERRIDE": "root.meow = 5"},
+			streamTemplate("${MIXED_OVERRIDE}\n${MIXED_OS_ONLY}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	// Mixed, still missing: the request "env" resolves one of two referenced
-	// variables but the second is provided by neither the override nor the
-	// OS environment — this must still 400, an override elsewhere in the
-	// same config doesn't grant a free pass for an unrelated missing var.
-	request = genRequest("POST", "/streams/envmixedmissing", map[string]any{
-		"env": map[string]any{
-			"MIXED_OVERRIDE": "root.meow = 5",
-		},
-		"input": map[string]any{
-			"generate": map[string]any{
-				"mapping": "${MIXED_OVERRIDE}\n${THIS_VAR_IS_DEFINITELY_NOT_SET_67890}",
-			},
-		},
-		"output": map[string]any{
-			"drop": map[string]any{},
-		},
+		assert.Equal(t, "root.meow = 5\nroot.woof = 7", readMapping(t, "envmixed"))
 	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
 
-	// Missing var: neither the request "env" nor the OS environment provides
-	// the referenced variable, this still errors exactly as it did before
-	// "env" existed.
-	request = genRequest("POST", "/streams/envmissing", map[string]any{
-		"input": map[string]any{
-			"generate": map[string]any{
-				"mapping": "${THIS_VAR_IS_DEFINITELY_NOT_SET_12345}",
-			},
-		},
-		"output": map[string]any{
-			"drop": map[string]any{},
-		},
-	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+	// An override present in the request must not disturb the
+	// `${FOO:default}` fallback syntax for a different, entirely unset var.
+	t.Run("a default still applies to an unrelated unset var", func(t *testing.T) {
+		request := envelopeRequest("POST", "/streams/envmixeddefault?chilled=true",
+			map[string]string{"MIXED_OVERRIDE": "root.meow = 5"},
+			streamTemplate("${MIXED_OVERRIDE}\n${THIS_VAR_IS_ALSO_NOT_SET_24680:root.woof = 9}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	// Non-string "env" value: the whole request is a 400, mirroring the
-	// os.LookupEnv contract of returning only strings.
-	request = genRequest("POST", "/streams/envbadtype", map[string]any{
-		"env": map[string]any{
-			"FOO": 3,
-		},
-		"input": map[string]any{
-			"generate": map[string]any{
-				"mapping": "${FOO}",
-			},
-		},
-		"output": map[string]any{
-			"drop": map[string]any{},
-		},
+		assert.Equal(t, "root.meow = 5\nroot.woof = 9", readMapping(t, "envmixeddefault"))
 	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+
+	// A `${{FOO}}` escape must not be unescaped *and then* interpolated, which
+	// would leak the real OS value of a variable the caller explicitly asked to
+	// be left as literal text.
+	t.Run("an escape is not unescaped and then interpolated", func(t *testing.T) {
+		t.Setenv("MIXED_ESCAPED", "leaked-os-value")
+
+		request := envelopeRequest("POST", "/streams/envmixedescape?chilled=true",
+			map[string]string{"MIXED_OVERRIDE": "root.meow = 5"},
+			streamTemplate(`root.v = "${{MIXED_ESCAPED}}"`))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, `root.v = "${MIXED_ESCAPED}"`, readMapping(t, "envmixedescape"))
+	})
+
+	// An override elsewhere in the same config doesn't grant a free pass for an
+	// unrelated missing var.
+	t.Run("an unrelated missing var still errors", func(t *testing.T) {
+		request := envelopeRequest("POST", "/streams/envmixedmissing",
+			map[string]string{"MIXED_OVERRIDE": "root.meow = 5"},
+			streamTemplate("${MIXED_OVERRIDE}\n${THIS_VAR_IS_DEFINITELY_NOT_SET_67890}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "required environment variables were not set")
+	})
+
+	t.Run("a missing var in a raw body errors as it always did", func(t *testing.T) {
+		request := genRequest("POST", "/streams/envmissing", map[string]any{
+			"input": map[string]any{
+				"generate": map[string]any{"mapping": "${THIS_VAR_IS_DEFINITELY_NOT_SET_12345}"},
+			},
+			"output": map[string]any{"drop": map[string]any{}},
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "required environment variables were not set")
+	})
+
+	// Mirrors the os.LookupEnv contract of returning only strings.
+	t.Run("a non-string override is a 400", func(t *testing.T) {
+		request := genRequest("POST", "/streams/envbadtype", map[string]any{
+			"env":      map[string]any{"FOO": 3},
+			"template": streamTemplate("${FOO}"),
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "value of 'FOO' must be a string")
+	})
+
+	t.Run("an env value that is not an object is a 400", func(t *testing.T) {
+		request := genRequest("POST", "/streams/envbadshape", map[string]any{
+			"env":      []string{"FOO=bar"},
+			"template": streamTemplate("${FOO}"),
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "must be an object of string values")
+	})
+
+	// `env` is no longer a recognised sibling of the config fields: alongside
+	// real config it is an unknown field like any other, and the name is free
+	// for a genuine config section later.
+	t.Run("an env field beside config fields is not an envelope", func(t *testing.T) {
+		request := genRequest("POST", "/streams/envnotenvelope", map[string]any{
+			"env":    map[string]any{"FOO": "root.meow = 5"},
+			"input":  map[string]any{"generate": map[string]any{"mapping": "root.id = uuid_v4()"}},
+			"output": map[string]any{"drop": map[string]any{}},
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "env")
+	})
+
+	t.Run("PUT accepts the envelope too", func(t *testing.T) {
+		request := envelopeRequest("POST", "/streams/envput?chilled=true",
+			map[string]string{"FOO": "root.meow = 1"}, streamTemplate("${FOO}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		request = envelopeRequest("PUT", "/streams/envput?chilled=true",
+			map[string]string{"FOO": "root.meow = 2"}, streamTemplate("${FOO}"))
+		response = httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "root.meow = 2", readMapping(t, "envput"))
+	})
 }
 
 // The streams API's request bodies are config *templates*: they are not
-// necessarily valid YAML until after env var substitution has run, and their
-// scalars must survive the round-trip through env override extraction exactly
-// as the caller wrote them.
+// necessarily valid YAML until after env var substitution has run. Carrying the
+// document as a string means it is never parsed before substitution, so a
+// template works with and without overrides alike.
 func TestTypeAPIStreamEnvOverridesPreserveDocument(t *testing.T) {
 	res, err := bmanager.New(bmanager.NewResourceConfig())
 	require.NoError(t, err)
@@ -559,18 +517,32 @@ func TestTypeAPIStreamEnvOverridesPreserveDocument(t *testing.T) {
 	mgr := manager.New(res)
 	r := router(mgr)
 
+	readMapping := func(t *testing.T, id string) any {
+		t.Helper()
+		request := genRequest("GET", "/streams/"+id, nil)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		return gabs.Wrap(parseGetBody(t, response.Body).Config).S("input", "generate", "mapping").Data()
+	}
+
 	// The documented `${VAR: default}` form puts a `: ` inside what is
-	// otherwise a plain scalar, so this body only parses as YAML once the
-	// substitution has happened. Extracting `env` must not require parsing
-	// the body first, and must not fail the request when it cannot.
-	t.Run("accepts a body only valid after substitution", func(t *testing.T) {
+	// otherwise a plain scalar, so this template only parses as YAML once
+	// substitution has happened. A block scalar carries it literally, while the
+	// envelope supplies a *different* variable in the same request — the case
+	// the body-field design could not serve.
+	t.Run("accepts a template only valid after substitution", func(t *testing.T) {
 		request := genYAMLRequest("POST", "/streams/envtemplateonly?chilled=true", `
-input:
-  generate:
-    interval: 1h
-    mapping: ${STREAM_ENV_UNSET_MAPPING: root.id = "x"}
-output:
-  drop: {}
+env:
+  STREAM_ENV_MAPPING: root.id = "x"
+template: |
+  input:
+    generate:
+      interval: 1h
+      mapping: ${STREAM_ENV_MAPPING}
+  output:
+    file:
+      path: ${STREAM_ENV_UNSET_PATH: ./fallback.jsonl}
 `)
 		response := httptest.NewRecorder()
 		r.ServeHTTP(response, request)
@@ -581,39 +553,37 @@ output:
 		r.ServeHTTP(response, request)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 		info := parseGetBody(t, response.Body)
+
 		assert.Equal(t, `root.id = "x"`, gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+		assert.Equal(t, "./fallback.jsonl", gabs.Wrap(info.Config).S("output", "file", "path").Data())
 	})
 
 	// Quoting is a property of the YAML node, not of the decoded value, so
-	// re-serialising the document from decoded values drops the caller's own
-	// quotes around an interpolation. Here the override value contains a
+	// re-serialising the document from decoded values would drop the caller's
+	// own quotes around an interpolation. Here the override value contains a
 	// `: `, which parses as a nested mapping the moment those quotes are lost.
 	t.Run("preserves quoting around interpolations", func(t *testing.T) {
 		request := genYAMLRequest("POST", "/streams/envquoted?chilled=true", `
 env:
   ENV_QUOTED_VALUE: 'a: b'
-input:
-  generate:
-    interval: 1h
-    mapping: 'root.v = "${ENV_QUOTED_VALUE}"'
-output:
-  drop: {}
+template: |
+  input:
+    generate:
+      interval: 1h
+      mapping: 'root.v = "${ENV_QUOTED_VALUE}"'
+  output:
+    drop: {}
 `)
 		response := httptest.NewRecorder()
 		r.ServeHTTP(response, request)
 		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-		request = genRequest("GET", "/streams/envquoted", nil)
-		response = httptest.NewRecorder()
-		r.ServeHTTP(response, request)
-		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-		info := parseGetBody(t, response.Body)
-		assert.Equal(t, `root.v = "a: b"`, gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+		assert.Equal(t, `root.v = "a: b"`, readMapping(t, "envquoted"))
 	})
 }
 
 // A scalar the caller never referenced must not be re-resolved by YAML's
-// implicit typing just because an `env` field is present elsewhere in the body.
+// implicit typing just because the request carries overrides.
 func TestTypeAPIStreamEnvOverridesPreserveScalars(t *testing.T) {
 	t.Chdir(t.TempDir())
 
@@ -623,20 +593,21 @@ func TestTypeAPIStreamEnvOverridesPreserveScalars(t *testing.T) {
 	mgr := manager.New(res)
 	r := router(mgr)
 
-	// `2024-01-02` is a valid YAML timestamp, so a decode/re-encode round
-	// trip rewrites it as `2024-01-02T00:00:00Z` and the output writes to a
+	// `2024-01-02` is a valid YAML timestamp, so a decode/re-encode round trip
+	// rewrites it as `2024-01-02T00:00:00Z` and the output writes to a
 	// different file than the one the caller asked for.
 	request := genYAMLRequest("POST", "/streams/envscalars?chilled=true", `
 env:
   ENV_SCALAR_MAPPING: root.id = "x"
-input:
-  generate:
-    count: 1
-    interval: 1ms
-    mapping: ${ENV_SCALAR_MAPPING}
-output:
-  file:
-    path: 2024-01-02
+template: |
+  input:
+    generate:
+      count: 1
+      interval: 1ms
+      mapping: ${ENV_SCALAR_MAPPING}
+  output:
+    file:
+      path: 2024-01-02
 `)
 	response := httptest.NewRecorder()
 	r.ServeHTTP(response, request)

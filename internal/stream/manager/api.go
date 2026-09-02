@@ -54,7 +54,13 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 		"Perform CRUD operations on streams, supporting POST (Create),"+
 			" GET (Read), PUT (Update), PATCH (Patch update)"+
 			" and DELETE (Delete)."+
-			" An optional top-level `env` object of string values may be included in the POST/PUT body to override environment variables referenced by the config for this request only.",
+			" POST and PUT accept the config either as the body itself or wrapped in an"+
+			" envelope of the form `{\"env\": {...}, \"template\": \"<config>\"}`, where"+
+			" `env` is an object of string values overriding environment variables"+
+			" referenced by the config for that request only, taking precedence over a"+
+			" same-named OS environment variable. Note that a variable overridden to an"+
+			" empty string is treated as unset by the `${VAR:default}` form, which will"+
+			" use its default.",
 		m.HandleStreamCRUD,
 	)
 	m.manager.RegisterEndpoint(
@@ -464,7 +470,7 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 		ignoreLints := r.URL.Query().Get("chilled") == "true"
 
 		var overrides map[string]string
-		if overrides, confBytes, err = extractEnvOverrides(confBytes); err != nil {
+		if overrides, confBytes, err = decodeConfigBody(confBytes); err != nil {
 			return
 		}
 
