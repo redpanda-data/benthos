@@ -511,6 +511,10 @@ func TestTypeAPIStreamEnvOverrides(t *testing.T) {
 // document as a string means it is never parsed before substitution, so a
 // template works with and without overrides alike.
 func TestTypeAPIStreamEnvOverridesPreserveDocument(t *testing.T) {
+	// One case resolves a relative output path, so keep the file it writes out
+	// of the package directory.
+	t.Chdir(t.TempDir())
+
 	res, err := bmanager.New(bmanager.NewResourceConfig())
 	require.NoError(t, err)
 
