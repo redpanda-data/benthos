@@ -83,6 +83,107 @@ func (m *Type) lintStreamConfigNode(node *yaml.Node) (lints []string) {
 	return
 }
 
+// envelopeEnvField and envelopeTemplateField name the two keys of the envelope
+// request form.
+const (
+	envelopeEnvField      = "env"
+	envelopeTemplateField = "template"
+)
+
+// decodeConfigBody splits a request body into per-request environment variable
+// overrides and the config document to act on.
+//
+// Two body forms are accepted. The envelope form is a mapping whose only keys
+// are "env" and "template", where "template" holds the config document as a
+// string. The original form is the config document itself, in which case the
+// body is returned unchanged and no overrides are produced. Anything that does
+// not match the envelope shape exactly falls back to the original form, so no
+// request that worked before this existed can behave differently.
+//
+// The document is carried as a string rather than as nested structure
+// specifically so that it is never decoded and re-encoded. A body is a
+// template, and a round trip through go-yaml's emitter is free to re-resolve
+// implicit scalar types (`2024-01-02` returning as a timestamp), to drop the
+// caller's quoting around a `${VAR}` (which is what stops an interpolated value
+// containing YAML metacharacters from restructuring the document), and to
+// rewrite comments, anchors and style. Reading a string node hands back exactly
+// the bytes the caller wrote.
+//
+// It also means the envelope is parseable whatever the template contains: a
+// body is only guaranteed to parse once substitution has run, since the
+// documented `${VAR: default}` form puts a `: ` inside an otherwise plain
+// scalar, but as a JSON string or a YAML block scalar that is just text.
+func decodeConfigBody(raw []byte) (overrides map[string]string, template []byte, err error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, raw, nil
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil, raw, nil
+	}
+
+	var envNode, templateNode *yaml.Node
+	root := doc.Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		// A key repeated, or any key beyond the two the envelope defines, means
+		// this is not an envelope. Falling back rather than erroring is what
+		// keeps every request that predates this feature working untouched.
+		switch key, value := root.Content[i], root.Content[i+1]; key.Value {
+		case envelopeEnvField:
+			if envNode != nil {
+				return nil, raw, nil
+			}
+			envNode = value
+		case envelopeTemplateField:
+			if templateNode != nil {
+				return nil, raw, nil
+			}
+			templateNode = value
+		default:
+			return nil, raw, nil
+		}
+	}
+
+	if templateNode == nil {
+		return nil, raw, nil
+	}
+	if templateNode.Kind == yaml.AliasNode {
+		templateNode = templateNode.Alias
+	}
+	if templateNode.Kind != yaml.ScalarNode || templateNode.Tag != "!!str" {
+		return nil, raw, nil
+	}
+
+	// Past this point the body is unambiguously an envelope, so a malformed env
+	// is reported rather than silently reinterpreted as a config document.
+	if envNode != nil {
+		if envNode.Kind == yaml.AliasNode {
+			envNode = envNode.Alias
+		}
+		switch {
+		case envNode.Kind == yaml.MappingNode:
+			overrides = make(map[string]string, len(envNode.Content)/2)
+			for i := 0; i+1 < len(envNode.Content); i += 2 {
+				key, value := envNode.Content[i], envNode.Content[i+1]
+				// The lookup func contract is func(context.Context, string)
+				// (string, bool), backed by os.LookupEnv, so only strings are
+				// accepted. The node tag distinguishes a quoted "5" from a bare
+				// 5, which a decode into map[string]string would not.
+				if value.Kind != yaml.ScalarNode || value.Tag != "!!str" {
+					return nil, nil, fmt.Errorf("field env: value of '%v' must be a string", key.Value)
+				}
+				overrides[key.Value] = value.Value
+			}
+		case envNode.Tag == "!!null":
+			// An explicit `env:` with no value, treated as no overrides.
+		default:
+			return nil, nil, errors.New("field env: must be an object of string values")
+		}
+	}
+
+	return overrides, []byte(templateNode.Value), nil
+}
+
 // extractEnvOverrides pulls an optional top-level "env" field out of a raw
 // config document, returning its values and the document with that field
 // removed. If no "env" field is present, overrides is nil and stripped is the
