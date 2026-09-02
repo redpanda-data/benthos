@@ -41,7 +41,11 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 	m.manager.RegisterEndpoint(
 		"/resources/{type}/{id}",
 		"POST: Create or replace a given resource configuration of a specified type. Types supported are `cache`, `input`, `output`, `processor` and `rate_limit`."+
-			" An optional top-level `env` object of string values may be included in the body to override environment variables referenced by the config for this request only.",
+			" The config may be sent either as the body itself or wrapped in an envelope"+
+			" of the form `{\"env\": {...}, \"template\": \"<config>\"}`, where `env` is an"+
+			" object of string values overriding environment variables referenced by the"+
+			" config for that request only, taking precedence over a same-named OS"+
+			" environment variable.",
 		m.HandleResourceCRUD,
 	)
 	m.manager.RegisterEndpoint(
@@ -188,71 +192,6 @@ func decodeConfigBody(raw []byte) (overrides map[string]string, template []byte,
 	}
 
 	return overrides, []byte(templateNode.Value), nil
-}
-
-// extractEnvOverrides pulls an optional top-level "env" field out of a raw
-// config document, returning its values and the document with that field
-// removed. If no "env" field is present, overrides is nil and stripped is the
-// input unchanged.
-//
-// The document is edited at the yaml.Node level rather than being decoded to
-// generic Go values and re-encoded. A config body is a template, so it carries
-// two properties that a decode/re-encode round trip destroys: scalars whose
-// implicit YAML type would be re-resolved on the way out (`2024-01-02` coming
-// back as a timestamp, `0123456` as octal), and the caller's own quoting
-// around a `${VAR}`, which is what stops an interpolated value containing YAML
-// metacharacters from altering the document's structure. Editing nodes keeps
-// every untouched scalar byte-for-byte as it was written.
-func extractEnvOverrides(raw []byte) (overrides map[string]string, stripped []byte, err error) {
-	// A body is only guaranteed to parse once substitution has run: the
-	// documented `${VAR: default}` form puts a `: ` inside an otherwise plain
-	// scalar. A body we cannot parse has no "env" field we could find, so
-	// leave it alone and let the existing downstream path report the error.
-	var doc yaml.Node
-	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		return nil, raw, nil
-	}
-	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
-		return nil, raw, nil
-	}
-
-	root := doc.Content[0]
-	for i := 0; i+1 < len(root.Content); i += 2 {
-		if root.Content[i].Value != "env" {
-			continue
-		}
-
-		envNode := root.Content[i+1]
-		if envNode.Kind == yaml.AliasNode {
-			envNode = envNode.Alias
-		}
-		switch {
-		case envNode.Kind == yaml.MappingNode:
-			overrides = make(map[string]string, len(envNode.Content)/2)
-			for j := 0; j+1 < len(envNode.Content); j += 2 {
-				k, v := envNode.Content[j], envNode.Content[j+1]
-				// The lookup func contract is func(context.Context, string)
-				// (string, bool), backed by os.LookupEnv, so only strings are
-				// accepted. The node tag distinguishes a quoted "5" from a
-				// bare 5, which a decode into map[string]string would not.
-				if v.Kind != yaml.ScalarNode || v.Tag != "!!str" {
-					return nil, nil, fmt.Errorf("field env: value of '%v' must be a string", k.Value)
-				}
-				overrides[k.Value] = v.Value
-			}
-		case envNode.Tag == "!!null":
-			// An explicit `env:` with no value, treated as no overrides.
-		default:
-			return nil, nil, errors.New("field env: must be an object of string values")
-		}
-
-		root.Content = append(root.Content[:i], root.Content[i+2:]...)
-		if stripped, err = yaml.Marshal(&doc); err != nil {
-			return nil, nil, err
-		}
-		return overrides, stripped, nil
-	}
-	return nil, raw, nil
 }
 
 // HandleStreamsCRUD is an http.HandleFunc for returning maps of active benthos
@@ -729,7 +668,7 @@ func (m *Type) HandleResourceCRUD(w http.ResponseWriter, r *http.Request) {
 		ignoreLints := r.URL.Query().Get("chilled") == "true"
 
 		var overrides map[string]string
-		if overrides, confBytes, requestErr = extractEnvOverrides(confBytes); requestErr != nil {
+		if overrides, confBytes, requestErr = decodeConfigBody(confBytes); requestErr != nil {
 			return
 		}
 

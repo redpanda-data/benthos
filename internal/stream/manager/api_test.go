@@ -1295,12 +1295,13 @@ file:
 // TestResourceAPIEnvOverrides covers the same per-request "env" field for
 // POST /resources/{type}/{id}, reusing the same extraction/lookup seam as
 // the streams endpoint.
+// TestResourceAPIEnvOverrides covers the envelope request form for
+// POST /resources/{type}/{id}, which reuses the same lookup seam as the streams
+// endpoint. Each case observes the cache's resolved directory on disk, since
+// that is the only place a resource's substituted config becomes visible.
 func TestResourceAPIEnvOverrides(t *testing.T) {
 	bmgr, err := bmanager.New(bmanager.NewResourceConfig())
 	require.NoError(t, err)
-
-	tChan := make(chan message.Transaction)
-	bmgr.SetPipe("feed_in_env", tChan)
 
 	mgr := manager.New(bmgr)
 	r := router(mgr)
@@ -1311,203 +1312,186 @@ func TestResourceAPIEnvOverrides(t *testing.T) {
 	osDir := filepath.Join(tmpDir, "os")
 	require.NoError(t, os.MkdirAll(osDir, 0o750))
 
-	// Precedence: an OS env var of the same name points elsewhere, the
-	// request-supplied "env" override must be the one that's used.
-	t.Setenv("ENV_OVERRIDE_CACHE_DIR", osDir)
+	// Drives one message through a stream writing to the named cache. Each call
+	// takes its own pipe: a stream created by an earlier case is still running
+	// and would race this one for messages if they shared one.
+	writeVia := func(t *testing.T, pipe, cacheName, id string) {
+		t.Helper()
 
-	request := genRequest("POST", "/resources/cache/envcache?chilled=true", map[string]any{
-		"env": map[string]any{
-			"ENV_OVERRIDE_CACHE_DIR": overrideDir,
-		},
-		"file": map[string]any{
-			"directory": "${ENV_OVERRIDE_CACHE_DIR}",
-		},
-	})
-	response := httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		tChan := make(chan message.Transaction)
+		bmgr.SetPipe(pipe, tChan)
 
-	streamConf, err := testutil.StreamFromYAML(`
+		streamConf, err := testutil.StreamFromYAML(`
 input:
-  inproc: feed_in_env
+  inproc: ` + pipe + `
 output:
   cache:
     key: '${! json("id") }'
-    target: envcache
+    target: ` + cacheName + `
 `)
-	require.NoError(t, err)
+		require.NoError(t, err)
 
-	request = genYAMLRequest("POST", "/streams/envcacheuser?chilled=true", streamConf)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		request := genYAMLRequest("POST", "/streams/"+id+"?chilled=true", streamConf)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	resChan := make(chan error)
-	select {
-	case tChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte(`{"id":"first","content":"hello world"}`)}), resChan):
-	case <-time.After(time.Second * 5):
-		t.Fatal("timed out")
+		resChan := make(chan error)
+		select {
+		case tChan <- message.NewTransaction(message.QuickBatch([][]byte{
+			[]byte(`{"id":"` + id + `","content":"hello world"}`),
+		}), resChan):
+		case <-time.After(time.Second * 5):
+			t.Fatal("timed out sending transaction")
+		}
+		select {
+		case <-resChan:
+		case <-time.After(time.Second * 5):
+			t.Fatal("timed out awaiting response")
+		}
 	}
-	select {
-	case <-resChan:
-	case <-time.After(time.Second * 5):
-		t.Fatal("timed out")
+
+	// resourceEnvelope builds an envelope body whose template is a cache config
+	// pointing at the given directory expression.
+	resourceEnvelope := func(env map[string]string, directory string) map[string]any {
+		template, err := json.Marshal(map[string]any{
+			"file": map[string]any{"directory": directory},
+		})
+		require.NoError(t, err)
+
+		body := map[string]any{"template": string(template)}
+		if env != nil {
+			body["env"] = env
+		}
+		return body
 	}
 
-	files, err := os.ReadDir(overrideDir)
-	require.NoError(t, err)
-	assert.Len(t, files, 1)
+	t.Run("an override takes precedence over an OS env var", func(t *testing.T) {
+		t.Setenv("ENV_OVERRIDE_CACHE_DIR", osDir)
 
-	files, err = os.ReadDir(osDir)
-	require.NoError(t, err)
-	assert.Empty(t, files)
+		request := genRequest("POST", "/resources/cache/envcache?chilled=true",
+			resourceEnvelope(map[string]string{"ENV_OVERRIDE_CACHE_DIR": overrideDir},
+				"${ENV_OVERRIDE_CACHE_DIR}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	// Mixed: a single field template references two variables, one supplied
-	// by the request "env" override and the other left to resolve from the
-	// real OS environment, in the same request — both must resolve and
-	// combine correctly.
-	mixedSubDir := "mixedsub"
-	mixedDir := filepath.Join(overrideDir, mixedSubDir)
-	require.NoError(t, os.MkdirAll(mixedDir, 0o750))
+		writeVia(t, "feed_in_env", "envcache", "envcacheuser")
 
-	t.Setenv("ENV_MIXED_SUB_DIR", mixedSubDir)
+		files, err := os.ReadDir(overrideDir)
+		require.NoError(t, err)
+		assert.Len(t, files, 1)
 
-	request = genRequest("POST", "/resources/cache/envmixedcache?chilled=true", map[string]any{
-		"env": map[string]any{
-			"ENV_MIXED_BASE_DIR": overrideDir,
-		},
-		"file": map[string]any{
-			"directory": "${ENV_MIXED_BASE_DIR}/${ENV_MIXED_SUB_DIR}",
-		},
+		files, err = os.ReadDir(osDir)
+		require.NoError(t, err)
+		assert.Empty(t, files)
 	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	// A dedicated pipe/channel, distinct from feed_in_env above: the
-	// envcacheuser stream created earlier is still running and would race
-	// this one for messages if they shared a pipe.
-	mixedTChan := make(chan message.Transaction)
-	bmgr.SetPipe("feed_in_env_mixed", mixedTChan)
+	// A single field template references two variables, one supplied by the
+	// envelope and the other left to resolve from the real OS environment.
+	t.Run("overrides and OS vars resolve together in one field", func(t *testing.T) {
+		mixedSubDir := "mixedsub"
+		mixedDir := filepath.Join(overrideDir, mixedSubDir)
+		require.NoError(t, os.MkdirAll(mixedDir, 0o750))
 
-	streamConf, err = testutil.StreamFromYAML(`
-input:
-  inproc: feed_in_env_mixed
-output:
-  cache:
-    key: '${! json("id") }'
-    target: envmixedcache
-`)
-	require.NoError(t, err)
+		t.Setenv("ENV_MIXED_SUB_DIR", mixedSubDir)
 
-	request = genYAMLRequest("POST", "/streams/envmixedcacheuser?chilled=true", streamConf)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		request := genRequest("POST", "/resources/cache/envmixedcache?chilled=true",
+			resourceEnvelope(map[string]string{"ENV_MIXED_BASE_DIR": overrideDir},
+				"${ENV_MIXED_BASE_DIR}/${ENV_MIXED_SUB_DIR}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	select {
-	case mixedTChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte(`{"id":"mixed","content":"hello world"}`)}), resChan):
-	case <-time.After(time.Second * 5):
-		t.Fatal("timed out")
-	}
-	select {
-	case <-resChan:
-	case <-time.After(time.Second * 5):
-		t.Fatal("timed out")
-	}
+		writeVia(t, "feed_in_env_mixed", "envmixedcache", "envmixedcacheuser")
 
-	files, err = os.ReadDir(mixedDir)
-	require.NoError(t, err)
-	assert.Len(t, files, 1)
-
-	// Fallback: no "env" field in the request at all, the referenced variable
-	// resolves from the real OS environment exactly as it did before "env"
-	// existed.
-	fallbackDir := filepath.Join(tmpDir, "fallback")
-	require.NoError(t, os.MkdirAll(fallbackDir, 0o750))
-
-	t.Setenv("ENV_FALLBACK_CACHE_DIR", fallbackDir)
-
-	request = genRequest("POST", "/resources/cache/envfallbackcache?chilled=true", map[string]any{
-		"file": map[string]any{
-			"directory": "${ENV_FALLBACK_CACHE_DIR}",
-		},
+		files, err := os.ReadDir(mixedDir)
+		require.NoError(t, err)
+		assert.Len(t, files, 1)
 	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	fallbackTChan := make(chan message.Transaction)
-	bmgr.SetPipe("feed_in_env_fallback", fallbackTChan)
+	// The original request form, unchanged: the body is the config itself and
+	// the referenced variable resolves from the OS exactly as it always has.
+	t.Run("a raw body falls back to the OS env var", func(t *testing.T) {
+		fallbackDir := filepath.Join(tmpDir, "fallback")
+		require.NoError(t, os.MkdirAll(fallbackDir, 0o750))
 
-	streamConf, err = testutil.StreamFromYAML(`
-input:
-  inproc: feed_in_env_fallback
-output:
-  cache:
-    key: '${! json("id") }'
-    target: envfallbackcache
-`)
-	require.NoError(t, err)
+		t.Setenv("ENV_FALLBACK_CACHE_DIR", fallbackDir)
 
-	request = genYAMLRequest("POST", "/streams/envfallbackcacheuser?chilled=true", streamConf)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		request := genRequest("POST", "/resources/cache/envfallbackcache?chilled=true",
+			map[string]any{"file": map[string]any{"directory": "${ENV_FALLBACK_CACHE_DIR}"}})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 
-	select {
-	case fallbackTChan <- message.NewTransaction(message.QuickBatch([][]byte{[]byte(`{"id":"fallback","content":"hello world"}`)}), resChan):
-	case <-time.After(time.Second * 5):
-		t.Fatal("timed out")
-	}
-	select {
-	case <-resChan:
-	case <-time.After(time.Second * 5):
-		t.Fatal("timed out")
-	}
+		writeVia(t, "feed_in_env_fallback", "envfallbackcache", "envfallbackcacheuser")
 
-	files, err = os.ReadDir(fallbackDir)
-	require.NoError(t, err)
-	assert.Len(t, files, 1)
-
-	// Missing var: neither the request "env" nor the OS environment provides
-	// the referenced variable, this still errors exactly as it did before
-	// "env" existed.
-	request = genRequest("POST", "/resources/cache/envcachemissing", map[string]any{
-		"env": map[string]any{
-			"ENV_UNRELATED_VAR": "unused",
-		},
-		"file": map[string]any{
-			"directory": "${ENV_MISSING_CACHE_DIR}",
-		},
+		files, err := os.ReadDir(fallbackDir)
+		require.NoError(t, err)
+		assert.Len(t, files, 1)
 	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusBadRequest, response.Code)
-	assert.Contains(t, response.Body.String(), "required environment variables were not set")
 
-	// Regression: a body with no "env" field that is only valid YAML once
-	// substitution has run must be accepted, as it was before "env" existed.
-	request = genYAMLRequest("POST", "/resources/cache/envcachetemplateonly?chilled=true", `
+	t.Run("an unrelated missing var still errors", func(t *testing.T) {
+		request := genRequest("POST", "/resources/cache/envcachemissing",
+			resourceEnvelope(map[string]string{"ENV_UNRELATED_VAR": "unused"},
+				"${ENV_MISSING_CACHE_DIR}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "required environment variables were not set")
+	})
+
+	// A raw body that is only valid YAML once substitution has run must be
+	// accepted, as it was before overrides existed.
+	t.Run("a raw body only valid after substitution is accepted", func(t *testing.T) {
+		templateOnlyDir := filepath.Join(tmpDir, "templateonly")
+		require.NoError(t, os.MkdirAll(templateOnlyDir, 0o750))
+
+		request := genYAMLRequest("POST", "/resources/cache/envcachetemplateonly?chilled=true", `
 file:
-  directory: ${ENV_UNSET_CACHE_DIR: `+fallbackDir+`}
+  directory: ${ENV_UNSET_CACHE_DIR: `+templateOnlyDir+`}
 `)
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
-
-	// Non-string "env" value: 400, same contract as the streams endpoint.
-	request = genRequest("POST", "/resources/cache/envcachebad", map[string]any{
-		"env": map[string]any{
-			"ENV_OVERRIDE_CACHE_DIR": 3,
-		},
-		"file": map[string]any{
-			"directory": "${ENV_OVERRIDE_CACHE_DIR}",
-		},
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	})
-	response = httptest.NewRecorder()
-	r.ServeHTTP(response, request)
-	assert.Equal(t, http.StatusBadRequest, response.Code, response.Body.String())
+
+	// The same case, but inside an envelope supplying an unrelated variable.
+	// The template is carried as a block scalar, so it never has to parse as
+	// YAML before substitution.
+	t.Run("an envelope template only valid after substitution is accepted", func(t *testing.T) {
+		envTemplateDir := filepath.Join(tmpDir, "envtemplateonly")
+		require.NoError(t, os.MkdirAll(envTemplateDir, 0o750))
+
+		request := genYAMLRequest("POST", "/resources/cache/envcacheenvtemplate?chilled=true", `
+env:
+  ENV_UNRELATED_VAR: unused
+template: |
+  file:
+    directory: ${ENV_UNSET_CACHE_DIR: `+envTemplateDir+`}
+`)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		writeVia(t, "feed_in_env_template", "envcacheenvtemplate", "envcacheenvtemplateuser")
+
+		files, err := os.ReadDir(envTemplateDir)
+		require.NoError(t, err)
+		assert.Len(t, files, 1)
+	})
+
+	// Same contract as the streams endpoint.
+	t.Run("a non-string override is a 400", func(t *testing.T) {
+		request := genRequest("POST", "/resources/cache/envcachebad", map[string]any{
+			"env":      map[string]any{"ENV_OVERRIDE_CACHE_DIR": 3},
+			"template": `{"file":{"directory":"${ENV_OVERRIDE_CACHE_DIR}"}}`,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "value of 'ENV_OVERRIDE_CACHE_DIR' must be a string")
+	})
 }
 
 func TestAPIReady(t *testing.T) {
