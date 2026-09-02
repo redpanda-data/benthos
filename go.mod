@@ -22,25 +22,25 @@ require (
 	github.com/itchyny/gojq v0.12.19
 	github.com/itchyny/timefmt-go v0.1.8
 	github.com/jmespath/go-jmespath v0.4.0
-	github.com/klauspost/compress v1.19.1
+	github.com/klauspost/compress v1.19.2
 	github.com/klauspost/pgzip v1.2.6
 	github.com/linkedin/goavro/v2 v2.15.0
 	github.com/matoous/go-nanoid/v2 v2.1.0
 	github.com/nsf/jsondiff v0.0.0-20210926074059-1e845ec5d249
-	github.com/pierrec/lz4/v4 v4.1.27
+	github.com/pierrec/lz4/v4 v4.1.29
 	github.com/quipo/dependencysolver v0.0.0-20170801134659-2b009cb4ddcc
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475
-	github.com/rickb777/period v1.0.30
+	github.com/rickb777/period v1.0.32
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/segmentio/ksuid v1.0.4
-	github.com/sirupsen/logrus v1.9.4
-	github.com/stretchr/testify v1.11.1
+	github.com/sirupsen/logrus v1.10.2
+	github.com/stretchr/testify v1.12.1
 	github.com/tilinna/z85 v1.0.0
 	github.com/urfave/cli/v2 v2.27.7
 	github.com/xeipuuv/gojsonschema v1.2.0
 	github.com/youmark/pkcs8 v0.0.0-20201027041543-1326539a0a0a
-	go.opentelemetry.io/otel v1.44.0
-	go.opentelemetry.io/otel/trace v1.44.0
+	go.opentelemetry.io/otel v1.46.0
+	go.opentelemetry.io/otel/trace v1.46.0
 	go.uber.org/multierr v1.11.0
 	golang.org/x/crypto v0.55.0
 	golang.org/x/oauth2 v0.36.0
@@ -52,29 +52,28 @@ require (
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/rickb777/plural/v2 v2.1.0 // indirect
+	github.com/rickb777/plural/v2 v2.1.1 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 )
 
 require (
 	github.com/cockroachdb/apd/v3 v3.2.3 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.7 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
+	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/gofrs/uuid/v5 v5.4.0
+	github.com/gofrs/uuid/v5 v5.5.1
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/govalues/decimal v0.1.36 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/xeipuuv/gojsonpointer v0.0.0-20190905194746-02993c407bfb // indirect
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xrash/smetrics v0.0.0-20240521201337-686a1a2994c1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel/metric v1.44.0 // indirect
+	go.opentelemetry.io/otel/metric v1.46.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
