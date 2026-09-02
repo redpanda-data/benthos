@@ -60,13 +60,16 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 		"Perform CRUD operations on streams, supporting POST (Create),"+
 			" GET (Read), PUT (Update), PATCH (Patch update)"+
 			" and DELETE (Delete)."+
-			" POST and PUT accept the config either as the body itself or wrapped in an"+
-			" envelope of the form `{\"env\": {...}, \"template\": \"<config>\"}`, where"+
-			" `env` is an object of string values overriding environment variables"+
-			" referenced by the config for that request only, taking precedence over a"+
-			" same-named OS environment variable. Note that a variable overridden to an"+
-			" empty string is treated as unset by the `${VAR:default}` form, which will"+
-			" use its default.",
+			" POST, PUT and PATCH accept the config either as the body itself or"+
+			" wrapped in an envelope of the form `{\"env\": {...}, \"template\":"+
+			" \"<config>\"}`, where `env` is an object of string values overriding"+
+			" environment variables referenced by the config for that request only,"+
+			" taking precedence over a same-named OS environment variable. Note that a"+
+			" variable overridden to an empty string is treated as unset by the"+
+			" `${VAR:default}` form, which will use its default."+
+			" PATCH performs no environment variable substitution at all, so it takes"+
+			" the envelope's `template` as the patch document and rejects a non-empty"+
+			" `env` rather than silently ignoring it.",
 		m.HandleStreamCRUD,
 	)
 	m.manager.RegisterEndpoint(
@@ -459,6 +462,23 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 	patchConfig := func(confIn stream.Config) (confOut stream.Config, err error) {
 		var patchBytes []byte
 		if patchBytes, err = io.ReadAll(r.Body); err != nil {
+			return
+		}
+
+		// An envelope is unwrapped and its template applied as the patch
+		// document, exactly as a body that is not an envelope would be. Without
+		// this the envelope's own keys merge into the stream config as ordinary
+		// fields, since a patch is neither linted nor parsed strictly.
+		//
+		// PATCH performs no environment variable substitution, so overrides
+		// could only ever be a no-op here. Rejecting them says so rather than
+		// accepting a request whose whole point is silently dropped.
+		var overrides map[string]string
+		if overrides, patchBytes, err = decodeConfigBody(patchBytes); err != nil {
+			return
+		}
+		if len(overrides) > 0 {
+			err = fmt.Errorf("field %v: not supported by PATCH", envelopeEnvField)
 			return
 		}
 

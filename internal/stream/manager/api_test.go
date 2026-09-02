@@ -678,6 +678,137 @@ func TestTypeAPIPatch(t *testing.T) {
 	assert.Equal(t, "2s", gabs.Wrap(info.Config).S("input", "generate", "interval").Data())
 }
 
+// TestTypeAPIPatchEnvelope covers the envelope request form on
+// PATCH /streams/{id}. The envelope is unwrapped and its `template` is applied
+// as the patch document, exactly as a non-enveloped body would be. PATCH
+// performs no environment variable substitution, so an envelope carrying
+// overrides is rejected rather than silently ignored.
+func TestTypeAPIPatchEnvelope(t *testing.T) {
+	res, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr := manager.New(res)
+	r := router(mgr)
+
+	// createStream seeds a stream to patch, one per subtest so cases cannot
+	// observe each other's patches.
+	createStream := func(t *testing.T, id string) {
+		t.Helper()
+		request := genRequest("POST", "/streams/"+id+"?chilled=true", harmlessConf())
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	}
+
+	readConfig := func(t *testing.T, id string) *gabs.Container {
+		t.Helper()
+		request := genRequest("GET", "/streams/"+id, nil)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		return gabs.Wrap(parseGetBody(t, response.Body).Config)
+	}
+
+	patchTemplate := `{"input":{"generate":{"interval":"2s"}}}`
+
+	t.Run("an envelope template is applied as the patch", func(t *testing.T) {
+		createStream(t, "patchenvelope")
+
+		request := genRequest("PATCH", "/streams/patchenvelope", map[string]any{
+			"template": patchTemplate,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		conf := readConfig(t, "patchenvelope")
+		assert.Equal(t, "2s", conf.S("input", "generate", "interval").Data())
+
+		// The envelope's own keys must not survive into the stored config, which
+		// is what happened while PATCH merged the body verbatim.
+		assert.False(t, conf.Exists("template"), "envelope key `template` leaked into the config")
+		assert.False(t, conf.Exists("env"), "envelope key `env` leaked into the config")
+	})
+
+	t.Run("an explicit null env is accepted", func(t *testing.T) {
+		createStream(t, "patchenvelopenullenv")
+
+		request := genYAMLRequest("PATCH", "/streams/patchenvelopenullenv",
+			"env:\ntemplate: '"+patchTemplate+"'\n")
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "2s", readConfig(t, "patchenvelopenullenv").S("input", "generate", "interval").Data())
+	})
+
+	t.Run("an empty env object is accepted", func(t *testing.T) {
+		createStream(t, "patchenvelopeemptyenv")
+
+		request := genRequest("PATCH", "/streams/patchenvelopeemptyenv", map[string]any{
+			"env":      map[string]any{},
+			"template": patchTemplate,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "2s", readConfig(t, "patchenvelopeemptyenv").S("input", "generate", "interval").Data())
+	})
+
+	// PATCH never substitutes environment variables, so overrides could only
+	// ever be a no-op. Rejecting says so rather than dropping them silently.
+	t.Run("a populated env is a 400", func(t *testing.T) {
+		createStream(t, "patchenvelopeenv")
+
+		request := genRequest("PATCH", "/streams/patchenvelopeenv", map[string]any{
+			"env":      map[string]string{"FOO": "root.meow = 5"},
+			"template": patchTemplate,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "field env: not supported by PATCH")
+
+		// The rejected request must leave the stream exactly as it was. The
+		// stored config is the caller's own document, so an interval never
+		// patched in is simply absent rather than carrying the field default.
+		conf := readConfig(t, "patchenvelopeenv")
+		assert.Nil(t, conf.S("input", "generate", "interval").Data())
+		assert.False(t, conf.Exists("env"), "envelope key `env` leaked into the config")
+	})
+
+	// A malformed envelope is reported by the decoder for PATCH just as it is
+	// for POST and PUT.
+	t.Run("a non-string override is a 400", func(t *testing.T) {
+		createStream(t, "patchenvelopebadtype")
+
+		request := genRequest("PATCH", "/streams/patchenvelopebadtype", map[string]any{
+			"env":      map[string]any{"FOO": 3},
+			"template": patchTemplate,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "value of 'FOO' must be a string")
+	})
+
+	// The original request form, unchanged: a body that is not an envelope is
+	// the patch document itself.
+	t.Run("a raw body is still applied as the patch", func(t *testing.T) {
+		createStream(t, "patchraw")
+
+		request := genRequest("PATCH", "/streams/patchraw", map[string]any{
+			"input": map[string]any{"generate": map[string]any{"interval": "3s"}},
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "3s", readConfig(t, "patchraw").S("input", "generate", "interval").Data())
+	})
+}
+
 func TestTypeAPIBasicOperationsYAML(t *testing.T) {
 	res, err := bmanager.New(bmanager.NewResourceConfig())
 	require.NoError(t, err)
