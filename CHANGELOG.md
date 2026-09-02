@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 
 - Input/Output `websocket`: Connection attempts (dial and upgrade handshake) and input reads now honor context
   cancellation, preventing graceful shutdown from hanging on unresponsive servers or idle connections. (@Leward)
+- Output `websocket`: A failed write now closes the connection instead of leaking it before the reconnect. (@Leward)
 
 ## 4.78.0 - 2026-08-20
 
