@@ -147,6 +147,8 @@ func newUnreachableWebsocketWriter(t *testing.T) *websocketWriter {
 // TestWebsocketOutputConnectContextDone tests that Connect reports the context
 // error when the context is done before or during the websocket handshake.
 func TestWebsocketOutputConnectContextDone(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name string
 		// setUp returns a writer and a context that is already done, or that becomes
