@@ -113,41 +113,35 @@ websocket:
 	require.NoError(t, m.WaitForClose(ctx))
 }
 
-// newWebsocketWriter returns a websocketWriter configured to connect to the websocket server listening on addr.
-func newWebsocketWriter(t *testing.T, addr net.Addr) *websocketWriter {
-	t.Helper()
-
-	pConf, err := websocketOutputSpec().ParseYAML("url: ws://"+addr.String()+"\n", nil)
-	require.NoError(t, err)
-
-	w, err := newWebsocketWriterFromParsed(pConf, mock.NewManager())
-	require.NoError(t, err)
-
-	return w
-}
-
-// newHangingWebsocketWriter returns a writer pointed at a listener that accepts
-// TCP connections but never answers the handshake, along with the accept channel
-// of that listener.
-func newHangingWebsocketWriter(t *testing.T) (*websocketWriter, <-chan struct{}) {
-	t.Helper()
-
-	addr, accepted := newHangingListener(t)
-	return newWebsocketWriter(t, addr), accepted
-}
-
-// newUnreachableWebsocketWriter returns a writer pointed at a closed port. A dial
-// there fails immediately, so a context error proves no dial was attempted.
-func newUnreachableWebsocketWriter(t *testing.T) *websocketWriter {
-	t.Helper()
-
-	return newWebsocketWriter(t, newUnreachableAddr(t))
-}
-
 // TestWebsocketOutputConnectContextDone tests that Connect reports the context
 // error when the context is done before or during the websocket handshake.
 func TestWebsocketOutputConnectContextDone(t *testing.T) {
 	t.Parallel()
+
+	newWebsocketWriter := func(t *testing.T, addr net.Addr) *websocketWriter {
+		t.Helper()
+
+		pConf, err := websocketOutputSpec().ParseYAML("url: ws://"+addr.String()+"\n", nil)
+		require.NoError(t, err)
+
+		w, err := newWebsocketWriterFromParsed(pConf, mock.NewManager())
+		require.NoError(t, err)
+
+		return w
+	}
+
+	newHangingWebsocketWriter := func(t *testing.T) (*websocketWriter, <-chan struct{}) {
+		t.Helper()
+
+		addr, accepted := newHangingListener(t)
+		return newWebsocketWriter(t, addr), accepted
+	}
+
+	newUnreachableWebsocketWriter := func(t *testing.T) *websocketWriter {
+		t.Helper()
+
+		return newWebsocketWriter(t, newUnreachableAddr(t))
+	}
 
 	tests := []struct {
 		name string
