@@ -23,14 +23,16 @@ type StreamStatus struct {
 	config       stream.Config
 	strm         *stream.Type
 	metrics      *metrics.Local
+	metricsScope metrics.Type
 	createdAt    time.Time
 }
 
-func newStreamStatus(conf stream.Config, stats *metrics.Local) *StreamStatus {
+func newStreamStatus(conf stream.Config, stats *metrics.Local, metricsScope metrics.Type) *StreamStatus {
 	return &StreamStatus{
-		config:    conf,
-		metrics:   stats,
-		createdAt: time.Now(),
+		config:       conf,
+		metrics:      stats,
+		metricsScope: metricsScope,
+		createdAt:    time.Now(),
 	}
 }
 
@@ -153,18 +155,19 @@ func (m *Type) Create(id string, conf stream.Config) error {
 	}
 
 	strmFlatMetrics := metrics.NewLocal()
-	sMgr := m.manager.ForStream(id).WithAddedMetrics(strmFlatMetrics)
+	sMgr := m.manager.ForStream(id).WithMetricsCleanup().WithAddedMetrics(strmFlatMetrics)
 
 	// Note we initialise the status without a stream pointer, this is okay as
 	// long as we do not add it to m.streams without one set.
 	//
 	// This seems a bit wonky but we can't rule out a race condition between
 	// the stream terminating and setClosed and actually initialising a status.
-	wrapper := newStreamStatus(conf, strmFlatMetrics)
+	wrapper := newStreamStatus(conf, strmFlatMetrics, sMgr.Metrics())
 	strm, err := stream.New(conf, sMgr, stream.OptOnClose(func() {
 		wrapper.setClosed()
 	}))
 	if err != nil {
+		_ = wrapper.metricsScope.Close()
 		return err
 	}
 
@@ -235,6 +238,7 @@ func (m *Type) Delete(ctx context.Context, id string) error {
 			return err
 		}
 	}
+	_ = wrapper.metricsScope.Close()
 
 	m.lock.Lock()
 	delete(m.streams, id)
@@ -255,7 +259,9 @@ func (m *Type) Stop(ctx context.Context) error {
 
 	for k, v := range m.streams {
 		go func(id string, strm *StreamStatus) {
-			if err := strm.strm.Stop(ctx); err != nil {
+			err := strm.strm.Stop(ctx)
+			_ = strm.metricsScope.Close()
+			if err != nil {
 				resultChan <- id
 			} else {
 				resultChan <- ""
