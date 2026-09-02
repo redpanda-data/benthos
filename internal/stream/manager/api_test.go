@@ -298,9 +298,6 @@ func TestTypeAPIBasicOperations(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
 }
 
-// TestTypeAPIStreamEnvOverrides covers the optional per-request "env" field
-// accepted by POST/PUT /streams/{id}, which supplies template values for
-// `${FOO}`-style placeholders in the rest of the config body.
 // streamTemplate renders a minimal stream config as the string that travels
 // inside an envelope body's `template` field. JSON is used because it is valid
 // YAML, and because it saves hand-quoting mappings into a YAML scalar.
@@ -1296,9 +1293,6 @@ file:
 	assert.Equal(t, `{"id":"second","content":"hello world 2"}`, string(file2Bytes))
 }
 
-// TestResourceAPIEnvOverrides covers the same per-request "env" field for
-// POST /resources/{type}/{id}, reusing the same extraction/lookup seam as
-// the streams endpoint.
 // TestResourceAPIEnvOverrides covers the envelope request form for
 // POST /resources/{type}/{id}, which reuses the same lookup seam as the streams
 // endpoint. Each case observes the cache's resolved directory on disk, since

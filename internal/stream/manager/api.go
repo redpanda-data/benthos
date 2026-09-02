@@ -45,7 +45,9 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 			" of the form `{\"env\": {...}, \"template\": \"<config>\"}`, where `env` is an"+
 			" object of string values overriding environment variables referenced by the"+
 			" config for that request only, taking precedence over a same-named OS"+
-			" environment variable.",
+			" environment variable. Note that a variable overridden to an empty string"+
+			" is treated as unset by the `${VAR:default}` form, which will use its"+
+			" default.",
 		m.HandleResourceCRUD,
 	)
 	m.manager.RegisterEndpoint(
@@ -71,7 +73,11 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 		"/streams",
 		"GET: List all streams along with their status and uptimes."+
 			" POST: Post an object of stream ids to stream configs, all"+
-			" streams will be replaced by this new set.",
+			" streams will be replaced by this new set."+
+			" Unlike POST/PUT /streams/{id}, this endpoint performs no environment"+
+			" variable substitution and does not accept the `{\"env\": {...},"+
+			" \"template\": \"<config>\"}` envelope; a body in that form is read as a"+
+			" set of stream configs named `env` and `template`.",
 		m.HandleStreamsCRUD,
 	)
 }
