@@ -33,6 +33,11 @@ const (
 	wsOpenMsgTypeText wsOpenMsgType = "text"
 )
 
+// defaultMaxMessageSize bounds how much memory a single message from a remote
+// server can cost this process. It is generous, but finite: an unlimited
+// default allows any peer to OOM the process with one streamed frame.
+const defaultMaxMessageSize = 32 * 1024 * 1024
+
 func websocketInputSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
@@ -55,8 +60,8 @@ func websocketInputSpec() *service.ConfigSpec {
 			}).Description("An optional flag to indicate the data type of open_message.").
 				Advanced().Default(string(wsOpenMsgTypeBinary)),
 			service.NewIntField("max_message_size").
-				Description("An optional maximum size in bytes for individual messages received from the server. When a message exceeding this limit is received the connection is closed with a 1009 (message too big) status and the input reconnects. A value of 0 disables the limit.").
-				Advanced().Default(0),
+				Description("A maximum size in bytes for individual messages received from the server. When a message exceeding this limit is received the connection is closed with a 1009 (message too big) status and the input reconnects. A value of 0 disables the limit, which allows the server to make this process allocate an unbounded amount of memory and is therefore not recommended.").
+				Advanced().Default(defaultMaxMessageSize),
 			service.NewAutoRetryNacksToggleField(),
 			service.NewTLSToggledField("tls"),
 		).
