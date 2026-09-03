@@ -213,3 +213,91 @@ func TestWebsocketOutputConnectContextDone(t *testing.T) {
 		})
 	}
 }
+
+// newTestWebsocketServer starts a websocket server that reads until the client closes the connection, then calls
+// onClose (if non-nil). It registers its own cleanup.
+func newTestWebsocketServer(t *testing.T, onClose func()) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ws, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		defer ws.Close()
+
+		// Read until the client closes the connection.
+		for {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				break
+			}
+		}
+		if onClose != nil {
+			onClose()
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server
+}
+
+// newConnectedTestWebsocketWriter builds a websocketWriter pointed at server and connects it. It registers its own
+// cleanup.
+func newConnectedTestWebsocketWriter(t *testing.T, server *httptest.Server) *websocketWriter {
+	pConf, err := websocketOutputSpec().ParseYAML("url: ws://"+server.Listener.Addr().String()+"\n", nil)
+	require.NoError(t, err)
+	m, err := newWebsocketWriterFromParsed(pConf, mock.NewManager())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = m.Close(context.Background()) })
+
+	require.NoError(t, m.Connect(t.Context()))
+	return m
+}
+
+// TestWebsocketOutputWriteFailureClosesConn tests that a write failure on an otherwise healthy connection closes
+// that connection before the writer forgets it. Without the close, the socket, its reader goroutine, and the
+// server-side connection all leak on each failed write.
+func TestWebsocketOutputWriteFailureClosesConn(t *testing.T) {
+	// Set up a websocket server that tracks when the client closes the connection.
+	serverSawClose := make(chan struct{})
+	server := newTestWebsocketServer(t, func() { close(serverSawClose) })
+	m := newConnectedTestWebsocketWriter(t, server)
+
+	client := m.getWS()
+	require.NotNil(t, client)
+
+	// An expired write deadline makes the next write fail while the connection itself stays healthy.
+	require.NoError(t, client.SetWriteDeadline(time.Unix(1, 0)))
+	err := m.WriteBatch(t.Context(), message.QuickBatch([][]byte{[]byte("foo")}))
+	require.Error(t, err)
+
+	// Check that the failed connection is forgotten.
+	require.Nil(t, m.getWS(), "the failed connection must be forgotten")
+
+	// Check that the server saw the client close the connection.
+	select {
+	case <-serverSawClose:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the server still holds the connection: the client did not close it")
+	}
+}
+
+// TestWebsocketOutputDropConnIgnoresStaleConn checks the guard in dropConn: a call that carries a connection the
+// writer already replaced must not clear the newer one. It calls dropConn directly, so it checks the contract of
+// the guard, not the timing window in which WriteBatch would hit it.
+func TestWebsocketOutputDropConnIgnoresStaleConn(t *testing.T) {
+	server := newTestWebsocketServer(t, nil)
+	m := newConnectedTestWebsocketWriter(t, server)
+
+	// Establish a first connection, then replace it with a second one.
+	stale := m.getWS()
+	require.NotNil(t, stale)
+
+	require.NoError(t, m.Close(t.Context()))
+	require.NoError(t, m.Connect(t.Context()))
+	current := m.getWS()
+	require.NotNil(t, current)
+	require.NotSame(t, stale, current)
+
+	// A late drop of the stale connection must leave the current one in place and usable.
+	m.dropConn(stale)
+	require.Same(t, current, m.getWS(), "dropConn cleared a connection it was not given")
+	require.NoError(t, m.WriteBatch(t.Context(), message.QuickBatch([][]byte{[]byte("foo")})))
+}
