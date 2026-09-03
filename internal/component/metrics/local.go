@@ -156,8 +156,15 @@ func (l *Local) DeleteSeriesPartialMatch(labels map[string]string) {
 			delete(l.flatCounters, path)
 		}
 	}
-	for path := range l.flatTimings {
+	for path, lt := range l.flatTimings {
 		if labelledPathMatches(path, labels) {
+			// Stop the timer before discarding it: NewTimer registers a meter
+			// in go-metrics' package-level arbiter that only Stop releases, so
+			// dropping the reference alone would strand a ticking meter for
+			// the lifetime of the process.
+			lt.lock.Lock()
+			lt.t.Stop()
+			lt.lock.Unlock()
 			delete(l.flatTimings, path)
 		}
 	}

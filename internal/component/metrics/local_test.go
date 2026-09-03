@@ -5,6 +5,7 @@ package metrics
 import (
 	"testing"
 
+	"github.com/rcrowley/go-metrics"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -167,4 +168,36 @@ func TestLocalDeleteSeriesPartialMatch(t *testing.T) {
 	// An empty label set matches nothing rather than everything.
 	purger.DeleteSeriesPartialMatch(nil)
 	assert.Contains(t, l.GetCounters(), `input_received{label="in",stream="bar"}`)
+}
+
+type stopTrackingTimer struct {
+	metrics.Timer
+
+	stopped bool
+}
+
+func (s *stopTrackingTimer) Stop() {
+	s.stopped = true
+	s.Timer.Stop()
+}
+
+// A purged timing series must have its go-metrics timer stopped: NewTimer
+// registers a meter in the package-level arbiter that only Stop releases, so
+// deleting the map entry alone would strand one ticking meter per purged
+// series for the lifetime of the process.
+func TestLocalDeleteSeriesPartialMatchStopsTimers(t *testing.T) {
+	l := NewLocal()
+
+	l.GetTimerVec("latency", "stream").With("foo").Timing(100)
+	l.GetTimerVec("latency", "stream").With("bar").Timing(200)
+
+	purgedTimer := &stopTrackingTimer{Timer: l.flatTimings[`latency{stream="foo"}`].t}
+	l.flatTimings[`latency{stream="foo"}`].t = purgedTimer
+	keptTimer := &stopTrackingTimer{Timer: l.flatTimings[`latency{stream="bar"}`].t}
+	l.flatTimings[`latency{stream="bar"}`].t = keptTimer
+
+	l.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
+
+	assert.True(t, purgedTimer.stopped, "purged timing series must stop its timer")
+	assert.False(t, keptTimer.stopped, "surviving timing series must keep its timer running")
 }
