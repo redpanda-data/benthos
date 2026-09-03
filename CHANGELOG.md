@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 - Input/Output `websocket`: Connection attempts (dial and upgrade handshake) and input reads now honor context
   cancellation, preventing graceful shutdown from hanging on unresponsive servers or idle connections. (@Leward)
 - Output `websocket`: A failed write now closes the connection instead of leaking it before the reconnect. (@Leward)
-- Streams mode: Deleting a stream (via `DELETE /streams/{id}`, or the delete performed by a stream update) now purges the stream's metric series (labeled `stream="<id>"`) from metrics exporters that support series deletion, instead of leaving them registered with frozen values until the process restarts. Plugin metrics exporters opt in by implementing the new optional `service.MetricsExporterSeriesDeleter` interface. (@squiidz)
+- Streams mode: Deleting a stream (via `DELETE /streams/{id}`, or the delete performed by a stream update) now purges the stream's metric series (labeled `stream="<id>"`) from metrics exporters that support series deletion, instead of leaving them registered with frozen values until the process restarts. The `json_api` exporter supports this, and plugin metrics exporters opt in by implementing the new optional `service.MetricsExporterSeriesDeleter` interface. (@squiidz)
 
 ## 4.78.0 - 2026-08-20
 

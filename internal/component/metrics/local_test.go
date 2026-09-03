@@ -132,3 +132,39 @@ func TestReverseName(t *testing.T) {
 		})
 	}
 }
+
+func TestLocalDeleteSeriesPartialMatch(t *testing.T) {
+	l := NewLocal()
+
+	l.GetCounterVec("input_received", "label", "stream").With("in", "foo").Incr(3)
+	l.GetCounterVec("input_received", "label", "stream").With("in", "bar").Incr(4)
+	l.GetGaugeVec("connection_up", "stream").With("foo").Set(1)
+	l.GetTimerVec("latency", "stream").With("foo").Timing(100)
+	l.GetTimerVec("latency", "stream").With("bar").Timing(200)
+	l.GetCounter("uptime").Incr(9)
+	l.GetCounterVec("batch_created", "mechanism").With("count").Incr(5)
+
+	purger, ok := any(l).(interface {
+		DeleteSeriesPartialMatch(labels map[string]string)
+	})
+	if !ok {
+		t.Fatal("Local should support series deletion")
+	}
+	purger.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
+
+	counters, timings := l.GetCounters(), l.GetTimings()
+	for k := range counters {
+		assert.NotContains(t, k, `stream="foo"`)
+	}
+	for k := range timings {
+		assert.NotContains(t, k, `stream="foo"`)
+	}
+	assert.Contains(t, counters, `input_received{label="in",stream="bar"}`)
+	assert.Contains(t, timings, `latency{stream="bar"}`)
+	assert.Contains(t, counters, "uptime")
+	assert.Contains(t, counters, `batch_created{mechanism="count"}`)
+
+	// An empty label set matches nothing rather than everything.
+	purger.DeleteSeriesPartialMatch(nil)
+	assert.Contains(t, l.GetCounters(), `input_received{label="in",stream="bar"}`)
+}

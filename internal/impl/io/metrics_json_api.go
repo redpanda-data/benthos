@@ -90,6 +90,13 @@ func (h *jsonAPIMetrics) NewGaugeCtor(path string, n ...string) service.MetricsE
 	}
 }
 
+// DeleteSeriesPartialMatch deletes all metric series containing labels
+// matching all of the provided label key/value pairs. Implements the optional
+// service.MetricsExporterSeriesDeleter interface.
+func (h *jsonAPIMetrics) DeleteSeriesPartialMatch(labels map[string]string) {
+	h.local.DeleteSeriesPartialMatch(labels)
+}
+
 func (h *jsonAPIMetrics) Close(context.Context) error {
 	return nil
 }
