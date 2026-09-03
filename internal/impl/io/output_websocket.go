@@ -135,16 +135,11 @@ func (w *websocketWriter) dial(ctx context.Context) (conn *websocket.Conn, res *
 	if w.proxyURLParsed != nil {
 		dialer.Proxy = http.ProxyURL(w.proxyURLParsed)
 	}
-
 	if w.tlsEnabled {
 		dialer.TLSClientConfig = w.tlsConf
-		if conn, res, err = dialer.Dial(w.urlStr, headers); err != nil {
-			return
-		}
-	} else if conn, res, err = dialer.Dial(w.urlStr, headers); err != nil {
-		return
 	}
 
+	conn, res, err = dialContext(ctx, dialer, w.urlStr, headers)
 	return
 }
 
@@ -179,6 +174,16 @@ func (w *websocketWriter) Connect(ctx context.Context) error {
 	return nil
 }
 
+// dropConn closes client and forgets it, so the next Connect dials again.
+func (w *websocketWriter) dropConn(client *websocket.Conn) {
+	_ = client.Close()
+	w.lock.Lock()
+	if w.client == client { // guarded so a stale caller cannot clear a newer conn
+		w.client = nil
+	}
+	w.lock.Unlock()
+}
+
 func (w *websocketWriter) WriteBatch(ctx context.Context, msg message.Batch) error {
 	client := w.getWS()
 	if client == nil {
@@ -189,9 +194,8 @@ func (w *websocketWriter) WriteBatch(ctx context.Context, msg message.Batch) err
 		return client.WriteMessage(websocket.BinaryMessage, p.AsBytes())
 	})
 	if err != nil {
-		w.lock.Lock()
-		w.client = nil
-		w.lock.Unlock()
+		// A write error does not close the socket, so close it before the reconnect path replaces it.
+		w.dropConn(client)
 		if errors.Is(err, websocket.ErrCloseSent) {
 			return component.ErrNotConnected
 		}

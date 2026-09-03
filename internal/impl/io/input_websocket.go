@@ -33,6 +33,11 @@ const (
 	wsOpenMsgTypeText wsOpenMsgType = "text"
 )
 
+// defaultMaxMessageSize bounds how much memory a single message from a remote
+// server can cost this process. It is generous, but finite: an unlimited
+// default allows any peer to OOM the process with one streamed frame.
+const defaultMaxMessageSize = 32 * 1024 * 1024
+
 func websocketInputSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
@@ -55,8 +60,8 @@ func websocketInputSpec() *service.ConfigSpec {
 			}).Description("An optional flag to indicate the data type of open_message.").
 				Advanced().Default(string(wsOpenMsgTypeBinary)),
 			service.NewIntField("max_message_size").
-				Description("An optional maximum size in bytes for individual messages received from the server. When a message exceeding this limit is received the connection is closed with a 1009 (message too big) status and the input reconnects. A value of 0 disables the limit.").
-				Advanced().Default(0),
+				Description("A maximum size in bytes for individual messages received from the server. When a message exceeding this limit is received the connection is closed with a 1009 (message too big) status and the input reconnects. A value of 0 disables the limit, which allows the server to make this process allocate an unbounded amount of memory and is therefore not recommended.").
+				Advanced().Default(defaultMaxMessageSize),
 			service.NewAutoRetryNacksToggleField(),
 			service.NewTLSToggledField("tls"),
 		).
@@ -185,13 +190,11 @@ func (w *websocketReader) getConn(ctx context.Context) (*websocket.Conn, error) 
 	if w.proxyURLParsed != nil {
 		dialer.Proxy = http.ProxyURL(w.proxyURLParsed)
 	}
-
 	if w.tlsEnabled {
 		dialer.TLSClientConfig = w.tlsConf
-		if client, res, err = dialer.Dial(w.urlStr, headers); err != nil {
-			return nil, err
-		}
-	} else if client, res, err = dialer.Dial(w.urlStr, headers); err != nil {
+	}
+
+	if client, res, err = dialContext(ctx, dialer, w.urlStr, headers); err != nil {
 		return nil, err
 	}
 
@@ -247,27 +250,45 @@ func (w *websocketReader) Connect(ctx context.Context) error {
 	return nil
 }
 
+// dropConn closes client and forgets it, so the next read reconnects.
+func (w *websocketReader) dropConn(client *websocket.Conn) {
+	_ = client.Close()
+	w.lock.Lock()
+	if w.client == client { // guarded so a stale caller cannot clear a newer conn
+		w.client = nil
+	}
+	w.lock.Unlock()
+}
+
 func (w *websocketReader) ReadBatch(ctx context.Context) (message.Batch, input.AsyncAckFn, error) {
 	client := w.getWS()
 	if client == nil {
 		return nil, nil, component.ErrNotConnected
 	}
 
+	// ReadMessage doesn't accept a context, so cancellation closes the connection below to unblock it.
+	stop := context.AfterFunc(ctx, func() { _ = client.Close() })
 	_, data, err := client.ReadMessage()
+	stop()
+
 	if err != nil {
+		if ctx.Err() != nil {
+			// The read failed because cancellation closed the connection, not because of a real network error.
+			w.dropConn(client)
+			return nil, nil, ctx.Err()
+		}
+
 		if errors.Is(err, websocket.ErrReadLimit) {
 			w.log.Error("Closing connection: received a message exceeding max_message_size")
 		}
 		// A read limit breach leaves the underlying socket open, so close
 		// before abandoning the connection for the reconnect path.
-		_ = client.Close()
-		w.lock.Lock()
-		w.client = nil
-		w.lock.Unlock()
-		err = component.ErrNotConnected
-		return nil, nil, err
+		w.dropConn(client)
+		return nil, nil, component.ErrNotConnected
 	}
 
+	// Cancellation can close the socket after ReadMessage already parsed a message, so a nil error here can coexist with a cancelled ctx.
+	// Return the message anyway: the server will not resend it, so checking ctx.Err() here would drop it permanently.
 	return message.QuickBatch([][]byte{data}), func(ctx context.Context, err error) error {
 		return nil
 	}, nil
