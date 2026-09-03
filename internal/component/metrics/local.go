@@ -142,6 +142,53 @@ func (l *Local) getTimings(reset bool) map[string]metrics.Timer {
 	return localFlatTimings
 }
 
+// DeleteSeriesPartialMatch deletes all metric series containing labels
+// matching all of the provided label key/value pairs. An empty label set
+// matches nothing. Implements LabelPurger.
+func (l *Local) DeleteSeriesPartialMatch(labels map[string]string) {
+	if len(labels) == 0 {
+		return
+	}
+	l.mut.Lock()
+	defer l.mut.Unlock()
+	for path := range l.flatCounters {
+		if labelledPathMatches(path, labels) {
+			delete(l.flatCounters, path)
+		}
+	}
+	for path, lt := range l.flatTimings {
+		if labelledPathMatches(path, labels) {
+			// Stop the timer before discarding it: NewTimer registers a meter
+			// in go-metrics' package-level arbiter that only Stop releases, so
+			// dropping the reference alone would strand a ticking meter for
+			// the lifetime of the process.
+			lt.lock.Lock()
+			lt.t.Stop()
+			lt.lock.Unlock()
+			delete(l.flatTimings, path)
+		}
+	}
+}
+
+// labelledPathMatches reports whether the labels encoded in a flat metric path
+// contain every one of the provided label key/value pairs.
+func labelledPathMatches(path string, labels map[string]string) bool {
+	_, tagNames, tagValues := ReverseLabelledPath(path)
+	for k, v := range labels {
+		found := false
+		for i, name := range tagNames {
+			if name == k && tagValues[i] == v {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
 //------------------------------------------------------------------------------
 
 func createLabelledPath(name string, tagNames, tagValues []string) string {

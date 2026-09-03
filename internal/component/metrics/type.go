@@ -102,3 +102,12 @@ type Type interface {
 	// Close stops aggregating stats and cleans up resources.
 	Close() error
 }
+
+// LabelPurger is an optional interface implemented by metrics targets that are
+// capable of deleting all metric series containing a matching set of label
+// values, e.g. purging the series of a deleted stream in streams mode.
+type LabelPurger interface {
+	// DeleteSeriesPartialMatch deletes all metric series containing labels
+	// matching all of the provided label key/value pairs.
+	DeleteSeriesPartialMatch(labels map[string]string)
+}

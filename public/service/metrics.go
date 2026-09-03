@@ -220,6 +220,15 @@ type MetricsExporterGauge interface {
 	// SetFloat64(value float64)
 }
 
+// MetricsExporterSeriesDeleter is an optional interface for MetricsExporter
+// implementations that support deleting all metric series matching a set of
+// label values.
+type MetricsExporterSeriesDeleter interface {
+	// DeleteSeriesPartialMatch deletes all metric series containing labels
+	// matching all of the provided label key/value pairs.
+	DeleteSeriesPartialMatch(labels map[string]string)
+}
+
 //------------------------------------------------------------------------------
 
 // Implements internal metrics plugin interface.
@@ -229,6 +238,14 @@ type airGapMetrics struct {
 
 func newAirGapMetrics(m MetricsExporter) metrics.Type {
 	return &airGapMetrics{m}
+}
+
+// DeleteSeriesPartialMatch forwards series deletion to the wrapped exporter
+// when it implements MetricsExporterSeriesDeleter, and otherwise is a no-op.
+func (m *airGapMetrics) DeleteSeriesPartialMatch(labels map[string]string) {
+	if deleter, ok := m.airGapped.(MetricsExporterSeriesDeleter); ok {
+		deleter.DeleteSeriesPartialMatch(labels)
+	}
 }
 
 type airGapGauge struct {
