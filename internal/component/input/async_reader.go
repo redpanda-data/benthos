@@ -164,6 +164,129 @@ func (r *AsyncReader) loop() {
 	mConn.Incr(1)
 	r.connection.Store(component.ConnectionActive(r.mgr))
 
+	// runBackfillPhase drains a BackfillAsync reader's feed until
+	// component.ErrBackfillComplete, blocking until every dispatched batch
+	// is acknowledged (or nacked) before returning.
+	//
+	// ok is named because a hard stop also unblocks pendingBackfillAcks.Wait
+	// without every batch having genuinely settled - if any ack-goroutine
+	// was cut short rather than receiving a real ack/nack, ok must be false
+	// so the caller never calls BackfillComplete for unconfirmed rows.
+	runBackfillPhase := func(sr BackfillAsync) (ok bool) {
+		var (
+			pendingAcks           sync.WaitGroup
+			interruptedByHardStop atomic.Bool
+		)
+		defer func() {
+			done := make(chan struct{})
+			go func() {
+				pendingAcks.Wait()
+				close(done)
+			}()
+
+			// A downstream batching policy with no period configured only
+			// flushes on count/byte_size/check, so trailing backfill acks
+			// can stall here indefinitely if nothing else fills the batch.
+			select {
+			case <-done:
+			case <-time.After(60 * time.Second):
+				r.mgr.Logger().Warn("Waiting on pending backfill acks for input %v; verify downstream batching policy has a period to flush partial batches.", r.typeStr)
+				<-done
+			}
+
+			if interruptedByHardStop.Load() {
+				ok = false
+			}
+		}()
+
+		for {
+			msg, ackFn, err := sr.BackfillReadBatch(closeAtLeisureCtx)
+
+			if errors.Is(err, component.ErrBackfillComplete) {
+				return true
+			}
+
+			if errors.Is(err, component.ErrNotConnected) {
+				mLostConn.Incr(1)
+				r.connection.Store(component.ConnectionFailing(r.mgr, component.ErrNotConnected))
+
+				if !initConnection() {
+					return false
+				}
+				mConn.Incr(1)
+				r.connection.Store(component.ConnectionActive(r.mgr))
+				continue
+			}
+
+			if r.shutSig.IsSoftStopSignalled() || errors.Is(err, component.ErrTypeClosed) {
+				return false
+			}
+
+			if err != nil || len(msg) == 0 {
+				if err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, component.ErrTimeout) && !errors.Is(err, component.ErrNotConnected) {
+					r.mgr.Logger().Error("Failed to read backfill batch: %v\n", err)
+				}
+
+				nextBoff := r.readBackoff.NextBackOff()
+				if nextBoff == backoff.Stop {
+					r.mgr.Logger().Error("Maximum number of read attempt retries has been met, gracefully terminating input %v", r.typeStr)
+					return false
+				}
+				select {
+				case <-time.After(nextBoff):
+				case <-r.shutSig.SoftStopChan():
+					return false
+				}
+				continue
+			}
+
+			r.readBackoff.Reset()
+			mRcvd.Incr(int64(msg.Len()))
+			r.mgr.Logger().Trace("Consumed %v backfill messages from '%v'.\n", msg.Len(), r.typeStr)
+
+			resChan := make(chan error, 1)
+			tracing.InitSpans(r.mgr.Tracer(), traceName, msg)
+			select {
+			case r.transactions <- message.NewTransaction(msg, resChan):
+			case <-r.shutSig.SoftStopChan():
+				return false
+			}
+
+			pendingAcks.Add(1)
+			go func(m message.Batch, aFn AsyncAckFn, rChan chan error) {
+				defer pendingAcks.Done()
+
+				var res error
+				select {
+				case res = <-rChan:
+				case <-r.shutSig.HardStopChan():
+					interruptedByHardStop.Store(true)
+					return
+				}
+
+				tracing.FinishSpans(m)
+				if err := aFn(closeNowCtx, res); err != nil {
+					r.mgr.Logger().Error("Failed to acknowledge backfill message: %v\n", err)
+				}
+			}(msg, ackFn, resChan)
+		}
+	}
+
+	if sr, ok := r.reader.(BackfillAsync); ok {
+		if !runBackfillPhase(sr) {
+			return
+		}
+		if sc, ok := r.reader.(BackfillCompleter); ok {
+			// Every batch handed off during the backfill phase is guaranteed
+			// resolved at this point, so it's safe for the reader to persist
+			// a post-backfill resume position now.
+			if err := sc.BackfillComplete(closeAtLeisureCtx); err != nil {
+				r.mgr.Logger().Error("Failed to finalize backfill phase for %v: %v", r.typeStr, err)
+				return
+			}
+		}
+	}
+
 	for {
 		msg, ackFn, err := r.reader.ReadBatch(closeAtLeisureCtx)
 
@@ -219,11 +342,7 @@ func (r *AsyncReader) loop() {
 		}
 
 		pendingAcks.Add(1)
-		go func(
-			m message.Batch,
-			aFn AsyncAckFn,
-			rChan chan error,
-		) {
+		go func(m message.Batch, aFn AsyncAckFn, rChan chan error) {
 			defer pendingAcks.Done()
 
 			var res error
