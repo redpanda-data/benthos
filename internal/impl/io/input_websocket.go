@@ -190,13 +190,11 @@ func (w *websocketReader) getConn(ctx context.Context) (*websocket.Conn, error) 
 	if w.proxyURLParsed != nil {
 		dialer.Proxy = http.ProxyURL(w.proxyURLParsed)
 	}
-
 	if w.tlsEnabled {
 		dialer.TLSClientConfig = w.tlsConf
-		if client, res, err = dialer.Dial(w.urlStr, headers); err != nil {
-			return nil, err
-		}
-	} else if client, res, err = dialer.Dial(w.urlStr, headers); err != nil {
+	}
+
+	if client, res, err = dialContext(ctx, dialer, w.urlStr, headers); err != nil {
 		return nil, err
 	}
 
