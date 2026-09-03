@@ -78,6 +78,13 @@ func (n *Namespaced) HandlerFunc() http.HandlerFunc {
 // DeleteSeriesPartialMatch deletes all metric series containing labels
 // matching all of the provided label key/value pairs, when the child metrics
 // target supports it. Otherwise it is a no-op.
+//
+// The labels are matched against series as stored by the child, i.e. after
+// any configured mappings rewrote them at write time. The requested label set
+// itself is NOT translated through the mappings: a mapping is an arbitrary
+// Bloblang program executed per metric path, so there is no well defined
+// rewrite of a bare label set. A mapping that renames or drops a matched
+// label therefore makes this deletion a no-op for the affected series.
 func (n *Namespaced) DeleteSeriesPartialMatch(labels map[string]string) {
 	if purger, ok := n.child.(LabelPurger); ok {
 		purger.DeleteSeriesPartialMatch(labels)
