@@ -238,14 +238,17 @@ func (m *Type) Delete(ctx context.Context, id string) error {
 
 	m.lock.Lock()
 	delete(m.streams, id)
-	m.lock.Unlock()
-
 	// Purge the deleted stream's metric series from exporters that support
 	// deletion, otherwise they accumulate (and are exposed by pull based
-	// exporters) for the lifetime of the process.
+	// exporters) for the lifetime of the process. This must happen within the
+	// same critical section as the map delete: Create holds the lock across
+	// construct-and-start, so purging under it guarantees a concurrent Create
+	// reusing this id cannot have started emitting series that this purge
+	// would then wipe.
 	if purger, ok := m.manager.Metrics().(metrics.LabelPurger); ok {
 		purger.DeleteSeriesPartialMatch(map[string]string{"stream": id})
 	}
+	m.lock.Unlock()
 
 	return nil
 }

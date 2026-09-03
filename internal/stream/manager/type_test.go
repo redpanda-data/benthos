@@ -98,11 +98,16 @@ func TestTypeBasicOperations(t *testing.T) {
 type purgeTrackingMetrics struct {
 	metrics.DudType
 
+	onPurge func()
+
 	mut    sync.Mutex
 	purged []map[string]string
 }
 
 func (p *purgeTrackingMetrics) DeleteSeriesPartialMatch(labels map[string]string) {
+	if p.onPurge != nil {
+		p.onPurge()
+	}
 	p.mut.Lock()
 	defer p.mut.Unlock()
 	cp := make(map[string]string, len(labels))
@@ -136,6 +141,54 @@ func TestTypeDeletePurgesMetricSeries(t *testing.T) {
 
 	require.ErrorIs(t, mgr.Delete(ctx, "bar"), ErrStreamDoesNotExist)
 	require.Equal(t, []map[string]string{{"stream": "foo"}}, stats.getPurged())
+}
+
+// A Create that reuses a just-deleted id must not begin emitting series until
+// Delete's purge has completed, otherwise the purge wipes the new stream's
+// series: components cache their metric children, so for an exporter like
+// prometheus the live stream would stay invisible for its whole lifetime.
+func TestTypeDeletePurgeBlocksSameIDCreate(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	purgeEntered := make(chan struct{})
+	purgeRelease := make(chan struct{})
+	stats := &purgeTrackingMetrics{onPurge: func() {
+		close(purgeEntered)
+		<-purgeRelease
+	}}
+	res, err := bmanager.New(bmanager.NewResourceConfig(), bmanager.OptSetMetrics(metrics.NewNamespaced(stats)))
+	require.NoError(t, err)
+
+	mgr := New(res)
+	require.NoError(t, mgr.Create("foo", harmlessConf(t)))
+
+	deleteDone := make(chan error, 1)
+	go func() {
+		deleteDone <- mgr.Delete(ctx, "foo")
+	}()
+
+	select {
+	case <-purgeEntered:
+	case <-ctx.Done():
+		t.Fatal("delete never reached the purge")
+	}
+
+	createDone := make(chan error, 1)
+	go func() {
+		createDone <- mgr.Create("foo", harmlessConf(t))
+	}()
+
+	select {
+	case err := <-createDone:
+		t.Fatalf("create for the same id completed while the purge was still in flight (err: %v)", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	close(purgeRelease)
+	require.NoError(t, <-deleteDone)
+	require.NoError(t, <-createDone)
+	require.NoError(t, mgr.Stop(ctx))
 }
 
 func TestTypeBasicClose(t *testing.T) {

@@ -222,9 +222,7 @@ type MetricsExporterGauge interface {
 
 // MetricsExporterSeriesDeleter is an optional interface for MetricsExporter
 // implementations that support deleting all metric series matching a set of
-// label values. This is used in streams mode in order to purge the series of
-// a stream when it is deleted, preventing unbounded series accumulation in
-// exporters that retain them (such as Prometheus).
+// label values.
 type MetricsExporterSeriesDeleter interface {
 	// DeleteSeriesPartialMatch deletes all metric series containing labels
 	// matching all of the provided label key/value pairs.
