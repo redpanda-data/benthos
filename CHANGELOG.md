@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## 4.79.0 - 2026-09-03
 
+### Added
+
+- Streams API: `POST`/`PUT /streams/{id}` and `POST /resources/{type}/{id}` now accept the config wrapped in an optional envelope of the form `{"env": {...}, "template": "<config>"}` (JSON or YAML). Values in `env` override environment variables referenced by the config for that request only, taking precedence over a same-named OS environment variable. Because the config travels as a string it is never parsed or re-serialised before substitution, so a template that is only valid YAML once substitution has run — such as the `${VAR: default}` form — works with overrides too. A body that is not an envelope is treated as the config itself, exactly as before. Note that a variable overridden to an empty string is treated as unset by the `${VAR:default}` form and will use its default. `PATCH /streams/{id}` also accepts the envelope and applies its `template` as the patch document, but since a patch performs no environment variable substitution it rejects a non-empty `env` with a 400 rather than ignoring it. (@g-hurst)
+
 ### Changed
 
 - Input `websocket`: The default value of `max_message_size` has changed from `0` (unlimited) to `33554432` (32 MiB). An unlimited read allows the websocket server to make the process allocate an unbounded amount of memory with a single streamed message. Pipelines that receive larger messages must now set `max_message_size` explicitly; a value of `0` restores the previous unlimited behaviour. (@Leward)
