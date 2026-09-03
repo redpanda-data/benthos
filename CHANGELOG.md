@@ -11,8 +11,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Input/Output `websocket`: Connection attempts (dial and upgrade handshake) now honor context cancellation. Previously, unresponsive
-  servers could block graceful shutdown for up to the default 45s handshake timeout. (@Leward)
+- Input/Output `websocket`: Connection attempts (dial and upgrade handshake) and input reads now honor context
+  cancellation, preventing graceful shutdown from hanging on unresponsive servers or idle connections. (@Leward)
 
 ## 4.78.0 - 2026-08-20
 

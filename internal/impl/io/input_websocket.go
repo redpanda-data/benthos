@@ -250,27 +250,45 @@ func (w *websocketReader) Connect(ctx context.Context) error {
 	return nil
 }
 
+// dropConn closes client and forgets it, so the next read reconnects.
+func (w *websocketReader) dropConn(client *websocket.Conn) {
+	_ = client.Close()
+	w.lock.Lock()
+	if w.client == client { // guarded so a stale caller cannot clear a newer conn
+		w.client = nil
+	}
+	w.lock.Unlock()
+}
+
 func (w *websocketReader) ReadBatch(ctx context.Context) (message.Batch, input.AsyncAckFn, error) {
 	client := w.getWS()
 	if client == nil {
 		return nil, nil, component.ErrNotConnected
 	}
 
+	// ReadMessage doesn't accept a context, so cancellation closes the connection below to unblock it.
+	stop := context.AfterFunc(ctx, func() { _ = client.Close() })
 	_, data, err := client.ReadMessage()
+	stop()
+
 	if err != nil {
+		if ctx.Err() != nil {
+			// The read failed because cancellation closed the connection, not because of a real network error.
+			w.dropConn(client)
+			return nil, nil, ctx.Err()
+		}
+
 		if errors.Is(err, websocket.ErrReadLimit) {
 			w.log.Error("Closing connection: received a message exceeding max_message_size")
 		}
 		// A read limit breach leaves the underlying socket open, so close
 		// before abandoning the connection for the reconnect path.
-		_ = client.Close()
-		w.lock.Lock()
-		w.client = nil
-		w.lock.Unlock()
-		err = component.ErrNotConnected
-		return nil, nil, err
+		w.dropConn(client)
+		return nil, nil, component.ErrNotConnected
 	}
 
+	// Cancellation can close the socket after ReadMessage already parsed a message, so a nil error here can coexist with a cancelled ctx.
+	// Return the message anyway: the server will not resend it, so checking ctx.Err() here would drop it permanently.
 	return message.QuickBatch([][]byte{data}), func(ctx context.Context, err error) error {
 		return nil
 	}, nil
