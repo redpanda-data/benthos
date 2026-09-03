@@ -3,7 +3,7 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 4.79.0 - 2026-09-03
 
 ### Changed
 
