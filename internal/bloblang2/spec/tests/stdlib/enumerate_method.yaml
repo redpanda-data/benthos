@@ -1,0 +1,139 @@
+description: >
+  .enumerate() method — returns array of {index, value} objects.
+  Also tests .without_index(), .sum(), .min(), .max(), .join() basics.
+
+tests:
+  # --- enumerate ---
+
+  - name: "enumerate basic"
+    mapping: |
+      output.v = ["a", "b", "c"].enumerate()
+    output: {"v": [{"index": 0, "value": "a"}, {"index": 1, "value": "b"}, {"index": 2, "value": "c"}]}
+
+  - name: "enumerate empty array"
+    mapping: |
+      output.v = [].enumerate()
+    output: {"v": []}
+
+  - name: "enumerate single element"
+    mapping: |
+      output.v = [42].enumerate()
+    output: {"v": [{"index": 0, "value": 42}]}
+
+  - name: "enumerate then map to transform with index"
+    mapping: |
+      output.v = ["a", "b"].enumerate().map(e -> e.index.string() + ":" + e.value)
+    output: {"v": ["0:a", "1:b"]}
+
+  # --- without_index ---
+
+  - name: "without_index removes element at index"
+    mapping: |
+      output.v = [10, 20, 30, 40].without_index(1)
+    output: {"v": [10, 30, 40]}
+
+  - name: "without_index first element"
+    mapping: |
+      output.v = [10, 20, 30].without_index(0)
+    output: {"v": [20, 30]}
+
+  - name: "without_index last element"
+    mapping: |
+      output.v = [10, 20, 30].without_index(2)
+    output: {"v": [10, 20]}
+
+  - name: "without_index out of bounds is error"
+    mapping: |
+      output.v = [1, 2, 3].without_index(5)
+    error: "out of bounds"
+
+  # --- join ---
+
+  - name: "join array of strings"
+    mapping: |
+      output.v = ["a", "b", "c"].join(",")
+    output: {"v": "a,b,c"}
+
+  - name: "join with empty separator"
+    mapping: |
+      output.v = ["a", "b", "c"].join("")
+    output: {"v": "abc"}
+
+  - name: "join empty array"
+    mapping: |
+      output.v = [].join(",")
+    output: {"v": ""}
+
+  - name: "join single element"
+    mapping: |
+      output.v = ["only"].join(",")
+    output: {"v": "only"}
+
+  - name: "join with non-string element is error"
+    mapping: |
+      output.v = ["a", 1, "b"].join(",")
+    error: "string"
+
+  # --- sum ---
+
+  - name: "sum of integers"
+    mapping: |
+      output.v = [1, 2, 3, 4].sum()
+    output: {"v": 10}
+
+  - name: "sum of floats"
+    mapping: |
+      output.v = [1.5, 2.5, 3.0].sum()
+    output: {"v": 7.0}
+
+  - name: "sum of empty array returns zero"
+    mapping: |
+      output.v = [].sum()
+    output: {"v": 0}
+
+  - name: "sum of single element"
+    mapping: |
+      output.v = [42].sum()
+    output: {"v": 42}
+
+  # --- min / max ---
+
+  - name: "min of integers"
+    mapping: |
+      output.v = [3, 1, 4, 1, 5].min()
+    output: {"v": 1}
+
+  - name: "max of integers"
+    mapping: |
+      output.v = [3, 1, 4, 1, 5].max()
+    output: {"v": 5}
+
+  - name: "min of strings"
+    mapping: |
+      output.v = ["banana", "apple", "cherry"].min()
+    output: {"v": "apple"}
+
+  - name: "max of strings"
+    mapping: |
+      output.v = ["banana", "apple", "cherry"].max()
+    output: {"v": "cherry"}
+
+  - name: "min of empty array is error"
+    mapping: |
+      output.v = [].min()
+    error: "empty"
+
+  - name: "max of empty array is error"
+    mapping: |
+      output.v = [].max()
+    error: "empty"
+
+  - name: "min of single element"
+    mapping: |
+      output.v = [42].min()
+    output: {"v": 42}
+
+  - name: "max of single element"
+    mapping: |
+      output.v = [42].max()
+    output: {"v": 42}

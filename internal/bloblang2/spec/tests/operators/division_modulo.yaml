@@ -1,0 +1,118 @@
+description: >
+  Division and modulo semantics — division always produces float,
+  modulo uses truncated division (fmod) semantics, division by zero
+  errors, and negative zero handling.
+
+tests:
+  # --- Division always produces float ---
+
+  - name: "integer / integer produces float"
+    mapping: |
+      output.v = 7 / 2
+    output: {"v": 3.5}
+
+  - name: "even integer division produces float"
+    mapping: |
+      output.v = 6 / 2
+    output: {"v": 3.0}
+
+  - name: "large integer division produces float"
+    mapping: |
+      output.v = 1000000 / 3
+    output: {"v": 333333.33333333331}
+
+  - name: "float / float produces float"
+    mapping: |
+      output.v = 7.5 / 2.5
+    output: {"v": 3.0}
+
+  - name: "integer / float produces float"
+    mapping: |
+      output.v = 10 / 2.5
+    output: {"v": 4.0}
+
+  - name: "float / integer produces float"
+    mapping: |
+      output.v = 7.5 / 3
+    output: {"v": 2.5}
+
+  # --- Division by zero ---
+
+  - name: "integer division by zero is error"
+    mapping: |
+      output.v = 5 / 0
+    error: "division by zero"
+
+  - name: "float division by zero is error"
+    mapping: |
+      output.v = 5.0 / 0.0
+    error: "division by zero"
+
+  - name: "zero divided by zero is error"
+    mapping: |
+      output.v = 0 / 0
+    error: "division by zero"
+
+  # --- Modulo ---
+
+  - name: "integer modulo"
+    mapping: |
+      output.v = 7 % 3
+    output: {"v": 1}
+
+  - name: "integer modulo evenly divisible"
+    mapping: |
+      output.v = 9 % 3
+    output: {"v": 0}
+
+  - name: "negative dividend modulo (truncated division)"
+    mapping: |
+      output.v = -7 % 3
+    output: {"v": -1}
+
+  - name: "negative divisor modulo"
+    mapping: |
+      output.v = 7 % -3
+    output: {"v": 1}
+
+  - name: "both negative modulo"
+    mapping: |
+      output.v = -7 % -3
+    output: {"v": -1}
+
+  - name: "float modulo (fmod semantics)"
+    mapping: |
+      output.v = 7.5 % 2.5
+    output: {"v": 0.0}
+
+  - name: "float modulo with remainder"
+    mapping: |
+      output.v = 7.0 % 2.5
+    output: {"v": 2.0}
+
+  - name: "negative float modulo"
+    mapping: |
+      output.v = -7.5 % 2.5
+    output: {"v": -0.0}
+
+  - name: "modulo by zero is error"
+    mapping: |
+      output.v = 5 % 0
+    error: "modulo by zero"
+
+  - name: "float modulo by zero is error"
+    mapping: |
+      output.v = 5.0 % 0.0
+    error: "modulo by zero"
+
+  # --- Negative zero ---
+
+  - name: "negative zero equals positive zero"
+    mapping: |
+      output.v = -0.0 == 0.0
+    output: {"v": true}
+
+  - name: "negative zero is not less than positive zero"
+    mapping: |
+      output.v = -0.0 < 0.0
+    output: {"v": false}

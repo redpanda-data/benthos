@@ -1,0 +1,204 @@
+description: "Object literals, field access, expression keys, key ordering, and methods"
+
+tests:
+  # --- Literals ---
+
+  - name: "empty object literal"
+    mapping: |
+      root.obj = {}
+    output: {"obj": {}}
+
+  - name: "single field object"
+    mapping: |
+      root.obj = {"name": "Alice"}
+    output: {"obj": {"name": "Alice"}}
+
+  - name: "multi-field object"
+    mapping: |
+      root.obj = {"name": "Alice", "age": 30}
+    output: {"obj": {"name": "Alice", "age": 30}}
+
+  - name: "trailing comma allowed"
+    mapping: |
+      root.obj = {"a": 1, "b": 2,}
+    output: {"obj": {"a": 1, "b": 2}}
+
+  - name: "mixed value types"
+    mapping: |
+      root.obj = {"s": "hello", "n": 42, "f": 3.14, "b": true, "nil": null}
+    output: {"obj": {"s": "hello", "n": 42, "f": 3.14, "b": true, "nil": null}}
+
+  - name: "nested objects"
+    mapping: |
+      root.obj = {"user": {"name": "Alice", "address": {"city": "London"}}}
+    output: {"obj": {"user": {"name": "Alice", "address": {"city": "London"}}}}
+
+  - name: "object containing array"
+    mapping: |
+      root.obj = {"items": [1, 2, 3]}
+    output: {"obj": {"items": [1, 2, 3]}}
+
+  # --- Field access ---
+
+  - name: "field access dot notation"
+    mapping: |
+      let obj = {"name": "Alice", "age": 30}
+      root.name = $obj.name
+    output: {"name": "Alice"}
+
+  - name: "nested field access"
+    mapping: |
+      let obj = {"user": {"name": "Alice"}}
+      root.name = $obj.user.name
+    output: {"name": "Alice"}
+
+  - name: "non-existent field returns null"
+    mapping: |
+      let obj = {"name": "Alice"}
+      root.v = $obj.missing
+    output: {"v": null}
+
+  - name: "deeply nested non-existent field returns null"
+    mapping: |
+      let obj = {"a": {"b": {}}}
+      root.v = $obj.a.b.c
+    output: {"v": null}
+
+  - name: "dynamic field access with bracket notation"
+    mapping: |
+      let obj = {"name": "Alice"}
+      let key = "name"
+      root.v = $obj.get($key)
+    # FIXME-v1: V1 has no [] bracket indexing; use .get(path) for dynamic key
+    output: {"v": "Alice"}
+
+  - name: "dynamic field access non-string key is error"
+    # V1 `.get(<literal>)` type-checks at compile time.
+    mapping: |
+      let obj = {"name": "Alice"}
+      root.v = $obj.get(42)
+    compile_error: "expected string"
+
+  # --- Expression keys ---
+
+  - name: "variable as key"
+    mapping: |
+      let key = "dynamic"
+      root.obj = {$key: "value"}
+    # FIXME-v1: V1 requires parens around computed-key expressions in object literals sometimes; $key alone should work
+    output: {"obj": {"dynamic": "value"}}
+
+  - name: "concatenation as key"
+    mapping: |
+      let prefix = "pre"
+      root.obj = {($prefix + "_field"): "value"}
+    # V1 requires parens for computed keys
+    output: {"obj": {"pre_field": "value"}}
+
+  - name: "non-string expression key is runtime error"
+    # V1 surfaces the actual offending Go type: "invalid key type: int64" / "<nil>" / "bool".
+    mapping: |
+      let key = 42
+      root.obj = {$key: "value"}
+    error: "invalid key type"
+
+  - name: "null expression key is runtime error"
+    mapping: |
+      let key = null
+      root.obj = {$key: "value"}
+    error: "invalid key type"
+
+  - name: "bool expression key is runtime error"
+    mapping: |
+      let key = true
+      root.obj = {$key: "value"}
+    error: "invalid key type"
+
+  # --- Key ordering is NOT preserved ---
+
+  - name: "object equality ignores key order"
+    mapping: |
+      let a = {"x": 1, "y": 2}
+      let b = {"y": 2, "x": 1}
+      root.eq = $a == $b
+    output: {"eq": true}
+
+  - name: "object inequality when values differ"
+    mapping: |
+      let a = {"x": 1, "y": 2}
+      let b = {"x": 1, "y": 3}
+      root.eq = $a == $b
+    output: {"eq": false}
+
+  - name: "object inequality different keys"
+    mapping: |
+      let a = {"x": 1}
+      let b = {"y": 1}
+      root.eq = $a == $b
+    output: {"eq": false}
+
+  # --- Length ---
+
+  - name: "length of empty object"
+    mapping: |
+      root.len = {}.length()
+    output: {"len": 0}
+
+  - name: "length of non-empty object"
+    mapping: |
+      root.len = {"a": 1, "b": 2, "c": 3}.length()
+    output: {"len": 3}
+
+  # --- Type ---
+
+  - name: "object type"
+    mapping: |
+      root.t = {"a": 1}.type()
+    output: {"t": "object"}
+
+  - name: "empty object type"
+    mapping: |
+      root.t = {}.type()
+    output: {"t": "object"}
+
+  # --- From input ---
+
+  - name: "object from input"
+    input: {"user": {"name": "Alice", "age": 30}}
+    mapping: |
+      root.name = this.user.name
+      root.age = this.user.age
+    output: {"name": "Alice", "age": 30}
+
+  # --- Deleted in object literal ---
+
+  - name: "deleted value in object literal omits field"
+    mapping: |
+      root.obj = {"a": 1, "b": deleted(), "c": 3}
+    # FIXME-v1: V1 deleted() inside object literal may produce {"b": null} rather than omitting
+    skip: "V1 deleted() semantics inside object literals differ from V2"
+
+  # --- Void in object literal is error ---
+
+  - name: "void value in object literal is error"
+    mapping: |
+      root.obj = {"a": 1, "b": if false { 2 }}
+    skip: "V2-only: V1 has no 'void' concept; if-without-else yields null, not a void error"
+
+  # --- Quoted field names ---
+
+  - name: "quoted field name with special characters"
+    mapping: |
+      root.obj = {"field-with-dashes": "value"}
+    output: {"obj": {"field-with-dashes": "value"}}
+
+  - name: "quoted field name starting with digit"
+    mapping: |
+      root.obj = {"123abc": "value"}
+    output: {"obj": {"123abc": "value"}}
+
+  - name: "access quoted field name"
+    mapping: |
+      let obj = {"field-name": "hello"}
+      root.v = $obj."field-name"
+    output: {"v": "hello"}

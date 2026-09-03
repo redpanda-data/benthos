@@ -80,6 +80,7 @@ func (r *ResourceBuilder) getLintContext() docs.LintContext {
 	conf := docs.NewLintConfig(r.env.internal)
 	conf.DocsProvider = r.env.internal
 	conf.BloblangEnv = r.env.bloblangEnv.Deactivated()
+	conf.BloblangV2Env = r.env.getBloblangV2ParserEnv()
 	return docs.NewLintContext(conf)
 }
 
@@ -404,6 +405,7 @@ func (r *ResourceBuilder) buildNotStarted() (*manager.Type, error) {
 		manager.OptSetEngineVersion(engVer),
 		manager.OptSetEnvironment(r.env.internal),
 		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(r.env.getBloblangV2ParserEnv()),
 	)
 	if err != nil {
 		return nil, err
@@ -436,6 +438,7 @@ func (r *ResourceBuilder) buildNotStarted() (*manager.Type, error) {
 		manager.OptSetAPIReg(r.apiMut),
 		manager.OptSetEnvironment(r.env.internal),
 		manager.OptSetBloblangEnvironment(r.env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(r.env.getBloblangV2ParserEnv()),
 		manager.OptSetFS(r.env.fs),
 	}
 

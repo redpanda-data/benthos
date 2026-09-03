@@ -1,0 +1,192 @@
+description: "Maps: zero/single/multi parameter definitions, hoisting, return values, duplicate name errors"
+
+tests:
+  # --- Zero parameters ---
+
+  - name: "zero parameter map returns literal object"
+    mapping: |
+      map headers() {
+        {"content_type": "json"}
+      }
+      output.h = headers()
+    output: {"h": {"content_type": "json"}}
+
+  - name: "zero parameter map returns literal string"
+    mapping: |
+      map greeting() {
+        "hello world"
+      }
+      output.msg = greeting()
+    output: {"msg": "hello world"}
+
+  - name: "zero parameter map returns literal integer"
+    mapping: |
+      map answer() {
+        42
+      }
+      output.v = answer()
+    output: {"v": 42}
+
+  - name: "zero parameter map called multiple times"
+    mapping: |
+      map tag() {
+        "v1"
+      }
+      output.a = tag()
+      output.b = tag()
+    output: {"a": "v1", "b": "v1"}
+
+  # --- Single parameter ---
+
+  - name: "single parameter map"
+    mapping: |
+      map double(x) {
+        x * 2
+      }
+      output.v = double(5)
+    output: {"v": 10}
+
+  - name: "single parameter map with string"
+    mapping: |
+      map shout(msg) {
+        msg.uppercase()
+      }
+      output.v = shout("hello")
+    output: {"v": "HELLO"}
+
+  - name: "single parameter map with object access"
+    mapping: |
+      map get_name(data) {
+        data.name
+      }
+      output.v = get_name({"name": "Alice", "age": 30})
+    output: {"v": "Alice"}
+
+  # --- Multiple parameters ---
+
+  - name: "two parameter map"
+    mapping: |
+      map add(a, b) {
+        a + b
+      }
+      output.v = add(3, 7)
+    output: {"v": 10}
+
+  - name: "three parameter map"
+    mapping: |
+      map calc(x, y, z) {
+        x + y * z
+      }
+      output.v = calc(1, 2, 3)
+    output: {"v": 7}
+
+  - name: "map with variables in body"
+    mapping: |
+      map total(subtotal, tax_rate) {
+        $tax = subtotal * tax_rate
+        subtotal + $tax
+      }
+      output.v = total(100, 0.1)
+    output: {"v": 110.0}
+
+  - name: "map with multiple variables in body"
+    mapping: |
+      map combine(a, b, c) {
+        $ab = a + b
+        $abc = $ab + c
+        $abc
+      }
+      output.v = combine("hello", " ", "world")
+    output: {"v": "hello world"}
+
+  # --- Return value semantics ---
+
+  - name: "map returns last expression value"
+    mapping: |
+      map last_wins(x) {
+        $unused = x + 1
+        x * 10
+      }
+      output.v = last_wins(5)
+    output: {"v": 50}
+
+  - name: "map returns array"
+    mapping: |
+      map wrap(x) {
+        [x, x, x]
+      }
+      output.v = wrap(7)
+    output: {"v": [7, 7, 7]}
+
+  - name: "map returns null"
+    mapping: |
+      map nothing(x) {
+        null
+      }
+      output.v = nothing(42)
+    output: {"v": null}
+
+  - name: "map returns boolean"
+    mapping: |
+      map is_positive(x) {
+        x > 0
+      }
+      output.v = is_positive(5)
+    output: {"v": true}
+
+  # --- Hoisting ---
+
+  - name: "map called before declaration"
+    mapping: |
+      output.v = double(21)
+      map double(x) {
+        x * 2
+      }
+    output: {"v": 42}
+
+  - name: "map called before declaration with multiple maps"
+    mapping: |
+      output.v = add(triple(2), 1)
+      map triple(x) { x * 3 }
+      map add(a, b) { a + b }
+    output: {"v": 7}
+
+  # --- Duplicate map name ---
+
+  - name: "duplicate map name in same file is compile error"
+    mapping: |
+      map foo(x) { x }
+      map foo(y) { y * 2 }
+      output.v = foo(1)
+    compile_error: "duplicate"
+
+  # --- Parameter is read-only ---
+
+  - name: "assigning to parameter is compile error"
+    mapping: |
+      map bad(data) {
+        data = 42
+        data
+      }
+      output.v = bad(1)
+    compile_error: "assign"
+
+  # --- Arity errors ---
+
+  - name: "too few positional arguments is error"
+    mapping: |
+      map need_two(a, b) { a + b }
+      output.v = need_two(1)
+    compile_error: "arity"
+
+  - name: "too many positional arguments is error"
+    mapping: |
+      map need_one(a) { a }
+      output.v = need_one(1, 2)
+    compile_error: "arity"
+
+  - name: "zero args to parameterised map is error"
+    mapping: |
+      map need_one(x) { x }
+      output.v = need_one()
+    compile_error: "arity"

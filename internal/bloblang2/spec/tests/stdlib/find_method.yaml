@@ -1,0 +1,81 @@
+description: >
+  .find() method — returns first matching element or void. Short-circuits
+  on first match. Void result can be rescued with .or().
+
+tests:
+  # --- Basic find ---
+
+  - name: "find returns first matching element"
+    mapping: |
+      output.v = [1, 2, 3, 4, 5].find(x -> x > 3)
+    output: {"v": 4}
+
+  - name: "find returns first match, not all matches"
+    mapping: |
+      output.v = [10, 20, 30, 40].find(x -> x > 15)
+    output: {"v": 20}
+
+  - name: "find with string array"
+    mapping: |
+      output.v = ["apple", "banana", "cherry"].find(s -> s.has_prefix("b"))
+    output: {"v": "banana"}
+
+  # --- find returns void when no match ---
+
+  - name: "find no match — void skips output assignment"
+    mapping: |
+      output.v = "default"
+      output.v = [1, 2, 3].find(x -> x > 100)
+    output: {"v": "default"}
+
+  - name: "find no match — void errors in variable declaration"
+    mapping: |
+      $x = [1, 2, 3].find(x -> x > 100)
+    error: "void"
+
+  - name: "find no match — void rescued with or"
+    mapping: |
+      output.v = [1, 2, 3].find(x -> x > 100).or(-1)
+    output: {"v": -1}
+
+  - name: "find no match — void in array literal errors"
+    mapping: |
+      output.v = [[1, 2, 3].find(x -> x > 100)]
+    error: "void"
+
+  # --- Short-circuit behavior ---
+
+  - name: "find short-circuits after first match"
+    mapping: |
+      output.v = [1, 2, 3, 4, 5].find(x -> x == 2)
+    output: {"v": 2}
+
+  # --- find on empty array ---
+
+  - name: "find on empty array returns void — rescued with or"
+    mapping: |
+      output.v = [].find(x -> true).or("nothing")
+    output: {"v": "nothing"}
+
+  # --- find with complex predicates ---
+
+  - name: "find with object elements"
+    mapping: |
+      $users = [
+        {"name": "Alice", "age": 25},
+        {"name": "Bob", "age": 17},
+        {"name": "Carol", "age": 30},
+      ]
+      output.v = $users.find(u -> u.age < 18)
+    output: {"v": {"name": "Bob", "age": 17}}
+
+  - name: "find with method chain in predicate"
+    mapping: |
+      output.v = ["hello", "world", "hi"].find(s -> s.length() < 4)
+    output: {"v": "hi"}
+
+  - name: "find with outer variable capture"
+    mapping: |
+      $threshold = 15
+      output.v = [10, 20, 30].find(x -> x > $threshold)
+    output: {"v": 20}

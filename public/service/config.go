@@ -332,6 +332,7 @@ func (c *ConfigSpec) ParseYAML(yamlStr string, env *Environment) (*ParsedConfig,
 		manager.NewResourceConfig(),
 		manager.OptSetEnvironment(env.internal),
 		manager.OptSetBloblangEnvironment(env.getBloblangParserEnv()),
+		manager.OptSetBloblV2Environment(env.getBloblangV2ParserEnv()),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to instantiate resources: %w", err)
@@ -365,6 +366,15 @@ func (c *ConfigSpec) Stable() *ConfigSpec {
 // considered stable by default.
 func (c *ConfigSpec) Beta() *ConfigSpec {
 	c.component.Status = docs.StatusBeta
+	return c
+}
+
+// Experimental sets a documentation label on the component indicating that its
+// configuration spec is experimental, meaning it is available for early
+// adopters to try out but its behaviour and configuration may change outside
+// of major version releases. Plugins are considered stable by default.
+func (c *ConfigSpec) Experimental() *ConfigSpec {
+	c.component.Status = docs.StatusExperimental
 	return c
 }
 

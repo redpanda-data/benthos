@@ -1,0 +1,103 @@
+description: "Negative indexing for arrays, strings, and bytes: -1 is last, -2 is second-to-last, out-of-bounds errors"
+
+tests:
+  # --- Array negative indexing ---
+
+  - name: "array negative index -1 is last element"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(-1)
+    output: {"v": 30}
+
+  - name: "array negative index -2 is second to last"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(-2)
+    output: {"v": 20}
+
+  - name: "array negative index -3 is first element"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(-3)
+    output: {"v": 10}
+
+  - name: "array negative index on single element"
+    mapping: |
+      let arr = [42]
+      root.v = $arr.index(-1)
+    output: {"v": 42}
+
+  - name: "array negative index out of bounds"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(-4)
+    error: "out of bounds"
+
+  - name: "array negative index far out of bounds"
+    mapping: |
+      let arr = [1, 2]
+      root.v = $arr.index(-100)
+    error: "out of bounds"
+
+  - name: "array negative index on single element -2 is error"
+    mapping: |
+      let arr = [42]
+      root.v = $arr.index(-2)
+    error: "out of bounds"
+
+  - name: "array negative index with float whole number"
+    mapping: |
+      let arr = [10, 20, 30]
+      root.v = $arr.index(-1.0)
+    output: {"v": 30} # FIXME-v1: verify - V1 may require int index
+
+  # --- String negative indexing (codepoint) ---
+
+  - name: "string negative index -1 is last codepoint"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string negative index -2 is second to last"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string negative index -5 is first codepoint"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string negative index on single char"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string negative index out of bounds"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string negative index on non-ascii"
+    skip: "V2-only: V1 has no string indexing"
+
+  - name: "string negative index round trip with char"
+    skip: "V2-only: V1 has no string indexing or .char() method"
+
+  # --- Bytes negative indexing ---
+
+  - name: "bytes negative index -1 is last byte"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes negative index -2 is second to last byte"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes negative index -5 is first byte"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes negative index out of bounds"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes negative index on multibyte utf8"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  - name: "bytes negative index on single byte"
+    skip: "V2-only: V1 has no bytes indexing via brackets"
+
+  # --- Negative indexing from input ---
+
+  - name: "array from input with negative index"
+    input: {"items": ["first", "middle", "last"]}
+    mapping: |
+      root.v = this.items.index(-1)
+    output: {"v": "last"}

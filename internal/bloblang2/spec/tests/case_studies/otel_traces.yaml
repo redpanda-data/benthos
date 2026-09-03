@@ -1,0 +1,195 @@
+description: >
+  OpenTelemetry trace flattening — collapse the deeply nested OTLP export
+  format (resourceSpans -> scopeSpans -> spans) into flat span records.
+  Denormalizes resource attributes, converts the OTLP key-value attribute
+  model to plain objects, maps numeric span kinds to names, computes
+  durations from nanosecond timestamps, and extracts error info from events.
+
+tests:
+  - name: "flatten OTLP trace export into span records"
+    input:
+      resourceSpans:
+        - resource:
+            attributes:
+              - key: "service.name"
+                value: {stringValue: "api-gateway"}
+              - key: "service.version"
+                value: {stringValue: "2.4.1"}
+              - key: "deployment.environment"
+                value: {stringValue: "production"}
+          scopeSpans:
+            - spans:
+                - traceId: "5B8EFFF798038103D269B633813FC60C"
+                  spanId: "EEE19B7EC3C1B174"
+                  parentSpanId: ""
+                  name: "POST /api/v1/orders"
+                  kind: 2
+                  startTimeUnixNano: "1705312260000000000"
+                  endTimeUnixNano: "1705312260345000000"
+                  attributes:
+                    - key: "http.method"
+                      value: {stringValue: "POST"}
+                    - key: "http.url"
+                      value: {stringValue: "/api/v1/orders"}
+                    - key: "http.status_code"
+                      value: {intValue: "201"}
+                  events:
+                    - name: "auth.verified"
+                      attributes:
+                        - key: "auth.method"
+                          value: {stringValue: "jwt"}
+                    - name: "exception"
+                      attributes:
+                        - key: "exception.message"
+                          value: {stringValue: "Deprecated field used"}
+                  status: {code: 1}
+        - resource:
+            attributes:
+              - key: "service.name"
+                value: {stringValue: "order-service"}
+              - key: "service.version"
+                value: {stringValue: "3.1.0"}
+              - key: "deployment.environment"
+                value: {stringValue: "production"}
+          scopeSpans:
+            - spans:
+                - traceId: "5B8EFFF798038103D269B633813FC60C"
+                  spanId: "AAA19B7EC3C1B175"
+                  parentSpanId: "EEE19B7EC3C1B174"
+                  name: "OrderService/CreateOrder"
+                  kind: 2
+                  startTimeUnixNano: "1705312260050000000"
+                  endTimeUnixNano: "1705312260300000000"
+                  attributes:
+                    - key: "rpc.system"
+                      value: {stringValue: "grpc"}
+                    - key: "rpc.method"
+                      value: {stringValue: "CreateOrder"}
+                  events: []
+                  status: {code: 1}
+                - traceId: "5B8EFFF798038103D269B633813FC60C"
+                  spanId: "BBB19B7EC3C1B176"
+                  parentSpanId: "AAA19B7EC3C1B175"
+                  name: "postgres.query"
+                  kind: 3
+                  startTimeUnixNano: "1705312260100000000"
+                  endTimeUnixNano: "1705312260250000000"
+                  attributes:
+                    - key: "db.system"
+                      value: {stringValue: "postgresql"}
+                    - key: "db.statement"
+                      value: {stringValue: "INSERT INTO orders (id, customer_id, total) VALUES ($1, $2, $3)"}
+                  events: []
+                  status: {code: 1}
+    mapping: |
+      # Extract the typed value from an OTLP attribute value object.
+      map extract_value(v) {
+        match {
+          v.has_key("stringValue") => v.stringValue,
+          v.has_key("intValue") => v.intValue.int64(),
+          _ => null,
+        }
+      }
+
+      # Convert an OTLP attribute array [{key, value}, ...] to a plain object.
+      map attrs_to_object(attrs) {
+        attrs.map(a -> {"key": a.key, "value": extract_value(a.value)}).collect()
+      }
+
+      # Map OTLP numeric span kind to its name.
+      map span_kind_name(kind) {
+        match kind {
+          1 => "INTERNAL",
+          2 => "SERVER",
+          3 => "CLIENT",
+          4 => "PRODUCER",
+          5 => "CONSUMER",
+          _ => "UNSPECIFIED",
+        }
+      }
+
+      # Flatten: resourceSpans -> scopeSpans -> spans, denormalizing resource
+      # attributes onto each span.
+      output = input.resourceSpans.map(rs -> {
+        $res_attrs = attrs_to_object(rs.resource.attributes)
+        rs.scopeSpans.map(ss ->
+          ss.spans.map(span -> {
+            $attrs = attrs_to_object(span.attributes)
+            $duration_ns = span.endTimeUnixNano.int64() - span.startTimeUnixNano.int64()
+            $error_event = span.events
+              .find(e -> e.name == "exception").or(null)
+            $error_msg = if $error_event != null {
+              $err_attrs = attrs_to_object($error_event.attributes)
+              $err_attrs."exception.message".or(null)
+            } else {
+              null
+            }
+            {
+              "trace_id": span.traceId,
+              "span_id": span.spanId,
+              "parent_span_id": if span.parentSpanId == "" { null } else { span.parentSpanId },
+              "service": $res_attrs."service.name",
+              "service_version": $res_attrs."service.version",
+              "environment": $res_attrs."deployment.environment",
+              "operation": span.name,
+              "span_kind": span_kind_name(span.kind),
+              "duration_ms": $duration_ns.float64() / 1000000.0,
+              "attributes": $attrs,
+              "event_names": span.events.map(e -> e.name),
+              "has_error_event": span.events.any(e -> e.name == "exception"),
+              "error_message": $error_msg,
+              "status_ok": span.status.code == 1,
+            }
+          })
+        ).flatten()
+      }).flatten()
+    output:
+      - trace_id: "5B8EFFF798038103D269B633813FC60C"
+        span_id: "EEE19B7EC3C1B174"
+        parent_span_id: null
+        service: "api-gateway"
+        service_version: "2.4.1"
+        environment: "production"
+        operation: "POST /api/v1/orders"
+        span_kind: "SERVER"
+        duration_ms: 345.0
+        attributes:
+          http.method: "POST"
+          http.url: "/api/v1/orders"
+          http.status_code: 201
+        event_names: ["auth.verified", "exception"]
+        has_error_event: true
+        error_message: "Deprecated field used"
+        status_ok: true
+      - trace_id: "5B8EFFF798038103D269B633813FC60C"
+        span_id: "AAA19B7EC3C1B175"
+        parent_span_id: "EEE19B7EC3C1B174"
+        service: "order-service"
+        service_version: "3.1.0"
+        environment: "production"
+        operation: "OrderService/CreateOrder"
+        span_kind: "SERVER"
+        duration_ms: 250.0
+        attributes:
+          rpc.system: "grpc"
+          rpc.method: "CreateOrder"
+        event_names: []
+        has_error_event: false
+        error_message: null
+        status_ok: true
+      - trace_id: "5B8EFFF798038103D269B633813FC60C"
+        span_id: "BBB19B7EC3C1B176"
+        parent_span_id: "AAA19B7EC3C1B175"
+        service: "order-service"
+        service_version: "3.1.0"
+        environment: "production"
+        operation: "postgres.query"
+        span_kind: "CLIENT"
+        duration_ms: 150.0
+        attributes:
+          db.system: "postgresql"
+          db.statement: "INSERT INTO orders (id, customer_id, total) VALUES ($1, $2, $3)"
+        event_names: []
+        has_error_event: false
+        error_message: null
+        status_ok: true

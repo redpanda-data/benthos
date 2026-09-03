@@ -1,0 +1,97 @@
+description: >
+  Whole-number float promotion for integer parameters AND integer receivers
+  (Section 13 preamble): float values like 2.0 are accepted where int64 is
+  documented; fractional values like 1.5 are runtime errors — never silently
+  truncated.
+
+tests:
+  # --- Integer receivers: ts_from_unix_milli/micro/nano ---
+
+  - name: "whole-number float receiver accepted by ts_from_unix_milli"
+    mapping: |
+      output.v = 1709500000000.0.ts_from_unix_milli() == 1709500000000.ts_from_unix_milli()
+    output: {"v": true}
+
+  - name: "fractional float receiver rejected by ts_from_unix_milli"
+    mapping: |
+      output.v = 1709500000000.5.ts_from_unix_milli()
+    error: "integer"
+
+  - name: "fractional float receiver rejected by ts_from_unix_micro"
+    mapping: |
+      output.v = 1709500000000.5.ts_from_unix_micro()
+    error: "integer"
+
+  - name: "fractional float receiver rejected by ts_from_unix_nano"
+    mapping: |
+      output.v = 1709500000000.5.ts_from_unix_nano()
+    error: "integer"
+
+  # --- Integer parameters: fractional floats are errors ---
+
+  - name: "fractional float rejected by round decimals"
+    mapping: |
+      output.v = 3.14159.round(1.5)
+    error: "integer"
+
+  - name: "whole-number float accepted by round decimals"
+    mapping: |
+      output.v = 3.14159.round(2.0)
+    output: {"v": 3.14}
+
+  - name: "fractional float rejected by repeat count"
+    mapping: |
+      output.v = "ab".repeat(1.5)
+    error: "integer"
+
+  - name: "whole-number float accepted by repeat count"
+    mapping: |
+      output.v = "ab".repeat(2.0)
+    output: {"v": "abab"}
+
+  - name: "fractional float rejected by range start"
+    mapping: |
+      output.v = range(1.5, 5)
+    error: "integer"
+
+  - name: "whole-number float accepted by range bounds"
+    mapping: |
+      output.v = range(0.0, 3.0)
+    output: {"v": [0, 1, 2]}
+
+  - name: "fractional float rejected by slice low"
+    mapping: |
+      output.v = [1, 2, 3, 4].slice(1.5, 3)
+    error: "integer"
+
+  - name: "whole-number float accepted by slice bounds"
+    mapping: |
+      output.v = [1, 2, 3, 4].slice(1.0, 3.0)
+    output: {"v": [2, 3]}
+
+  - name: "fractional float rejected by ts_add nanos"
+    mapping: |
+      output.v = 0.ts_from_unix().ts_add(1.5)
+    error: "integer"
+
+  - name: "fractional float rejected by random_int bounds"
+    mapping: |
+      output.v = random_int(1.5, 10)
+    error: "integer"
+
+  - name: "fractional float rejected by timestamp components"
+    mapping: |
+      output.v = timestamp(2024.5, 3, 1)
+    error: "integer"
+
+  # --- int64 range boundary: 2^63 as a float is out of range ---
+
+  - name: "float receiver at two to the sixty-third errors"
+    mapping: |
+      output.v = 9223372036854775808.0.ts_from_unix_milli()
+    error: "integer"
+
+  - name: "float receiver at negative two to the sixty-third is valid"
+    mapping: |
+      output.v = (0.0 - 9223372036854775808.0).ts_from_unix_nano().ts_unix_nano().string()
+    output: {"v": "-9223372036854775808"}

@@ -1,0 +1,78 @@
+description: >
+  Dynamic index assignments — assigning to output or variable paths using
+  computed indices from variables or expressions.
+
+tests:
+  # --- Variable as object key ---
+
+  - name: "output with variable string key"
+    mapping: |
+      $key = "name"
+      output.data[$key] = "Alice"
+    output: {"data": {"name": "Alice"}}
+
+  - name: "output with variable integer index"
+    mapping: |
+      $idx = 0
+      output.arr[$idx] = "first"
+    output: {"arr": ["first"]}
+
+  - name: "output with multiple variable keys"
+    mapping: |
+      $k1 = "a"
+      $k2 = "b"
+      output[$k1] = 1
+      output[$k2] = 2
+    output: {"a": 1, "b": 2}
+
+  # --- Nested dynamic paths ---
+
+  - name: "nested dynamic keys"
+    mapping: |
+      $outer = "data"
+      $inner = "name"
+      output[$outer] = {}
+      output[$outer][$inner] = "Alice"
+    output: {"data": {"name": "Alice"}}
+
+  # --- Dynamic assignment on variables ---
+
+  - name: "variable path with dynamic key"
+    mapping: |
+      $obj = {"a": 1, "b": 2}
+      $key = "a"
+      $obj[$key] = 99
+      output = $obj
+    output: {"a": 99, "b": 2}
+
+  - name: "variable path with dynamic index"
+    mapping: |
+      $arr = [10, 20, 30]
+      $idx = 1
+      $arr[$idx] = 99
+      output = $arr
+    output: [10, 99, 30]
+
+  # --- Computed expressions as keys ---
+
+  - name: "computed string key from concatenation"
+    mapping: |
+      $prefix = "key"
+      output[$prefix + "_1"] = "val"
+    output: {"key_1": "val"}
+
+  - name: "computed key from method result"
+    mapping: |
+      $name = "Hello"
+      output[$name.lowercase()] = true
+    output: {"hello": true}
+
+  # --- Deleted with dynamic keys ---
+
+  - name: "delete object field with dynamic key"
+    mapping: |
+      $obj = {"a": 1, "b": 2, "c": 3}
+      $key = "b"
+      $obj[$key] = deleted()
+      output = $obj
+    output: {"a": 1, "c": 3}

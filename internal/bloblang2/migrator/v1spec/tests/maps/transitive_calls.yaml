@@ -1,0 +1,97 @@
+description: >
+  Transitive map calls — maps calling other maps, maps called from lambdas,
+  and maps with complex parameter passing patterns.
+
+# V1 maps have no parameter list; multi-argument calls are encoded by passing an object
+# receiver. Maps call other maps the same way they recurse: `receiver.apply("name")`.
+
+tests:
+  # --- Map calling another map ---
+
+  - name: "map A calls map B"
+    mapping: |
+      map double { root = this * 2 }
+      map quad { root = this.apply("double").apply("double") }
+      root.v = 3.apply("quad")
+    output: {"v": 12}
+
+  - name: "three-level transitive call"
+    mapping: |
+      map inc { root = this + 1 }
+      map double_inc { root = this.apply("inc") * 2 }
+      map process { root = this.apply("double_inc") + 100 }
+      root.v = 5.apply("process")
+    output: {"v": 112}
+
+  - name: "map passes its parameter to another map"
+    mapping: |
+      map format_map { root = "[" + this + "]" }
+      map wrap { root = this.apply("format_map") }
+      root.v = "hello".apply("wrap")
+    output: {"v": "[hello]"}
+
+  # --- Map called from lambda ---
+
+  - name: "top-level lambda calls a map"
+    mapping: |
+      map double { root = this * 2 }
+      root.v = [1, 2, 3].map_each(n -> n.apply("double"))
+    output: {"v": [2, 4, 6]}
+
+  - name: "lambda calls map that calls another map"
+    mapping: |
+      map inc { root = this + 1 }
+      map double_inc { root = this.apply("inc") * 2 }
+      root.v = [1, 2, 3].map_each(n -> n.apply("double_inc"))
+    output: {"v": [4, 6, 8]}
+
+  - name: "filter lambda calls a map"
+    mapping: |
+      map is_big { root = this > 5 }
+      root.v = [1, 3, 7, 9, 2].filter(n -> n.apply("is_big"))
+    output: {"v": [7, 9]}
+
+  # --- Map returning complex values ---
+
+  - name: "map returns object used in lambda"
+    mapping: |
+      map make_pair {
+        root = {"key": this.k, "value": this.v}
+      }
+      root.v = ["a", "b"].map_each(s -> {"k": s, "v": s.length()}.apply("make_pair"))
+    output:
+      v:
+        - key: "a"
+          value: 1
+        - key: "b"
+          value: 1
+
+  # --- Map with local variables calling another map ---
+
+  - name: "map with locals calls another map"
+    mapping: |
+      map add { root = this.a + this.b }
+      map process {
+        let doubled = this * 2
+        root = {"a": $doubled, "b": 10}.apply("add")
+      }
+      root.v = 5.apply("process")
+    output: {"v": 20}
+
+  # --- Frame isolation under transitive calls ---
+  # V1 clears the $var environment on every .apply() entry, so the inner $local is a fresh
+  # binding and does not clobber the outer frame's $local after control returns.
+
+  - name: "transitive calls do not share local variables"
+    mapping: |
+      map inner {
+        let local = this + 100
+        root = $local
+      }
+      map outer {
+        let local = this + 1
+        let result = $local.apply("inner")
+        root = $local * 1000 + $result
+      }
+      root.v = 5.apply("outer")
+    output: {"v": 6106}

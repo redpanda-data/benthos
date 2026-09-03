@@ -1,0 +1,103 @@
+description: >
+  Recursive maps combined with iterators — recursive map called from
+  within fold, map, and filter lambdas. These stress variable stack
+  frame isolation during recursion.
+
+tests:
+  # --- Recursive map called from map lambda ---
+
+  - name: "recursive deep_values extracts all leaf values"
+    mapping: |
+      map deep_values(obj) {
+        obj.iter().fold([], (acc, e) ->
+          if e.value.type() == "object" {
+            acc.concat(deep_values(e.value))
+          } else {
+            acc.concat([e.value])
+          }
+        )
+      }
+      output.v = deep_values({"a": 1, "b": {"c": 2, "d": 3}}).sort()
+    output: {"v": [1, 2, 3]}
+
+  - name: "recursive deep_values with three levels"
+    mapping: |
+      map deep_values(obj) {
+        obj.iter().fold([], (acc, e) ->
+          if e.value.type() == "object" {
+            acc.concat(deep_values(e.value))
+          } else {
+            acc.concat([e.value])
+          }
+        )
+      }
+      output.v = deep_values({"a": {"b": {"c": 1}}, "d": 2}).sort()
+    output: {"v": [1, 2]}
+
+  # --- Recursive map with map_values ---
+
+  - name: "recursive double_all doubles nested values"
+    mapping: |
+      map double_all(data) {
+        if data.type() == "object" {
+          data.map_values(v -> double_all(v))
+        } else if data.type() == "array" {
+          data.map(v -> double_all(v))
+        } else if data.type() == "int64" || data.type() == "float64" {
+          data * 2
+        } else {
+          data
+        }
+      }
+      output = double_all({"a": 1, "b": [2, 3], "c": {"d": 4}})
+    output: {"a": 2, "b": [4, 6], "c": {"d": 8}}
+
+  # --- Recursive count with filter ---
+
+  - name: "recursive count_strings counts string leaves"
+    mapping: |
+      map count_strings(data) {
+        if data.type() == "string" {
+          1
+        } else if data.type() == "object" {
+          data.iter().fold(0, (acc, e) -> acc + count_strings(e.value))
+        } else if data.type() == "array" {
+          data.fold(0, (acc, item) -> acc + count_strings(item))
+        } else {
+          0
+        }
+      }
+      output.v = count_strings({"name": "Alice", "age": 30, "tags": ["admin", "user"], "meta": {"role": "lead"}})
+    output: {"v": 4}
+
+  # --- Recursive with local variables in fold ---
+
+  - name: "recursive sum_nested with accumulator variable"
+    mapping: |
+      map sum_nested(data) {
+        if data.type() == "array" {
+          data.fold(0, (acc, item) -> {
+            $sub = sum_nested(item)
+            acc + $sub
+          })
+        } else {
+          data
+        }
+      }
+      output.v = sum_nested([1, [2, [3, 4]], 5])
+    output: {"v": 15}
+
+  # --- Recursive map returning modified copy ---
+
+  - name: "recursive redact replaces strings with ***"
+    mapping: |
+      map redact(data) {
+        match data.type() {
+          "string" => "***",
+          "object" => data.map_values(v -> redact(v)),
+          "array" => data.map(v -> redact(v)),
+          _ => data,
+        }
+      }
+      output = redact({"name": "Alice", "age": 30, "contacts": [{"email": "a@b.com"}]})
+    output: {"name": "***", "age": 30, "contacts": [{"email": "***"}]}

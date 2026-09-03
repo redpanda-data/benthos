@@ -1,0 +1,158 @@
+description: "String regex methods: re_match, re_find_all, re_replace_all"
+
+tests:
+  # --- .re_match() ---
+
+  - name: "re_match simple match"
+    mapping: |
+      output = "hello world".re_match("world")
+    output: true
+
+  - name: "re_match no match"
+    mapping: |
+      output = "hello world".re_match("xyz")
+    output: false
+
+  - name: "re_match partial match returns true"
+    mapping: |
+      output = "foobar".re_match("oba")
+    output: true
+
+  - name: "re_match anchored start"
+    mapping: |
+      output = "hello world".re_match("^hello")
+    output: true
+
+  - name: "re_match anchored start no match"
+    mapping: |
+      output = "hello world".re_match("^world")
+    output: false
+
+  - name: "re_match anchored end"
+    mapping: |
+      output = "hello world".re_match("world$")
+    output: true
+
+  - name: "re_match full anchor"
+    mapping: |
+      output = "hello".re_match("^hello$")
+    output: true
+
+  - name: "re_match digit pattern"
+    mapping: |
+      output = "abc123def".re_match("[0-9]+")
+    output: true
+
+  - name: "re_match digit pattern no match"
+    mapping: |
+      output = "abcdef".re_match("[0-9]+")
+    output: false
+
+  - name: "re_match empty pattern always matches"
+    mapping: |
+      output = "anything".re_match("")
+    output: true
+
+  - name: "re_match empty string with empty pattern"
+    mapping: |
+      output = "".re_match("")
+    output: true
+
+  - name: "re_match character class"
+    mapping: |
+      output = "Hello World".re_match("[A-Z][a-z]+")
+    output: true
+
+  # --- .re_find_all() ---
+
+  - name: "re_find_all basic"
+    mapping: |
+      output = "cat bat rat".re_find_all("[a-z]at")
+    output: ["cat", "bat", "rat"]
+
+  - name: "re_find_all no matches"
+    mapping: |
+      output = "hello world".re_find_all("[0-9]+")
+    output: []
+
+  - name: "re_find_all digits"
+    mapping: |
+      output = "a1b22c333".re_find_all("[0-9]+")
+    output: ["1", "22", "333"]
+
+  - name: "re_find_all overlapping non-overlap"
+    mapping: |
+      output = "aaa".re_find_all("aa")
+    output: ["aa"]
+
+  - name: "re_find_all single char pattern"
+    mapping: |
+      output = "abcabc".re_find_all("a")
+    output: ["a", "a"]
+
+  - name: "re_find_all empty pattern"
+    mapping: |
+      output = "ab".re_find_all("")
+    output: ["", "", ""]
+
+  - name: "re_find_all word boundaries"
+    mapping: |
+      output = "foo bar baz".re_find_all("\\b[a-z]+\\b")
+    output: ["foo", "bar", "baz"]
+
+  - name: "re_find_all capture groups return full match"
+    mapping: |
+      output = "2024-03-01".re_find_all("([0-9]{4})-([0-9]{2})-([0-9]{2})")
+    output: ["2024-03-01"]
+
+  # --- .re_replace_all() ---
+
+  - name: "re_replace_all basic"
+    mapping: |
+      output = "hello world".re_replace_all("world", "earth")
+    output: "hello earth"
+
+  - name: "re_replace_all with pattern"
+    mapping: |
+      output = "abc123def456".re_replace_all("[0-9]+", "NUM")
+    output: "abcNUMdefNUM"
+
+  - name: "re_replace_all no match unchanged"
+    mapping: |
+      output = "hello".re_replace_all("[0-9]+", "X")
+    output: "hello"
+
+  - name: "re_replace_all backreference $0"
+    mapping: |
+      output = "hello world".re_replace_all("[a-z]+", "[$0]")
+    output: "[hello] [world]"
+
+  - name: "re_replace_all capture group $1"
+    mapping: |
+      output = "2024-03-01".re_replace_all("([0-9]{4})-([0-9]{2})-([0-9]{2})", "$2/$3/$1")
+    output: "03/01/2024"
+
+  - name: "re_replace_all named group"
+    mapping: |
+      output = "hello world".re_replace_all("(?P<word>[a-z]+)", "${word}!")
+    output: "hello! world!"
+
+  - name: "re_replace_all remove matches"
+    mapping: |
+      output = "a1b2c3".re_replace_all("[0-9]", "")
+    output: "abc"
+
+  - name: "re_replace_all entire string"
+    mapping: |
+      output = "hello".re_replace_all("^.*$", "replaced")
+    output: "replaced"
+
+  - name: "re_replace_all empty string match"
+    mapping: |
+      output = "ab".re_replace_all("", "-")
+    output: "-a-b-"
+
+  - name: "re_replace_all special regex chars in replacement"
+    mapping: |
+      output = "hello world".re_replace_all("world", "w.o.r.l.d")
+    output: "hello w.o.r.l.d"

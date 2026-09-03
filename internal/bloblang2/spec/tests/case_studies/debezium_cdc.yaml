@@ -1,0 +1,138 @@
+description: >
+  Debezium CDC change event processing — diff the before/after snapshots to
+  identify changed fields, parse embedded JSON columns (shipping address, line
+  items), convert Debezium epoch-day dates, convert cents to dollars, extract
+  provenance metadata, and set output metadata for downstream CDC routing.
+
+tests:
+  - name: "process Debezium MySQL update event with embedded JSON"
+    input:
+      payload:
+        before:
+          id: 10042
+          customer_id: 1007
+          status: "pending"
+          order_date: 19797
+          shipping_address: '{"street":"742 Evergreen Terrace","city":"Springfield","state":"IL","zip":"62704"}'
+          line_items_json: '[{"sku":"WIDGET-A","qty":3,"unit_price_cents":1500},{"sku":"GADGET-B","qty":1,"unit_price_cents":4200}]'
+          total_cents: 8700
+          currency: "USD"
+          updated_at: "2024-03-15T10:30:00Z"
+        after:
+          id: 10042
+          customer_id: 1007
+          status: "shipped"
+          order_date: 19797
+          shipping_address: '{"street":"742 Evergreen Terrace","city":"Springfield","state":"IL","zip":"62704"}'
+          line_items_json: '[{"sku":"WIDGET-A","qty":3,"unit_price_cents":1500},{"sku":"GADGET-B","qty":1,"unit_price_cents":4200}]'
+          total_cents: 8700
+          currency: "USD"
+          updated_at: "2024-03-15T14:22:17Z"
+        source:
+          connector: "mysql"
+          name: "dbserver1"
+          db: "inventory"
+          table: "orders"
+          ts_ms: 1710509137000
+          gtid: "3e11fa47-71ca-11e1-9e33-c80aa9429562:58"
+          file: "mysql-bin.000003"
+          pos: 484
+          version: "2.5.0.Final"
+        op: "u"
+        ts_ms: 1710509137425
+    mapping: |
+      $before = input.payload.before
+      $after = input.payload.after
+      $src = input.payload.source
+
+      # Diff: compare selected fields between before and after
+      $diff_fields = ["status", "updated_at", "total_cents", "currency"]
+      $changed = $diff_fields
+        .filter(f -> $before[f] != $after[f])
+        .map(f -> {"key": f, "value": {"before": $before[f], "after": $after[f]}})
+        .collect()
+
+      # Parse embedded JSON string columns from the after image
+      $address = $after.shipping_address.parse_json()
+      $line_items = $after.line_items_json.parse_json()
+        .map(li -> li.merge({"subtotal_cents": li.qty * li.unit_price_cents}))
+
+      # Convert Debezium epoch-day (days since 1970-01-01) to date string
+      $order_date = ($after.order_date * 86400)
+        .ts_from_unix().ts_format("%Y-%m-%d")
+
+      # Event timestamp from Debezium milliseconds
+      $event_ts = input.payload.ts_ms
+        .ts_from_unix_milli().string()
+
+      # Map operation code to name
+      $op_name = match input.payload.op {
+        "c" => "create",
+        "u" => "update",
+        "d" => "delete",
+        "r" => "snapshot",
+        _ => "unknown",
+      }
+
+      output.table = $src.db + "." + $src.table
+      output.operation = $op_name
+      output.key = {"id": $after.id}
+      output.timestamp = $event_ts
+      output.changed_fields = $changed
+      output.current = {
+        "id": $after.id,
+        "customer_id": $after.customer_id,
+        "status": $after.status,
+        "order_date": $order_date,
+        "shipping_address": $address,
+        "line_items": $line_items,
+        "total_dollars": $after.total_cents.float64() / 100.0,
+        "currency": $after.currency,
+      }
+      output.provenance = {
+        "connector": $src.connector,
+        "server": $src.name,
+        "gtid": $src.gtid,
+        "binlog_file": $src.file,
+        "binlog_pos": $src.pos,
+        "version": $src.version,
+      }
+
+      # Set CDC routing metadata
+      output@.cdc_table = $src.db + "." + $src.table
+      output@.cdc_operation = $op_name
+      output@.cdc_gtid = $src.gtid
+    output:
+      table: "inventory.orders"
+      operation: "update"
+      key: {id: 10042}
+      timestamp: "2024-03-15T13:25:37.425Z"
+      changed_fields:
+        status: {before: "pending", after: "shipped"}
+        updated_at: {before: "2024-03-15T10:30:00Z", after: "2024-03-15T14:22:17Z"}
+      current:
+        id: 10042
+        customer_id: 1007
+        status: "shipped"
+        order_date: "2024-03-15"
+        shipping_address:
+          street: "742 Evergreen Terrace"
+          city: "Springfield"
+          state: "IL"
+          zip: "62704"
+        line_items:
+          - {sku: "WIDGET-A", qty: 3, unit_price_cents: 1500, subtotal_cents: 4500}
+          - {sku: "GADGET-B", qty: 1, unit_price_cents: 4200, subtotal_cents: 4200}
+        total_dollars: 87.0
+        currency: "USD"
+      provenance:
+        connector: "mysql"
+        server: "dbserver1"
+        gtid: "3e11fa47-71ca-11e1-9e33-c80aa9429562:58"
+        binlog_file: "mysql-bin.000003"
+        binlog_pos: 484
+        version: "2.5.0.Final"
+    output_metadata:
+      cdc_table: "inventory.orders"
+      cdc_operation: "update"
+      cdc_gtid: "3e11fa47-71ca-11e1-9e33-c80aa9429562:58"

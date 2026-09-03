@@ -1,0 +1,119 @@
+description: >
+  If-else chains, nested conditionals, if-expression in various contexts,
+  and empty body handling.
+
+tests:
+  # --- if-else if-else chains ---
+
+  - name: "if-else if-else first branch"
+    mapping: |
+      output.v = if true { "first" } else if true { "second" } else { "third" }
+    output: {"v": "first"}
+
+  - name: "if-else if-else second branch"
+    mapping: |
+      output.v = if false { "first" } else if true { "second" } else { "third" }
+    output: {"v": "second"}
+
+  - name: "if-else if-else third branch"
+    mapping: |
+      output.v = if false { "first" } else if false { "second" } else { "third" }
+    output: {"v": "third"}
+
+  - name: "long if-else if chain"
+    mapping: |
+      $x = 3
+      output.v = if $x == 1 { "one" } else if $x == 2 { "two" } else if $x == 3 { "three" } else { "other" }
+    output: {"v": "three"}
+
+  # --- if-else if without final else produces void ---
+
+  - name: "if-else if without else — void when none match"
+    mapping: |
+      output.v = "default"
+      output.v = if false { "a" } else if false { "b" }
+    output: {"v": "default"}
+
+  - name: "if-else if without else — first matches"
+    mapping: |
+      output.v = if true { "a" } else if false { "b" }
+    output: {"v": "a"}
+
+  - name: "if-else if without else — second matches"
+    mapping: |
+      output.v = if false { "a" } else if true { "b" }
+    output: {"v": "b"}
+
+  # --- Nested if expressions ---
+
+  - name: "nested if in then branch"
+    mapping: |
+      $x = 5
+      output.v = if $x > 0 {
+        if $x > 10 { "big" } else { "small" }
+      } else { "negative" }
+    output: {"v": "small"}
+
+  - name: "nested if in else branch"
+    mapping: |
+      $x = -5
+      output.v = if $x > 0 { "positive" } else {
+        if $x == 0 { "zero" } else { "negative" }
+      }
+    output: {"v": "negative"}
+
+  # --- If-expression in various contexts ---
+
+  - name: "if-expression as map argument"
+    mapping: |
+      map greet(name) { "hello " + name }
+      output.v = greet(if true { "Alice" } else { "Bob" })
+    output: {"v": "hello Alice"}
+
+  - name: "if-expression in array literal"
+    mapping: |
+      output.v = [1, if true { 2 } else { 20 }, 3]
+    output: {"v": [1, 2, 3]}
+
+  - name: "if-expression in object literal"
+    mapping: |
+      output.v = {"status": if true { "ok" } else { "error" }}
+    output: {"v": {"status": "ok"}}
+
+  - name: "if-expression in method argument"
+    mapping: |
+      output.v = [3, 1, 2].sort_by(x -> if true { x } else { -x })
+    output: {"v": [1, 2, 3]}
+
+  # --- If-statement with empty body ---
+
+  - name: "if-statement with empty body is no-op"
+    mapping: |
+      output.v = "unchanged"
+      if true { }
+    output: {"v": "unchanged"}
+
+  - name: "if-statement empty body, else has content"
+    mapping: |
+      output.v = "init"
+      if false { } else {
+        output.v = "else ran"
+      }
+    output: {"v": "else ran"}
+
+  # --- Boolean coercion not implicit ---
+
+  - name: "non-boolean condition is error"
+    mapping: |
+      output.v = if "truthy" { "yes" } else { "no" }
+    error: "bool"
+
+  - name: "integer condition is error"
+    mapping: |
+      output.v = if 1 { "yes" } else { "no" }
+    error: "bool"
+
+  - name: "null condition is error"
+    mapping: |
+      output.v = if null { "yes" } else { "no" }
+    error: "bool"

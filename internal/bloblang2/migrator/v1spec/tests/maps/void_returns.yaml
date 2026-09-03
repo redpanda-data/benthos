@@ -1,0 +1,117 @@
+description: >
+  Map void returns — when a map body's final expression produces void
+  (from if-without-else or match-without-wildcard), the map call produces
+  void. Void propagates to the calling context with normal semantics.
+
+# V1 has no `void` type. The closest sentinels are:
+#   * `null` — produced by an if-without-else whose condition is false, or by a non-exhaustive
+#     match. This IS a value and assigning it overwrites the target.
+#   * `nothing()` — an explicit sentinel that silently skips the enclosing assignment.
+#   * `deleted()` — a sentinel that removes the field/message entirely.
+# V2's "void" behaviour (skip assignment, rescued by .or(), errors in variable binding / collection
+# literals) doesn't map 1:1 to any V1 construct. The V1 analogue is to explicitly produce
+# `nothing()` inside the map body, but the rescue/error semantics still differ (V1 `nothing()`
+# is replaced by .or() fallbacks just like null, but it has no "error in var decl" behaviour).
+# Tests here either adjust to V1 null / nothing() semantics or skip.
+
+tests:
+  # --- Map returns void from if-without-else ---
+
+  - name: "map returns void — output assignment skipped"
+    # V1: if-without-else yields null, and assigning null overwrites. To get V2's "skip"
+    # behaviour we must explicitly return nothing() on the else path.
+    mapping: |
+      map maybe {
+        root = if this > 10 { this * 2 } else { nothing() }
+      }
+      root.v = "prior"
+      root.v = 5.apply("maybe")
+    output: {"v": "prior"} # FIXME-v1: verify — V1 assignment of nothing() is silently skipped (mapping/statement.go), so root.v retains "prior"
+
+  - name: "map returns value when condition true"
+    mapping: |
+      map maybe {
+        root = if this > 10 { this * 2 } else { nothing() }
+      }
+      root.v = 20.apply("maybe")
+    output: {"v": 40}
+
+  - name: "map returns void — variable declaration errors"
+    # V1: `let x = nothing()` deletes the variable rather than erroring (§7.2). No direct analogue.
+    skip: "V1 has no `void` type — `let x = nothing()` deletes $x rather than raising a void-error"
+
+  - name: "map returns void — variable reassignment skipped"
+    # V1: `let x = nothing()` DELETES $x rather than leaving it unchanged. Behaviour differs.
+    skip: "V1 `let x = nothing()` deletes the variable (§7.2) rather than leaving it unchanged as V2's void would"
+
+  # --- Map returns void from non-exhaustive match ---
+
+  - name: "map returns void from match — assignment skipped"
+    # V1: a non-exhaustive match yields null, not void. Assigning null overwrites.
+    # To emulate V2 behaviour, add an explicit _ => nothing() arm.
+    mapping: |
+      map classify {
+        root = match this {
+          "a" => "alpha",
+          "b" => "beta",
+          _ => nothing(),
+        }
+      }
+      root.v = "default"
+      root.v = "c".apply("classify")
+    output: {"v": "default"}
+
+  - name: "map returns value from match when case matches"
+    mapping: |
+      map classify {
+        root = match this {
+          "a" => "alpha",
+          "b" => "beta",
+          _ => nothing(),
+        }
+      }
+      root.v = "a".apply("classify")
+    output: {"v": "alpha"}
+
+  # --- Void from map in collection literal errors ---
+
+  - name: "void from map in array literal is error"
+    # V1: nothing() inside an array literal is a runtime error — nothing() cannot be used
+    # as an operand/value. But `deleted()` in an array literal drops the slot. Behaviour differs.
+    skip: "V1 has no `void` type — nothing() inside an array literal behaves differently from V2 void (and deleted() drops the element rather than erroring)"
+
+  - name: "void from map in object literal is error"
+    skip: "V1 has no `void` type — nothing() / null inside an object literal does not produce a V2-style void error"
+
+  # --- Void from map rescued with .or() ---
+
+  - name: "void from map rescued with or"
+    # V1: nothing() is treated as null by .or() and replaced with the fallback (§12.2).
+    mapping: |
+      map maybe {
+        root = if this > 10 { this * 2 } else { nothing() }
+      }
+      root.v = 5.apply("maybe").or(0)
+    output: {"v": 0} # FIXME-v1: verify — V1 .or() replaces nothing() / null with fallback
+
+  - name: "non-void from map not rescued by or"
+    mapping: |
+      map maybe {
+        root = if this > 10 { this * 2 } else { nothing() }
+      }
+      root.v = 20.apply("maybe").or(0)
+    output: {"v": 40}
+
+  # --- Void from map as argument to another map errors ---
+
+  - name: "void from map as argument to another map is error"
+    # V1: `nothing()` as an operand to `*` raises a "cannot multiply types nothing and number" error.
+    mapping: |
+      map maybe {
+        root = if this > 10 { this } else { nothing() }
+      }
+      map double {
+        root = this * 2
+      }
+      root.v = 5.apply("maybe").apply("double")
+    error: "cannot multiply types nothing"

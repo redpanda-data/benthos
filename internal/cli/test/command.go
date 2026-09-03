@@ -107,6 +107,7 @@ func lintTarget(opts *common.CLIOpts, spec docs.FieldSpecs, path, testSuffix str
 
 	lintConf := docs.NewLintConfig(opts.Environment)
 	lintConf.BloblangEnv = bloblang.XWrapEnvironment(opts.BloblEnvironment)
+	lintConf.BloblangV2Env = opts.BloblV2Environment
 
 	// This is necessary as each test case can provide a different set of
 	// environment variables, so in order to test env vars properly we would

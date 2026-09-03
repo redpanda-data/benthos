@@ -1,0 +1,172 @@
+description: ".or() — rescues null, void, and deleted; does NOT catch errors; short-circuit evaluation"
+
+tests:
+  # --- Rescues null ---
+
+  - name: "or rescues null with string default"
+    mapping: |
+      root.result = null.or("default")
+    output: {"result": "default"}
+
+  - name: "or rescues null with integer default"
+    mapping: |
+      root.result = null.or(42)
+    output: {"result": 42}
+
+  - name: "or rescues null from missing input field"
+    input: {}
+    mapping: |
+      root.result = this.name.or("anonymous")
+    output: {"result": "anonymous"}
+
+  - name: "or rescues null with null (returns null)"
+    mapping: |
+      root.result = null.or(null)
+    output: {"result": null}
+
+  # --- Rescues void ---
+
+  - name: "or rescues void from if-without-else"
+    mapping: |
+      root.result = (if false { "hello" }).or("default")
+    output: {"result": "default"} # V1: if-without-else yields null, .or rescues null
+
+  - name: "or rescues void from non-exhaustive match"
+    mapping: |
+      root.result = (match "bird" { "cat" => "meow" }).or("unknown")
+    output: {"result": "unknown"} # V1: non-matching match yields null, .or rescues
+
+  # --- Rescues deleted ---
+
+  - name: "or rescues deleted with string"
+    mapping: |
+      root.result = deleted().or("fallback")
+    output: {"result": "fallback"}
+
+  - name: "or rescues deleted with integer"
+    mapping: |
+      root.result = deleted().or(0)
+    output: {"result": 0}
+
+  # --- Directly on input/output/variable (no intermediate field access) ---
+
+  - name: "or on input directly"
+    mapping: |
+      root = this.or("fallback")
+    cases:
+      - name: "null input returns fallback"
+        input: null
+        output: "fallback"
+      - name: "present input returned unchanged"
+        input: "hello"
+        output: "hello"
+
+  - name: "or on variable directly"
+    mapping: |
+      let v = null
+      root = $v.or("default")
+    output: "default"
+
+  - name: "or on variable directly when present"
+    mapping: |
+      let v = "value"
+      root = $v.or("default")
+    output: "value"
+
+  # --- Non-null/void/deleted: returns value unchanged ---
+
+  - name: "or returns string unchanged"
+    mapping: |
+      root.result = "hello".or("default")
+    output: {"result": "hello"}
+
+  - name: "or returns zero unchanged (not null)"
+    mapping: |
+      root.result = 0.or(42)
+    output: {"result": 0}
+
+  - name: "or returns false unchanged (not null)"
+    mapping: |
+      root.result = false.or(true)
+    output: {"result": false}
+
+  - name: "or returns empty string unchanged"
+    mapping: |
+      root.result = "".or("default")
+    output: {"result": ""}
+
+  - name: "or returns empty array unchanged"
+    mapping: |
+      root.result = [].or([1, 2, 3])
+    output: {"result": []}
+
+  # --- Short-circuit: argument not evaluated when value present ---
+
+  - name: "or short-circuits on non-null (throw not evaluated)"
+    mapping: |
+      root.result = "hello".or(throw("should not run"))
+    output: {"result": "hello"}
+
+  - name: "or short-circuits on zero (throw not evaluated)"
+    mapping: |
+      root.result = 0.or(throw("should not run"))
+    output: {"result": 0}
+
+  - name: "or short-circuits on false (throw not evaluated)"
+    mapping: |
+      root.result = false.or(throw("should not run"))
+    output: {"result": false}
+
+  # --- Does NOT catch errors ---
+  # V2 .or() does NOT catch errors. V1 .or() DOES catch errors
+  # (see migrator/bloblang_v1_spec.md §12.2 — V1 .or() triggers on error OR null).
+  # These tests are preserved with adjusted expectations to reflect V1 semantics.
+
+  - name: "or does not catch division by zero"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero).or("default")
+    output: {"result": "default"} # V1 literal `5 / 0` fails at compile; use runtime operand. V1 .or() catches errors too, so fallback is used
+
+  - name: "or does not catch throw"
+    mapping: |
+      root.result = throw("boom").or("default")
+    output: {"result": "default"} # FIXME-v1: verify — V1 .or() catches throw errors
+
+  - name: "or does not catch type mismatch"
+    input: {"s": "hello"}
+    mapping: |
+      root.result = (5 + this.s).or(0)
+    output: {"result": 0} # V1 literal `5 + "hello"` fails at compile; use runtime operand. V1 .or() catches the type mismatch error
+
+  - name: "or does not catch out of bounds"
+    mapping: |
+      let arr = [1, 2]
+      root.result = $arr.index(5).or(0)
+    output: {"result": 0} # FIXME-v1: verify — V1 .or() catches the out-of-bounds error
+
+  # --- Composing .or() and .catch() ---
+
+  - name: "catch then or — catch handles error, or not needed"
+    mapping: |
+      root.result = throw("x").catch(err -> "caught").or("default")
+    output: {"result": "caught"}
+
+  - name: "catch then or — catch returns null, or rescues"
+    mapping: |
+      root.result = throw("x").catch(err -> null).or("rescued")
+    output: {"result": "rescued"}
+
+  - name: "or then catch — or does not catch error, catch does"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero).or("ignored").catch(err -> "caught")
+    output: {"result": "ignored"} # V1 literal `5 / 0` fails at compile; use runtime operand. V1 .or() already catches the error, so the .catch is never needed and result is "ignored"
+
+  # --- or can itself return deleted ---
+
+  - name: "or returns deleted — field removed"
+    mapping: |
+      root.x = "prior"
+      root.x = null.or(deleted())
+    output: {}

@@ -1,0 +1,92 @@
+description: >
+  Transitive map calls — maps calling other maps, maps called from lambdas,
+  and maps with complex parameter passing patterns.
+
+tests:
+  # --- Map calling another map ---
+
+  - name: "map A calls map B"
+    mapping: |
+      map double(x) { x * 2 }
+      map quad(x) { double(double(x)) }
+      output.v = quad(3)
+    output: {"v": 12}
+
+  - name: "three-level transitive call"
+    mapping: |
+      map inc(x) { x + 1 }
+      map double_inc(x) { inc(x) * 2 }
+      map process(x) { double_inc(x) + 100 }
+      output.v = process(5)
+    output: {"v": 112}
+
+  - name: "map passes its parameter to another map"
+    mapping: |
+      map format(s) { "[" + s + "]" }
+      map wrap(s) { format(s) }
+      output.v = wrap("hello")
+    output: {"v": "[hello]"}
+
+  # --- Map called from lambda ---
+
+  - name: "top-level lambda calls a map"
+    mapping: |
+      map double(x) { x * 2 }
+      output.v = [1, 2, 3].map(n -> double(n))
+    output: {"v": [2, 4, 6]}
+
+  - name: "lambda calls map that calls another map"
+    mapping: |
+      map inc(x) { x + 1 }
+      map double_inc(x) { inc(x) * 2 }
+      output.v = [1, 2, 3].map(n -> double_inc(n))
+    output: {"v": [4, 6, 8]}
+
+  - name: "filter lambda calls a map"
+    mapping: |
+      map is_big(x) { x > 5 }
+      output.v = [1, 3, 7, 9, 2].filter(n -> is_big(n))
+    output: {"v": [7, 9]}
+
+  # --- Map returning complex values ---
+
+  - name: "map returns object used in lambda"
+    mapping: |
+      map make_pair(k, v) {
+        {"key": k, "value": v}
+      }
+      output.v = ["a", "b"].map(s -> make_pair(s, s.length()))
+    output:
+      v:
+        - key: "a"
+          value: 1
+        - key: "b"
+          value: 1
+
+  # --- Map with local variables calling another map ---
+
+  - name: "map with locals calls another map"
+    mapping: |
+      map add(a, b) { a + b }
+      map process(x) {
+        $doubled = x * 2
+        add($doubled, 10)
+      }
+      output.v = process(5)
+    output: {"v": 20}
+
+  # --- Frame isolation under transitive calls ---
+
+  - name: "transitive calls do not share local variables"
+    mapping: |
+      map inner(x) {
+        $local = x + 100
+        $local
+      }
+      map outer(x) {
+        $local = x + 1
+        $result = inner($local)
+        $local * 1000 + $result
+      }
+      output.v = outer(5)
+    output: {"v": 6106}

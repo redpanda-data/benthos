@@ -1,0 +1,115 @@
+description: >
+  If-else chains, nested conditionals, if-expression in various contexts,
+  and empty body handling.
+
+tests:
+  # --- if-else if-else chains ---
+
+  - name: "if-else if-else first branch"
+    mapping: |
+      root.v = if true { "first" } else if true { "second" } else { "third" }
+    output: {"v": "first"}
+
+  - name: "if-else if-else second branch"
+    mapping: |
+      root.v = if false { "first" } else if true { "second" } else { "third" }
+    output: {"v": "second"}
+
+  - name: "if-else if-else third branch"
+    mapping: |
+      root.v = if false { "first" } else if false { "second" } else { "third" }
+    output: {"v": "third"}
+
+  - name: "long if-else if chain"
+    mapping: |
+      let x = 3
+      root.v = if $x == 1 { "one" } else if $x == 2 { "two" } else if $x == 3 { "three" } else { "other" }
+    output: {"v": "three"}
+
+  # --- if-else if without final else produces void ---
+  # V1 if-expression without matching else returns null, not void. Assigning null writes the field.
+
+  - name: "if-else if without else — void when none match"
+    mapping: |
+      root.v = "default"
+      root.v = if false { "a" } else if false { "b" }
+    output: {"v": "default"}
+
+  - name: "if-else if without else — first matches"
+    mapping: |
+      root.v = if true { "a" } else if false { "b" }
+    output: {"v": "a"}
+
+  - name: "if-else if without else — second matches"
+    mapping: |
+      root.v = if false { "a" } else if true { "b" }
+    output: {"v": "b"}
+
+  # --- Nested if expressions ---
+
+  - name: "nested if in then branch"
+    mapping: |
+      let x = 5
+      root.v = if $x > 0 {
+        if $x > 10 { "big" } else { "small" }
+      } else { "negative" }
+    output: {"v": "small"}
+
+  - name: "nested if in else branch"
+    mapping: |
+      let x = -5
+      root.v = if $x > 0 { "positive" } else {
+        if $x == 0 { "zero" } else { "negative" }
+      }
+    output: {"v": "negative"}
+
+  # --- If-expression in various contexts ---
+
+  - name: "if-expression as map argument"
+    skip: "V1 named maps do not take function-style parameters; maps receive a value via .apply(\"name\")"
+
+  - name: "if-expression in array literal"
+    mapping: |
+      root.v = [1, if true { 2 } else { 20 }, 3]
+    output: {"v": [1, 2, 3]}
+
+  - name: "if-expression in object literal"
+    mapping: |
+      root.v = {"status": if true { "ok" } else { "error" }}
+    output: {"v": {"status": "ok"}}
+
+  - name: "if-expression in method argument"
+    mapping: |
+      root.v = [3, 1, 2].sort_by(x -> if true { x } else { -x })
+    output: {"v": [1, 2, 3]}
+
+  # --- If-statement with empty body ---
+
+  - name: "if-statement with empty body is no-op"
+    mapping: |
+      root.v = "unchanged"
+      if true { }
+    output: {"v": "unchanged"}
+
+  - name: "if-statement empty body, else has content"
+    mapping: |
+      root.v = "init"
+      if false { } else {
+        root.v = "else ran"
+      }
+    output: {"v": "else ran"}
+
+  # --- Boolean coercion not implicit ---
+
+  - name: "non-boolean condition is error"
+    mapping: |
+      root.v = if "truthy" { "yes" } else { "no" }
+    error: "bool" # FIXME-v1: verify
+
+  - name: "integer condition is error"
+    mapping: |
+      root.v = if 1 { "yes" } else { "no" }
+    error: "bool" # FIXME-v1: verify
+
+  - name: "null condition is error"
+    skip: "V1 treats null as falsy in if conditions (no error raised)"

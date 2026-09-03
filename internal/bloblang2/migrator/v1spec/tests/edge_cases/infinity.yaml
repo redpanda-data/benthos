@@ -1,0 +1,145 @@
+description: "Edge cases: Infinity comparisons, arithmetic, equality, bool conversion"
+
+tests:
+  # --- Infinity comparisons ---
+
+  - name: "Infinity > any finite number"
+    mapping: |
+      root = this.inf > 999999999999.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "Infinity >= any finite number"
+    mapping: |
+      root = this.inf >= 0.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "-Infinity < any finite number"
+    mapping: |
+      root = this.ninf < -999999999999.0
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no -Infinity literal and no tagged numeric-type inputs."
+
+  - name: "-Infinity <= any finite number"
+    mapping: |
+      root = this.ninf <= 0.0
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no -Infinity literal and no tagged numeric-type inputs."
+
+  - name: "finite < Infinity"
+    mapping: |
+      root = 1000000.0 < this.inf
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "finite > -Infinity"
+    mapping: |
+      root = -1000000.0 > this.ninf
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no -Infinity literal and no tagged numeric-type inputs."
+
+  # --- Infinity equality ---
+
+  - name: "Infinity == Infinity is true"
+    mapping: |
+      root = this.inf == this.inf
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "-Infinity == -Infinity is true"
+    mapping: |
+      root = this.ninf == this.ninf
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no -Infinity literal and no tagged numeric-type inputs."
+
+  - name: "Infinity != -Infinity is true"
+    mapping: |
+      root = this.inf != this.ninf
+    input: {"inf": {_type: "float64", value: "Infinity"}, "ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "Infinity > -Infinity"
+    mapping: |
+      root = this.inf > this.ninf
+    input: {"inf": {_type: "float64", value: "Infinity"}, "ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  # --- Infinity arithmetic ---
+
+  - name: "Infinity + Infinity = Infinity"
+    mapping: |
+      root = this.inf + this.inf
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "Infinity"}
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "Infinity - Infinity = NaN"
+    mapping: |
+      root = this.inf - this.inf
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "NaN"}
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "Infinity * 2 = Infinity"
+    mapping: |
+      root = this.inf * 2.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "Infinity"}
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "Infinity * -1 = -Infinity"
+    mapping: |
+      root = this.inf * -1.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "-Infinity"}
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "-Infinity + -Infinity = -Infinity"
+    mapping: |
+      root = this.ninf + this.ninf
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: {_type: "float64", value: "-Infinity"}
+    skip: "V2-only: V1 has no -Infinity literal and no tagged numeric-type inputs."
+
+  - name: "Infinity * 0.0 = NaN"
+    mapping: |
+      root = this.inf * 0.0
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: {_type: "float64", value: "NaN"}
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  # --- Infinity bool conversion ---
+
+  - name: "Infinity.bool() is true"
+    mapping: |
+      root = this.inf.bool()
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no Infinity literal and no tagged numeric-type inputs."
+
+  - name: "-Infinity.bool() is true"
+    mapping: |
+      root = this.ninf.bool()
+    input: {"ninf": {_type: "float64", value: "-Infinity"}}
+    output: true
+    skip: "V2-only: V1 has no -Infinity literal and no tagged numeric-type inputs."
+
+  # --- Infinity type ---
+
+  - name: "Infinity type is float64"
+    mapping: |
+      root = this.inf.type()
+    input: {"inf": {_type: "float64", value: "Infinity"}}
+    output: "float64"
+    skip: "V2-only: V1 .type() reports 'number' for all numeric values, not 'float64'."

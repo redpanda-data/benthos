@@ -1,0 +1,28 @@
+==================
+Line comment
+==================
+
+# this is a comment
+output = input
+
+---
+
+(source_file
+  (comment)
+  (assignment
+    (assign_target)
+    (input)))
+
+==================
+Inline comment
+==================
+
+output = input # grab input
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (input))
+  (comment))

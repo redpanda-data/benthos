@@ -1,0 +1,150 @@
+description: "Dead code elimination: unreachable if/match branches with literal boolean conditions are pruned"
+
+tests:
+  # --- If expression: literal true ---
+
+  - name: "if true returns then branch"
+    mapping: |
+      root.v = if true { "yes" } else { "no" }
+    output: {"v": "yes"}
+
+  - name: "if true with complex else (else not evaluated)"
+    mapping: |
+      root.v = if true { 42 } else { throw("should not reach") }
+    output: {"v": 42}
+
+  # --- If expression: literal false ---
+
+  - name: "if false returns else branch"
+    mapping: |
+      root.v = if false { "yes" } else { "no" }
+    output: {"v": "no"}
+
+  - name: "if false with complex then (then not evaluated)"
+    mapping: |
+      root.v = if false { throw("should not reach") } else { 42 }
+    output: {"v": 42}
+
+  - name: "if false without else produces void"
+    mapping: |
+      root.before = "exists"
+      root.v = if false { "value" }
+    output: {"before": "exists"} # V1 elides the field entirely when the if-expression has no else branch and condition is false
+
+  # --- Else-if chains ---
+
+  - name: "else-if chain with literal true in first branch"
+    mapping: |
+      root.v = if true { "first" } else if true { "second" } else { "third" }
+    output: {"v": "first"}
+
+  - name: "else-if chain with false then true"
+    mapping: |
+      root.v = if false { "first" } else if true { "second" } else { "third" }
+    output: {"v": "second"}
+
+  - name: "else-if chain all false reaches else"
+    mapping: |
+      root.v = if false { "first" } else if false { "second" } else { "third" }
+    output: {"v": "third"}
+
+  - name: "false branch with throw is eliminated"
+    mapping: |
+      root.v = if false { throw("dead") } else if true { "alive" } else { throw("also dead") }
+    output: {"v": "alive"}
+
+  # --- If statement: literal true ---
+
+  - name: "if true statement executes body"
+    mapping: |
+      if true {
+        root.v = "yes"
+      }
+    output: {"v": "yes"}
+
+  - name: "if true statement eliminates else"
+    mapping: |
+      if true {
+        root.v = "yes"
+      } else {
+        root.v = "no"
+      }
+    output: {"v": "yes"}
+
+  # --- If statement: literal false ---
+
+  - name: "if false statement skips body"
+    mapping: |
+      root.before = "exists"
+      if false {
+        root.v = "yes"
+      }
+    output: {"before": "exists"}
+
+  - name: "if false statement executes else"
+    mapping: |
+      if false {
+        root.v = "yes"
+      } else {
+        root.v = "no"
+      }
+    output: {"v": "no"}
+
+  # --- Non-boolean literal conditions preserved for runtime error ---
+
+  - name: "string condition is runtime error not eliminated"
+    mapping: |
+      root.v = if "hello" { 1 } else { 2 }
+    error: "bool"
+
+  - name: "integer condition is runtime error not eliminated"
+    mapping: |
+      root.v = if 42 { 1 } else { 2 }
+    error: "bool"
+
+  - name: "null condition takes else branch not eliminated"
+    mapping: |
+      root.v = if null { 1 } else { 2 }
+    output: {"v": 2} # V1 treats null as falsy in if-conditions (unlike string/int which error)
+
+  - name: "string condition in statement is runtime error"
+    mapping: |
+      if 42 {
+        root.v = "yes"
+      }
+    error: "bool"
+
+  # --- Dynamic conditions not affected ---
+
+  - name: "dynamic condition works normally"
+    mapping: |
+      root.v = if this.flag { "yes" } else { "no" }
+    cases:
+      - name: "true branch"
+        input: {"flag": true}
+        output: {"v": "yes"}
+      - name: "false branch"
+        input: {"flag": false}
+        output: {"v": "no"}
+
+  # --- Folded condition feeds into DCE ---
+
+  - name: "folded true condition triggers DCE"
+    mapping: |
+      root.v = if !false { "yes" } else { throw("dead") }
+    output: {"v": "yes"}
+
+  - name: "folded false condition triggers DCE"
+    mapping: |
+      root.v = if !true { throw("dead") } else { "no" }
+    output: {"v": "no"}
+
+  - name: "folded boolean expression triggers DCE"
+    mapping: |
+      root.v = if true && true { "yes" } else { throw("dead") }
+    output: {"v": "yes"}
+
+  - name: "folded false boolean expression triggers DCE"
+    mapping: |
+      root.v = if true && false { throw("dead") } else { "no" }
+    output: {"v": "no"}

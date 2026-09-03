@@ -1,0 +1,265 @@
+description: "Operator precedence, associativity, non-associative parse errors, unary minus + method call trap"
+
+tests:
+  # --- Multiplicative before additive ---
+  - name: "multiply_before_add"
+    mapping: |
+      root = 2 + 3 * 4
+    output: 14
+
+  - name: "divide_before_subtract"
+    mapping: |
+      root = 10 - 6 / 2
+    output: 7.0
+
+  - name: "modulo_before_add"
+    mapping: |
+      root = 10 + 7 % 3
+    output: 11
+
+  - name: "parens_override_mult_add"
+    mapping: |
+      root = (2 + 3) * 4
+    output: 20
+
+  # --- Additive before comparison ---
+  - name: "add_before_greater_than"
+    mapping: |
+      root = 3 + 2 > 4
+    output: true
+
+  - name: "add_before_less_than"
+    mapping: |
+      root = 1 + 1 < 3
+    output: true
+
+  - name: "subtract_before_greater_equal"
+    mapping: |
+      root = 10 - 5 >= 5
+    output: true
+
+  - name: "subtract_before_less_equal"
+    mapping: |
+      root = 10 - 5 <= 4
+    output: false
+
+  # --- Comparison before equality ---
+  - name: "comparison_before_equality"
+    mapping: |
+      root = 3 > 2 == true
+    output: true
+
+  - name: "comparison_before_inequality"
+    mapping: |
+      root = 3 < 2 != true
+    output: true
+
+  # --- Equality before logical AND ---
+  - name: "equality_before_and"
+    mapping: |
+      root = 1 == 1 && 2 == 2
+    output: true
+
+  - name: "inequality_before_and"
+    mapping: |
+      root = 1 != 2 && 3 != 4
+    output: true
+
+  # --- V1 WARNING: && and || share the same precedence, resolved left-to-right ---
+  # V1: `true || false && false` parses as `(true || false) && false` = false, NOT `true || (false && false)` = true.
+  - name: "and_before_or"
+    mapping: |
+      root = true || false && false
+    output: false # V1: (true || false) && false
+
+  - name: "and_before_or_reversed"
+    mapping: |
+      root = false && false || true
+    output: true # V1: (false && false) || true
+
+  - name: "parens_override_and_or"
+    mapping: |
+      root = (true || false) && false
+    output: false
+
+  # --- Unary minus precedence ---
+  - name: "unary_minus_before_multiply"
+    mapping: |
+      root = -3 * 2
+    output: -6
+
+  - name: "unary_minus_before_add"
+    mapping: |
+      root = -3 + 5
+    output: 2
+
+  - name: "unary_not_before_and"
+    mapping: |
+      root = !false && true
+    output: true
+
+  - name: "unary_not_before_or"
+    mapping: |
+      root = !true || true
+    output: true
+
+  # --- Method calls bind tighter than unary minus ---
+  - name: "unary_minus_method_call_trap"
+    mapping: |
+      root = -10.string()
+    error: "types" # FIXME-v1: verify — V1: `-` on a string value is a type error
+
+  - name: "unary_minus_method_call_with_parens"
+    mapping: |
+      root = (-10).string()
+    output: "-10"
+
+  - name: "unary_minus_method_chain_trap"
+    mapping: |
+      root = -5.float64()
+    skip: "V2-only: .float64() method does not exist in V1 (use .number() instead)"
+
+  # --- Field access / indexing binds tightest ---
+  - name: "field_access_before_arithmetic"
+    mapping: |
+      root = this.a + this.b * this.c
+    input: {"a": 2, "b": 3, "c": 4}
+    output: 14
+
+  - name: "indexing_before_arithmetic"
+    mapping: |
+      root = this.items.0 + this.items.1
+    input: {"items": [10, 20]}
+    output: 30
+
+  - name: "method_call_before_arithmetic"
+    mapping: |
+      root = this.text.length() + 1
+    input: {"text": "hello"}
+    output: 6
+
+  - name: "method_call_before_comparison"
+    mapping: |
+      root = this.text.length() > 3
+    input: {"text": "hello"}
+    output: true
+
+  # --- Left-associativity of arithmetic ---
+  - name: "subtraction_left_associative"
+    mapping: |
+      root = 10 - 5 - 2
+    output: 3
+
+  - name: "division_left_associative"
+    mapping: |
+      root = 20 / 4 / 2
+    output: 2.5
+
+  - name: "modulo_left_associative"
+    mapping: |
+      root = 17 % 10 % 5
+    output: 2
+
+  - name: "addition_left_associative"
+    mapping: |
+      root = 1 + 2 + 3
+    output: 6
+
+  - name: "multiplication_left_associative"
+    mapping: |
+      root = 2 * 3 * 4
+    output: 24
+
+  # --- Non-associative: V1 parses chained comparisons but fails at runtime ---
+  - name: "chained_less_than"
+    mapping: |
+      root = 1 < 2 < 3
+    # V1 constant-folds `1 < 2` → `true` at compile time, then rejects `true < 3` at compile time.
+    compile_error: "cannot compare types bool"
+
+  - name: "chained_greater_than"
+    mapping: |
+      root = 3 > 2 > 1
+    # V1 constant-folds `3 > 2` → `true` at compile time, then rejects `true > 1` at compile time.
+    compile_error: "cannot compare types bool"
+
+  - name: "chained_less_equal"
+    mapping: |
+      root = 1 <= 2 <= 3
+    compile_error: "cannot compare types bool"
+
+  - name: "chained_greater_equal"
+    mapping: |
+      root = 3 >= 2 >= 1
+    compile_error: "cannot compare types bool"
+
+  - name: "chained_mixed_comparison"
+    mapping: |
+      root = 1 < 2 > 0
+    compile_error: "cannot compare types bool"
+
+  # --- Non-associative: equality chaining parses and runs in V1 ---
+  - name: "chained_equality"
+    mapping: |
+      root = 1 == 1 == true
+    output: true # V1: `(1==1)==true` → `true==true` → true
+
+  - name: "chained_inequality"
+    mapping: |
+      root = 1 != 2 != 3
+    # V1: `(1 != 2) != 3` → `true != 3`. Bool != number is asymmetric: LHS bool coerces RHS→bool (3→true),
+    # so `true != true` → false.
+    output: false
+
+  # --- Correct way to express range checks ---
+  - name: "range_check_with_and"
+    mapping: |
+      root = 1 < 2 && 2 < 3
+    output: true
+
+  - name: "equality_chain_with_and"
+    mapping: |
+      root = 1 == 1 && 2 == 2
+    output: true
+
+  # --- Complex precedence combinations ---
+  - name: "full_precedence_chain"
+    mapping: |
+      root = 2 + 3 * 4 > 10 == true && !false
+    output: true
+
+  - name: "arithmetic_in_comparison_in_logical"
+    mapping: |
+      root = 1 + 2 >= 3 && 4 * 2 <= 8 || false
+    output: true
+
+  - name: "nested_parens_override_everything"
+    mapping: |
+      root = ((2 + 3) * (4 - 1)) > ((10 / 2) + 1)
+    output: true
+
+  - name: "unary_minus_in_complex_expression"
+    mapping: |
+      root = -2 * 3 + 4
+    output: -2
+
+  - name: "double_unary_minus"
+    mapping: |
+      root = - -5
+    output: 5
+
+  - name: "unary_minus_with_parens_and_method"
+    mapping: |
+      root = (-3 * 2).string()
+    output: "-6"
+
+  # --- Logical left-associativity ---
+  - name: "and_left_associativity_with_short_circuit"
+    mapping: |
+      root = true && false && throw("should not reach")
+    output: false
+
+  - name: "or_left_associativity_with_short_circuit"
+    mapping: |
+      root = false || true || throw("should not reach")
+    output: true

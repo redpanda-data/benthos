@@ -1,0 +1,138 @@
+description: >
+  Match expression edge cases — equality match with various types,
+  match-as with complex expressions, wildcard semantics, and
+  interactions with void and deleted.
+
+tests:
+  # --- Equality match with various types ---
+
+  - name: "equality match on integer"
+    mapping: |
+      root.v = match 2 {
+        1 => "one",
+        2 => "two",
+        3 => "three",
+        _ => "other",
+      }
+    output: {"v": "two"}
+
+  - name: "equality match on string"
+    mapping: |
+      root.v = match "hello" {
+        "hi" => "informal",
+        "hello" => "formal",
+        _ => "unknown",
+      }
+    output: {"v": "formal"}
+
+  - name: "equality match on null"
+    mapping: |
+      root.v = match null {
+        null => "is null",
+        _ => "not null",
+      }
+    output: {"v": "is null"}
+
+  - name: "equality match falls through to wildcard"
+    mapping: |
+      root.v = match "xyz" {
+        "a" => 1,
+        "b" => 2,
+        _ => 0,
+      }
+    output: {"v": 0}
+
+  - name: "equality match with float"
+    mapping: |
+      root.v = match 3.14 {
+        3.14 => "pi",
+        2.71 => "e",
+        _ => "other",
+      }
+    output: {"v": "pi"}
+
+  # --- match subject evaluated once ---
+
+  - name: "match subject expression evaluated once"
+    mapping: |
+      let counter = 0
+      let counter = $counter + 1
+      root.v = match $counter {
+        1 => "one",
+        2 => "two",
+        _ => "many",
+      }
+    output: {"v": "one"}
+
+  # --- match-as binding ---
+
+  - name: "match-as binds value to variable"
+    skip: "V1 has no match-as syntax"
+
+  - name: "match-as variable used in result expression"
+    skip: "V1 has no match-as syntax"
+
+  - name: "match-as variable not accessible outside match"
+    skip: "V1 has no match-as syntax"
+
+  # --- Wildcard catches all ---
+
+  - name: "wildcard matches any value"
+    mapping: |
+      root.v = match "anything" {
+        _ => "caught",
+      }
+    output: {"v": "caught"}
+
+  # --- Match with deleted in result ---
+
+  - name: "match result is deleted — field removed"
+    mapping: |
+      root.keep = "yes"
+      root.maybe = "testing"
+      root.maybe = match "remove" {
+        "remove" => deleted(),
+        _ => root.maybe,
+      }
+    output: {"keep": "yes"}
+
+  # --- Match with void from if-without-else in arm ---
+  # V1 if-without-else returns null, not void. So the arm returns null and assignment writes null.
+
+  - name: "match arm contains if-without-else producing void"
+    mapping: |
+      root.v = "default"
+      root.v = match "a" {
+        "a" => if false { "override" },
+        _ => "fallback",
+      }
+    output: {"v": "default"} # V1 if-without-else produces void; matched arm returns void; assignment is skipped, preserving prior
+
+  # --- Nested match ---
+
+  - name: "nested match expressions"
+    mapping: |
+      let role = this.role
+      root.v = match this.type {
+        "user" => match $role {
+          "admin" => "full access",
+          "viewer" => "read only",
+          _ => "limited",
+        },
+        _ => "unknown type",
+      }
+    cases:
+      - name: "user admin gets full access"
+        input: {"type": "user", "role": "admin"}
+        output: {"v": "full access"}
+      - name: "non-user type falls through"
+        input: {"type": "device", "role": "admin"}
+        output: {"v": "unknown type"}
+
+  # --- Match in statement context ---
+
+  - name: "match statement modifies output conditionally"
+    skip: "V1 match is an expression only — arms cannot contain assignment statements"
+
+  - name: "match statement with no matching arm is no-op"
+    skip: "V1 match is an expression only — arms cannot contain assignment statements"

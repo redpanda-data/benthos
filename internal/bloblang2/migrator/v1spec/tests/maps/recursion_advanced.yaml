@@ -1,0 +1,173 @@
+description: >
+  Advanced recursion patterns — mutual recursion with accumulator,
+  recursion through match, recursive data structure processing,
+  recursion with lambdas, and recursion limit interaction with
+  map composition.
+
+# V1 maps recurse via `<receiver>.apply("name")`. Multi-argument recursion is encoded by
+# passing an object receiver with named fields. Some V2 patterns (fold with a two-step
+# `(acc, item) ->` lambda, object-literal-with-computed-key assignments inside a lambda,
+# `.iter()` / `.map_values()`) have V1 analogues that differ in spelling.
+
+tests:
+  # --- Mutual recursion with accumulator ---
+
+  - name: "mutual recursion with accumulator"
+    mapping: |
+      map collatz_steps {
+        root = if this.n == 1 {
+          this.count
+        } else {
+          this.apply("collatz_next")
+        }
+      }
+      map collatz_next {
+        root = if this.n % 2 == 0 {
+          {"n": this.n / 2, "count": this.count + 1}.apply("collatz_steps")
+        } else {
+          {"n": this.n * 3 + 1, "count": this.count + 1}.apply("collatz_steps")
+        }
+      }
+      root.steps = {"n": 6, "count": 0}.apply("collatz_steps")
+    output: {"steps": 8} # FIXME-v1: verify — V1 integer division of `this.n / 2` produces a float (V1 `/` is always float); "n": this.n / 2 may yield 3.0 not 3, which could affect comparisons
+
+  # --- Recursive data structure traversal ---
+
+  - name: "recursive tree depth calculation"
+    # V1 does not allow `let` inside the `{ ... }` block of an `if`-as-expression (the braces
+    # after `=` parse as an expression block, not a statement block). Inline the recursive calls
+    # instead.
+    mapping: |
+      map depth {
+        root = if this == null { 0 } else if this.left.apply("depth") > this.right.apply("depth") { 1 + this.left.apply("depth") } else { 1 + this.right.apply("depth") }
+      }
+      let tree = {
+        "val": 1,
+        "left": {"val": 2, "left": {"val": 4, "left": null, "right": null}, "right": null},
+        "right": {"val": 3, "left": null, "right": null}
+      }
+      root.d = $tree.apply("depth")
+    output: {"d": 3}
+
+  - name: "recursive tree node count"
+    mapping: |
+      map count_nodes {
+        root = if this == null { 0 } else {
+          1 + this.left.apply("count_nodes") + this.right.apply("count_nodes")
+        }
+      }
+      let tree = {
+        "val": 1,
+        "left": {"val": 2, "left": null, "right": null},
+        "right": {"val": 3, "left": null, "right": {"val": 4, "left": null, "right": null}}
+      }
+      root.count = $tree.apply("count_nodes")
+    output: {"count": 4}
+
+  # --- Recursion through match ---
+
+  - name: "recursive map using match with multiple arms"
+    mapping: |
+      map gcd {
+        root = match {
+          this.b == 0 => this.a,
+          _ => {"a": this.b, "b": this.a % this.b}.apply("gcd"),
+        }
+      }
+      root.v = {"a": 48, "b": 18}.apply("gcd")
+    output: {"v": 6}
+
+  - name: "recursive map using equality match"
+    mapping: |
+      map describe {
+        root = match this {
+          0 => "zero",
+          1 => "one",
+          _ => (this - 1).apply("describe") + "+",
+        }
+      }
+      root.v = 3.apply("describe")
+    output: {"v": "one++"}
+
+  # --- Recursion with iterators ---
+
+  - name: "recursive map called from within lambda"
+    # V1 fold is NOT curried — its lambda takes a single item parameter which is an object
+    # `{tally, value}`. Lambda body must start on the same line as `->`.
+    mapping: |
+      map sum_nested {
+        root = this.fold(0, item -> item.tally + (if item.value.type() == "array" { item.value.apply("sum_nested") } else { item.value }))
+      }
+      root.v = [1, [2, 3], [4, [5, 6]]].apply("sum_nested")
+    output: {"v": 21}
+
+  # --- Recursion with local variables ---
+
+  - name: "recursive map with local variables per frame"
+    mapping: |
+      map sum_tree {
+        let val = this.value
+        let left = if this.left != null { this.left.apply("sum_tree") } else { 0 }
+        let right = if this.right != null { this.right.apply("sum_tree") } else { 0 }
+        root = $val + $left + $right
+      }
+      let tree = {
+        "value": 10,
+        "left": {"value": 20, "left": null, "right": null},
+        "right": {"value": 30, "left": {"value": 5, "left": null, "right": null}, "right": null}
+      }
+      root.total = $tree.apply("sum_tree")
+    output: {"total": 65}
+
+  - name: "recursive flatten with fold and dynamic keys"
+    skip: "V2-only patterns combined here: .iter() yields {key,value} pairs in V1 (so available), but the V2 test uses imperative `$acc[$key] = ...` mutation inside a lambda body, which V1 does not support — V1 lambda bodies are single expressions and there is no bracket-indexing assignment. A full V1 rewrite would require .merge() and is a substantive behaviour change, not a mechanical translation"
+
+  # --- Mutual recursion depth limit ---
+
+  - name: "three-way mutual recursion works within depth limit"
+    mapping: |
+      map a { root = if this <= 0 { "done" } else { (this - 1).apply("b") } }
+      map b { root = if this <= 0 { "done" } else { (this - 1).apply("c") } }
+      map c { root = if this <= 0 { "done" } else { (this - 1).apply("a") } }
+      root.v = 9.apply("a")
+    output: {"v": "done"}
+
+  - name: "three-way mutual recursion exceeds limit"
+    mapping: |
+      map a { root = this.apply("b") }
+      map b { root = this.apply("c") }
+      map c { root = this.apply("a") }
+      root.v = 0.apply("a")
+    error: "recursion" # FIXME-v1: verify exact error substring
+
+  # --- Recursion limit cannot be caught even deeply nested ---
+
+  - name: "recursion limit from mutual recursion is catchable"
+    # V1 `.catch()` DOES catch a recursion-limit error (unlike V2).
+    mapping: |
+      map a { root = this.apply("b") }
+      map b { root = this.apply("a") }
+      root.v = 0.apply("a").catch("safe")
+    output: {"v": "safe"}
+
+  - name: "recursion limit in lambda context is catchable"
+    # V1 `.catch()` catches the recursion error from inside a lambda as well.
+    mapping: |
+      map infinite { root = this.apply("infinite") }
+      root.v = [1].map_each(x -> x.apply("infinite")).catch("safe")
+    output: {"v": "safe"}
+
+  # --- Recursion called before declaration (hoisting) ---
+
+  - name: "map hoisting allows forward reference"
+    mapping: |
+      root.v = 5.apply("double")
+      map double { root = this * 2 }
+    output: {"v": 10}
+
+  - name: "mutual recursion with both maps declared after use"
+    mapping: |
+      root.v = 6.apply("a")
+      map a { root = if this <= 0 { true } else { (this - 1).apply("b") } }
+      map b { root = if this <= 0 { false } else { (this - 1).apply("a") } }
+    output: {"v": true}

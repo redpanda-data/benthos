@@ -1,0 +1,101 @@
+description: >
+  Bare throw(message) statements (Section 8.4): valid in statement contexts
+  (top-level, if/match statement bodies), evaluate the message and halt the
+  mapping with the resulting error. The old `output = throw(...)` idiom
+  remains valid.
+
+tests:
+  - name: "top-level bare throw halts the mapping"
+    mapping: |
+      output.before = 1
+      throw("stopped here")
+      output.after = 2
+    error: "stopped here"
+
+  - name: "conditional throw fires when condition is true"
+    input: {"amount": -5}
+    mapping: |
+      if input.amount < 0 {
+        throw("amount must be non-negative")
+      }
+      output.amount = input.amount
+    error: "amount must be non-negative"
+
+  - name: "conditional throw skipped when condition is false"
+    input: {"amount": 5}
+    mapping: |
+      if input.amount < 0 {
+        throw("amount must be non-negative")
+      }
+      output.amount = input.amount
+    output: {"amount": 5}
+
+  - name: "throw statement after other statements in a block"
+    input: {"bad": true}
+    mapping: |
+      if input.bad {
+        output.log = "about to fail"
+        throw("failed")
+      }
+    error: "failed"
+
+  - name: "throw statement in match statement body"
+    input: {"type": "spam"}
+    mapping: |
+      match input.type {
+        "spam" => {
+          throw("spam rejected")
+        },
+        _ => {
+          output.ok = true
+        },
+      }
+    error: "spam rejected"
+
+  - name: "throw statement with dynamic message expression"
+    input: {"id": "abc"}
+    mapping: |
+      throw("bad record: " + input.id)
+    error: "bad record: abc"
+
+  - name: "throw statement with non-string literal is compile error"
+    mapping: |
+      throw(42)
+    compile_error: "string"
+
+  - name: "throw statement with no arguments is compile error"
+    mapping: |
+      throw()
+    compile_error: "requires"
+
+  - name: "postfix on a throw statement is a parse error"
+    mapping: |
+      throw("x").catch(err -> "rescued")
+    compile_error: "expected newline"
+
+  - name: "old idiom output = throw still works"
+    input: {"amount": -1}
+    mapping: |
+      if input.amount < 0 {
+        output = throw("negative")
+      }
+    error: "negative"
+
+  - name: "throw as final expression of a map body is unchanged"
+    input: {"v": -1}
+    mapping: |
+      map check(x) {
+        if x >= 0 { x } else { throw("negative input") }
+      }
+      output.v = check(input.v)
+    error: "negative input"
+
+  - name: "bare throw token without parentheses is parse error"
+    mapping: |
+      throw
+    compile_error: "expected"
+
+  - name: "throw statement accepts named message argument"
+    mapping: |
+      throw(message: "named halt")
+    error: "named halt"

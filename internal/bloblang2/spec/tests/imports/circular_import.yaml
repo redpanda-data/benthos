@@ -1,0 +1,92 @@
+description: "Imports: circular import detection — compile-time error"
+
+files:
+  "a.blobl": |
+    import "b.blobl" as b
+    map foo(x) { b::bar(x) }
+
+  "b.blobl": |
+    import "a.blobl" as a
+    map bar(x) { a::foo(x) }
+
+  "c_start.blobl": |
+    import "c_mid.blobl" as mid
+    map start(x) { mid::middle(x) }
+
+  "c_mid.blobl": |
+    import "c_end.blobl" as e
+    map middle(x) { e::finish(x) }
+
+  "c_end.blobl": |
+    import "c_start.blobl" as s
+    map finish(x) { s::start(x) }
+
+  "self.blobl": |
+    import "self.blobl" as me
+    map echo(x) { me::echo(x) }
+
+tests:
+  # --- Direct circular import (A -> B -> A) ---
+
+  - name: "direct circular import is compile error"
+    mapping: |
+      import "a.blobl" as a
+      output.v = a::foo(1)
+    compile_error: "circular"
+
+  - name: "circular import detected from other entry point"
+    mapping: |
+      import "b.blobl" as b
+      output.v = b::bar(1)
+    compile_error: "circular"
+
+  # --- Transitive circular import (A -> B -> C -> A) ---
+
+  - name: "transitive circular import is compile error"
+    mapping: |
+      import "c_start.blobl" as cs
+      output.v = cs::start(1)
+    compile_error: "circular"
+
+  - name: "transitive circular from middle entry point"
+    mapping: |
+      import "c_mid.blobl" as cm
+      output.v = cm::middle(1)
+    compile_error: "circular"
+
+  # --- Self-import ---
+
+  - name: "self-import is compile error"
+    mapping: |
+      import "self.blobl" as me
+      output.v = me::echo(1)
+    compile_error: "circular"
+
+  # --- Main file importing itself ---
+
+  - name: "main file importing file that imports back is circular"
+    files:
+      "back.blobl": |
+        import "entry.blobl" as e
+        map bounce(x) { e::go(x) }
+      "entry.blobl": |
+        import "back.blobl" as b
+        map go(x) { b::bounce(x) }
+    mapping: |
+      import "entry.blobl" as e
+      output.v = e::go(1)
+    compile_error: "circular"
+
+  # --- Non-circular is fine (control test) ---
+
+  - name: "non-circular chain compiles successfully"
+    files:
+      "leaf.blobl": |
+        map leaf_fn(x) { x * 2 }
+      "mid.blobl": |
+        import "leaf.blobl" as leaf
+        map mid_fn(x) { leaf::leaf_fn(x) + 1 }
+    mapping: |
+      import "mid.blobl" as m
+      output.v = m::mid_fn(5)
+    output: {"v": 11}

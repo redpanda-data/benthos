@@ -1,0 +1,300 @@
+description: "Sequence methods: .length(), .contains(), .index_of(), .slice(), .reverse() for strings, arrays, and bytes"
+
+tests:
+  # --- .length() on strings (V1 is byte-count, not codepoint) ---
+
+  - name: "string length ascii"
+    mapping: |
+      root = "hello".length()
+    output: 5
+
+  - name: "string length empty"
+    mapping: |
+      root = "".length()
+    output: 0
+
+  - name: "string length non-ascii codepoint-based"
+    mapping: |
+      root = "café".length()
+    output: 5
+
+  - name: "string length emoji single codepoint"
+    mapping: |
+      root = "\U0001F600".length()
+    output: 4
+
+  # --- .length() on arrays ---
+
+  - name: "array length"
+    mapping: |
+      root = [1, 2, 3].length()
+    output: 3
+
+  - name: "array length empty"
+    mapping: |
+      root = [].length()
+    output: 0
+
+  - name: "array length nested"
+    mapping: |
+      root = [[1, 2], [3]].length()
+    output: 2
+
+  # --- .length() on bytes ---
+
+  - name: "bytes length ascii"
+    mapping: |
+      root = "hello".bytes().length()
+    output: 5
+
+  - name: "bytes length multibyte"
+    mapping: |
+      root = "\U0001F600".bytes().length()
+    output: 4
+
+  - name: "bytes length empty"
+    mapping: |
+      root = "".bytes().length()
+    output: 0
+
+  # --- .contains() on strings ---
+
+  - name: "string contains true"
+    mapping: |
+      root = "hello world".contains("world")
+    output: true
+
+  - name: "string contains false"
+    mapping: |
+      root = "hello world".contains("xyz")
+    output: false
+
+  - name: "string contains empty substring"
+    mapping: |
+      root = "hello".contains("")
+    output: true
+
+  - name: "string contains full match"
+    mapping: |
+      root = "hello".contains("hello")
+    output: true
+
+  - name: "string contains empty in empty"
+    mapping: |
+      root = "".contains("")
+    output: true
+
+  # --- .contains() on arrays ---
+
+  - name: "array contains int true"
+    mapping: |
+      root = [1, 2, 3].contains(2)
+    output: true
+
+  - name: "array contains int false"
+    mapping: |
+      root = [1, 2, 3].contains(5)
+    output: false
+
+  - name: "array contains string"
+    mapping: |
+      root = ["a", "b", "c"].contains("b")
+    output: true
+
+  - name: "array contains null"
+    mapping: |
+      root = [1, null, 3].contains(null)
+    output: true
+
+  - name: "array contains empty array"
+    mapping: |
+      root = [].contains(1)
+    output: false
+
+  # --- .contains() on bytes ---
+
+  - name: "bytes contains subsequence true"
+    mapping: |
+      root = "hello".bytes().contains("ll".bytes())
+    output: true
+
+  - name: "bytes contains subsequence false"
+    mapping: |
+      root = "hello".bytes().contains("xyz".bytes())
+    output: false
+
+  # --- .index_of() on strings (V1: index_of) ---
+
+  - name: "string index_of found"
+    mapping: |
+      root = "hello world".index_of("world")
+    output: 6
+
+  - name: "string index_of not found"
+    mapping: |
+      root = "hello world".index_of("xyz")
+    output: -1
+
+  - name: "string index_of first occurrence"
+    mapping: |
+      root = "abcabc".index_of("abc")
+    output: 0
+
+  - name: "string index_of empty needle"
+    mapping: |
+      root = "hello".index_of("")
+    output: 0
+
+  - name: "string index_of codepoint-based"
+    mapping: |
+      root = "café!".index_of("!")
+    output: 5
+
+  # --- .index_of() on arrays (V1: find returns index) ---
+
+  - name: "array index_of found"
+    mapping: |
+      root = [10, 20, 30].find(20).number()
+    output: 1.0
+
+  - name: "array index_of not found"
+    mapping: |
+      root = [10, 20, 30].find(99).number()
+    output: -1.0
+
+  - name: "array index_of first occurrence"
+    mapping: |
+      root = [1, 2, 1, 2].find(2).number()
+    output: 1.0
+
+  - name: "array index_of string element"
+    mapping: |
+      root = ["a", "b", "c"].find("c").number()
+    output: 2.0
+
+  # --- .index_of() on bytes ---
+
+  - name: "bytes index_of found"
+    mapping: |
+      root = "hello".bytes().index_of("ll".bytes())
+    output: 2
+
+  - name: "bytes index_of not found"
+    mapping: |
+      root = "hello".bytes().index_of("xyz".bytes())
+    output: -1
+
+  # --- .slice() on strings ---
+
+  - name: "string slice basic"
+    mapping: |
+      root = "hello world".slice(0, 5)
+    output: "hello"
+
+  - name: "string slice to end"
+    mapping: |
+      root = "hello world".slice(6)
+    output: "world"
+
+  - name: "string slice negative indices"
+    mapping: |
+      root = "hello world".slice(-5, -1)
+    output: "worl"
+
+  - name: "string slice clamped beyond length"
+    mapping: |
+      root = "hello".slice(0, 100)
+    output: "hello"
+
+  - name: "string slice empty result from inverted"
+    skip: "V1 slice: if low >= high (both positive) raises error"
+
+  - name: "string slice full string"
+    mapping: |
+      root = "hello".slice(0)
+    output: "hello"
+
+  # --- .slice() on arrays ---
+
+  - name: "array slice basic"
+    mapping: |
+      root = [10, 20, 30, 40, 50].slice(1, 4)
+    output: [20, 30, 40]
+
+  - name: "array slice to end"
+    mapping: |
+      root = [10, 20, 30].slice(1)
+    output: [20, 30]
+
+  - name: "array slice negative indices"
+    mapping: |
+      root = [10, 20, 30, 40, 50].slice(-3, -1)
+    output: [30, 40]
+
+  - name: "array slice clamped beyond length"
+    mapping: |
+      root = [1, 2, 3].slice(0, 100)
+    output: [1, 2, 3]
+
+  - name: "array slice empty from inverted"
+    skip: "V1 slice: if low >= high (both positive) raises error"
+
+  - name: "array slice empty array"
+    mapping: |
+      root = [].slice(0)
+    output: []
+
+  # --- .slice() on bytes ---
+
+  - name: "bytes slice basic"
+    skip: "V2-only _type bytes literal shorthand for expected output"
+
+  - name: "bytes slice to end"
+    skip: "V2-only _type bytes literal shorthand for expected output"
+
+  - name: "bytes slice negative"
+    skip: "V2-only _type bytes literal shorthand for expected output"
+
+  # --- .reverse() on strings ---
+
+  - name: "string reverse ascii"
+    mapping: |
+      root = "hello".reverse()
+    output: "olleh"
+
+  - name: "string reverse empty"
+    mapping: |
+      root = "".reverse()
+    output: ""
+
+  - name: "string reverse single char"
+    mapping: |
+      root = "a".reverse()
+    output: "a"
+
+  - name: "string reverse palindrome"
+    mapping: |
+      root = "racecar".reverse()
+    output: "racecar"
+
+  # --- .reverse() on arrays ---
+
+  - name: "array reverse"
+    skip: "V1 .reverse() is string-only; no array reverse method"
+
+  - name: "array reverse empty"
+    skip: "V1 .reverse() is string-only; no array reverse method"
+
+  - name: "array reverse single element"
+    skip: "V1 .reverse() is string-only; no array reverse method"
+
+  - name: "array reverse mixed types"
+    skip: "V1 .reverse() is string-only; no array reverse method"
+
+  # --- .reverse() on bytes ---
+
+  - name: "bytes reverse"
+    skip: "V2-only _type bytes literal shorthand for expected output"
+
+  - name: "bytes reverse empty"
+    skip: "V2-only _type bytes literal shorthand for expected output"

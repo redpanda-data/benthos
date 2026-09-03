@@ -1,0 +1,158 @@
+description: "Array modify methods — append, concat, without_index, join, collect"
+
+tests:
+  # --- append ---
+
+  - name: "append to array"
+    mapping: |
+      root.result = [1, 2, 3].append(4)
+    output: {"result": [1, 2, 3, 4]}
+
+  - name: "append to empty array"
+    mapping: |
+      root.result = [].append("first")
+    output: {"result": ["first"]}
+
+  - name: "append null"
+    mapping: |
+      root.result = [1, 2].append(null)
+    output: {"result": [1, 2, null]}
+
+  - name: "append array as single element"
+    mapping: |
+      root.result = [1, 2].append([3, 4])
+    output: {"result": [1, 2, [3, 4]]}
+
+  - name: "append does not modify original"
+    mapping: |
+      let arr = [1, 2]
+      let new = $arr.append(3)
+      root.original = $arr
+      root.new = $new
+    output: {"original": [1, 2], "new": [1, 2, 3]}
+
+  - name: "append bool"
+    mapping: |
+      root.result = [1, "two"].append(true)
+    output: {"result": [1, "two", true]}
+
+  # --- concat (V1: use .merge() which concatenates arrays) ---
+
+  - name: "concat two arrays"
+    mapping: |
+      root.result = [1, 2].merge([3, 4])
+    output: {"result": [1, 2, 3, 4]}
+
+  - name: "concat with empty array"
+    mapping: |
+      root.result = [1, 2].merge([])
+    output: {"result": [1, 2]}
+
+  - name: "concat empty with non-empty"
+    mapping: |
+      root.result = [].merge([1, 2])
+    output: {"result": [1, 2]}
+
+  - name: "concat two empty arrays"
+    mapping: |
+      root.result = [].merge([])
+    output: {"result": []}
+
+  - name: "concat preserves element types"
+    mapping: |
+      root.result = ["a", "b"].merge([1, 2])
+    output: {"result": ["a", "b", 1, 2]}
+
+  - name: "concat does not modify original"
+    mapping: |
+      let a = [1, 2]
+      let b = [3, 4]
+      let c = $a.merge($b)
+      root.a = $a
+      root.b = $b
+      root.c = $c
+    output: {"a": [1, 2], "b": [3, 4], "c": [1, 2, 3, 4]}
+
+  # --- without_index ---
+
+  - name: "without_index removes element at index"
+    skip: "V1 has no equivalent for without_index"
+
+  - name: "without_index first element"
+    skip: "V1 has no equivalent for without_index"
+
+  - name: "without_index last element"
+    skip: "V1 has no equivalent for without_index"
+
+  - name: "without_index negative index"
+    skip: "V1 has no equivalent for without_index"
+
+  - name: "without_index negative index second to last"
+    skip: "V1 has no equivalent for without_index"
+
+  - name: "without_index out of bounds positive is error"
+    skip: "V1 has no equivalent for without_index"
+
+  - name: "without_index out of bounds negative is error"
+    skip: "V1 has no equivalent for without_index"
+
+  - name: "without_index single element array"
+    skip: "V1 has no equivalent for without_index"
+
+  - name: "without_index does not modify original"
+    skip: "V1 has no equivalent for without_index"
+
+  # --- join ---
+
+  - name: "join strings with delimiter"
+    mapping: |
+      root.result = ["a", "b", "c"].join(", ")
+    output: {"result": "a, b, c"}
+
+  - name: "join with empty delimiter"
+    mapping: |
+      root.result = ["a", "b", "c"].join("")
+    output: {"result": "abc"}
+
+  - name: "join empty array"
+    mapping: |
+      root.result = [].join(", ")
+    output: {"result": ""}
+
+  - name: "join single element"
+    mapping: |
+      root.result = ["hello"].join(", ")
+    output: {"result": "hello"}
+
+  - name: "join non-string element is error"
+    mapping: |
+      root.result = ["a", 2, "c"].join(", ")
+    error: "string"
+
+  - name: "join with newline delimiter"
+    mapping: |
+      root.result = ["line1", "line2", "line3"].join("\n")
+    output: {"result": "line1\nline2\nline3"}
+
+  # --- collect ---
+
+  - name: "collect key-value pairs into object"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "collect empty array"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "collect duplicate keys last wins"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "collect missing key field is error"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "collect missing value field is error"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "collect non-object element is error"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "collect with mixed value types"
+    skip: "V1 has no equivalent for collect"
