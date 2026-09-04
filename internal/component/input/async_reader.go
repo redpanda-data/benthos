@@ -74,8 +74,9 @@ func NewAsyncReader(
 	return rdr, nil
 }
 
-// AsyncReaderWithConnBackOff sets the backoff for connection attempts. The input
-// stops gracefully when max retries is reached.
+// AsyncReaderWithConnBackOff set the backoff used for limiting connection
+// attempts. If the maximum number of retry attempts is reached then the input
+// will gracefully stop.
 func AsyncReaderWithConnBackOff(boff backoff.BackOff) func(a *AsyncReader) {
 	return func(a *AsyncReader) {
 		a.connBackoff = boff
