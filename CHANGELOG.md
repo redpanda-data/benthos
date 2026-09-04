@@ -7,7 +7,9 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- All inputs: When a connection is lost immediately after being established, the input now applies its connection backoff before reconnecting, which bounds the reconnect rate against a source that repeatedly drops the connection. (@Leward)
+- All inputs: When a connection is lost immediately after being established, the input now waits a fixed 100ms before reconnecting. 
+  This prevents rapid reconnect loops against sources that repeatedly drop connections. 
+  Note that inputs using the dropped connection signal to advance to the next source (e.g. `csv` between files, `subprocess` with `restart_on_exit`) now include this 100ms delay. (@Leward)
 
 ## 4.79.0 - 2026-09-03
 
