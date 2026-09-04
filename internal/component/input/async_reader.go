@@ -35,6 +35,11 @@ type AsyncReader struct {
 	shutSig      *shutdown.Signaller
 }
 
+// reconnectFloor is the fixed delay before the reader redials after a lost
+// connection. It caps the reconnect rate so a source that connects then
+// immediately drops cannot drive an unthrottled reconnect loop.
+const reconnectFloor = 100 * time.Millisecond
+
 // NewAsyncReader creates a new AsyncReader input type.
 func NewAsyncReader(
 	typeStr string,
@@ -171,6 +176,15 @@ func (r *AsyncReader) loop() {
 		if errors.Is(err, component.ErrNotConnected) {
 			mLostConn.Incr(1)
 			r.connection.Store(component.ConnectionFailing(r.mgr, component.ErrNotConnected))
+
+			// Throttle reconnects so a source that connects then immediately
+			// reports a lost connection cannot drive an unthrottled reconnect
+			// loop. This floor is independent of the connect retry budget
+			// (connection.max_retries), so a lost connection always redials.
+			r.mgr.Logger().Debug("Input %v lost its connection, reconnecting in %v", r.typeStr, reconnectFloor)
+			if sleepWithCancellation(closeAtLeisureCtx, reconnectFloor) != nil {
+				return
+			}
 
 			// Continue to try to reconnect while still active.
 			if !initConnection() {
