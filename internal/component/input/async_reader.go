@@ -69,9 +69,8 @@ func NewAsyncReader(
 	return rdr, nil
 }
 
-// AsyncReaderWithConnBackOff set the backoff used for limiting connection
-// attempts. If the maximum number of retry attempts is reached then the input
-// will gracefully stop.
+// AsyncReaderWithConnBackOff sets the backoff for connection attempts. The input
+// stops gracefully when max retries is reached.
 func AsyncReaderWithConnBackOff(boff backoff.BackOff) func(a *AsyncReader) {
 	return func(a *AsyncReader) {
 		a.connBackoff = boff
@@ -171,6 +170,18 @@ func (r *AsyncReader) loop() {
 		if errors.Is(err, component.ErrNotConnected) {
 			mLostConn.Incr(1)
 			r.connection.Store(component.ConnectionFailing(r.mgr, component.ErrNotConnected))
+
+			// A source that connects then immediately reports a lost connection
+			// must not be able to drive an unthrottled reconnect loop.
+			nextBoff := r.connBackoff.NextBackOff()
+			if nextBoff == backoff.Stop {
+				r.mgr.Logger().Error("Maximum number of connection attempt retries has been met, gracefully terminating input %v", r.typeStr)
+				return
+			}
+			r.mgr.Logger().Debug("Input %v lost its connection, attempting to reconnect in %v", r.typeStr, nextBoff)
+			if sleepWithCancellation(closeAtLeisureCtx, nextBoff) != nil {
+				return
+			}
 
 			// Continue to try to reconnect while still active.
 			if !initConnection() {

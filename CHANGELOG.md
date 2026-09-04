@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- All inputs: When a connection is lost immediately after being established, the input now applies its connection backoff before reconnecting, which bounds the reconnect rate against a source that repeatedly drops the connection. (@Leward)
+
 ## 4.79.0 - 2026-09-03
 
 ### Changed
