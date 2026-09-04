@@ -784,17 +784,14 @@ func (r *asyncReaderConnLoses) Close(context.Context) error { return nil }
 // when a connection succeeds but immediately drops.
 //
 // It waits until the loop has reconnected a fixed number of times, then asserts
-// that reaching that count took at least the sum of the backoff waits between
-// them.
+// that reaching that count took at least the reconnect floor between them.
 func TestAsyncReaderConnLostBacksOff(t *testing.T) {
 	const (
-		floor         = 5 * time.Millisecond
-		targetConnect = int32(6)
+		targetConnect  = int32(3)
+		reconnectFloor = 100 * time.Millisecond
 	)
-
 	readerImpl := newAsyncReaderConnLoses(targetConnect)
-	withBackoff := input.AsyncReaderWithConnBackOff(backoff.NewConstantBackOff(floor))
-	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager(), withBackoff)
+	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager())
 	require.NoError(t, err)
 
 	start := time.Now()
@@ -810,10 +807,39 @@ func TestAsyncReaderConnLostBacksOff(t *testing.T) {
 	r.TriggerStopConsuming()
 	require.NoError(t, r.WaitForClose(t.Context()))
 
-	// The N connects are separated by (N-1) backoff waits of `floor` each; an
-	// unthrottled loop would reach the target almost instantly.
-	expectedDuration := time.Duration(targetConnect-1) * floor
+	// multiply by 0.9 to give some leeway for repeatability
+	expectedDuration := time.Duration(targetConnect-1) * time.Duration(float64(reconnectFloor)*0.9)
 	assert.GreaterOrEqual(t, elapsed, expectedDuration, "reconnect loop was not throttled after lost connections")
+}
+
+// TestAsyncReaderConnLostRedialsWhenMaxRetriesZero verifies that losing a
+// connection does not spend the connect-retry budget. connection.max_retries
+// governs failed Connect() calls, not lost connections, so with max_retries set
+// to 0 the input must still redial after a drop and only give up if that redial
+// fails. It must not terminate on the drop alone.
+func TestAsyncReaderConnLostRedialsWhenMaxRetriesZero(t *testing.T) {
+	const (
+		maxRetries     = 0
+		targetConnects = int32(2)
+	)
+
+	readerImpl := newAsyncReaderConnLoses(targetConnects)
+	connBoff := backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Millisecond), maxRetries)
+
+	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager(), input.AsyncReaderWithConnBackOff(connBoff))
+	require.NoError(t, err)
+
+	r.TriggerStartConsuming()
+
+	select {
+	case <-readerImpl.connsAtTarget:
+		assert.Equal(t, targetConnects, readerImpl.connects.Load())
+	case <-time.After(2 * time.Second):
+		t.Fatalf("expected %d connects after drop, but got %d", targetConnects, readerImpl.connects.Load())
+	}
+
+	r.TriggerStopConsuming()
+	require.NoError(t, r.WaitForClose(t.Context()))
 }
 
 //------------------------------------------------------------------------------
