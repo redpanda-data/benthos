@@ -441,6 +441,10 @@ func (r *csvReader) closeCurrentFile() error {
 // produces a result, opening the next file whenever one hits a boundary.
 func (r *csvReader) ReadBatch(ctx context.Context) (service.MessageBatch, service.AckFunc, error) {
 	for {
+		if err := ctx.Err(); err != nil {
+			return nil, nil, err
+		}
+
 		if err := r.ensureOpen(ctx); err != nil {
 			return nil, nil, err
 		}

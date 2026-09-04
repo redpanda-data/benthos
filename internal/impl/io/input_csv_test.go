@@ -582,3 +582,41 @@ func TestCSVReaderSkipsHeaderOnlyFile(t *testing.T) {
 		{`{"c":"3","d":"4"}`},
 	}, csvReadAll(t, f))
 }
+
+func TestCSVReaderContextCancelledMidRotation(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	const (
+		totalFiles   = 10
+		cancelAtFile = 3
+	)
+
+	var calls int
+	handleCtor := func(context.Context) (csvScannerInfo, error) {
+		calls++
+		if calls > totalFiles {
+			// caps the loop in case the code were to stop respecting ctx cancellation
+			return csvScannerInfo{}, io.EOF
+		}
+		if calls == cancelAtFile {
+			// Cancel partway through rotation, as if the pipeline were
+			// shutting down while working through a long run of empty files.
+			cancel()
+		}
+		return csvScannerInfo{handle: &bytes.Buffer{}}, nil
+	}
+
+	f, err := newCSVReader(handleCtor, func(context.Context) {})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close(t.Context())) })
+
+	require.NoError(t, f.Connect(ctx))
+
+	_, _, err = f.ReadBatch(ctx)
+	assert.ErrorIs(t, err, context.Canceled)
+
+	// Rotation must stop as soon as cancellation is observed, not run
+	// through the rest of the remaining empty files first.
+	assert.Equal(t, cancelAtFile, calls)
+}
