@@ -527,7 +527,7 @@ func TestCSVReaderGroupCountDoesNotSpanFiles(t *testing.T) {
 		optCSVSetGroupCount(2),
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, f.Close(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, f.Close(context.Background())) })
 
 	require.NoError(t, f.Connect(t.Context()))
 
@@ -550,7 +550,7 @@ func TestCSVReaderSkipsEmptyFile(t *testing.T) {
 		func(ctx context.Context) {},
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, f.Close(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, f.Close(context.Background())) })
 
 	require.NoError(t, f.Connect(t.Context()))
 
@@ -571,7 +571,7 @@ func TestCSVReaderSkipsHeaderOnlyFile(t *testing.T) {
 		func(ctx context.Context) {},
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, f.Close(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, f.Close(context.Background())) })
 
 	require.NoError(t, f.Connect(t.Context()))
 
@@ -609,7 +609,7 @@ func TestCSVReaderContextCancelledMidRotation(t *testing.T) {
 
 	f, err := newCSVReader(handleCtor, func(context.Context) {})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, f.Close(t.Context())) })
+	t.Cleanup(func() { require.NoError(t, f.Close(context.Background())) })
 
 	require.NoError(t, f.Connect(ctx))
 
