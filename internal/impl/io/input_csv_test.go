@@ -79,9 +79,6 @@ func TestCSVReaderHappy(t *testing.T) {
 	}
 
 	_, _, err = f.ReadBatch(t.Context())
-	assert.Equal(t, service.ErrNotConnected, err)
-
-	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -152,9 +149,6 @@ func TestCSVReaderGroupCount(t *testing.T) {
 	}
 
 	_, _, err = f.ReadBatch(t.Context())
-	assert.Equal(t, service.ErrNotConnected, err)
-
-	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -217,10 +211,6 @@ func TestCSVReadersTwoFiles(t *testing.T) {
 		var resMsg service.MessageBatch
 		var ackFn service.AckFunc
 		resMsg, ackFn, err = f.ReadBatch(t.Context())
-		if err == service.ErrNotConnected {
-			require.NoError(t, f.Connect(t.Context()))
-			resMsg, ackFn, err = f.ReadBatch(t.Context())
-		}
 		require.NoError(t, err, i)
 
 		mBytes, err := resMsg[0].AsBytes()
@@ -230,9 +220,6 @@ func TestCSVReadersTwoFiles(t *testing.T) {
 	}
 
 	_, _, err = f.ReadBatch(t.Context())
-	assert.Equal(t, service.ErrNotConnected, err)
-
-	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -287,9 +274,6 @@ func TestCSVReaderCustomComma(t *testing.T) {
 	}
 
 	_, _, err = f.ReadBatch(t.Context())
-	assert.Equal(t, service.ErrNotConnected, err)
-
-	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -346,9 +330,6 @@ func TestCSVReaderRelaxed(t *testing.T) {
 	}
 
 	_, _, err = f.ReadBatch(t.Context())
-	assert.Equal(t, service.ErrNotConnected, err)
-
-	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -412,9 +393,6 @@ func TestCSVReaderStrict(t *testing.T) {
 	}
 
 	_, _, err = f.ReadBatch(t.Context())
-	assert.Equal(t, service.ErrNotConnected, err)
-
-	err = f.Connect(t.Context())
 	assert.Equal(t, service.ErrEndOfInput, err)
 }
 
@@ -497,4 +475,110 @@ func TestCSVReaderLazyQuotes(t *testing.T) {
 
 		assert.Equal(t, test.expected, string(mBytes), test.name)
 	}
+}
+
+// csvHandleCtor returns a handle constructor that serves the given readers in
+// order, then returns io.EOF.
+func csvHandleCtor(handles ...io.Reader) func(context.Context) (csvScannerInfo, error) {
+	i := 0
+	return func(context.Context) (csvScannerInfo, error) {
+		if i >= len(handles) {
+			return csvScannerInfo{}, io.EOF
+		}
+		info := csvScannerInfo{
+			handle:      handles[i],
+			currentPath: "file" + strconv.Itoa(i) + ".csv",
+		}
+		i++
+		return info, nil
+	}
+}
+
+func csvReadAll(t *testing.T, f *csvReader) [][]string {
+	t.Helper()
+
+	var batches [][]string
+	for {
+		resMsg, ackFn, err := f.ReadBatch(t.Context())
+		if errors.Is(err, service.ErrEndOfInput) {
+			return batches
+		}
+		require.NoError(t, err)
+		require.NotEmpty(t, resMsg, "ReadBatch must not return an empty batch")
+
+		var batch []string
+		for _, m := range resMsg {
+			mBytes, err := m.AsBytes()
+			require.NoError(t, err)
+			batch = append(batch, string(mBytes))
+		}
+		batches = append(batches, batch)
+		require.NoError(t, ackFn(t.Context(), nil))
+	}
+}
+
+func TestCSVReaderGroupCountDoesNotSpanFiles(t *testing.T) {
+	handleOne := bytes.NewBufferString("a,b\n1,2\n3,4\n5,6\n")
+	handleTwo := bytes.NewBufferString("c,d\n7,8\n")
+
+	f, err := newCSVReader(
+		csvHandleCtor(handleOne, handleTwo),
+		func(ctx context.Context) {},
+		optCSVSetGroupCount(2),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close(t.Context())) })
+
+	require.NoError(t, f.Connect(t.Context()))
+
+	assert.Equal(t, [][]string{
+		{`{"a":"1","b":"2"}`, `{"a":"3","b":"4"}`},
+		// The first file ends here, so this batch is short instead of
+		// pulling the first record of the second file.
+		{`{"a":"5","b":"6"}`},
+		{`{"c":"7","d":"8"}`},
+	}, csvReadAll(t, f))
+}
+
+func TestCSVReaderSkipsEmptyFile(t *testing.T) {
+	handleOne := bytes.NewBufferString("a,b\n1,2\n")
+	handleEmpty := &bytes.Buffer{}
+	handleThree := bytes.NewBufferString("c,d\n3,4\n")
+
+	f, err := newCSVReader(
+		csvHandleCtor(handleOne, handleEmpty, handleThree),
+		func(ctx context.Context) {},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close(t.Context())) })
+
+	require.NoError(t, f.Connect(t.Context()))
+
+	assert.Equal(t, [][]string{
+		{`{"a":"1","b":"2"}`},
+		{`{"c":"3","d":"4"}`},
+	}, csvReadAll(t, f))
+}
+
+func TestCSVReaderSkipsHeaderOnlyFile(t *testing.T) {
+	handleOne := bytes.NewBufferString("a,b\n1,2\n")
+	handleHeaderOnly := bytes.NewBufferString("x,y\n")
+	handleThree := bytes.NewBufferString("c,d\n3,4\n")
+	handleLast := bytes.NewBufferString("z\n")
+
+	f, err := newCSVReader(
+		csvHandleCtor(handleOne, handleHeaderOnly, handleThree, handleLast),
+		func(ctx context.Context) {},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, f.Close(t.Context())) })
+
+	require.NoError(t, f.Connect(t.Context()))
+
+	// The header-only file in the middle is skipped, and the header-only
+	// file at the end yields ErrEndOfInput rather than an empty batch.
+	assert.Equal(t, [][]string{
+		{`{"a":"1","b":"2"}`},
+		{`{"c":"3","d":"4"}`},
+	}, csvReadAll(t, f))
 }

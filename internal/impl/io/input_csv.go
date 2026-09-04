@@ -353,18 +353,11 @@ func (r *csvReader) closeHandle() (err error) {
 	return
 }
 
-func (r *csvReader) Connect(ctx context.Context) error {
-	r.mut.Lock()
-	defer r.mut.Unlock()
-	if r.scanner != nil {
-		return nil
-	}
-
+// openNext opens the next input file into the reader state. The caller must
+// hold r.mut. It returns io.EOF when there are no more files to open.
+func (r *csvReader) openNext(ctx context.Context) error {
 	scannerInfo, err := r.handleCtor(ctx)
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return service.ErrEndOfInput
-		}
 		return err
 	}
 
@@ -375,52 +368,108 @@ func (r *csvReader) Connect(ctx context.Context) error {
 
 	r.scanner = scanner
 	r.scannerInfo = scannerInfo
+	r.handle = scannerInfo.handle
+	r.header = nil
 
 	return nil
 }
 
+// ensureOpen makes sure a file is currently open for reading, opening the
+// next one if there isn't. It returns service.ErrEndOfInput once the path
+// list is exhausted.
+func (r *csvReader) ensureOpen(ctx context.Context) error {
+	r.mut.Lock()
+	defer r.mut.Unlock()
+	if r.scanner != nil {
+		return nil
+	}
+
+	// Rotation happens here rather than via ErrNotConnected so a file
+	// boundary is not reported to the async reader as a lost connection
+	// (which would throttle it).
+	if err := r.openNext(ctx); err != nil {
+		if errors.Is(err, io.EOF) {
+			return service.ErrEndOfInput
+		}
+		return err
+	}
+	return nil
+}
+
+func (r *csvReader) Connect(ctx context.Context) error {
+	return r.ensureOpen(ctx)
+}
+
+// readNext reads the next record from the provided CSV reader, returning
+// io.EOF when the current file is exhausted.
 func (r *csvReader) readNext(reader *csv.Reader) ([]string, error) {
 	record, err := reader.Read()
 	if err != nil && (r.strict || len(record) == 0) {
 		if errors.Is(err, io.EOF) {
-			var deleteFn func() error
-			r.mut.Lock()
-			r.scanner = nil
-			r.header = nil
-			deleteFn = r.scannerInfo.deleteFn
-			r.mut.Unlock()
-
-			if r.delete {
-				if err := deleteFn(); err != nil {
-					return nil, err
-				}
+			if err := r.closeCurrentFile(); err != nil {
+				return nil, err
 			}
-			return nil, service.ErrNotConnected
+			// Signal that the current file is exhausted.
+			// ensureOpen advances to the next file on the next attempt.
+			return nil, io.EOF
 		}
 		return nil, err
 	}
 	return record, nil
 }
 
+// closeCurrentFile closes the current file's handle and clears the scanner
+// so ensureOpen opens the next file, and deletes the file from disk if
+// delete_on_finish is enabled.
+func (r *csvReader) closeCurrentFile() error {
+	r.mut.Lock()
+	closeErr := r.closeHandle()
+	deleteFn := r.scannerInfo.deleteFn
+	r.scanner = nil
+	r.mut.Unlock()
+
+	if closeErr != nil {
+		return closeErr
+	}
+	if r.delete {
+		return deleteFn()
+	}
+	return nil
+}
+
+// ReadBatch ensures a file is open, then retries readBatchOnce until it
+// produces a result, opening the next file whenever one hits a boundary.
 func (r *csvReader) ReadBatch(ctx context.Context) (service.MessageBatch, service.AckFunc, error) {
+	for {
+		if err := r.ensureOpen(ctx); err != nil {
+			return nil, nil, err
+		}
+
+		msg, ack, err := r.readBatchOnce()
+		if err != nil || len(msg) > 0 {
+			return msg, ack, err
+		}
+	}
+}
+
+// readBatchOnce makes a single attempt at reading a batch from the
+// currently open file. The caller ensures a file is open.
+func (r *csvReader) readBatchOnce() (service.MessageBatch, service.AckFunc, error) {
 	r.mut.Lock()
 	scanner := r.scanner
 	scannerInfo := r.scannerInfo
 	header := r.header
 	r.mut.Unlock()
 
-	if scanner == nil {
-		return nil, nil, service.ErrNotConnected
-	}
-
 	msg := service.MessageBatch{}
 	for i := 0; i < r.groupCount; i++ {
 		record, err := r.readNext(scanner)
 		if err != nil {
-			if i == 0 {
-				return nil, nil, err
+			// A file boundary ends the batch; the next call opens the next file.
+			if errors.Is(err, io.EOF) || i > 0 {
+				break
 			}
-			break
+			return nil, nil, err
 		}
 
 		if r.expectHeader && header == nil {
@@ -434,6 +483,9 @@ func (r *csvReader) ReadBatch(ctx context.Context) (service.MessageBatch, servic
 			r.mut.Unlock()
 
 			if record, err = r.readNext(scanner); err != nil {
+				if errors.Is(err, io.EOF) || i > 0 {
+					break
+				}
 				return nil, nil, err
 			}
 		}
@@ -467,6 +519,8 @@ func (r *csvReader) ReadBatch(ctx context.Context) (service.MessageBatch, servic
 		msg = append(msg, part)
 	}
 
+	// msg may be empty here (e.g. a file boundary hit before any record was
+	// read); that's not an error, it's a signal for ReadBatch to retry.
 	return msg, func(context.Context, error) error { return nil }, nil
 }
 
