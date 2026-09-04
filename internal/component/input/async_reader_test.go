@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -748,6 +749,71 @@ func TestAsyncReaderTypeConnMaxExceeded(t *testing.T) {
 
 	require.NoError(t, r.WaitForClose(ctx))
 	assert.Equal(t, 4, readerImpl.connected)
+}
+
+// asyncReaderConnLoses accepts every Connect() call but always fails to read,
+// forcing the reconnect loop to run repeatedly. It closes connsAtTarget once
+// the target number of connects is reached.
+type asyncReaderConnLoses struct {
+	connects      atomic.Int32
+	target        int32
+	connsAtTarget chan struct{}
+}
+
+func newAsyncReaderConnLoses(target int32) *asyncReaderConnLoses {
+	return &asyncReaderConnLoses{target: target, connsAtTarget: make(chan struct{})}
+}
+
+func (r *asyncReaderConnLoses) ConnectionTest(context.Context) component.ConnectionTestResults {
+	return component.ConnectionTestNotSupported(mock.NewManager()).AsList()
+}
+
+func (r *asyncReaderConnLoses) Connect(context.Context) error {
+	if r.connects.Add(1) == r.target {
+		close(r.connsAtTarget)
+	}
+	return nil
+}
+
+func (r *asyncReaderConnLoses) ReadBatch(context.Context) (message.Batch, input.AsyncAckFn, error) {
+	return nil, nil, component.ErrNotConnected
+}
+func (r *asyncReaderConnLoses) Close(context.Context) error { return nil }
+
+// TestAsyncReaderConnLostBacksOff verifies that backoff throttles reconnects
+// when a connection succeeds but immediately drops.
+//
+// It waits until the loop has reconnected a fixed number of times, then asserts
+// that reaching that count took at least the sum of the backoff waits between
+// them.
+func TestAsyncReaderConnLostBacksOff(t *testing.T) {
+	const (
+		floor         = 5 * time.Millisecond
+		targetConnect = int32(6)
+	)
+
+	readerImpl := newAsyncReaderConnLoses(targetConnect)
+	withBackoff := input.AsyncReaderWithConnBackOff(backoff.NewConstantBackOff(floor))
+	r, err := input.NewAsyncReader("foo", readerImpl, mock.NewManager(), withBackoff)
+	require.NoError(t, err)
+
+	start := time.Now()
+	r.TriggerStartConsuming()
+
+	select {
+	case <-readerImpl.connsAtTarget:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for %d connects, only saw %d", targetConnect, readerImpl.connects.Load())
+	}
+	elapsed := time.Since(start)
+
+	r.TriggerStopConsuming()
+	require.NoError(t, r.WaitForClose(t.Context()))
+
+	// The N connects are separated by (N-1) backoff waits of `floor` each; an
+	// unthrottled loop would reach the target almost instantly.
+	expectedDuration := time.Duration(targetConnect-1) * floor
+	assert.GreaterOrEqual(t, elapsed, expectedDuration, "reconnect loop was not throttled after lost connections")
 }
 
 //------------------------------------------------------------------------------
