@@ -428,13 +428,11 @@ func (r *csvReader) closeCurrentFile() error {
 	r.scanner = nil
 	r.mut.Unlock()
 
-	if closeErr != nil {
-		return closeErr
-	}
+	var deleteErr error
 	if r.delete {
-		return deleteFn()
+		deleteErr = deleteFn()
 	}
-	return nil
+	return errors.Join(closeErr, deleteErr)
 }
 
 // ReadBatch ensures a file is open, then retries readBatchOnce until it

@@ -620,3 +620,53 @@ func TestCSVReaderContextCancelledMidRotation(t *testing.T) {
 	// through the rest of the remaining empty files first.
 	assert.Equal(t, cancelAtFile, calls)
 }
+
+// errCloseReader wraps a Reader with a Close that always fails, to simulate
+// a handle whose underlying resource errors out on close.
+type errCloseReader struct {
+	io.Reader
+	closeErr error
+}
+
+func (e *errCloseReader) Close() error { return e.closeErr }
+
+func TestCSVReaderDeletesOnFinishDespiteCloseError(t *testing.T) {
+	closeErr := errors.New("boom: close failed")
+	handle := &errCloseReader{
+		Reader:   bytes.NewReader([]byte("a,b\n1,2\n")),
+		closeErr: closeErr,
+	}
+
+	var deleteCalled bool
+	f, err := newCSVReader(
+		// A single file, one header row and one data row. handleCtor is
+		// only ever called once here: the close error below short-circuits
+		// ReadBatch before it would rotate to a next file.
+		func(context.Context) (csvScannerInfo, error) {
+			return csvScannerInfo{
+				handle: handle,
+				deleteFn: func() error {
+					deleteCalled = true
+					return nil
+				},
+			}, nil
+		},
+		func(context.Context) {},
+		optCSVSetDeleteOnFinish(true),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = f.Close(context.Background()) })
+
+	require.NoError(t, f.Connect(t.Context()))
+
+	// Consume the only data row, leaving the file exhausted.
+	_, _, err = f.ReadBatch(t.Context())
+	require.NoError(t, err)
+
+	// This read hits the file boundary. Closing the handle fails, but
+	// delete_on_finish must still run: a file that fails to close is not
+	// left undeleted on disk.
+	_, _, err = f.ReadBatch(t.Context())
+	assert.ErrorIs(t, err, closeErr)
+	assert.True(t, deleteCalled, "delete_on_finish must still run when closing the handle fails")
+}
