@@ -9,7 +9,10 @@ All notable changes to this project will be documented in this file.
 
 - All inputs: When a connection is lost immediately after being established, the input now waits a fixed 100ms before reconnecting. 
   This prevents rapid reconnect loops against sources that repeatedly drop connections. 
-  Note that inputs using the dropped connection signal to advance to the next source (e.g. `csv` between files, `subprocess` with `restart_on_exit`) now include this 100ms delay. (@Leward)
+  Note that inputs using the dropped connection signal to advance to the next source (e.g. `subprocess` with `restart_on_exit`) now include this 100ms delay. (@Leward)
+- Input `csv`: Reading a sequence of files now advances between them internally, so moving to the next file no longer incurs the reconnect delay that applies to a lost connection. (@Leward)
+- Input `csv`: File handles are now closed explicitly once a file is fully read, instead of relying on the garbage
+  collector to close them. (@Leward)
 
 ## 4.79.0 - 2026-09-03
 
