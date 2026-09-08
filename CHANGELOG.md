@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- Input/Output `websocket`: A config that sets `tls.enabled: true` against a `ws://` URL is now rejected at startup. Previously the TLS settings were silently ignored, the connection was plaintext, and any configured `basic_auth`, `jwt` or `oauth` credentials were sent in the clear. Use a `wss://` URL to connect with TLS. (@Leward)
+
 ## 4.79.0 - 2026-09-03
 
 ### Changed
