@@ -301,3 +301,27 @@ func TestWebsocketOutputDropConnIgnoresStaleConn(t *testing.T) {
 	require.Same(t, current, m.getWS(), "dropConn cleared a connection it was not given")
 	require.NoError(t, m.WriteBatch(t.Context(), message.QuickBatch([][]byte{[]byte("foo")})))
 }
+
+func TestWebsocketOutputTLSEnabledWithWSScheme(t *testing.T) {
+	pConf, err := websocketOutputSpec().ParseYAML(`
+url: ws://localhost:4195/post/ws
+tls:
+  enabled: true
+`, nil)
+	require.NoError(t, err)
+
+	_, err = newWebsocketWriterFromParsed(pConf, mock.NewManager())
+	require.ErrorContains(t, err, "tls is enabled but url scheme is ws")
+}
+
+func TestWebsocketOutputTLSEnabledWithWSSScheme(t *testing.T) {
+	pConf, err := websocketOutputSpec().ParseYAML(`
+url: wss://localhost:4195/post/ws
+tls:
+  enabled: true
+`, nil)
+	require.NoError(t, err)
+
+	_, err = newWebsocketWriterFromParsed(pConf, mock.NewManager())
+	require.NoError(t, err)
+}

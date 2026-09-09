@@ -94,6 +94,9 @@ func newWebsocketWriterFromParsed(conf *service.ParsedConfig, mgr bundle.NewMana
 	if ws.tlsConf, ws.tlsEnabled, err = conf.FieldTLSToggled("tls"); err != nil {
 		return nil, err
 	}
+	if err = checkTLSScheme(ws.urlParsed, ws.tlsEnabled); err != nil {
+		return nil, err
+	}
 	if ws.reqSigner, err = conf.HTTPRequestAuthSignerFromParsed(); err != nil {
 		return nil, err
 	}

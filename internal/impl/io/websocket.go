@@ -4,12 +4,27 @@ package io
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
+
+// checkTLSScheme rejects a config that enables TLS against a ws:// URL.
+//
+// Gorilla selects the transport from the URL scheme alone and applies
+// TLSClientConfig only for wss. With ws:// the TLS settings are silently ignored,
+// the connection is plaintext, and any configured auth header goes out in the clear.
+// Fail at construction so the contradiction is visible instead of silent.
+func checkTLSScheme(u *url.URL, tlsEnabled bool) error {
+	if tlsEnabled && u.Scheme == "ws" {
+		return fmt.Errorf("tls is enabled but url scheme is ws, use wss:// for %v", u.Redacted())
+	}
+	return nil
+}
 
 // hiddenDeadlineContext strips ctx.Deadline() while preserving cancellation.
 //

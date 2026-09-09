@@ -588,3 +588,27 @@ func TestWebsocketReadBatchCancelKeepsMessage(t *testing.T) {
 	_, _, err = m.ReadBatch(t.Context())
 	require.ErrorIs(t, err, component.ErrNotConnected)
 }
+
+func TestWebsocketTLSEnabledWithWSScheme(t *testing.T) {
+	pConf, err := websocketInputSpec().ParseYAML(`
+url: ws://localhost:4195/get/ws
+tls:
+  enabled: true
+`, nil)
+	require.NoError(t, err)
+
+	_, err = newWebsocketReaderFromParsed(pConf, mock.NewManager())
+	require.ErrorContains(t, err, "tls is enabled but url scheme is ws")
+}
+
+func TestWebsocketTLSEnabledWithWSSScheme(t *testing.T) {
+	pConf, err := websocketInputSpec().ParseYAML(`
+url: wss://localhost:4195/get/ws
+tls:
+  enabled: true
+`, nil)
+	require.NoError(t, err)
+
+	_, err = newWebsocketReaderFromParsed(pConf, mock.NewManager())
+	require.NoError(t, err)
+}
