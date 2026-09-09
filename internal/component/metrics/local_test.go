@@ -5,6 +5,7 @@ package metrics
 import (
 	"testing"
 
+	"github.com/rcrowley/go-metrics"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -131,4 +132,72 @@ func TestReverseName(t *testing.T) {
 			assert.Equal(t, test.tagValues, tagValues)
 		})
 	}
+}
+
+func TestLocalDeleteSeriesPartialMatch(t *testing.T) {
+	l := NewLocal()
+
+	l.GetCounterVec("input_received", "label", "stream").With("in", "foo").Incr(3)
+	l.GetCounterVec("input_received", "label", "stream").With("in", "bar").Incr(4)
+	l.GetGaugeVec("connection_up", "stream").With("foo").Set(1)
+	l.GetTimerVec("latency", "stream").With("foo").Timing(100)
+	l.GetTimerVec("latency", "stream").With("bar").Timing(200)
+	l.GetCounter("uptime").Incr(9)
+	l.GetCounterVec("batch_created", "mechanism").With("count").Incr(5)
+
+	purger, ok := any(l).(interface {
+		DeleteSeriesPartialMatch(labels map[string]string)
+	})
+	if !ok {
+		t.Fatal("Local should support series deletion")
+	}
+	purger.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
+
+	counters, timings := l.GetCounters(), l.GetTimings()
+	for k := range counters {
+		assert.NotContains(t, k, `stream="foo"`)
+	}
+	for k := range timings {
+		assert.NotContains(t, k, `stream="foo"`)
+	}
+	assert.Contains(t, counters, `input_received{label="in",stream="bar"}`)
+	assert.Contains(t, timings, `latency{stream="bar"}`)
+	assert.Contains(t, counters, "uptime")
+	assert.Contains(t, counters, `batch_created{mechanism="count"}`)
+
+	// An empty label set matches nothing rather than everything.
+	purger.DeleteSeriesPartialMatch(nil)
+	assert.Contains(t, l.GetCounters(), `input_received{label="in",stream="bar"}`)
+}
+
+type stopTrackingTimer struct {
+	metrics.Timer
+
+	stopped bool
+}
+
+func (s *stopTrackingTimer) Stop() {
+	s.stopped = true
+	s.Timer.Stop()
+}
+
+// A purged timing series must have its go-metrics timer stopped: NewTimer
+// registers a meter in the package-level arbiter that only Stop releases, so
+// deleting the map entry alone would strand one ticking meter per purged
+// series for the lifetime of the process.
+func TestLocalDeleteSeriesPartialMatchStopsTimers(t *testing.T) {
+	l := NewLocal()
+
+	l.GetTimerVec("latency", "stream").With("foo").Timing(100)
+	l.GetTimerVec("latency", "stream").With("bar").Timing(200)
+
+	purgedTimer := &stopTrackingTimer{Timer: l.flatTimings[`latency{stream="foo"}`].t}
+	l.flatTimings[`latency{stream="foo"}`].t = purgedTimer
+	keptTimer := &stopTrackingTimer{Timer: l.flatTimings[`latency{stream="bar"}`].t}
+	l.flatTimings[`latency{stream="bar"}`].t = keptTimer
+
+	l.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
+
+	assert.True(t, purgedTimer.stopped, "purged timing series must stop its timer")
+	assert.False(t, keptTimer.stopped, "surviving timing series must keep its timer running")
 }

@@ -3,6 +3,29 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## 4.79.0 - 2026-09-03
+
+### Changed
+
+- Input `websocket`: The default value of `max_message_size` has changed from `0` (unlimited) to `33554432` (32 MiB). An unlimited read allows the websocket server to make the process allocate an unbounded amount of memory with a single streamed message. Pipelines that receive larger messages must now set `max_message_size` explicitly; a value of `0` restores the previous unlimited behaviour. (@Leward)
+
+### Fixed
+
+- Input/Output `websocket`: Connection attempts (dial and upgrade handshake) and input reads now honor context
+  cancellation, preventing graceful shutdown from hanging on unresponsive servers or idle connections. (@Leward)
+- Output `websocket`: A failed write now closes the connection instead of leaking it before the reconnect. (@Leward)
+- Streams mode: Deleting a stream (via `DELETE /streams/{id}`, or the delete performed by a stream update) now purges the stream's metric series (labeled `stream="<id>"`) from metrics exporters that support series deletion, instead of leaving them registered with frozen values until the process restarts. The `json_api` exporter supports this, and plugin metrics exporters opt in by implementing the new optional `service.MetricsExporterSeriesDeleter` interface. Note that the purge matches on the `stream` label, so a `metrics.mapping` that renames or drops that label prevents the affected series from being purged. (@squiidz)
+
+## 4.78.0 - 2026-08-20
+
+### Added
+
+- Input `websocket`: Added a `max_message_size` field that bounds the size of individual inbound messages via the underlying connection's read limit. (@prakhargarg105)
+
+### Fixed
+
+- Input `file`: The known file size is now passed to the scanner as a hint, allowing the `to_the_end` scanner to pre-allocate its read buffer instead of growing it repeatedly via `io.ReadAll`. This avoids the transient double-buffering that previously made peak memory roughly twice the file size when reading a whole file (measured ~59% fewer bytes allocated, and 36 allocations down to 2, for a 64 MiB file). The size is treated purely as a hint and never affects the bytes returned: sources of unknown size retain the exact `io.ReadAll` behaviour, pre-allocation from a hint is capped at 128 MiB to guard against wildly wrong sizes, a hint that overestimates the content does not pin the excess capacity for the message's lifetime, and the `decompress` scanner strips the hint before it reaches its child, as it describes the compressed stream. Deprecated string `codec` configs are unaffected. (@rockdatasrl001)
+
 ## 4.77.0 - 2026-07-30
 
 ### Added

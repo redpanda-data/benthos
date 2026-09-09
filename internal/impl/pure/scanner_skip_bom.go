@@ -45,6 +45,9 @@ type ssbScannerCreator struct {
 }
 
 func (c *ssbScannerCreator) Create(rdr io.ReadCloser, aFn service.AckFunc, details *service.ScannerSourceDetails) (service.BatchScanner, error) {
+	// The size hint is deliberately forwarded unchanged: stripping a BOM
+	// shortens the stream by at most 4 bytes, so the hint remains a tight
+	// upper bound, which the SizeHint contract permits.
 	return c.child.Create(skipBOM(rdr), aFn, details)
 }
 

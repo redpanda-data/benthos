@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package pure
 
@@ -62,6 +62,14 @@ func (c *decompressScannerCreator) Create(rdr io.ReadCloser, aFn service.AckFunc
 	cRdr, ok := dRdr.(io.ReadCloser)
 	if !ok {
 		cRdr = io.NopCloser(dRdr)
+	}
+	// A size hint, if present, describes the compressed stream, but the child
+	// reads the decompressed one, whose length is unknown. Strip the hint on a
+	// copy rather than mislead the child (or mutate the caller's details).
+	if details.SizeHint() != 0 {
+		trimmed := *details
+		trimmed.SetSizeHint(0)
+		details = &trimmed
 	}
 	return c.child.Create(cRdr, aFn, details)
 }

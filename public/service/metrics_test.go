@@ -436,3 +436,65 @@ func TestMetricsGaugeSetFloat64(t *testing.T) {
 		})
 	}
 }
+
+type nopExporterStat struct{}
+
+func (nopExporterStat) Incr(int64)          {}
+func (nopExporterStat) IncrFloat64(float64) {}
+func (nopExporterStat) Decr(int64)          {}
+func (nopExporterStat) DecrFloat64(float64) {}
+func (nopExporterStat) Set(int64)           {}
+func (nopExporterStat) SetFloat64(float64)  {}
+func (nopExporterStat) Timing(int64)        {}
+
+type nopMetricsExporter struct{}
+
+func (nopMetricsExporter) NewCounterCtor(name string, labelKeys ...string) MetricsExporterCounterCtor {
+	return func(...string) MetricsExporterCounter { return nopExporterStat{} }
+}
+
+func (nopMetricsExporter) NewTimerCtor(name string, labelKeys ...string) MetricsExporterTimerCtor {
+	return func(...string) MetricsExporterTimer { return nopExporterStat{} }
+}
+
+func (nopMetricsExporter) NewGaugeCtor(name string, labelKeys ...string) MetricsExporterGaugeCtor {
+	return func(...string) MetricsExporterGauge { return nopExporterStat{} }
+}
+
+func (nopMetricsExporter) Close(context.Context) error { return nil }
+
+type seriesDeletingExporter struct {
+	nopMetricsExporter
+
+	deleted []map[string]string
+}
+
+func (s *seriesDeletingExporter) DeleteSeriesPartialMatch(labels map[string]string) {
+	s.deleted = append(s.deleted, labels)
+}
+
+func TestMetricsAirGapDeleteSeriesPartialMatch(t *testing.T) {
+	exp := &seriesDeletingExporter{}
+	agm := newAirGapMetrics(exp)
+
+	purger, ok := agm.(interface {
+		DeleteSeriesPartialMatch(labels map[string]string)
+	})
+	require.True(t, ok, "air gapped metrics should expose series deletion")
+
+	purger.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
+	assert.Equal(t, []map[string]string{{"stream": "foo"}}, exp.deleted)
+}
+
+func TestMetricsAirGapDeleteSeriesPartialMatchUnsupported(t *testing.T) {
+	agm := newAirGapMetrics(nopMetricsExporter{})
+
+	purger, ok := agm.(interface {
+		DeleteSeriesPartialMatch(labels map[string]string)
+	})
+	require.True(t, ok, "air gapped metrics should expose series deletion")
+
+	assert.NotPanics(t, func() {
+		purger.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
+	})
+}

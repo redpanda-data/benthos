@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package io
 
@@ -163,6 +163,21 @@ func (f *fileConsumer) getReader(ctx context.Context) (scannerInfo, error) {
 	details := service.NewScannerSourceDetails()
 	details.SetName(nextPath)
 
+	var modTimeUTC time.Time
+	if fInfo, err := file.Stat(); err == nil {
+		modTimeUTC = fInfo.ModTime().UTC()
+
+		// Only regular files have a meaningful size to pre-allocate against, a
+		// FIFO, device or directory does not. The positivity check keeps the
+		// documented SizeHint contract (zero means unknown, never negative)
+		// even when a custom filesystem misreports a size.
+		if s := fInfo.Size(); s > 0 && fInfo.Mode().IsRegular() {
+			details.SetSizeHint(s)
+		}
+	} else {
+		f.log.Errorf("Failed to read metadata from file '%v': %v", nextPath, err)
+	}
+
 	scanner, err := f.scannerCtor.Create(file, func(ctx context.Context, err error) error {
 		if err == nil && f.delete {
 			return f.nm.FS().Remove(nextPath)
@@ -172,13 +187,6 @@ func (f *fileConsumer) getReader(ctx context.Context) (scannerInfo, error) {
 	if err != nil {
 		file.Close()
 		return scannerInfo{}, err
-	}
-
-	var modTimeUTC time.Time
-	if fInfo, err := file.Stat(); err == nil {
-		modTimeUTC = fInfo.ModTime().UTC()
-	} else {
-		f.log.Errorf("Failed to read metadata from file '%v'", nextPath)
 	}
 
 	f.scannerInfo = &scannerInfo{
