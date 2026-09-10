@@ -457,6 +457,14 @@ func (t *Type) WithAddedMetrics(m metrics.Type) bundle.NewManagement {
 	return &newT
 }
 
+// WithMetricsCleanup returns a modified manager whose metrics are removed when
+// its metrics aggregator is closed.
+func (t *Type) WithMetricsCleanup() bundle.NewManagement {
+	newT := *t
+	newT.stats = newT.stats.WithCleanup()
+	return &newT
+}
+
 //------------------------------------------------------------------------------
 
 // RegisterEndpoint registers a server wide HTTP endpoint.
