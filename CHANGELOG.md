@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Go API: New `NewOAuth2Field`, `NewRetryBackOffFields` and `NewMaxRetriesField` functions in the `service` package define the `oauth2` object and the `max_retries` and `backoff` retry fields that components in this module use, so plugins can reuse them instead of defining their own copies. (@JakeSCahill)
+- Streams mode: Every span emitted by a stream now carries a `stream` attribute holding the stream's ID, matching the `stream` field on its log lines and the `stream` label on its metrics. Previously spans from different streams were indistinguishable since span names only reflect the component type. (@alexander-zimmermann)
 
 ### Changed
 

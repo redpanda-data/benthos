@@ -237,9 +237,15 @@ func (rt *recordingTracer) Start(ctx context.Context, spanName string, opts ...t
 		spanID = baseSpan.SpanContext().SpanID().String()
 	}
 
+	recorded := rt.recorder.record(spanName, spanID, parent)
+	startConf := trace.NewSpanStartConfig(opts...)
+	for _, attr := range startConf.Attributes() {
+		recorded.Attributes[string(attr.Key)] = attr.Value.AsInterface()
+	}
+
 	newSpan := &recordingSpan{
 		Span:     baseSpan,
-		recorded: rt.recorder.record(spanName, spanID, parent),
+		recorded: recorded,
 		ctx:      baseCtx,
 	}
 
