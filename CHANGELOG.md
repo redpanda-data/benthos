@@ -3,6 +3,12 @@ Changelog
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- Streams mode: Every span emitted by a stream now carries a `stream` attribute holding the stream's ID, matching the `stream` field on its log lines and the `stream` label on its metrics. Previously spans from different streams were indistinguishable since span names only reflect the component type. (@alexander-zimmermann)
+
 ## 4.80.0 - 2026-09-10
 
 ### Changed
