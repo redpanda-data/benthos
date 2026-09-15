@@ -79,6 +79,48 @@ func TestAPIEnableCORSOrigins(t *testing.T) {
 	assert.Empty(t, response.Header().Get("Access-Control-Allow-Origin"))
 }
 
+func TestAPIEnableCORSAllowedHeaders(t *testing.T) {
+	conf := NewServerCORSConfig()
+	conf.Enabled = true
+	conf.AllowedOrigins = []string{"*"}
+	conf.AllowedHeaders = []string{"Content-Type"}
+
+	handler, err := conf.WrapHandler(http.NewServeMux())
+	require.NoError(t, err)
+
+	request, _ := http.NewRequest("OPTIONS", "/version", http.NoBody)
+	request.Header.Set("Origin", "meow")
+	request.Header.Set("Access-Control-Request-Method", "POST")
+	request.Header.Set("Access-Control-Request-Headers", "content-type")
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Equal(t, "Content-Type", response.Header().Get("Access-Control-Allow-Headers"))
+}
+
+func TestAPIEnableCORSAllHeaders(t *testing.T) {
+	conf := NewServerCORSConfig()
+	conf.Enabled = true
+	conf.AllowedOrigins = []string{"*"}
+	conf.AllowedHeaders = []string{"*"}
+
+	handler, err := conf.WrapHandler(http.NewServeMux())
+	require.NoError(t, err)
+
+	request, _ := http.NewRequest("OPTIONS", "/version", http.NoBody)
+	request.Header.Set("Origin", "meow")
+	request.Header.Set("Access-Control-Request-Method", "POST")
+	request.Header.Set("Access-Control-Request-Headers", "content-type, x-request-id")
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Equal(t, "content-type, x-request-id", response.Header().Get("Access-Control-Allow-Headers"))
+}
+
 func TestAPIEnableCORSNoHeaders(t *testing.T) {
 	conf := NewServerCORSConfig()
 	conf.Enabled = true
