@@ -1,0 +1,95 @@
+description: >
+  Dynamic metadata access — computed keys for reading and writing metadata,
+  metadata in expressions, and metadata COW with variables.
+
+tests:
+  # --- Dynamic metadata write with variable key ---
+
+  - name: "write metadata with variable key"
+    mapping: |
+      $key = "source"
+      output@[$key] = "kafka"
+    output: {}
+    output_metadata: {"source": "kafka"}
+
+  - name: "write multiple metadata keys from loop data"
+    mapping: |
+      $keys = ["env", "region"]
+      $vals = ["prod", "us-east"]
+      output@[$keys[0]] = $vals[0]
+      output@[$keys[1]] = $vals[1]
+    output: {}
+    output_metadata: {"env": "prod", "region": "us-east"}
+
+  # --- Dynamic metadata read with variable key ---
+
+  - name: "read metadata with variable key"
+    input: {}
+    input_metadata: {"source": "kafka", "topic": "events"}
+    mapping: |
+      $key = "topic"
+      output.v = input@[$key]
+    output: {"v": "events"}
+
+  - name: "read missing metadata with variable key returns null"
+    input: {}
+    input_metadata: {"source": "kafka"}
+    mapping: |
+      $key = "missing"
+      output.v = input@[$key]
+    output: {"v": null}
+
+  # --- Dynamic metadata delete ---
+
+  - name: "delete metadata key with variable"
+    input: {}
+    input_metadata: {"keep": "yes", "drop": "no"}
+    mapping: |
+      output@ = input@
+      $remove_key = "drop"
+      output@[$remove_key] = deleted()
+    output: {}
+    output_metadata: {"keep": "yes"}
+
+  # --- Metadata values used in expressions ---
+
+  - name: "metadata value in arithmetic"
+    input: {}
+    input_metadata: {"count": 5}
+    mapping: |
+      output.doubled = input@.count * 2
+    output: {"doubled": 10}
+
+  - name: "metadata value in string concatenation"
+    input: {}
+    input_metadata: {"prefix": "hello"}
+    mapping: |
+      output.greeting = input@.prefix + " world"
+    output: {"greeting": "hello world"}
+
+  - name: "metadata value as condition"
+    input: {}
+    input_metadata: {"debug": true}
+    mapping: |
+      output.level = if input@.debug { "trace" } else { "info" }
+    output: {"level": "trace"}
+
+  # --- Metadata round-trip through variable ---
+
+  - name: "metadata to variable to output metadata"
+    input: {}
+    input_metadata: {"trace_id": "abc-123"}
+    mapping: |
+      $trace = input@.trace_id
+      output@.trace_id = $trace
+    output: {}
+    output_metadata: {"trace_id": "abc-123"}
+
+  # --- Metadata from computed expression key ---
+
+  - name: "write metadata with expression key"
+    mapping: |
+      $prefix = "x"
+      output@[$prefix + "_header"] = "value"
+    output: {}
+    output_metadata: {"x_header": "value"}

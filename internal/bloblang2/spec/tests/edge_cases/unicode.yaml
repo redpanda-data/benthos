@@ -1,0 +1,103 @@
+description: "Edge cases: multi-codepoint emoji, combining characters, no normalization"
+
+tests:
+  # --- Multi-codepoint emoji ---
+
+  - name: "skin-tone emoji has length 2"
+    mapping: |
+      output = "\u{1F44B}\u{1F3FD}".length()
+    output: 2
+
+  - name: "simple emoji has length 1"
+    mapping: |
+      output = "\u{1F600}".length()
+    output: 1
+
+  - name: "flag emoji has length 2 (two regional indicators)"
+    mapping: |
+      output = "\u{1F1FA}\u{1F1F8}".length()
+    output: 2
+
+  - name: "family emoji (ZWJ sequence) has multiple codepoints"
+    mapping: |
+      output = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}".length()
+    output: 5
+
+  # --- Codepoint indexing on emoji ---
+
+  - name: "index first codepoint of multi-codepoint emoji"
+    mapping: |
+      output = "\u{1F44B}\u{1F3FD}"[0]
+    output: 128075
+
+  - name: "index second codepoint of multi-codepoint emoji"
+    mapping: |
+      output = "\u{1F44B}\u{1F3FD}"[1]
+    output: 127997
+
+  # --- Combining characters ---
+
+  - name: "precomposed e-acute has length 1"
+    mapping: |
+      output = "\u00E9".length()
+    output: 1
+
+  - name: "decomposed e plus combining acute has length 2"
+    mapping: |
+      output = "e\u0301".length()
+    output: 2
+
+  - name: "precomposed and decomposed are not equal"
+    mapping: |
+      output = "\u00E9" == "e\u0301"
+    output: false
+
+  - name: "precomposed and decomposed have different lengths"
+    mapping: |
+      $a = "\u00E9".length()
+      $b = "e\u0301".length()
+      output = $a == $b
+    output: false
+
+  # --- String comparison is codepoint-by-codepoint ---
+
+  - name: "string comparison is codepoint-based"
+    mapping: |
+      output = "a\u0301" < "\u00E9"
+    output: true
+
+  # --- Unicode in object keys ---
+
+  - name: "unicode string as object key"
+    mapping: |
+      output = {"\u00E9": "accent"}
+    output: {"\u00E9": "accent"}
+
+  - name: "emoji as object key"
+    mapping: |
+      output = {"\u{1F600}": "smile"}
+    output: {"😀": "smile"}
+
+  # --- Unicode string methods ---
+
+  - name: "contains with unicode"
+    mapping: |
+      output = "caf\u00E9".contains("\u00E9")
+    output: true
+
+  - name: "uppercase with unicode"
+    mapping: |
+      output = "caf\u00E9".uppercase()
+    output: "CAF\u00C9"
+
+  # --- Mixed ASCII and multi-byte ---
+
+  - name: "length of mixed ASCII and multi-byte string"
+    mapping: |
+      output = "a\u{1F600}b".length()
+    output: 3
+
+  - name: "index past emoji in mixed string"
+    mapping: |
+      output = "a\u{1F600}b"[2]
+    output: 98

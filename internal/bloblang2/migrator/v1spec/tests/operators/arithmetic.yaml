@@ -1,0 +1,205 @@
+description: "Arithmetic operators (+, -, *, /, %) with all type combos, division/modulo by zero, null errors"
+
+tests:
+  # --- Addition ---
+
+  - name: "add int64 + int64"
+    mapping: |
+      root.result = 5 + 3
+    output: {"result": 8}
+
+  - name: "add float64 + float64"
+    mapping: |
+      root.result = 2.5 + 3.5
+    output: {"result": 6.0}
+
+  - name: "add int32 + int32 stays int32"
+    mapping: |
+      root.result = 5.int32() + 3.int32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "add uint64 + uint64 stays uint64"
+    mapping: |
+      root.result = 10.uint64() + 20.uint64()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "add float32 + float32 stays float32"
+    mapping: |
+      root.result = 1.5.float32() + 2.5.float32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  # --- Subtraction ---
+
+  - name: "subtract int64 - int64"
+    mapping: |
+      root.result = 10 - 3
+    output: {"result": 7}
+
+  - name: "subtract resulting in negative int64"
+    mapping: |
+      root.result = 3 - 10
+    output: {"result": -7}
+
+  # --- Multiplication ---
+
+  - name: "multiply int64 * int64"
+    mapping: |
+      root.result = 6 * 7
+    output: {"result": 42}
+
+  - name: "multiply float64 * float64"
+    mapping: |
+      root.result = 2.5 * 4.0
+    output: {"result": 10.0}
+
+  # --- Division (always produces float) ---
+
+  - name: "divide int64 / int64 produces float64"
+    mapping: |
+      root.result = 7 / 2
+    output: {"result": 3.5}
+
+  - name: "divide int64 / int64 exact still produces float64"
+    mapping: |
+      root.result = 10 / 2
+    output: {"result": 5.0}
+
+  - name: "divide float32 / float32 produces float32"
+    mapping: |
+      root.result = 10.0.float32() / 4.0.float32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "divide int32 / int32 produces float64 not int"
+    mapping: |
+      root.result = 7.int32() / 2.int32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "divide negative int64"
+    mapping: |
+      root.result = -7 / 2
+    output: {"result": -3.5}
+
+  - name: "chained division is left-associative"
+    mapping: |
+      root.result = 20 / 4 / 2
+    output: {"result": 2.5}
+
+  # --- Modulo (V1 requires integer operands only) ---
+
+  - name: "modulo int64 % int64 produces int64"
+    mapping: |
+      root.result = 7 % 2
+    output: {"result": 1}
+
+  - name: "modulo float64 % float64 (fmod)"
+    mapping: |
+      root.result = 7.5 % 2.0
+    output: {"result": 1} # V1: silently truncates floats to int64 before mod (7 % 2 = 1)
+
+  - name: "modulo int64 % float64 promotes to float64"
+    mapping: |
+      root.result = 7 % 2.0
+    output: {"result": 1} # V1: silently truncates float RHS to int64 (7 % 2 = 1)
+
+  - name: "modulo negative dividend (truncated division remainder)"
+    mapping: |
+      root.result = -7 % 2
+    output: {"result": -1}
+
+  - name: "modulo negative float dividend (fmod semantics)"
+    mapping: |
+      root.result = -7.5 % 2.0
+    output: {"result": -1} # V1: silently truncates floats to int64 (-7 % 2 = -1)
+
+  # --- Division by zero ---
+
+  - name: "division by zero int64"
+    mapping: |
+      root.result = this.a / this.b
+    input: {"a": 7, "b": 0}
+    error: "divide by zero" # V1 constant-folds literal `/ 0` at compile time, so uses runtime operands here
+
+  - name: "division by zero float64 (no Infinity)"
+    mapping: |
+      root.result = this.a / this.b
+    input: {"a": 7.0, "b": 0.0}
+    error: "divide by zero" # V1 constant-folds literal `/ 0.0` at compile time, so uses runtime operands here
+
+  # --- Modulo by zero ---
+
+  - name: "modulo by zero int64"
+    mapping: |
+      root.result = this.a % this.b
+    input: {"a": 7, "b": 0}
+    error: "divide by zero" # V1 constant-folds literal `% 0` at compile time, so uses runtime operands here
+
+  - name: "modulo by zero float64"
+    mapping: |
+      root.result = this.a % this.b
+    input: {"a": 7.0, "b": 0.0}
+    error: "divide by zero" # V1 truncates floats to int, then treats as int % 0 → divide by zero
+
+  # --- Integer overflow ---
+
+  - name: "int64 addition overflow"
+    mapping: |
+      root.result = 9223372036854775807 + 1
+    output: {"result": -9223372036854775808} # V1: silent Go int64 wrap, no error
+
+  - name: "int64 multiplication overflow"
+    mapping: |
+      root.result = 9223372036854775807 * 2
+    output: {"result": -2} # V1: silent Go int64 wrap, no error
+
+  - name: "int32 overflow"
+    mapping: |
+      root.result = 2147483647.int32() + 1.int32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint64 no overflow where int64 would"
+    mapping: |
+      root.result = 9223372036854775807.uint64() + 1.uint64()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  # --- Null in arithmetic ---
+
+  - name: "null + int64 error"
+    mapping: |
+      root.result = null + 5
+    compile_error: "cannot add types null" # V1 constant-folds literal null + N at compile time
+
+  - name: "null * int64 error"
+    mapping: |
+      root.result = null * 5
+    compile_error: "cannot multiply types null" # V1 constant-folds literal null * N at compile time
+
+  # --- Non-numeric operands ---
+
+  - name: "int64 + string error"
+    mapping: |
+      root.result = 5 + "3"
+    compile_error: "cannot add types number" # V1 constant-folds literal number + string at compile time
+
+  - name: "int64 * bool error"
+    mapping: |
+      root.result = 5 * true
+    compile_error: "cannot multiply types number" # V1 constant-folds literal number * bool at compile time
+
+  - name: "string - string error"
+    mapping: |
+      root.result = "hello" - "world"
+    compile_error: "cannot subtract types string" # V1 constant-folds literal string - string at compile time
+
+  # --- NaN and Infinity arithmetic ---
+
+  - name: "special float addition"
+    mapping: |
+      root.result = this.val + 1.0
+    cases:
+      - name: "NaN + float64 produces NaN"
+        input: {val: {_type: "float64", value: "NaN"}}
+        output: {"result": {_type: "float64", value: "NaN"}}
+      - name: "Infinity + float64 stays Infinity"
+        input: {val: {_type: "float64", value: "Infinity"}}
+        output: {"result": {_type: "float64", value: "Infinity"}}
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"

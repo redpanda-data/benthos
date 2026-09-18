@@ -1,0 +1,106 @@
+description: >
+  Parameter shadowing — parameter names shadow map names within the map
+  body. The parameter always wins. Lambda parameters can also shadow.
+
+tests:
+  # --- Parameter shadows map name ---
+
+  - name: "parameter with same name as another map shadows it"
+    mapping: |
+      map double(x) { x * 2 }
+      map apply(double) { double + 1 }
+      output.v = apply(10)
+    output: {"v": 11}
+
+  - name: "shadowed map name not callable in map body"
+    mapping: |
+      map helper(x) { x * 10 }
+      map run(helper) {
+        helper + 1
+      }
+      output.v = run(5)
+    output: {"v": 6}
+
+  - name: "non-shadowed maps still callable"
+    mapping: |
+      map add_one(x) { x + 1 }
+      map mul_two(x) { x * 2 }
+      map process(add_one) {
+        mul_two(add_one)
+      }
+      output.v = process(5)
+    output: {"v": 10}
+
+  - name: "parameter shadows map but map callable outside"
+    mapping: |
+      map double(x) { x * 2 }
+      map use_param(double) { double + 100 }
+      output.shadowed = use_param(5)
+      output.original = double(5)
+    output: {"shadowed": 105, "original": 10}
+
+  # --- Lambda parameter shadows outer variable ---
+
+  - name: "lambda parameter shadows outer variable"
+    mapping: |
+      $x = 100
+      output.v = [1, 2, 3].map(x -> x * 2)
+    output: {"v": [2, 4, 6]}
+
+  - name: "lambda parameter shadows map parameter"
+    mapping: |
+      map process(x) {
+        [1, 2, 3].map(x -> x * 10)
+      }
+      output.v = process(999)
+    output: {"v": [10, 20, 30]}
+
+  - name: "nested lambda parameters shadow each level"
+    mapping: |
+      output.v = [1, 2].map(x -> [10, 20].map(x -> x * 100))
+    output: {"v": [[1000, 2000], [1000, 2000]]}
+
+  # --- Parameter shadow does not affect caller ---
+
+  - name: "shadowing does not leak to caller"
+    mapping: |
+      map double(x) { x * 2 }
+      map wrapper(double) {
+        double + 1
+      }
+      output.wrapped = wrapper(10)
+      output.doubled = double(10)
+    output: {"wrapped": 11, "doubled": 20}
+
+  # --- Discard parameter does not shadow ---
+
+  - name: "discard parameter does not shadow anything"
+    mapping: |
+      map double(x) { x * 2 }
+      map run(_, x) {
+        double(x)
+      }
+      output.v = run("ignored", 5)
+    output: {"v": 10}
+
+  # --- Multiple parameters, one shadows ---
+
+  - name: "one parameter shadows map, other does not"
+    mapping: |
+      map helper(x) { x + 100 }
+      map run(helper, val) {
+        helper + val
+      }
+      output.v = run(1, 2)
+    output: {"v": 3}
+
+  # --- Parameter read-only ---
+
+  - name: "parameter is read-only in map body"
+    mapping: |
+      map bad(x) {
+        x = 5
+        x
+      }
+      output.v = bad(10)
+    compile_error: "assign"

@@ -1,0 +1,95 @@
+description: >
+  Match expression block bodies — V1 match arms are single expressions,
+  not statement lists. Braced block bodies with let assignments and a
+  trailing expression are a V2-only feature.
+
+tests:
+  # --- Block body with assignments ---
+
+  - name: "block body with variable and final expression"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  - name: "block body with multiple assignments"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  - name: "block body with path assignment"
+    skip: "V1 match arms are single expressions; also $var path assignment not supported"
+
+  - name: "block body with dynamic key assignment"
+    skip: "V1 match arms are single expressions; also $obj[key] = v is not V1 syntax"
+
+  # --- Object literals via parentheses ---
+  # V1 does allow object literals directly in match arm bodies — no parens needed.
+  # The V2 ambiguity between block-body {...} and object-literal {...} doesn't exist in V1.
+
+  - name: "empty object via parentheses"
+    mapping: |
+      root.v = match "miss" {
+        "hit" => "found",
+        _ => {}
+      }
+    output: {"v": {}}
+
+  - name: "object literal via parentheses"
+    mapping: |
+      root.v = match "fallback" {
+        "match" => {"status": "matched"},
+        _ => {"status": "default"}
+      }
+    output: {"v": {"status": "default"}}
+
+  - name: "bare string result needs no parens"
+    mapping: |
+      root.v = match "a" {
+        "a" => "alpha",
+        _ => "other"
+      }
+    output: {"v": "alpha"}
+
+  - name: "bare expression result no block needed"
+    mapping: |
+      root.v = match 5 {
+        5 => 5 * 10,
+        _ => 0
+      }
+    output: {"v": 50}
+
+  # --- Block body on wildcard arm ---
+
+  - name: "wildcard arm with block body"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  # --- Block body with outer variable capture ---
+
+  - name: "block body captures outer variable"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  # --- Block body with match-as binding ---
+
+  - name: "match-as block body name truncation"
+    skip: "V1 has no match-as syntax, and arms are single expressions"
+
+  # --- Block body returning deleted ---
+
+  - name: "block body returning deleted removes field"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  # --- Block body with void from if-without-else ---
+
+  - name: "block body with void skips assignment"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  # --- Nested match with block bodies ---
+
+  - name: "nested match both with block bodies"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  # --- Block body in boolean match ---
+
+  - name: "boolean match with block body"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  # --- Multiple arms with block bodies ---
+
+  - name: "multiple arms all with block bodies"
+    skip: "V1 match arms are single expressions, not statement-list blocks"

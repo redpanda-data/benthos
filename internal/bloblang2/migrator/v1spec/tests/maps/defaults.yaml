@@ -1,0 +1,167 @@
+description: "Default parameter values: literal defaults, positional/named omission, non-literal default errors, dynamic defaults pattern"
+
+# V1 maps have no parameter list and therefore no default values.
+# The idiomatic V1 equivalent is to pass an object and use `.or(default)` on each field inside the map body.
+# Most of these tests probe V2-only default-value syntax and are skipped.
+
+tests:
+  # --- Basic default values ---
+
+  - name: "single default parameter omitted uses default"
+    mapping: |
+      map greet {
+        root = this.greeting.or("Hello") + ", " + this.name
+      }
+      root.v = {"name": "Alice"}.apply("greet")
+    output: {"v": "Hello, Alice"}
+
+  - name: "single default parameter provided overrides default"
+    mapping: |
+      map greet {
+        root = this.greeting.or("Hello") + ", " + this.name
+      }
+      root.v = {"name": "Alice", "greeting": "Hi"}.apply("greet")
+    output: {"v": "Hi, Alice"}
+
+  - name: "multiple default parameters all omitted"
+    # V1 `.round()` takes no arguments (rounds to nearest whole number). For decimal formatting,
+    # build a format string and use `.format()` instead.
+    mapping: |
+      map fmt {
+        let currency = this.currency.or("USD")
+        let decimals = this.decimals.or(2)
+        let fmt_str = "%." + $decimals.string() + "f"
+        root = $currency + " " + $fmt_str.format(this.amount)
+      }
+      root.v = {"amount": 99.99}.apply("fmt")
+    output: {"v": "USD 99.99"}
+
+  - name: "multiple defaults first provided second omitted"
+    mapping: |
+      map fmt {
+        let currency = this.currency.or("USD")
+        let decimals = this.decimals.or(2)
+        let fmt_str = "%." + $decimals.string() + "f"
+        root = $currency + " " + $fmt_str.format(this.amount)
+      }
+      root.v = {"amount": 99.99, "currency": "EUR"}.apply("fmt")
+    output: {"v": "EUR 99.99"}
+
+  - name: "multiple defaults all provided"
+    # With `%.0f`, Go's fmt produces "100" (no trailing .0), so the expected string lacks the `.0`.
+    mapping: |
+      map fmt {
+        let currency = this.currency.or("USD")
+        let decimals = this.decimals.or(2)
+        let fmt_str = "%." + $decimals.string() + "f"
+        root = $currency + " " + $fmt_str.format(this.amount)
+      }
+      root.v = {"amount": 99.999, "currency": "EUR", "decimals": 0}.apply("fmt")
+    output: {"v": "EUR 100"}
+
+  # --- Default value types ---
+
+  - name: "default integer literal"
+    mapping: |
+      map inc {
+        root = this.x + this.step.or(1)
+      }
+      root.v = {"x": 10}.apply("inc")
+    output: {"v": 11}
+
+  - name: "default string literal"
+    mapping: |
+      map tag {
+        root = this.prefix.or("tag") + ":" + this.value
+      }
+      root.v = {"value": "foo"}.apply("tag")
+    output: {"v": "tag:foo"}
+
+  - name: "default true literal"
+    mapping: |
+      map check {
+        let strict = this.strict.or(true)
+        root = if $strict { this.x > 0 } else { this.x >= 0 }
+      }
+      root.v = {"x": 0}.apply("check")
+    output: {"v": false}
+
+  - name: "default false literal"
+    mapping: |
+      map check {
+        let lenient = this.lenient.or(false)
+        root = if $lenient { true } else { this.x > 0 }
+      }
+      root.v = {"x": -1}.apply("check")
+    output: {"v": false}
+
+  - name: "default null literal"
+    mapping: |
+      map maybe {
+        # V1: .or(fallback) replaces null or missing. `this.x` being null yields null;
+        # to apply a real default the caller passes a value directly or we use the provided fallback.
+        root = this.x.or(this.fallback)
+      }
+      root.v = {"x": null, "fallback": "backup"}.apply("maybe")
+    output: {"v": "backup"}
+
+  # --- Named arguments with defaults ---
+  # V1 has no named-argument call form for maps.
+
+  - name: "named args skip middle optional parameter"
+    skip: "V1 maps have no parameter list — there are no named arguments at the call site"
+
+  - name: "named args provide only required"
+    skip: "V1 maps have no parameter list — there are no named arguments at the call site"
+
+  - name: "named args override all defaults"
+    skip: "V1 maps have no parameter list — there are no named arguments at the call site"
+
+  # --- Non-literal defaults are compile errors ---
+  # V1 has no default-value syntax, so these compile-error cases don't translate.
+
+  - name: "expression as default value is compile error"
+    skip: "V1 maps have no default-value syntax — the non-literal-default restriction has no V1 analogue"
+
+  - name: "function call as default value is compile error"
+    skip: "V1 maps have no default-value syntax — the non-literal-default restriction has no V1 analogue"
+
+  - name: "variable reference as default value is compile error"
+    skip: "V1 maps have no default-value syntax — the non-literal-default restriction has no V1 analogue"
+
+  - name: "parameter reference as default value is compile error"
+    skip: "V1 maps have no default-value syntax — the non-literal-default restriction has no V1 analogue"
+
+  # --- Default before required is compile error ---
+
+  - name: "default parameter before required parameter is compile error"
+    skip: "V1 maps have no parameter list — required/optional ordering has no V1 analogue"
+
+  # --- Dynamic defaults pattern ---
+
+  - name: "dynamic default with null and or"
+    mapping: |
+      map connect {
+        let p = this.port.or(if this.host.has_prefix("https") { 443 } else { 80 })
+        root = this.host + ":" + $p.string()
+      }
+      root.v = {"host": "https://example.com"}.apply("connect")
+    output: {"v": "https://example.com:443"}
+
+  - name: "dynamic default overridden by caller"
+    mapping: |
+      map connect {
+        let p = this.port.or(if this.host.has_prefix("https") { 443 } else { 80 })
+        root = this.host + ":" + $p.string()
+      }
+      root.v = {"host": "http://example.com", "port": 8080}.apply("connect")
+    output: {"v": "http://example.com:8080"}
+
+  - name: "dynamic default with http fallback"
+    mapping: |
+      map connect {
+        let p = this.port.or(if this.host.has_prefix("https") { 443 } else { 80 })
+        root = this.host + ":" + $p.string()
+      }
+      root.v = {"host": "http://example.com"}.apply("connect")
+    output: {"v": "http://example.com:80"}

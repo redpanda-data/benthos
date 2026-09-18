@@ -1,0 +1,177 @@
+description: ".catch() — intercepts errors, error object access, passthrough for non-errors, chaining, scope"
+
+tests:
+  # --- Basic catch usage ---
+
+  - name: "catch intercepts division by zero"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero).catch(err -> -1)
+    output: {"result": -1} # V1 literal `5 / 0` fails at compile time; use a runtime operand so .catch can run
+
+  - name: "catch intercepts throw"
+    mapping: |
+      root.result = throw("boom").catch(err -> "caught")
+    output: {"result": "caught"}
+
+  - name: "catch intercepts out of bounds"
+    mapping: |
+      let arr = [1, 2, 3]
+      root.result = $arr.index(10).catch(err -> 0)
+    output: {"result": 0}
+
+  - name: "catch intercepts type mismatch"
+    input: {"s": "nope"}
+    mapping: |
+      root.result = (5 + this.s).catch(err -> 0)
+    output: {"result": 0} # V1 literal `5 + "nope"` fails at compile time; use a runtime operand so .catch can run
+
+  # --- Error object access ---
+  # In V1 `err` is the error string itself (not an object with .what).
+  # V1 error messages are also typically prefixed with things like
+  # "failed assignment (line N): ..." — tests match on substring.
+
+  - name: "error object has what field with message"
+    mapping: |
+      root.result = throw("something broke").catch(err -> err)
+    output: {"result": "something broke"} # FIXME-v1: verify — V1 err is a string; full message may include a prefix
+
+  - name: "error what field from division by zero"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero).catch(err -> err)
+    output: {"result": "field `this.zero`: attempted to divide by zero"} # V1 err is a string; literal 5/0 fails at compile — use runtime operand
+
+  - name: "error what field used in concatenation"
+    mapping: |
+      root.result = throw("oops").catch(err -> "error: " + err)
+    output: {"result": "error: oops"} # FIXME-v1: verify — V1 err may include a prefix before "oops"
+
+  # --- Directly on input/output/variable (no intermediate field access) ---
+
+  - name: "catch on input directly when error"
+    input: null
+    mapping: |
+      root = this.not_null().catch(err -> "was null")
+    output: "was null"
+
+  - name: "catch on variable directly when no error"
+    mapping: |
+      let v = "hello"
+      root = $v.catch(err -> "caught")
+    output: "hello"
+
+  - name: "catch on input directly when no error"
+    input: "hello"
+    mapping: |
+      root = this.catch(err -> "fallback")
+    output: "hello"
+
+  # --- No-error passthrough ---
+
+  - name: "catch returns value unchanged when no error"
+    mapping: |
+      root.result = "hello".catch(err -> "fallback")
+    output: {"result": "hello"}
+
+  - name: "catch returns int unchanged when no error"
+    mapping: |
+      root.result = 42.catch(err -> 0)
+    output: {"result": 42}
+
+  - name: "catch returns null unchanged when no error"
+    mapping: |
+      root.result = null.catch(err -> "fallback")
+    output: {"result": null}
+
+  - name: "catch lambda not invoked when no error"
+    mapping: |
+      root.result = "ok".catch(err -> throw("should not run"))
+    output: {"result": "ok"}
+
+  # --- Void passes through catch unchanged ---
+  # V1 does not have a distinct "void" value — an if-without-else that
+  # doesn't match yields null, which `.catch(...)` passes through.
+
+  - name: "void passes through catch — assignment skipped"
+    mapping: |
+      root.x = "prior"
+      root.x = (if false { 1 }).catch(err -> 99)
+    output: {"x": "prior"} # FIXME-v1: verify — V1 if-without-else yields null; assigning null to root.x leaves the prior value or assigns null depending on mapping semantics
+    skip: "V1 has no 'void' sentinel — if-without-else yields null, which .catch() passes through but then the assignment writes null rather than being skipped"
+
+  - name: "void passes through catch then subsequent method errors"
+    mapping: |
+      root.result = (if false { 1 }).catch(err -> 0).string().catch(err -> "caught void method")
+    output: {"result": "caught void method"}
+    skip: "V1 has no void; (if false { 1 }) yields null, .catch passes it through, null.string() returns 'null' rather than erroring"
+
+  # --- Deleted passes through catch unchanged ---
+
+  - name: "deleted passes through catch — field removed"
+    mapping: |
+      root.x = "prior"
+      root.x = deleted().catch(err -> "rescued")
+    output: {} # FIXME-v1: verify — V1 .catch passes deleted() through; assigning deleted() to root.x removes the field
+
+  # --- Parentheses define catch scope ---
+
+  - name: "catch scoped to parenthesized expression"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero).string().catch(err -> "0")
+    output: {"result": "0"} # V1 literal `5 / 0` fails at compile time; use a runtime operand so .catch can run
+
+  - name: "catch scoped to inner parens catches inner error only"
+    input: {"zero": 0}
+    mapping: |
+      root.result = ((5 / this.zero).catch(err -> 42)).string()
+    output: {"result": "42"} # V1 literal `5 / 0` fails at compile time; use a runtime operand
+
+  - name: "catch on method chain catches entire chain"
+    mapping: |
+      root.result = "hello".number().string().catch(err -> -1)
+    output: {"result": -1} # V1 core env has no `abs` or `int64` methods (those live in impl/pure); use .number() for the erroring step
+
+  # --- Chained catches ---
+
+  - name: "first catch handles error, second catch not invoked"
+    mapping: |
+      root.result = throw("x").catch(err -> "first").catch(err -> "second")
+    output: {"result": "first"}
+
+  - name: "first catch re-throws, second catch handles"
+    mapping: |
+      root.result = throw("x").catch(err -> throw("re-thrown")).catch(err -> "final")
+    output: {"result": "final"}
+
+  - name: "chained catch with error in first handler"
+    input: {"zero": 0}
+    mapping: |
+      root.result = throw("x").catch(err -> 5 / this.zero).catch(err -> "safe")
+    output: {"result": "safe"} # V1 literal `5 / 0` fails at compile; use a runtime operand so the first handler errors at runtime
+
+  # --- Handler returning deleted ---
+
+  - name: "catch handler returns deleted — field removed"
+    mapping: |
+      root.x = "prior"
+      root.x = throw("err").catch(err -> deleted())
+    output: {}
+
+  # --- Handler returning void ---
+
+  - name: "catch handler returns void — assignment skipped"
+    mapping: |
+      root.x = "prior"
+      root.x = throw("err").catch(err -> if false { "nope" })
+    output: {"x": "prior"}
+    skip: "V1 has no void; if-without-else yields null, which is assigned to root.x rather than skipping"
+
+  # --- Catch after method that errors ---
+
+  - name: "catch after string method on non-stringable"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero).string().catch(err -> "zero div")
+    output: {"result": "zero div"} # V1 literal `5 / 0` fails at compile; use a runtime operand

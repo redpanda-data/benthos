@@ -1,0 +1,255 @@
+description: "Boolean and null literals, equality, type checking"
+
+tests:
+  # --- Boolean literals ---
+
+  - name: "true literal"
+    mapping: |
+      root = true
+    output: true
+
+  - name: "false literal"
+    mapping: |
+      root = false
+    output: false
+
+  - name: "true type"
+    mapping: |
+      root = true.type()
+    output: "bool"
+
+  - name: "false type"
+    mapping: |
+      root = false.type()
+    output: "bool"
+
+  # --- Boolean equality ---
+
+  - name: "true equals true"
+    mapping: |
+      root = true == true
+    output: true
+
+  - name: "false equals false"
+    mapping: |
+      root = false == false
+    output: true
+
+  - name: "true not equals false"
+    mapping: |
+      root = true != false
+    output: true
+
+  - name: "true equals false is false"
+    mapping: |
+      root = true == false
+    output: false
+
+  # --- Boolean logical operators ---
+
+  - name: "logical and true true"
+    mapping: |
+      root = true && true
+    output: true
+
+  - name: "logical and true false"
+    mapping: |
+      root = true && false
+    output: false
+
+  - name: "logical or false true"
+    mapping: |
+      root = false || true
+    output: true
+
+  - name: "logical or false false"
+    mapping: |
+      root = false || false
+    output: false
+
+  - name: "logical not true"
+    mapping: |
+      root = !true
+    output: false
+
+  - name: "logical not false"
+    mapping: |
+      root = !false
+    output: true
+
+  # --- Boolean cross-type equality ---
+
+  - name: "bool equals int is false"
+    # V1 `==` coerces bool to int (true=1, false=0) when comparing to a number — `true == 1` is TRUE.
+    mapping: |
+      root = true == 1
+    output: true
+
+  - name: "bool equals string is false"
+    mapping: |
+      root = true == "true"
+    output: false
+
+  - name: "bool equals null is false"
+    mapping: |
+      root = false == null
+    output: false
+
+  # --- Boolean conversions ---
+
+  - name: "bool from string true"
+    mapping: |
+      root = "true".bool()
+    output: true
+
+  - name: "bool from string false"
+    mapping: |
+      root = "false".bool()
+    output: false
+
+  - name: "bool from int64 nonzero"
+    mapping: |
+      root = 1.bool()
+    output: true
+
+  - name: "bool from int64 zero"
+    mapping: |
+      root = 0.bool()
+    output: false
+
+  - name: "bool from float64 nonzero"
+    mapping: |
+      root = 3.14.bool()
+    output: true
+
+  - name: "bool from float64 zero"
+    mapping: |
+      root = 0.0.bool()
+    output: false
+
+  - name: "bool to string true"
+    mapping: |
+      root = true.string()
+    output: "true"
+
+  - name: "bool to string false"
+    mapping: |
+      root = false.string()
+    output: "false"
+
+  - name: "bool to int64 is error"
+    mapping: |
+      root = true.number()
+    # FIXME-v1: verify — V1 .number() on bool is a type error
+    error: "expected number"
+
+  # --- Boolean errors with non-boolean operators ---
+
+  - name: "bool arithmetic is error"
+    # V1 literal-operand arithmetic type checks happen at compile time.
+    mapping: |
+      root = true + false
+    compile_error: "cannot add"
+
+  - name: "bool comparison is error"
+    # V1 literal-operand comparison type checks happen at compile time.
+    mapping: |
+      root = true > false
+    compile_error: "cannot compare"
+
+  - name: "logical and with non-bool is error"
+    # V1 `&&` is lenient — it short-circuits on the boolean-coerced truthiness of the LHS without
+    # type-checking the RHS. `true && 1` evaluates to `true`, no error.
+    mapping: |
+      root = true && 1
+    output: true
+
+  - name: "logical or with non-bool is error"
+    mapping: |
+      root = false || "yes"
+    # FIXME-v1: verify error substring
+    error: "bool"
+
+  - name: "logical not with non-bool is error"
+    mapping: |
+      root = !42
+    # FIXME-v1: verify error substring
+    error: "bool"
+
+  # --- Null literal ---
+
+  - name: "null literal"
+    mapping: |
+      root = null
+    output: null
+
+  - name: "null type"
+    mapping: |
+      root = null.type()
+    output: "null"
+
+  # --- Null equality ---
+
+  - name: "null equals null"
+    mapping: |
+      root = null == null
+    output: true
+
+  - name: "null not equals null"
+    mapping: |
+      root = null != null
+    output: false
+
+  - name: "null equals zero is false"
+    mapping: |
+      root = null == 0
+    output: false
+
+  - name: "null equals empty string is false"
+    mapping: |
+      root = null == ""
+    output: false
+
+  - name: "null equals false is false"
+    mapping: |
+      root = null == false
+    output: false
+
+  # --- Null errors in operations ---
+
+  - name: "null arithmetic is error"
+    # V1 literal-operand arithmetic type checks happen at compile time.
+    mapping: |
+      root = null + 5
+    compile_error: "cannot add"
+
+  - name: "null comparison is error"
+    # V1 literal-operand comparison type checks happen at compile time.
+    mapping: |
+      root = null > 5
+    compile_error: "cannot compare"
+
+  - name: "null method call is error"
+    mapping: |
+      root = null.uppercase()
+    # FIXME-v1: verify error substring
+    error: "null"
+
+  # --- Null string conversion ---
+
+  - name: "null to string"
+    mapping: |
+      root = null.string()
+    output: "null"
+
+  # --- Null with .or() ---
+
+  - name: "null or default"
+    mapping: |
+      root = null.or("default")
+    output: "default"
+
+  - name: "non-null or default returns value"
+    mapping: |
+      root = "hello".or("default")
+    output: "hello"

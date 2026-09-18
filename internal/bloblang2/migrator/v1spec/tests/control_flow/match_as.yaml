@@ -1,0 +1,47 @@
+description: "Match with 'as' binding — V1 has no direct equivalent of match-as; all tests are skipped."
+
+tests:
+  - name: "match as score tier classification"
+    skip: "V1 has no match-as syntax"
+
+  - name: "as binding used in result expression"
+    skip: "V1 has no match-as syntax"
+
+  - name: "as binding used in both condition and result"
+    skip: "V1 has no match-as syntax"
+
+  - name: "matched expression evaluated once"
+    skip: "V1 has no match-as syntax"
+
+  - name: "non-boolean case in match-as is runtime error"
+    skip: "V1 has no match-as syntax"
+
+  - name: "integer case in match-as is runtime error"
+    skip: "V1 has no match-as syntax"
+
+  - name: "wildcard in match-as is not checked as boolean"
+    skip: "V1 has no match-as syntax"
+
+  - name: "as binding not accessible after match"
+    skip: "V1 has no match-as syntax"
+
+  - name: "as binding does not shadow outer variable — it is a new scope"
+    skip: "V1 has no match-as syntax"
+
+  - name: "match-as with braced body using binding and local vars"
+    skip: "V1 has no match-as syntax"
+
+  - name: "match-as on string value"
+    skip: "V1 has no match-as syntax"
+
+  - name: "non-exhaustive match-as produces void"
+    skip: "V1 has no match-as syntax"
+
+  - name: "match-as as statement with output assignments"
+    skip: "V1 has no match-as syntax"
+
+  - name: "cases after first true not evaluated in match-as"
+    skip: "V1 has no match-as syntax"
+
+  - name: "match-as with computed matched expression"
+    skip: "V1 has no match-as syntax"

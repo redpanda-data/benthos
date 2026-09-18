@@ -1,0 +1,97 @@
+description: >
+  Lambda capture of outer variables — lambdas reading variables from enclosing
+  scopes, including nested lambdas and lambdas inside maps.
+
+tests:
+  # --- Simple outer variable capture ---
+
+  - name: "lambda reads single outer variable"
+    mapping: |
+      $factor = 10
+      output.v = [1, 2, 3].map(x -> x * $factor)
+    output: {"v": [10, 20, 30]}
+
+  - name: "lambda reads multiple outer variables"
+    mapping: |
+      $offset = 100
+      $scale = 3
+      output.v = [1, 2].map(x -> x * $scale + $offset)
+    output: {"v": [103, 106]}
+
+  - name: "lambda reads outer variable in filter condition"
+    mapping: |
+      $threshold = 5
+      output.v = [1, 3, 7, 9, 2].filter(x -> x > $threshold)
+    output: {"v": [7, 9]}
+
+  - name: "lambda reads outer variable in fold"
+    mapping: |
+      $base = 100
+      output.v = [1, 2, 3].fold($base, (acc, x) -> acc + x)
+    output: {"v": 106}
+
+  # --- Nested lambda capture ---
+
+  - name: "inner lambda captures outer lambda parameter"
+    mapping: |
+      output.v = [1, 2].map(x -> [10, 20].map(y -> x * 100 + y))
+    output: {"v": [[110, 120], [210, 220]]}
+
+  - name: "inner lambda captures top-level variable through outer lambda"
+    mapping: |
+      $prefix = "item"
+      output.v = [1, 2].map(x -> $prefix + "_" + x.string())
+    output: {"v": ["item_1", "item_2"]}
+
+  - name: "triple nested lambda captures all levels"
+    mapping: |
+      $base = 1000
+      output.v = [1].map(a -> [2].map(b -> [3].map(c -> $base + a * 100 + b * 10 + c)))
+    output: {"v": [[[1123]]]}
+
+  # --- Capture with shadowing ---
+
+  - name: "lambda parameter does not modify outer variable"
+    mapping: |
+      $x = "outer"
+      $result = ["inner"].map(x -> x + "_mapped")
+      output.outer = $x
+      output.mapped = $result
+    output:
+      outer: "outer"
+      mapped: ["inner_mapped"]
+
+  - name: "lambda local variable does not modify outer variable"
+    mapping: |
+      $x = "outer"
+      $result = [1].map(n -> {
+        $x = "shadowed"
+        $x + "_" + n.string()
+      })
+      output.outer = $x
+      output.result = $result
+    output:
+      outer: "outer"
+      result: ["shadowed_1"]
+
+  # --- Capture across iterator chains ---
+
+  - name: "chained iterators both capture outer variable"
+    mapping: |
+      $min = 2
+      $scale = 10
+      output.v = [1, 2, 3, 4, 5]
+        .filter(x -> x >= $min)
+        .map(x -> x * $scale)
+    output: {"v": [20, 30, 40, 50]}
+
+  - name: "sort_by with outer variable in key function"
+    mapping: |
+      $field = "priority"
+      $items = [
+        {"name": "c", "priority": 3},
+        {"name": "a", "priority": 1},
+        {"name": "b", "priority": 2},
+      ]
+      output.v = $items.sort_by(x -> x[$field]).map(x -> x.name)
+    output: {"v": ["a", "b", "c"]}

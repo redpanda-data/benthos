@@ -1,0 +1,117 @@
+description: "Edge cases: empty array and empty object with all applicable methods"
+
+tests:
+  # --- Empty array methods ---
+
+  - name: "empty array sort returns empty array"
+    mapping: |
+      root = [].sort()
+    output: []
+
+  - name: "empty array sum returns 0"
+    # V1 `.sum()` always returns a float64 (even for empty input).
+    mapping: |
+      root = [].sum()
+    output: 0.0
+
+  - name: "empty array min is error"
+    mapping: |
+      root = [].min()
+    error: "empty"
+    # FIXME-v1: verify — V1 .min() on empty array may return null rather than error.
+
+  - name: "empty array max is error"
+    mapping: |
+      root = [].max()
+    error: "empty"
+    # FIXME-v1: verify — V1 .max() on empty array may return null rather than error.
+
+  - name: "empty array fold returns initial value"
+    mapping: |
+      root = [].fold(42, tally -> tally.tally + tally.value)
+    output: 42
+    # FIXME-v1: verify — V1 .fold(init, lambda) lambda receives {"tally": ..., "value": ...}.
+
+  - name: "empty array fold returns initial string"
+    mapping: |
+      root = [].fold("start", tally -> tally.tally + tally.value)
+    output: "start"
+    # FIXME-v1: verify — V1 .fold lambda receives {"tally": ..., "value": ...}.
+
+  - name: "empty array length is 0"
+    mapping: |
+      root = [].length()
+    output: 0
+
+  - name: "empty array contains returns false"
+    mapping: |
+      root = [].contains(1)
+    output: false
+
+  - name: "empty array unique returns empty array"
+    mapping: |
+      root = [].unique()
+    output: []
+
+  - name: "empty array filter returns empty array"
+    mapping: |
+      root = [].filter(x -> x > 0)
+    output: []
+
+  - name: "empty array map returns empty array"
+    mapping: |
+      root = [].map_each(x -> x * 2)
+    output: []
+    # FIXME-v1: verify — V1 uses .map_each() rather than .map().
+
+  - name: "empty array reverse returns empty array"
+    # V1 `.reverse()` is a string-only method — calling it on an array is a runtime error.
+    mapping: |
+      root = [].reverse()
+    error: "expected string value"
+
+  # --- Empty object methods ---
+
+  - name: "empty object keys returns empty array"
+    mapping: |
+      root = {}.keys()
+    output: []
+
+  - name: "empty object values returns empty array"
+    mapping: |
+      root = {}.values()
+    output: []
+
+  - name: "empty object length is 0"
+    mapping: |
+      root = {}.length()
+    output: 0
+
+  - name: "empty object type is object"
+    mapping: |
+      root = {}.type()
+    output: "object"
+
+  - name: "empty array type is array"
+    mapping: |
+      root = [].type()
+    output: "array"
+
+  # --- Single element edge cases ---
+
+  - name: "single element array sort returns same"
+    mapping: |
+      root = [42].sort()
+    output: [42]
+
+  - name: "single element array min returns element"
+    # V1 `.min()` always returns a float64.
+    mapping: |
+      root = [42].min()
+    output: 42.0
+
+  - name: "single element array max returns element"
+    # V1 `.max()` always returns a float64.
+    mapping: |
+      root = [42].max()
+    output: 42.0

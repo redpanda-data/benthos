@@ -1,0 +1,183 @@
+description: "Maps: zero/single/multi parameter definitions, hoisting, return values, duplicate name errors"
+
+tests:
+  # --- Zero parameters ---
+  # V1 maps have no parameter list; the receiver `this` is passed via .apply().
+  # For zero-argument-style maps we just ignore `this` inside the body.
+
+  - name: "zero parameter map returns literal object"
+    mapping: |
+      map headers {
+        root = {"content_type": "json"}
+      }
+      root.h = {}.apply("headers")
+    output: {"h": {"content_type": "json"}}
+
+  - name: "zero parameter map returns literal string"
+    mapping: |
+      map greeting {
+        root = "hello world"
+      }
+      root.msg = {}.apply("greeting")
+    output: {"msg": "hello world"}
+
+  - name: "zero parameter map returns literal integer"
+    mapping: |
+      map answer {
+        root = 42
+      }
+      root.v = {}.apply("answer")
+    output: {"v": 42}
+
+  - name: "zero parameter map called multiple times"
+    mapping: |
+      map tag {
+        root = "v1"
+      }
+      root.a = {}.apply("tag")
+      root.b = {}.apply("tag")
+    output: {"a": "v1", "b": "v1"}
+
+  # --- Single parameter ---
+  # V1 style: the single argument is `this` inside the map body.
+
+  - name: "single parameter map"
+    mapping: |
+      map double {
+        root = this * 2
+      }
+      root.v = 5.apply("double")
+    output: {"v": 10}
+
+  - name: "single parameter map with string"
+    mapping: |
+      map shout {
+        root = this.uppercase()
+      }
+      root.v = "hello".apply("shout")
+    output: {"v": "HELLO"}
+
+  - name: "single parameter map with object access"
+    mapping: |
+      map get_name {
+        root = this.name
+      }
+      root.v = {"name": "Alice", "age": 30}.apply("get_name")
+    output: {"v": "Alice"}
+
+  # --- Multiple parameters ---
+  # V1 has no parameter list; pass an object as the receiver.
+
+  - name: "two parameter map"
+    mapping: |
+      map add {
+        root = this.a + this.b
+      }
+      root.v = {"a": 3, "b": 7}.apply("add")
+    output: {"v": 10}
+
+  - name: "three parameter map"
+    mapping: |
+      map calc {
+        root = this.x + this.y * this.z
+      }
+      root.v = {"x": 1, "y": 2, "z": 3}.apply("calc")
+    output: {"v": 7}
+
+  - name: "map with variables in body"
+    mapping: |
+      map total {
+        let tax = this.subtotal * this.tax_rate
+        root = this.subtotal + $tax
+      }
+      root.v = {"subtotal": 100, "tax_rate": 0.1}.apply("total")
+    output: {"v": 110.0}
+
+  - name: "map with multiple variables in body"
+    mapping: |
+      map combine {
+        let ab = this.a + this.b
+        let abc = $ab + this.c
+        root = $abc
+      }
+      root.v = {"a": "hello", "b": " ", "c": "world"}.apply("combine")
+    output: {"v": "hello world"}
+
+  # --- Return value semantics ---
+
+  - name: "map returns last expression value"
+    mapping: |
+      map last_wins {
+        let unused = this + 1
+        root = this * 10
+      }
+      root.v = 5.apply("last_wins")
+    output: {"v": 50}
+
+  - name: "map returns array"
+    mapping: |
+      map wrap {
+        root = [this, this, this]
+      }
+      root.v = 7.apply("wrap")
+    output: {"v": [7, 7, 7]}
+
+  - name: "map returns null"
+    mapping: |
+      map nothing_map {
+        root = null
+      }
+      root.v = 42.apply("nothing_map")
+    output: {"v": null}
+
+  - name: "map returns boolean"
+    mapping: |
+      map is_positive {
+        root = this > 0
+      }
+      root.v = 5.apply("is_positive")
+    output: {"v": true}
+
+  # --- Hoisting ---
+  # V1 hoists map names — map can be .apply()'d before its definition appears in the file.
+
+  - name: "map called before declaration"
+    mapping: |
+      root.v = 21.apply("double")
+      map double {
+        root = this * 2
+      }
+    output: {"v": 42}
+
+  - name: "map called before declaration with multiple maps"
+    mapping: |
+      root.v = {"a": 2.apply("triple"), "b": 1}.apply("add")
+      map triple { root = this * 3 }
+      map add { root = this.a + this.b }
+    output: {"v": 7}
+
+  # --- Duplicate map name ---
+
+  - name: "duplicate map name in same file is compile error"
+    # V1 wording is "map name collision".
+    mapping: |
+      map foo { root = this }
+      map foo { root = this * 2 }
+      root.v = 1.apply("foo")
+    compile_error: "map name collision"
+
+  # --- Parameter is read-only ---
+
+  - name: "assigning to parameter is compile error"
+    skip: "V1 maps have no named parameters — the receiver is `this`, which is never an assignment target"
+
+  # --- Arity errors ---
+
+  - name: "too few positional arguments is error"
+    skip: "V1 .apply() takes a single receiver value and no argument list — there is no arity check"
+
+  - name: "too many positional arguments is error"
+    skip: "V1 .apply() takes a single receiver value and no argument list — there is no arity check"
+
+  - name: "zero args to parameterised map is error"
+    skip: "V1 .apply() always takes a receiver — the zero-arg case is expressed by ignoring `this` in the body"

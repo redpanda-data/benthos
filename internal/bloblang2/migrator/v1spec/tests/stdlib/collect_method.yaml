@@ -1,0 +1,36 @@
+description: >
+  .collect() method — converts array of {key, value} objects into an object.
+  Last value wins on duplicate keys.
+
+tests:
+  # --- Basic collect ---
+
+  - name: "collect simple key-value pairs"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "collect single entry"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "collect empty array"
+    skip: "V1 has no equivalent for collect"
+
+  # --- Last value wins on duplicates ---
+
+  - name: "collect duplicate keys — last wins"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "collect multiple duplicates — last wins"
+    skip: "V1 has no equivalent for collect"
+
+  # --- Mixed value types ---
+
+  - name: "collect with mixed value types"
+    skip: "V1 has no equivalent for collect"
+
+  # --- Collect from transformed data ---
+
+  - name: "enumerate then collect round-trips"
+    skip: "V1 has no equivalent for collect"
+
+  - name: "map_entries to key-value then collect"
+    skip: "V1 has no equivalent for collect/iter"

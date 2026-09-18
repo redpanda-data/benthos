@@ -1,0 +1,144 @@
+description: "Edge cases: whitespace handling, raw string newlines, multi-line mappings"
+
+tests:
+  # --- Whitespace in expressions ---
+
+  - name: "extra spaces around operators"
+    mapping: |
+      root = 1   +   2
+    output: 3
+
+  - name: "no spaces around operators"
+    mapping: |
+      root = 1+2
+    output: 3
+
+  - name: "tabs in expressions"
+    mapping: "root\t=\t1\t+\t2"
+    output: 3
+
+  - name: "spaces in array literal"
+    mapping: |
+      root = [ 1 , 2 , 3 ]
+    output: [1, 2, 3]
+
+  - name: "spaces in object literal"
+    mapping: |
+      root = { "a" : 1 , "b" : 2 }
+    output: {"a": 1, "b": 2}
+
+  # --- Multi-line mappings ---
+
+  - name: "multi-line array literal"
+    mapping: |
+      root = [
+        1,
+        2,
+        3,
+      ]
+    output: [1, 2, 3]
+
+  - name: "multi-line object literal"
+    mapping: |
+      root = {
+        "a": 1,
+        "b": 2,
+        "c": 3,
+      }
+    output: {"a": 1, "b": 2, "c": 3}
+
+  - name: "multi-line method chain"
+    # V1 parser rejects a newline immediately before `.` (§2.1) — break *after* the dot instead.
+    # Note: V1 `.reverse()` is string-only, so use `.sort(left > right)` for descending order.
+    mapping: |
+      root = [3, 1, 2].
+        sort().
+        sort(left > right)
+    output: [3, 2, 1]
+
+  - name: "multi-line if expression"
+    mapping: |
+      root = if true {
+        "yes"
+      } else {
+        "no"
+      }
+    output: "yes"
+
+  - name: "multi-line match expression"
+    mapping: |
+      root = match 2 {
+        1 => "one",
+        2 => "two",
+        _ => "other",
+      }
+    output: "two"
+
+  # --- Raw strings preserve newlines ---
+
+  - name: "raw string preserves literal newline"
+    # YAML `|` block scalars strip the common leading indentation before the bloblang source sees
+    # the string. After YAML parse the mapping is `root = """line1\nline2"""` — so V1 sees a raw
+    # string with a single literal newline between `line1` and `line2` (no leading spaces).
+    mapping: |
+      root = """line1
+      line2"""
+    output: "line1\nline2"
+
+  - name: "raw string preserves multiple newlines"
+    # YAML strips the common leading indentation — the bloblang source sees `"""a\n\nb"""`.
+    mapping: |
+      root = """a
+
+      b"""
+    output: "a\n\nb"
+
+  - name: "raw string preserves tabs"
+    mapping: |
+      root = """col1	col2"""
+    output: "col1\tcol2"
+
+  - name: "raw string does not process escape sequences"
+    mapping: |
+      root = """hello\nworld"""
+    output: "hello\\nworld"
+
+  # --- Escaped newlines in regular strings ---
+
+  - name: "escaped newline in regular string"
+    mapping: |
+      root = "line1\nline2"
+    output: "line1\nline2"
+
+  - name: "escaped tab in regular string"
+    mapping: |
+      root = "col1\tcol2"
+    output: "col1\tcol2"
+
+  # --- Blank lines between statements ---
+
+  - name: "blank lines between statements are ignored"
+    mapping: |
+      root.a = 1
+
+      root.b = 2
+
+      root.c = 3
+    output: {"a": 1, "b": 2, "c": 3}
+
+  # --- Leading/trailing whitespace in mapping ---
+
+  - name: "mapping with leading blank lines"
+    mapping: |
+
+      root = 42
+    output: 42
+
+  - name: "multiple assignments separated by blank lines"
+    mapping: |
+      let x = 10
+
+      let y = 20
+
+      root = $x + $y
+    output: 30

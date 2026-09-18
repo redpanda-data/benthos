@@ -1,0 +1,126 @@
+description: >
+  Sort edge cases — stable sort, mixed numeric families error, NaN total
+  ordering, sort_by with complex keys, and sort with various types.
+
+tests:
+  # --- Basic stable sort ---
+
+  - name: "sort integers ascending"
+    mapping: |
+      root.v = [3, 1, 4, 1, 5, 9, 2, 6].sort()
+    output: {"v": [1, 1, 2, 3, 4, 5, 6, 9]}
+
+  - name: "sort already sorted"
+    mapping: |
+      root.v = [1, 2, 3].sort()
+    output: {"v": [1, 2, 3]}
+
+  - name: "sort reverse sorted"
+    mapping: |
+      root.v = [3, 2, 1].sort()
+    output: {"v": [1, 2, 3]}
+
+  - name: "sort single element"
+    mapping: |
+      root.v = [42].sort()
+    output: {"v": [42]}
+
+  - name: "sort empty array"
+    mapping: |
+      root.v = [].sort()
+    output: {"v": []}
+
+  - name: "sort strings lexicographic"
+    mapping: |
+      root.v = ["banana", "apple", "cherry", "date"].sort()
+    output: {"v": ["apple", "banana", "cherry", "date"]}
+
+  - name: "sort floats"
+    mapping: |
+      root.v = [3.14, 1.41, 2.72].sort()
+    output: {"v": [1.41, 2.72, 3.14]}
+
+  # --- Mixed numeric types within same family ---
+
+  - name: "sort mixed int32 and int64"
+    skip: "V1 has no int32() method or distinct int32 type"
+
+  # --- Mixed type families error ---
+
+  - name: "sort mixed strings and integers errors"
+    mapping: |
+      root.v = ["a", 1, "b"].sort()
+    error: "sort"
+
+  - name: "sort mixed booleans and integers errors"
+    mapping: |
+      root.v = [true, 1, false].sort()
+    error: "sort"
+
+  # --- NaN in sort (total ordering: after all numbers) ---
+
+  - name: "sort with special float values"
+    skip: "V2-only _type NaN/Infinity literal shorthand; V1 has no NaN/Infinity literals"
+
+  # --- sort_by ---
+
+  - name: "sort_by numeric field"
+    mapping: |
+      root.v = [
+        {"name": "Charlie", "age": 30},
+        {"name": "Alice", "age": 25},
+        {"name": "Bob", "age": 35},
+      ].sort_by(x -> x.age)
+    output:
+      v:
+        - name: "Alice"
+          age: 25
+        - name: "Charlie"
+          age: 30
+        - name: "Bob"
+          age: 35
+
+  - name: "sort_by string field"
+    mapping: |
+      root.v = [
+        {"name": "Charlie"},
+        {"name": "Alice"},
+        {"name": "Bob"},
+      ].sort_by(x -> x.name)
+    output:
+      v:
+        - name: "Alice"
+        - name: "Bob"
+        - name: "Charlie"
+
+  - name: "sort_by computed key"
+    mapping: |
+      root.v = ["banana", "fig", "apple", "kiwi"].sort_by(s -> s.length())
+    output: {"v": ["fig", "kiwi", "apple", "banana"]}
+
+  - name: "sort_by with block body and local variables"
+    skip: "V1 lambdas do not support block-with-let syntax"
+
+  - name: "sort_by with outer variable capture"
+    mapping: |
+      let field = "age"
+      root.v = [
+        {"name": "B", "age": 20},
+        {"name": "A", "age": 10},
+      ].sort_by(x -> x.get($field))
+    output:
+      v:
+        - name: "A"
+          age: 10
+        - name: "B"
+          age: 20
+
+  # --- sort does not modify original ---
+
+  - name: "sort returns new array"
+    mapping: |
+      let arr = [3, 1, 2]
+      let sorted = $arr.sort()
+      root.original = $arr
+      root.sorted = $sorted
+    output: {"original": [3, 1, 2], "sorted": [1, 2, 3]}

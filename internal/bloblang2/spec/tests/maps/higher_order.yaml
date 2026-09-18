@@ -1,0 +1,125 @@
+description: "Higher-order maps: maps as arguments to .map()/.filter()/.sort_by(), store-in-variable error, bare-name error"
+
+tests:
+  # --- Maps as argument to .map() ---
+
+  - name: "map name passed to .map() method"
+    mapping: |
+      map double(x) { x * 2 }
+      output.v = [1, 2, 3].map(double)
+    output: {"v": [2, 4, 6]}
+
+  - name: "map name passed to .map() is same as lambda"
+    mapping: |
+      map inc(x) { x + 1 }
+      output.direct = [10, 20].map(inc)
+      output.lambda = [10, 20].map(x -> inc(x))
+    output: {"direct": [11, 21], "lambda": [11, 21]}
+
+  - name: "map with string transformation passed to .map()"
+    mapping: |
+      map shout(s) { s.uppercase() }
+      output.v = ["hello", "world"].map(shout)
+    output: {"v": ["HELLO", "WORLD"]}
+
+  - name: "map returning object passed to .map()"
+    mapping: |
+      map wrap(x) { {"value": x} }
+      output.v = [1, 2].map(wrap)
+    output: {"v": [{"value": 1}, {"value": 2}]}
+
+  - name: "map passed to .map() from input"
+    input: {"items": [5, 10, 15]}
+    mapping: |
+      map halve(x) { x / 2 }
+      output.v = input.items.map(halve)
+    output: {"v": [2.5, 5.0, 7.5]}
+
+  # --- Maps as argument to .filter() ---
+
+  - name: "map name passed to .filter() method"
+    mapping: |
+      map is_positive(x) { x > 0 }
+      output.v = [-1, 0, 1, 2, -3].filter(is_positive)
+    output: {"v": [1, 2]}
+
+  - name: "map name passed to .filter() with strings"
+    mapping: |
+      map is_long(s) { s.length() > 3 }
+      output.v = ["hi", "hello", "yo", "world"].filter(is_long)
+    output: {"v": ["hello", "world"]}
+
+  # --- Maps as argument to .sort_by() ---
+
+  - name: "map name passed to .sort_by() method"
+    mapping: |
+      map get_age(person) { person.age }
+      output.v = [{"name": "B", "age": 30}, {"name": "A", "age": 20}].sort_by(get_age)
+    output: {"v": [{"name": "A", "age": 20}, {"name": "B", "age": 30}]}
+
+  # --- Chaining higher-order calls ---
+
+  - name: "chained .filter() and .map() with map names"
+    mapping: |
+      map is_even(x) { x % 2 == 0 }
+      map double(x) { x * 2 }
+      output.v = [1, 2, 3, 4, 5].filter(is_even).map(double)
+    output: {"v": [4, 8]}
+
+  # --- Map defined after use (hoisting with higher-order) ---
+
+  - name: "map name used in .map() before declaration"
+    mapping: |
+      output.v = [1, 2, 3].map(triple)
+      map triple(x) { x * 3 }
+    output: {"v": [3, 6, 9]}
+
+  # --- Cannot store map reference in variable ---
+
+  - name: "storing map name in variable is compile error"
+    mapping: |
+      map double(x) { x * 2 }
+      $fn = double
+      output.v = $fn(5)
+    compile_error: "variable"
+
+  - name: "storing map name in variable without calling is compile error"
+    mapping: |
+      map double(x) { x * 2 }
+      $fn = double
+      output.v = 1
+    compile_error: "variable"
+
+  # --- Cannot use bare map name as expression ---
+
+  - name: "bare map name assigned to output is compile error"
+    mapping: |
+      map double(x) { x * 2 }
+      output.x = double
+    compile_error: "expression"
+
+  - name: "bare map name in array literal is compile error"
+    mapping: |
+      map double(x) { x * 2 }
+      output.v = [double]
+    compile_error: "expression"
+
+  - name: "bare map name in object value is compile error"
+    mapping: |
+      map double(x) { x * 2 }
+      output.v = {"fn": double}
+    compile_error: "expression"
+
+  # --- Only single-param maps work with higher-order (arity mismatch) ---
+
+  - name: "multi-param map passed to .map() is error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = [1, 2, 3].map(add)
+    compile_error: "arity"
+
+  - name: "zero-param map passed to .map() is error"
+    mapping: |
+      map constant() { 42 }
+      output.v = [1, 2, 3].map(constant)
+    compile_error: "arity"

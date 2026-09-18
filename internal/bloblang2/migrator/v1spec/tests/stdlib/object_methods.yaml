@@ -1,0 +1,220 @@
+description: "Object methods — iter, keys, values, has_key, merge, without"
+
+tests:
+  # --- iter (V1: key_values) ---
+
+  - name: "iter produces key-value pairs"
+    mapping: |
+      let obj = {"a": 1}
+      root.result = $obj.key_values()
+    output: {"result": [{"key": "a", "value": 1}]}
+
+  - name: "iter empty object"
+    mapping: |
+      root.result = {}.key_values()
+    output: {"result": []}
+
+  - name: "iter preserves value types"
+    mapping: |
+      let obj = {"s": "hello", "n": 42, "b": true, "nil": null}
+      let entries = $obj.key_values()
+      root.len = $entries.length()
+    output: {"len": 4}
+
+  - name: "iter entries have key and value fields"
+    mapping: |
+      let obj = {"x": 10}
+      let entry = $obj.key_values().index(0)
+      root.k = $entry.key
+      root.v = $entry.value
+    output: {"k": "x", "v": 10}
+
+  - name: "iter result can be used with map"
+    mapping: |
+      let obj = {"a": 1, "b": 2}
+      root.result = $obj.key_values().map_each(e -> e.key + "=" + e.value.string()).sort()
+    output: {"result": ["a=1", "b=2"]}
+
+  # --- keys ---
+
+  - name: "keys of single-key object"
+    mapping: |
+      root.result = {"name": "Alice"}.keys()
+    output: {"result": ["name"]}
+
+  - name: "keys of empty object"
+    mapping: |
+      root.result = {}.keys()
+    output: {"result": []}
+
+  - name: "keys returns strings"
+    mapping: |
+      let obj = {"a": 1}
+      root.result = $obj.keys().index(0).type()
+    output: {"result": "string"}
+
+  - name: "keys count matches object length"
+    mapping: |
+      let obj = {"a": 1, "b": 2, "c": 3}
+      root.result = $obj.keys().length()
+    output: {"result": 3}
+
+  - name: "keys can be sorted for deterministic comparison"
+    mapping: |
+      let obj = {"c": 3, "a": 1, "b": 2}
+      root.result = $obj.keys().sort()
+    output: {"result": ["a", "b", "c"]}
+
+  # --- values ---
+
+  - name: "values of single-key object"
+    mapping: |
+      root.result = {"x": 42}.values()
+    output: {"result": [42]}
+
+  - name: "values of empty object"
+    mapping: |
+      root.result = {}.values()
+    output: {"result": []}
+
+  - name: "values count matches object length"
+    mapping: |
+      let obj = {"a": 1, "b": 2, "c": 3}
+      root.result = $obj.values().length()
+    output: {"result": 3}
+
+  - name: "values can be sorted for deterministic comparison"
+    mapping: |
+      let obj = {"c": 3, "a": 1, "b": 2}
+      root.result = $obj.values().sort()
+    output: {"result": [1, 2, 3]}
+
+  - name: "values preserves types"
+    mapping: |
+      let obj = {"s": "hello", "n": 42}
+      let vals = $obj.values().sort_by(v -> v.type())
+      root.types = $vals.map_each(v -> v.type())
+    output: {"types": ["number", "string"]}
+
+  # --- has_key (V1: exists) ---
+
+  - name: "has_key returns true for existing key"
+    mapping: |
+      root.result = {"name": "Alice"}.exists("name")
+    output: {"result": true}
+
+  - name: "has_key returns false for missing key"
+    mapping: |
+      root.result = {"name": "Alice"}.exists("age")
+    output: {"result": false}
+
+  - name: "has_key on empty object"
+    mapping: |
+      root.result = {}.exists("anything")
+    output: {"result": false}
+
+  - name: "has_key with null value still returns true"
+    mapping: |
+      root.result = {"x": null}.exists("x")
+    output: {"result": true}
+
+  - name: "has_key checks only top-level"
+    mapping: |
+      let obj = {"a": {"b": 1}}
+      root.top = $obj.exists("a")
+      root.nested = $obj.exists("b")
+    output: {"top": true, "nested": false}
+
+  # --- merge (V2's override merge = V1's assign) ---
+
+  - name: "merge two objects"
+    mapping: |
+      root.result = {"a": 1}.assign({"b": 2})
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "merge other wins on conflict"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.assign({"b": 99, "c": 3})
+    output: {"result": {"a": 1, "b": 99, "c": 3}}
+
+  - name: "merge with empty object"
+    mapping: |
+      root.result = {"a": 1}.assign({})
+    output: {"result": {"a": 1}}
+
+  - name: "merge empty with non-empty"
+    mapping: |
+      root.result = {}.assign({"a": 1})
+    output: {"result": {"a": 1}}
+
+  - name: "merge two empty objects"
+    mapping: |
+      root.result = {}.assign({})
+    output: {"result": {}}
+
+  - name: "merge does not modify original"
+    mapping: |
+      let a = {"x": 1}
+      let b = {"y": 2}
+      let c = $a.assign($b)
+      root.a = $a
+      root.c = $c
+    output: {"a": {"x": 1}, "c": {"x": 1, "y": 2}}
+
+  - name: "merge nested objects are replaced not deep merged"
+    mapping: |
+      let a = {"config": {"host": "localhost", "port": 8080}}
+      let b = {"config": {"host": "remote"}}
+      root.result = $a.assign($b)
+    output: {"result": {"config": {"host": "remote", "port": 8080}}}
+
+  # --- without (V1: variadic string args, not an array) ---
+
+  - name: "without removes specified keys"
+    mapping: |
+      root.result = {"a": 1, "b": 2, "c": 3}.without("b")
+    output: {"result": {"a": 1, "c": 3}}
+
+  - name: "without multiple keys"
+    mapping: |
+      root.result = {"a": 1, "b": 2, "c": 3}.without("a", "c")
+    output: {"result": {"b": 2}}
+
+  - name: "without missing key is ignored"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.without("c", "d")
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "without empty key list"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.without()
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "without all keys"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.without("a", "b")
+    output: {"result": {}}
+
+  - name: "without on empty object"
+    mapping: |
+      root.result = {}.without("a")
+    output: {"result": {}}
+
+  - name: "without does not modify original"
+    mapping: |
+      let obj = {"a": 1, "b": 2, "c": 3}
+      let new = $obj.without("b")
+      root.original = $obj
+      root.new = $new
+    output: {"original": {"a": 1, "b": 2, "c": 3}, "new": {"a": 1, "c": 3}}
+
+  - name: "without mix of present and missing keys"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.without("a", "z")
+    output: {"result": {"b": 2}}
+
+  - name: "without non-string key in array is error"
+    skip: "V1 without takes variadic string args; no array argument form"
+
+  - name: "without null key in array is error"
+    skip: "V1 without takes variadic string args; no array argument form"

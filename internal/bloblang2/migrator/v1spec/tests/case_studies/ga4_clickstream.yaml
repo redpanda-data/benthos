@@ -1,0 +1,197 @@
+description: >
+  Google Analytics 4 clickstream normalization — flatten the BigQuery export
+  format's typed-value union event_params and user_properties into plain
+  objects, parse microsecond timestamps, build item category hierarchies,
+  and compute per-item discount percentages and subtotals.
+
+tests:
+  - name: "flatten GA4 purchase event from BigQuery export"
+    input:
+      event_date: "20240315"
+      event_name: "purchase"
+      event_timestamp: "1710505200000000"
+      event_params:
+        - key: "session_id"
+          value: {string_value: null, int_value: 1710504000, double_value: null}
+        - key: "page_location"
+          value: {string_value: "https://shop.example.com/checkout", int_value: null, double_value: null}
+        - key: "transaction_id"
+          value: {string_value: "TXN-8A3F", int_value: null, double_value: null}
+        - key: "value"
+          value: {string_value: null, int_value: null, double_value: 127.5}
+        - key: "currency"
+          value: {string_value: "USD", int_value: null, double_value: null}
+        - key: "shipping"
+          value: {string_value: null, int_value: null, double_value: 7.5}
+        - key: "tax"
+          value: {string_value: null, int_value: null, double_value: 10.0}
+        - key: "coupon"
+          value: {string_value: "SPRING24", int_value: null, double_value: null}
+      user_id: "user-9f8e7d6c"
+      user_properties:
+        - key: "membership_tier"
+          value: {string_value: "gold", double_value: null}
+        - key: "lifetime_value"
+          value: {string_value: null, double_value: 1842.3}
+      device:
+        category: "mobile"
+        mobile_brand_name: "Apple"
+        mobile_model_name: "iPhone 15"
+        operating_system: "iOS"
+        operating_system_version: "17.3.1"
+        web_info:
+          browser: "Safari"
+          browser_version: "17.3"
+      geo:
+        country: "United States"
+        region: "California"
+        city: "San Francisco"
+      traffic_source:
+        source: "instagram"
+        medium: "paid_social"
+        name: "spring_collection_2024"
+      items:
+        - item_id: "SKU-W-1042"
+          item_name: "Merino Wool Cardigan"
+          item_brand: "HouseLabel"
+          item_category: "Apparel"
+          item_category2: "Women"
+          item_category3: "Knitwear"
+          item_variant: "Oatmeal / M"
+          price: 89.0
+          quantity: 1
+          discount: 13.35
+          item_list_name: "Spring Collection"
+        - item_id: "SKU-A-2087"
+          item_name: "Leather Crossbody Bag"
+          item_brand: "HouseLabel"
+          item_category: "Accessories"
+          item_category2: "Bags"
+          item_category3: "Crossbody"
+          item_variant: "Tan"
+          price: 65.0
+          quantity: 1
+          discount: 0.0
+          item_list_name: "Recommended For You"
+    mapping: |
+      # Extract the single non-null typed value from a GA4 value object.
+      # V1 maps take one receiver (`this`); no parameterised maps.
+      map ga4_value {
+        root = match {
+          this.string_value != null => this.string_value,
+          this.int_value != null => this.int_value,
+          this.double_value != null => this.double_value,
+          _ => null,
+        }
+      }
+
+      # Collapse KV arrays with typed-value unions into plain objects.
+      # V2 .map() → V1 .map_each().
+      # V2 .collect() → V1 fold of {key, value} records into an object.
+      let params = this.event_params.
+        map_each(p -> {"key": p.key, "value": p.value.apply("ga4_value")}).
+        fold({}, item -> item.tally.merge({(item.value.key): item.value.value}))
+      let user_props = this.user_properties.
+        map_each(p -> {"key": p.key, "value": p.value.apply("ga4_value")}).
+        fold({}, item -> item.tally.merge({(item.value.key): item.value.value}))
+
+      # Event timestamp (microseconds since epoch) as unix seconds.
+      # V1 core env (used by the migrator) has no ts_format; we emit the raw
+      # unix-seconds numeric value rather than formatting it.
+      let event_ts_seconds = this.event_timestamp.number() / 1000000
+
+      # Build item records with category hierarchy and computed fields.
+      # V2 block-body lambdas with `let` do not exist in V1; inline computations
+      # and use the .(capture -> body) form to reuse derived values.
+      let items = this.items.map_each(item -> [item.item_category, item.item_category2, item.item_category3].filter(c -> c != null && c != "").(cats -> {"sku": item.item_id, "name": item.item_name, "brand": item.item_brand, "categories": cats, "variant": item.item_variant, "price": item.price, "quantity": item.quantity, "discount": item.discount, "discount_pct": if item.price > 0.0 && item.discount > 0.0 { (item.discount / (item.price * item.quantity) * 1000.0).round() / 10 } else { 0.0 }, "subtotal": ((item.price * item.quantity - item.discount) * 100).round() / 100, "source_list": item.item_list_name}))
+
+      root.event = this.event_name
+      root.timestamp_seconds = $event_ts_seconds
+      root.session_id = $params.session_id
+      root.user = {
+        "id": this.user_id,
+        "properties": $user_props,
+      }
+      root.page_url = $params.page_location
+      root.transaction = {
+        "id": $params.transaction_id,
+        "revenue": $params.value,
+        "shipping": $params.shipping,
+        "tax": $params.tax,
+        "coupon": $params.coupon,
+        "item_total": ($items.map_each(i -> i.subtotal).sum() * 100).round() / 100,
+        "total_discount": ($items.map_each(i -> i.discount).sum() * 100).round() / 100,
+      }
+      root.items = $items
+      root.device = {
+        "type": this.device.category,
+        "brand": this.device.mobile_brand_name,
+        "model": this.device.mobile_model_name,
+        "os": this.device.operating_system + " " + this.device.operating_system_version,
+        "browser": this.device.web_info.browser + " " + this.device.web_info.browser_version,
+      }
+      root.geo = {
+        "country": this.geo.country,
+        "region": this.geo.region,
+        "city": this.geo.city,
+      }
+      root.attribution = {
+        "source": this.traffic_source.source,
+        "medium": this.traffic_source.medium,
+        "campaign": this.traffic_source.name,
+      }
+    output:
+      event: "purchase"
+      timestamp_seconds: 1710505200.0
+      session_id: 1710504000
+      user:
+        id: "user-9f8e7d6c"
+        properties:
+          membership_tier: "gold"
+          lifetime_value: 1842.3
+      page_url: "https://shop.example.com/checkout"
+      transaction:
+        id: "TXN-8A3F"
+        revenue: 127.5
+        shipping: 7.5
+        tax: 10.0
+        coupon: "SPRING24"
+        item_total: 140.65
+        total_discount: 13.35
+      items:
+        - sku: "SKU-W-1042"
+          name: "Merino Wool Cardigan"
+          brand: "HouseLabel"
+          categories: ["Apparel", "Women", "Knitwear"]
+          variant: "Oatmeal / M"
+          price: 89.0
+          quantity: 1
+          discount: 13.35
+          discount_pct: 15.0
+          subtotal: 75.65
+          source_list: "Spring Collection"
+        - sku: "SKU-A-2087"
+          name: "Leather Crossbody Bag"
+          brand: "HouseLabel"
+          categories: ["Accessories", "Bags", "Crossbody"]
+          variant: "Tan"
+          price: 65.0
+          quantity: 1
+          discount: 0.0
+          discount_pct: 0.0
+          subtotal: 65.0
+          source_list: "Recommended For You"
+      device:
+        type: "mobile"
+        brand: "Apple"
+        model: "iPhone 15"
+        os: "iOS 17.3.1"
+        browser: "Safari 17.3"
+      geo:
+        country: "United States"
+        region: "California"
+        city: "San Francisco"
+      attribution:
+        source: "instagram"
+        medium: "paid_social"
+        campaign: "spring_collection_2024"

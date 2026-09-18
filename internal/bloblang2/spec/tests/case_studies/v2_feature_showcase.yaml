@@ -1,0 +1,198 @@
+description: >
+  Bloblang V2 feature showcase — demonstrates the major syntax and semantic
+  improvements over V1 in a single mapping: null-safe navigation, lambda
+  expressions, parameterized maps with defaults and named arguments, all three
+  match expression forms, separated error handling (.catch vs .or), metadata
+  access, and variable scoping rules.
+
+tests:
+  - name: "V2 feature showcase: SaaS user event processing"
+    input:
+      event_type: "subscription_renewed"
+      tenant_id: "tenant-42"
+      user:
+        id: "usr_8fK2p"
+        name: "Alice Chen"
+        email: "alice@megacorp.io"
+        address:
+          city: "Portland"
+          state: "OR"
+        billing_address: null
+        preferences:
+          theme: "dark"
+      subscription:
+        plan: "enterprise"
+        seats: 50
+        annual_spend_cents: 5990000
+      transactions:
+        - id: "txn_003"
+          amount: 7500
+          currency: "usd"
+          status: "completed"
+        - id: "txn_002"
+          amount: -200
+          currency: "usd"
+          status: "refunded"
+        - id: "txn_001"
+          amount: 500
+          currency: "usd"
+          status: "completed"
+      referral_code: null
+      raw_enrichment: '{"risk_score": 12, "segment": "enterprise"}'
+      bad_json_field: "{{not valid"
+    mapping: |
+      # ================================================================
+      # Bloblang V2 Feature Showcase
+      # ================================================================
+
+      # -- 1. Null-safe navigation (?.) ---------------------------
+
+      output.city = input.user?.address?.city
+      # v1: root.city = this.user.address.city | null
+
+      output.billing_city = input.user?.billing_address?.city
+      # v1: root.billing_city = this.user.billing_address.city | null
+
+      output.referral = input.referral_code?.uppercase()
+      # v1: root.referral = this.referral_code.uppercase() | null
+
+      # -- 2. Parameterized maps with defaults --------------------
+
+      map cents_to_dollars(cents, currency = "USD") {
+        {
+          "amount": cents.float64() / 100.0,
+          "currency": currency.uppercase(),
+        }
+      }
+      # v1: map cents_to_dollars {
+      #   root.amount = this.float64() / 100.0
+      #   root.currency = "USD"
+      # }
+      # (no parameters, no defaults, currency not configurable)
+
+      map classify(amount) {
+        match {
+          amount >= 5000 => "high",
+          amount >= 1000 => "medium",
+          _ => "low",
+        }
+      }
+
+      output.annual_spend = cents_to_dollars(cents: input.subscription.annual_spend_cents)
+      # v1: root.annual_spend = this.subscription.annual_spend_cents.apply("cents_to_dollars")
+      # (no named arguments, no way to pass currency)
+
+      # -- 3. Lambdas & sort_by ----------------------------------
+
+      output.completed_txns = input.transactions
+        .filter(t -> t.status == "completed")
+        .sort_by(t -> t.amount)
+        .map(t -> {
+          "id": t.id,
+          "dollars": cents_to_dollars(t.amount, t.currency),
+          "tier": classify(t.amount),
+        })
+      # v1: root.completed_txns = this.transactions
+      #   .filter(this.status == "completed")
+      #   .sort_by(this.amount)
+      #   .map_each({
+      #     "id": this.id,
+      #     "dollars": this.amount.apply("cents_to_dollars"),
+      #   })
+      # ("this" silently rebound to each element — no explicit params)
+
+      # -- 4. Match expressions (three forms) ---------------------
+
+      # Form A — equality match:
+      output.plan_label = match input.subscription.plan {
+        "free" => "Free Tier",
+        "pro" => "Professional",
+        "enterprise" => "Enterprise",
+        _ => "Unknown",
+      }
+      # v1: root.plan_label = match this.subscription.plan {
+      #   "enterprise" => "Enterprise"
+      #   _ => "Unknown"
+      # }
+
+      # Form B — boolean match with "as" binding:
+      output.seat_tier = match input.subscription.seats as s {
+        s >= 100 => "unlimited",
+        s >= 25 => "large",
+        s >= 5 => "small",
+        _ => "individual",
+      }
+      # v1: no equivalent — required an if/else if/else chain
+
+      # Form C — boolean match (no subject):
+      $spend = input.subscription.annual_spend_cents
+      output.account_tier = match {
+        $spend >= 10000000 => "platinum",
+        $spend >= 1000000 => "gold",
+        _ => "silver",
+      }
+      # v1: no equivalent — required an if/else if/else chain
+
+      # -- 5. Separated error handling ----------------------------
+
+      output.enrichment = input.raw_enrichment.parse_json()
+        .catch(err -> {"parse_error": err.what})
+      # v1: root.enrichment = this.raw_enrichment.parse_json().catch("unknown")
+      # (no access to the error message, catch was a static value)
+
+      output.safe_parse = input.bad_json_field.parse_json()
+        .catch(err -> null)
+      # v1: root.safe_parse = this.bad_json_field.parse_json() | null
+
+      output.referral_display = input.referral_code.or("none")
+      # v1: root.referral_display = this.referral_code | "none"
+      # (v1 | conflated null coalescing and error catching)
+
+      # -- 6. Metadata access (input@, output@) -------------------
+
+      output@.routing_key = input.tenant_id
+      # v1: meta routing_key = this.tenant_id
+
+      output@.event_type = input.event_type
+      # v1: meta event_type = this.event_type
+
+      # -- 7. Variable scoping -----------------------------------
+
+      $label = "default"
+      output.scoped_demo = if true {
+        $label = "inner"
+        $label
+      }
+      output.outer_label = $label
+      # v1: $label would be mutated in-place — outer_label would be "inner"
+    output_metadata:
+      routing_key: "tenant-42"
+      event_type: "subscription_renewed"
+    output:
+      city: "Portland"
+      billing_city: null
+      referral: null
+      annual_spend:
+        amount: 59900.0
+        currency: "USD"
+      completed_txns:
+        - id: "txn_001"
+          dollars:
+            amount: 5.0
+            currency: "USD"
+          tier: "low"
+        - id: "txn_003"
+          dollars:
+            amount: 75.0
+            currency: "USD"
+          tier: "high"
+      plan_label: "Enterprise"
+      seat_tier: "large"
+      account_tier: "gold"
+      enrichment:
+        risk_score: 12
+        segment: "enterprise"
+      safe_parse: null
+      referral_display: "none"
+      scoped_demo: "inner"
+      outer_label: "default"

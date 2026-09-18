@@ -2,22 +2,31 @@ version: '3'
 
 tasks:
   unit:
-    desc: Run unit tests
+    desc: Run unit tests (fast — skips tests marked as long-running via testing.Short)
     aliases:
       - ut
     vars:
       TIMEOUT: '{{if .CI}}3m{{else}}1m{{end}}'
     cmds:
-      - go test {{.GO_FLAGS}} -ldflags "{{.LD_FLAGS}}" -timeout {{.TIMEOUT}} -shuffle=on ./...
+      - go test {{.GO_FLAGS}} -ldflags "{{.LD_FLAGS}}" -timeout {{.TIMEOUT}} -short -shuffle=on ./...
 
   unit-race:
-    desc: Run unit tests with race detection
+    desc: Run unit tests with race detection (fast — skips long-running tests)
     aliases:
       - ut-race
     vars:
       TIMEOUT: '{{if .CI}}3m{{else}}1m{{end}}'
     cmds:
-      - go test {{.GO_FLAGS}} -ldflags "{{.LD_FLAGS}}" -timeout {{.TIMEOUT}} -shuffle=on -race ./...
+      - go test {{.GO_FLAGS}} -ldflags "{{.LD_FLAGS}}" -timeout {{.TIMEOUT}} -short -shuffle=on -race ./...
+
+  unit-full:
+    desc: Run unit tests including long-running corpus and benchmark tests
+    aliases:
+      - ut-full
+    vars:
+      TIMEOUT: '{{if .CI}}15m{{else}}10m{{end}}'
+    cmds:
+      - go test {{.GO_FLAGS}} -ldflags "{{.LD_FLAGS}}" -timeout {{.TIMEOUT}} -shuffle=on ./...
 
   template:
     desc: Run template tests

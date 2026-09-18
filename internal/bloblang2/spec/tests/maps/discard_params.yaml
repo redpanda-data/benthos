@@ -1,0 +1,141 @@
+description: "Discard parameters (_): ignoring arguments, referencing _ error, multiple _, no defaults, named call restriction"
+
+tests:
+  # --- Basic discard ---
+
+  - name: "single discard parameter ignores first arg"
+    mapping: |
+      map second(_, b) {
+        b
+      }
+      output.v = second("ignored", "kept")
+    output: {"v": "kept"}
+
+  - name: "discard last parameter"
+    mapping: |
+      map first(a, _) {
+        a
+      }
+      output.v = first("kept", "ignored")
+    output: {"v": "kept"}
+
+  - name: "discard middle parameter"
+    mapping: |
+      map ends(a, _, c) {
+        a + c
+      }
+      output.v = ends("hello", "ignored", " world")
+    output: {"v": "hello world"}
+
+  # --- Multiple discards ---
+
+  - name: "multiple discard parameters"
+    mapping: |
+      map handle(_, _, payload) {
+        payload.uppercase()
+      }
+      output.v = handle("x", "y", "data")
+    output: {"v": "DATA"}
+
+  - name: "all parameters discarded except one"
+    mapping: |
+      map pick_last(_, _, _, x) {
+        x
+      }
+      output.v = pick_last(1, 2, 3, 42)
+    output: {"v": 42}
+
+  - name: "all parameters discarded"
+    mapping: |
+      map constant(_, _) {
+        "fixed"
+      }
+      output.v = constant(1, 2)
+    output: {"v": "fixed"}
+
+  # --- Referencing _ is compile error ---
+
+  - name: "referencing _ in body is compile error"
+    mapping: |
+      map bad(_, b) {
+        _ + b
+      }
+      output.v = bad(1, 2)
+    compile_error: "_"
+
+  - name: "referencing _ as method target in body is compile error"
+    mapping: |
+      map bad(_) {
+        _.string()
+      }
+      output.v = bad(42)
+    compile_error: "_"
+
+  - name: "referencing _ in variable declaration is compile error"
+    mapping: |
+      map bad(_, x) {
+        $v = _
+        x
+      }
+      output.v = bad(1, 2)
+    compile_error: "_"
+
+  # --- Discard with defaults is compile error ---
+
+  - name: "discard parameter with default value is compile error"
+    mapping: |
+      map bad(_ = 1, x) {
+        x
+      }
+      output.v = bad(1, 2)
+    compile_error: "default"
+
+  - name: "discard after default parameters is compile error"
+    mapping: |
+      map bad(x, _ = null) {
+        x
+      }
+      output.v = bad(1, 2)
+    compile_error: "default"
+
+  # --- Named call to map with discard is compile error ---
+
+  - name: "named call to map with discard parameter is compile error"
+    mapping: |
+      map handle(_, payload) {
+        payload
+      }
+      output.v = handle(payload: "data")
+    compile_error: "named"
+
+  - name: "named call to map with multiple discards is compile error"
+    mapping: |
+      map handle(_, _, payload) {
+        payload
+      }
+      output.v = handle(payload: "data")
+    compile_error: "named"
+
+  # --- Positional call still works ---
+
+  - name: "positional call to map with discard works normally"
+    mapping: |
+      map extract(_, _, data) {
+        {"result": data}
+      }
+      output = extract("a", "b", 42)
+    output: {"result": 42}
+
+  # --- Arity still enforced with discards ---
+
+  - name: "too few args with discard is error"
+    mapping: |
+      map need_three(_, _, x) { x }
+      output.v = need_three(1, 2)
+    compile_error: "arity"
+
+  - name: "too many args with discard is error"
+    mapping: |
+      map need_two(_, x) { x }
+      output.v = need_two(1, 2, 3)
+    compile_error: "arity"

@@ -1,0 +1,179 @@
+description: >
+  Numeric promotion edge cases — uint64 boundary values with signed ops,
+  large integers with float, promotion in subtraction/multiplication/modulo,
+  and cross-type comparison edge cases.
+
+tests:
+  # --- uint64 boundary with signed: 2^63-1 is max safe value ---
+
+  - name: "uint64 above int64 max in subtraction errors"
+    mapping: |
+      output.result = 0 - "9223372036854775808".uint64()
+    error: "uint64 value"
+
+  - name: "uint64 value 1 in mixed arithmetic works"
+    mapping: |
+      output.result = 10 - 3.uint64()
+    output: {"result": 7}
+
+  - name: "uint64 zero in mixed arithmetic works"
+    mapping: |
+      output.result = 5 + 0.uint64()
+    output: {"result": 5}
+
+  - name: "int32 + uint64 exceeding int64 max errors"
+    mapping: |
+      output.result = 1.int32() + "9223372036854775808".uint64()
+    error: "uint64 value"
+
+  # --- Large integers with float: 2^53 boundary ---
+
+  - name: "int64 at 2^53 with float succeeds"
+    mapping: |
+      output.result = 9007199254740992 + 0.0
+    output: {"result": 9007199254740992.0}
+
+  - name: "int64 at 2^53+1 with float errors"
+    mapping: |
+      output.result = 9007199254740993 + 0.0
+    error: "float64 exact range"
+
+  - name: "negative int64 at -2^53 with float succeeds"
+    mapping: |
+      output.result = -9007199254740992 + 0.0
+    output: {"result": -9007199254740992.0}
+
+  - name: "negative int64 at -(2^53+1) with float errors"
+    mapping: |
+      output.result = -9007199254740993 + 0.0
+    error: "float64 exact range"
+
+  - name: "int64 * float64 checks promotion"
+    mapping: |
+      output.result = 9007199254740993 * 1.0
+    error: "float64 exact range"
+
+  - name: "int64 at safe range with float multiplication"
+    mapping: |
+      output.result = 1000000 * 1.5
+    output: {"result": 1500000.0}
+
+  # --- Promotion in subtraction ---
+
+  - name: "int32 - uint32 promotes to int64"
+    mapping: |
+      output.result = 100.int32() - 30.uint32()
+    output: {"result": 70}
+
+  - name: "uint32 - int32 promotes to int64"
+    mapping: |
+      output.result = 100.uint32() - 30.int32()
+    output: {"result": 70}
+
+  - name: "float64 - int64 promotes to float64"
+    mapping: |
+      output.result = 10.5 - 3
+    output: {"result": 7.5}
+
+  - name: "int64 - float64 promotes to float64"
+    mapping: |
+      output.result = 10 - 3.5
+    output: {"result": 6.5}
+
+  # --- Promotion in multiplication ---
+
+  - name: "int32 * int64 promotes to int64"
+    mapping: |
+      output.result = 5.int32() * 10
+    output: {"result": 50}
+
+  - name: "int32 * float64 promotes to float64"
+    mapping: |
+      output.result = 5.int32() * 2.5
+    output: {"result": 12.5}
+
+  - name: "uint32 * int64 promotes to int64"
+    mapping: |
+      output.result = 5.uint32() * 10
+    output: {"result": 50}
+
+  - name: "uint64 * uint64 stays uint64"
+    mapping: |
+      output.result = 5.uint64() * 10.uint64()
+    output: {"result": {_type: "uint64", value: "50"}}
+
+  # --- Promotion in modulo ---
+
+  - name: "int32 % int64 promotes to int64"
+    mapping: |
+      output.result = 7.int32() % 3
+    output: {"result": 1}
+
+  - name: "int64 % float64 promotes to float64"
+    mapping: |
+      output.result = 7 % 2.5
+    output: {"result": 2.0}
+
+  - name: "uint32 % int32 promotes to int64"
+    mapping: |
+      output.result = 7.uint32() % 3.int32()
+    output: {"result": 1}
+
+  # --- Promotion in comparison edge cases ---
+
+  - name: "uint64 at int64 max compared with int64"
+    mapping: |
+      output.result = 9223372036854775807.uint64() == 9223372036854775807
+    output: {"result": true}
+
+  - name: "uint64 above int64 max in comparison errors"
+    mapping: |
+      output.result = "9223372036854775808".uint64() > 0
+    error: "uint64 value"
+
+  - name: "int64 at float64 limit compared with float"
+    mapping: |
+      output.result = 9007199254740992 == 9007199254740992.0
+    output: {"result": true}
+
+  - name: "int64 above float64 limit compared with float errors"
+    mapping: |
+      output.result = 9007199254740993 == 9007199254740993.0
+    error: "float64 exact range"
+
+  # --- Cross-family comparison always false ---
+
+  - name: "int vs string comparison is false"
+    mapping: |
+      output.result = 5 == "5"
+    output: {"result": false}
+
+  - name: "float vs string comparison is false"
+    mapping: |
+      output.result = 5.0 == "5.0"
+    output: {"result": false}
+
+  - name: "bool vs int comparison is false"
+    mapping: |
+      output.result = true == 1
+    output: {"result": false}
+
+  - name: "null vs empty string comparison is false"
+    mapping: |
+      output.result = null == ""
+    output: {"result": false}
+
+  - name: "null vs zero comparison is false"
+    mapping: |
+      output.result = null == 0
+    output: {"result": false}
+
+  - name: "null vs false comparison is false"
+    mapping: |
+      output.result = null == false
+    output: {"result": false}
+
+  - name: "array vs string comparison is false"
+    mapping: |
+      output.result = [] == ""
+    output: {"result": false}

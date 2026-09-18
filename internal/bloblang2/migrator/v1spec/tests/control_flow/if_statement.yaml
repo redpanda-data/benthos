@@ -1,0 +1,175 @@
+description: "If as statement — standalone with output assignments, empty body, else-if, trailing expression error"
+
+tests:
+  # --- Basic if statement with output assignment ---
+
+  - name: "if statement conditional on input type"
+    mapping: |
+      if this.type == "user" {
+        root.role = "member"
+      }
+    cases:
+      - name: "assigns when true"
+        input: {"type": "user"}
+        output: {"role": "member"}
+      - name: "skips body when false"
+        input: {"type": "guest"}
+        output: {"type": "guest"} # V1 passes input through when no root assignment occurs
+
+  - name: "if statement with multiple output assignments"
+    input: {"type": "admin"}
+    mapping: |
+      if this.type == "admin" {
+        root.role = "admin"
+        root.level = 10
+      }
+    output: {"role": "admin", "level": 10}
+
+  # --- Empty body is valid no-op ---
+
+  - name: "empty if body is valid no-op"
+    mapping: |
+      if true { }
+      root.x = "after"
+    output: {"x": "after"}
+
+  - name: "empty else body is valid no-op"
+    input: {}
+    mapping: |
+      if false {
+        root.x = "then"
+      } else { }
+    output: {}
+
+  # --- If-else statement ---
+
+  - name: "if-else statement branch selection"
+    mapping: |
+      if this.type == "admin" {
+        root.role = "admin"
+      } else {
+        root.role = "user"
+      }
+    cases:
+      - name: "selects then branch"
+        input: {"type": "admin"}
+        output: {"role": "admin"}
+      - name: "takes else branch"
+        input: {"type": "guest"}
+        output: {"role": "user"}
+
+  # --- Else-if chains ---
+
+  - name: "else-if chain selects middle branch"
+    input: {"type": "mod"}
+    mapping: |
+      if this.type == "admin" {
+        root.role = "admin"
+        root.permissions = ["read", "write", "delete"]
+      } else if this.type == "mod" {
+        root.role = "moderator"
+        root.permissions = ["read", "write"]
+      } else {
+        root.role = "user"
+        root.permissions = ["read"]
+      }
+    output: {"role": "moderator", "permissions": ["read", "write"]}
+
+  - name: "else-if chain falls to else"
+    input: {"type": "visitor"}
+    mapping: |
+      if this.type == "admin" {
+        root.role = "admin"
+      } else if this.type == "mod" {
+        root.role = "moderator"
+      } else {
+        root.role = "user"
+      }
+    output: {"role": "user"}
+
+  - name: "else-if without final else — no branch matches is no-op"
+    input: {"type": "visitor"}
+    mapping: |
+      if this.type == "admin" {
+        root.role = "admin"
+      } else if this.type == "mod" {
+        root.role = "moderator"
+      }
+    output: {"type": "visitor"}
+
+  # --- Statement context modifies outer variables ---
+
+  - name: "if statement modifies outer variable"
+    mapping: |
+      let x = 10
+      if true {
+        let x = 20
+      }
+      root.result = $x
+    output: {"result": 20}
+
+  - name: "if statement does not modify outer variable when false"
+    mapping: |
+      let x = 10
+      if false {
+        let x = 20
+      }
+      root.result = $x
+    output: {"result": 10}
+
+  # --- New variables in if statement are block-scoped ---
+  # V1 does NOT block-scope let; the variable leaks out.
+
+  - name: "new variable in if statement body not visible outside"
+    mapping: |
+      if true {
+        let local = 42
+      }
+      root.result = $local
+    output: {"result": 42}
+
+  # --- Trailing expression in statement body is parse error ---
+
+  - name: "trailing expression in if statement is compile error"
+    mapping: |
+      if true {
+        let x = 10
+        $x + 5
+      }
+    compile_error: "expected" # FIXME-v1: verify — V1 rejects bare expression as non-sole statement
+
+  - name: "bare expression as only content in if statement is compile error"
+    skip: "V1 permits a single bare expression as an if-body — it is parsed as a value form and returned (sets root); only mixing bare expressions with statements produces a parse error"
+
+  # --- Nested if statements ---
+
+  - name: "nested if statements"
+    input: {"type": "admin", "active": true}
+    mapping: |
+      if this.type == "admin" {
+        if this.active {
+          root.status = "active admin"
+        } else {
+          root.status = "inactive admin"
+        }
+      }
+    output: {"status": "active admin"}
+
+  # --- If statement preserves prior output ---
+
+  - name: "if statement preserves output from before"
+    mapping: |
+      root.before = "exists"
+      if true {
+        root.added = "new"
+      }
+    output: {"before": "exists", "added": "new"}
+
+  # --- Non-boolean condition error ---
+
+  - name: "non-boolean condition in if statement is error"
+    mapping: |
+      if 42 {
+        root.x = "yes"
+      }
+    error: "bool" # FIXME-v1: verify

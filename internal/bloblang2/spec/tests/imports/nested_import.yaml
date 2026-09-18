@@ -1,0 +1,104 @@
+description: "Imports: nested import chains (A imports B, B imports C)"
+
+files:
+  "math_core.blobl": |
+    map square(x) { x * x }
+    map inc(x) { x + 1 }
+
+  "math_utils.blobl": |
+    import "math_core.blobl" as core
+    map square_plus_one(x) { core::inc(core::square(x)) }
+    map double_square(x) { core::square(x) * 2 }
+
+  "app_helpers.blobl": |
+    import "math_utils.blobl" as utils
+    import "math_core.blobl" as core
+    map transform(x) { utils::square_plus_one(x) + core::inc(x) }
+
+tests:
+  # --- Two-level chain ---
+
+  - name: "import file that imports another file"
+    mapping: |
+      import "math_utils.blobl" as mu
+      output.v = mu::square_plus_one(5)
+    output: {"v": 26}
+
+  - name: "nested import calls inner map through wrapper"
+    mapping: |
+      import "math_utils.blobl" as mu
+      output.v = mu::double_square(3)
+    output: {"v": 18}
+
+  # --- Three-level chain ---
+
+  - name: "three-level import chain"
+    mapping: |
+      import "app_helpers.blobl" as app
+      output.v = app::transform(4)
+    output: {"v": 22}
+
+  # --- Diamond import (A imports B and C, B imports C) ---
+
+  - name: "diamond import — same file imported by two paths"
+    mapping: |
+      import "math_utils.blobl" as mu
+      import "math_core.blobl" as mc
+      output.a = mu::square_plus_one(3)
+      output.b = mc::square(3)
+    output: {"a": 10, "b": 9}
+
+  # --- Nested import with multiple maps ---
+
+  - name: "call multiple maps from nested import"
+    mapping: |
+      import "math_utils.blobl" as mu
+      output.a = mu::square_plus_one(2)
+      output.b = mu::double_square(2)
+    output: {"a": 5, "b": 8}
+
+  # --- Cannot access transitive namespace ---
+
+  - name: "cannot access transitively imported namespace"
+    mapping: |
+      import "math_utils.blobl" as mu
+      output.v = core::square(5)
+    compile_error: "core"
+
+  # --- Nested import with local maps ---
+
+  - name: "local map wraps nested-imported map"
+    mapping: |
+      import "math_utils.blobl" as mu
+      map process(x) { mu::square_plus_one(x) * 2 }
+      output.v = process(3)
+    output: {"v": 20}
+
+  # --- Deep chain with input ---
+
+  - name: "nested import processes input data"
+    mapping: |
+      import "math_utils.blobl" as mu
+      output.v = mu::square_plus_one(input.n)
+    input: {"n": 6}
+    output: {"v": 37}
+
+  # --- Error: non-existent map in nested import ---
+
+  - name: "non-existent map in nested namespace is compile error"
+    mapping: |
+      import "math_utils.blobl" as mu
+      output.v = mu::nonexistent(1)
+    compile_error: "nonexistent"
+
+  # --- Error: nested file not found ---
+
+  - name: "nested import with missing file is error"
+    files:
+      "bad_chain.blobl": |
+        import "nonexistent.blobl" as missing
+        map foo(x) { missing::bar(x) }
+    mapping: |
+      import "bad_chain.blobl" as bc
+      output.v = bc::foo(1)
+    compile_error: "nonexistent"

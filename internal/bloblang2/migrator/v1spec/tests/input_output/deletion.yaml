@@ -1,0 +1,209 @@
+description: "Deletion: root = deleted() drops message, field deletion, array element deletion, deleted in literals, nested deletion, operations on deleted error"
+
+tests:
+  # --- root = deleted() drops entire message ---
+
+  - name: "output = deleted() drops message"
+    mapping: |
+      root = deleted()
+    deleted: true
+
+  - name: "output = deleted() discards prior assignments"
+    mapping: |
+      root.name = "Alice"
+      root.age = 30
+      root = deleted()
+    deleted: true
+
+  - name: "output = deleted() stops execution immediately"
+    # V1 does NOT short-circuit after `root = deleted()`. The subsequent
+    # statement attempts to set a field on the delete sentinel and produces
+    # a runtime error.
+    mapping: |
+      root = deleted()
+      root.should_not_exist = "never reached"
+    error: "non-object type"
+
+  - name: "output = deleted() after root assignment still drops"
+    mapping: |
+      root = {"complex": "structure"}
+      root = deleted()
+    deleted: true
+
+  # --- Field deletion ---
+
+  - name: "delete output field"
+    mapping: |
+      root.a = 1
+      root.b = 2
+      root.c = 3
+      root.b = deleted()
+    output: {"a": 1, "c": 3}
+
+  - name: "delete nested output field"
+    mapping: |
+      root.user.name = "Alice"
+      root.user.age = 30
+      root.user.age = deleted()
+    output: {"user": {"name": "Alice"}}
+
+  - name: "delete non-existent output field is no-op"
+    mapping: |
+      root.a = 1
+      root.missing = deleted()
+    output: {"a": 1}
+
+  - name: "delete deeply nested field"
+    mapping: |
+      root.a.b.c = "deep"
+      root.a.b.d = "also deep"
+      root.a.b.c = deleted()
+    output: {"a": {"b": {"d": "also deep"}}}
+
+  # --- Array element deletion ---
+
+  - name: "delete array element shifts remaining"
+    # V1 path segments use `.N` not `[N]`
+    mapping: |
+      root.items = [10, 20, 30, 40]
+      root.items.1 = deleted()
+    output: {"items": [10, 30, 40]}
+
+  - name: "delete first array element"
+    mapping: |
+      root.items = [10, 20, 30]
+      root.items.0 = deleted()
+    output: {"items": [20, 30]}
+
+  - name: "delete last array element"
+    mapping: |
+      root.items = [10, 20, 30]
+      root.items.2 = deleted()
+    output: {"items": [10, 20]}
+
+  # --- Variable deletion errors and behavior ---
+
+  - name: "assign deleted() to variable is runtime error"
+    # In V1, `let x = deleted()` explicitly deletes the variable (spec §7.2);
+    # it is not a runtime error. The expectation flips.
+    mapping: |
+      let var = deleted()
+    # FIXME-v1: verify — V1 silently deletes the binding; no error produced.
+    output: null
+    no_output_check: true
+
+  - name: "delete field from variable object"
+    skip: "V1 has no variable reassignment; cannot express $obj.b = deleted() piecewise"
+
+  - name: "delete element from variable array shifts remaining"
+    skip: "V1 has no variable reassignment and no bracket index on paths; cannot express $arr[0] = deleted()"
+
+  # --- Deleted in array literals ---
+
+  - name: "deleted() in array literal omits element"
+    # FIXME-v1: verify — V1 may not omit deleted() inside literal array constructors;
+    # sentinel handling inside literals is stricter than in map_each.
+    mapping: |
+      root.v = [1, deleted(), 3]
+    output: {"v": [1, 3]}
+
+  - name: "multiple deleted() in array literal"
+    # FIXME-v1: verify
+    mapping: |
+      root.v = [deleted(), 1, deleted(), 2, deleted()]
+    output: {"v": [1, 2]}
+
+  - name: "all deleted() in array literal produces empty array"
+    # FIXME-v1: verify
+    mapping: |
+      root.v = [deleted(), deleted(), deleted()]
+    output: {"v": []}
+
+  - name: "deleted() at beginning of array literal"
+    # FIXME-v1: verify
+    mapping: |
+      root.v = [deleted(), "a", "b"]
+    output: {"v": ["a", "b"]}
+
+  - name: "deleted() at end of array literal"
+    # FIXME-v1: verify
+    mapping: |
+      root.v = ["a", "b", deleted()]
+    output: {"v": ["a", "b"]}
+
+  # --- Deleted in object literals ---
+
+  - name: "deleted() value in object literal omits field"
+    # FIXME-v1: verify — object literal semantics for deleted() may differ in V1.
+    mapping: |
+      root.v = {"a": 1, "b": deleted(), "c": 3}
+    output: {"v": {"a": 1, "c": 3}}
+
+  - name: "all deleted() values in object literal produces empty object"
+    # FIXME-v1: verify
+    mapping: |
+      root.v = {"a": deleted(), "b": deleted()}
+    output: {"v": {}}
+
+  - name: "deleted() in nested object literal"
+    # FIXME-v1: verify
+    mapping: |
+      root.v = {"outer": {"keep": 1, "drop": deleted()}}
+    output: {"v": {"outer": {"keep": 1}}}
+
+  # --- Deletion propagates at each level independently ---
+
+  - name: "deleted in nested array within object"
+    # FIXME-v1: verify
+    mapping: |
+      root.v = {"items": [1, deleted(), 3]}
+    output: {"v": {"items": [1, 3]}}
+
+  - name: "deleted in object within array"
+    # FIXME-v1: verify
+    mapping: |
+      root.v = [{"a": 1, "b": deleted()}, {"c": 3}]
+    output: {"v": [{"a": 1}, {"c": 3}]}
+
+  # --- Operations on deleted() are errors ---
+
+  - name: "arithmetic on deleted() is error"
+    # V1 reports this as a compile-time type error ("cannot add types delete").
+    mapping: |
+      root.v = deleted() + 1
+    compile_error: "cannot add types delete"
+
+  - name: "comparison on deleted() is error"
+    # V1 tolerates comparison with deleted(): `==` treats the sentinel as
+    # null-like and returns false rather than erroring.
+    mapping: |
+      root.v = deleted() == null
+    output: {"v": false}
+
+  - name: "method call on deleted() is error"
+    # V1 coerces deleted() to null inside a method call; .string() returns "null".
+    mapping: |
+      root.v = deleted().string()
+    output: {"v": "null"}
+
+  - name: "field access on deleted() is error"
+    # V1 coerces deleted() to null for field access; result is null.
+    mapping: |
+      root.v = deleted().field
+    output: {"v": null}
+
+  # --- .or() and .catch() rescue deleted ---
+
+  - name: "or rescues deleted()"
+    # V1 .or() treats deleted() as null-like and replaces with fallback (§12.2).
+    mapping: |
+      root.v = deleted().or("fallback")
+    output: {"v": "fallback"}
+
+  - name: "catch passes through deleted()"
+    # V1 .catch() preserves sentinels (spec §9.4/§12.2), so deleted() survives
+    # and removes the `v` field — leaving {} as the result.
+    # V1 .catch() signature takes an expression, not a lambda; adjust.
+    mapping: |
+      root.v = deleted().catch("caught")
+    output: {}

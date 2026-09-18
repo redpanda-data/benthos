@@ -1,0 +1,240 @@
+description: "Constant folding: literal-only expressions evaluated at compile time"
+
+tests:
+  # --- Integer arithmetic ---
+
+  - name: "fold integer addition"
+    mapping: |
+      root.v = 2 + 3
+    output: {"v": 5}
+
+  - name: "fold integer subtraction"
+    mapping: |
+      root.v = 10 - 4
+    output: {"v": 6}
+
+  - name: "fold integer multiplication"
+    mapping: |
+      root.v = 3 * 7
+    output: {"v": 21}
+
+  - name: "fold integer modulo"
+    mapping: |
+      root.v = 17 % 5
+    output: {"v": 2}
+
+  - name: "fold chained integer arithmetic"
+    mapping: |
+      root.v = 2 + 3 * 4
+    output: {"v": 14}
+
+  - name: "fold left-associative subtraction"
+    mapping: |
+      root.v = 10 - 3 - 2
+    output: {"v": 5}
+
+  - name: "fold negative result"
+    mapping: |
+      root.v = 3 - 10
+    output: {"v": -7}
+
+  - name: "fold zero"
+    mapping: |
+      root.v = 5 - 5
+    output: {"v": 0}
+
+  # --- Integer overflow not folded (runtime error) ---
+
+  - name: "integer overflow not folded"
+    mapping: |
+      root.v = 9223372036854775807 + 1
+    output: {"v": -9223372036854775808} # FIXME-v1: verify — V1 integer overflow wraps silently (§14.26), no error
+    # V2-only: V2 detects overflow as error; V1 wraps per Go int64 semantics
+
+  - name: "integer multiplication overflow not folded"
+    mapping: |
+      root.v = 9223372036854775807 * 2
+    output: {"v": -2} # FIXME-v1: verify — V1 wraps silently
+    # V2-only: V2 detects overflow as error; V1 wraps per Go int64 semantics
+
+  # --- Float arithmetic ---
+
+  - name: "fold float addition"
+    mapping: |
+      root.v = 1.5 + 2.5
+    output: {"v": 4.0}
+
+  - name: "fold float subtraction"
+    mapping: |
+      root.v = 10.0 - 3.5
+    output: {"v": 6.5}
+
+  - name: "fold float multiplication"
+    mapping: |
+      root.v = 2.0 * 3.5
+    output: {"v": 7.0}
+
+  - name: "fold float division"
+    mapping: |
+      root.v = 10.0 / 4.0
+    output: {"v": 2.5}
+
+  - name: "fold float modulo"
+    mapping: |
+      root.v = 7.5 % 2.0
+    skip: "V1 modulo requires integer operands (§5.3) — float % float is a type error"
+
+  - name: "fold mixed int and float addition"
+    mapping: |
+      root.v = 5 + 3.0
+    output: {"v": 8.0}
+
+  - name: "division by zero not folded"
+    input: {"d": 0.0}
+    mapping: |
+      root.v = 10.0 / this.d
+    error: "divide by zero"
+    # V1 folds literal 10.0 / 0.0 at parse-time (compile error); use runtime divisor to exercise runtime path
+
+  # --- Large int + float precision loss not folded ---
+
+  - name: "large int plus float not folded due to precision"
+    mapping: |
+      root.v = 9007199254740993 + 1.0
+    output: {"v": 9007199254740992.0} # V1 coerces int to float64, 9007199254740993 is not representable as float64 so becomes 9007199254740992, then +1.0 = 9007199254740992 (precision already lost)
+    # V2-only: V2 flags precision loss as error; V1 silently coerces
+
+  - name: "safe int plus float is folded"
+    mapping: |
+      root.v = 100 + 1.5
+    output: {"v": 101.5}
+
+  # --- String concatenation ---
+
+  - name: "fold string concatenation"
+    mapping: |
+      root.v = "hello" + " " + "world"
+    output: {"v": "hello world"}
+
+  - name: "fold empty string concatenation"
+    mapping: |
+      root.v = "" + "abc"
+    output: {"v": "abc"}
+
+  - name: "fold raw string concatenation"
+    mapping: |
+      root.v = """raw""" + " normal"
+    output: {"v": "raw normal"}
+
+  # --- Boolean logic ---
+
+  - name: "fold true AND true"
+    mapping: |
+      root.v = true && true
+    output: {"v": true}
+
+  - name: "fold true AND false"
+    mapping: |
+      root.v = true && false
+    output: {"v": false}
+
+  - name: "fold false OR true"
+    mapping: |
+      root.v = false || true
+    output: {"v": true}
+
+  - name: "fold false OR false"
+    mapping: |
+      root.v = false || false
+    output: {"v": false}
+
+  - name: "fold boolean equality"
+    mapping: |
+      root.v = true == true
+    output: {"v": true}
+
+  - name: "fold boolean inequality"
+    mapping: |
+      root.v = true != false
+    output: {"v": true}
+
+  # --- Unary ---
+
+  - name: "fold unary minus on int"
+    mapping: |
+      root.v = -42
+    output: {"v": -42}
+
+  - name: "fold unary minus on float"
+    mapping: |
+      root.v = -3.14
+    output: {"v": -3.14}
+
+  - name: "fold unary not on true"
+    mapping: |
+      root.v = !true
+    output: {"v": false}
+
+  - name: "fold unary not on false"
+    mapping: |
+      root.v = !false
+    output: {"v": true}
+
+  # --- Equality of same-type literals ---
+
+  - name: "fold string equality"
+    mapping: |
+      root.v = "abc" == "abc"
+    output: {"v": true}
+
+  - name: "fold string inequality"
+    mapping: |
+      root.v = "abc" != "xyz"
+    output: {"v": true}
+
+  - name: "fold integer equality"
+    mapping: |
+      root.v = 42 == 42
+    output: {"v": true}
+
+  - name: "fold integer inequality"
+    mapping: |
+      root.v = 42 != 43
+    output: {"v": true}
+
+  - name: "fold null equality"
+    mapping: |
+      root.v = null == null
+    output: {"v": true}
+
+  # --- Cross-type equality ---
+
+  - name: "fold cross-type equality int vs string"
+    mapping: |
+      root.v = 42 == "42"
+    output: {"v": false}
+
+  - name: "fold cross-type inequality bool vs null"
+    mapping: |
+      root.v = true != null
+    output: {"v": true}
+
+  # --- Non-foldable expressions preserved ---
+
+  - name: "runtime value prevents folding"
+    input: {"x": 5}
+    mapping: |
+      root.v = this.x + 3
+    output: {"v": 8}
+
+  - name: "one literal one runtime not folded"
+    input: {"x": 10}
+    mapping: |
+      root.v = 2 * this.x
+    output: {"v": 20}
+
+  - name: "variable prevents folding"
+    mapping: |
+      let x = 5
+      root.v = $x + 3
+    output: {"v": 8}

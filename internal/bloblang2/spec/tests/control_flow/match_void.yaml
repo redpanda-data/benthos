@@ -1,0 +1,139 @@
+description: "Non-exhaustive match producing void — void in assignment, declaration, collection, and rescue with .or()"
+
+tests:
+  # --- Void in output assignment: skipped ---
+
+  - name: "non-exhaustive equality match produces void — field absent"
+    mapping: |
+      output.sound = match "bird" {
+        "cat" => "meow",
+        "dog" => "woof",
+      }
+    output: {}
+
+  - name: "void from equality match preserves prior value"
+    mapping: |
+      output.sound = "chirp"
+      output.sound = match "bird" {
+        "cat" => "meow",
+        "dog" => "woof",
+      }
+    output: {"sound": "chirp"}
+
+  - name: "non-exhaustive boolean match produces void — field absent"
+    mapping: |
+      output.x = match {
+        false => "nope",
+        false => "also nope",
+      }
+    output: {}
+
+  - name: "non-exhaustive match-as produces void — field absent"
+    mapping: |
+      output.x = match 5 as v {
+        v > 100 => "big",
+      }
+    output: {}
+
+  # --- Void in variable declaration: runtime error ---
+
+  - name: "void from equality match in variable declaration is error"
+    mapping: |
+      $x = match "nope" {
+        "a" => 1,
+        "b" => 2,
+      }
+    error: "void"
+
+  - name: "void from boolean match in variable declaration is error"
+    mapping: |
+      $x = match {
+        false => 1,
+      }
+    error: "void"
+
+  - name: "void from match-as in variable declaration is error"
+    mapping: |
+      $x = match 0 as v {
+        v > 10 => "big",
+      }
+    error: "void"
+
+  # --- Void in variable reassignment: skipped ---
+
+  - name: "void from match skips variable reassignment"
+    mapping: |
+      $x = "original"
+      $x = match "nope" {
+        "a" => "found",
+      }
+      output.result = $x
+    output: {"result": "original"}
+
+  # --- Void in collection literal: error ---
+
+  - name: "void from match in array literal is error"
+    mapping: |
+      output.arr = [1, match "x" { "y" => 2 }, 3]
+    error: "void"
+
+  - name: "void from match in object literal is error"
+    mapping: |
+      output.obj = {"key": match "x" { "y" => "val" }}
+    error: "void"
+
+  # --- Void as function/map argument: error ---
+
+  - name: "void from match as map argument is error"
+    mapping: |
+      map double(val) { val * 2 }
+      output.result = double(match "x" { "y" => 42 })
+    error: "void"
+
+  # --- Void rescued with .or() ---
+
+  - name: "or rescues void from non-exhaustive equality match"
+    mapping: |
+      output.result = (match "bird" { "cat" => "meow" }).or("unknown")
+    output: {"result": "unknown"}
+
+  - name: "or rescues void from non-exhaustive boolean match"
+    mapping: |
+      output.result = (match { false => "nope" }).or("default")
+    output: {"result": "default"}
+
+  - name: "or does not trigger when match produces a value"
+    mapping: |
+      output.result = (match "cat" { "cat" => "meow", }).or("unknown")
+    output: {"result": "meow"}
+
+  - name: "or rescues void for variable declaration"
+    mapping: |
+      $x = (match "bird" { "cat" => "meow" }).or("unknown")
+      output.result = $x
+    output: {"result": "unknown"}
+
+  # --- Wildcard prevents void ---
+
+  - name: "wildcard ensures match is exhaustive"
+    mapping: |
+      output.result = match "anything" {
+        "a" => 1,
+        _ => 0,
+      }
+    output: {"result": 0}
+
+  # --- Void in expression context: error ---
+
+  - name: "void from match in addition is error"
+    mapping: |
+      output.result = (match "x" { "y" => 1 }) + 10
+    error: "void"
+
+  # --- .catch() does not rescue void ---
+
+  - name: "catch does not trigger on void from match"
+    mapping: |
+      output.x = "prior"
+      output.x = (match "x" { "y" => 1 }).catch(err -> 0)
+    output: {"x": "prior"}

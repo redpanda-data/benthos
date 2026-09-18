@@ -1,0 +1,167 @@
+description: >
+  Variable mutation patterns across nested scopes — statement-mode
+  write-through in nested if/match, expression-mode shadowing,
+  and interactions between the two contexts.
+
+tests:
+  # --- Statement-mode nested if: both levels modify outer ---
+
+  - name: "nested if-statements both modify outer variable"
+    mapping: |
+      $x = 0
+      if true {
+        $x = 1
+        if true {
+          $x = 2
+        }
+      }
+      output.v = $x
+    output: {"v": 2}
+
+  - name: "nested if-statement inner false — outer modified only"
+    mapping: |
+      $x = 0
+      if true {
+        $x = 1
+        if false {
+          $x = 2
+        }
+      }
+      output.v = $x
+    output: {"v": 1}
+
+  - name: "match-statement arms modify outer variable"
+    mapping: |
+      $result = "init"
+      match "b" {
+        "a" => { $result = "alpha" },
+        "b" => { $result = "beta" },
+        _ => { $result = "other" },
+      }
+      output.v = $result
+    output: {"v": "beta"}
+
+  - name: "nested match inside if modifies outer"
+    mapping: |
+      $val = 0
+      if true {
+        match "x" {
+          "x" => { $val = 42 },
+          _ => { $val = -1 },
+        }
+      }
+      output.v = $val
+    output: {"v": 42}
+
+  # --- Expression-mode shadowing does not affect outer ---
+
+  - name: "if-expression shadows outer variable"
+    mapping: |
+      $x = "outer"
+      output.inner = if true {
+        $x = "inner"
+        $x
+      } else { "nope" }
+      output.outer = $x
+    output: {"inner": "inner", "outer": "outer"}
+
+  - name: "match-expression shadows outer variable"
+    mapping: |
+      $x = "outer"
+      output.matched = match "go" {
+        "go" => {
+          $x = "matched"
+          $x
+        },
+        _ => "nope",
+      }
+      output.outer = $x
+    output: {"matched": "matched", "outer": "outer"}
+
+  - name: "lambda shadows outer variable"
+    mapping: |
+      $x = 100
+      output.mapped = [1, 2, 3].map(x -> {
+        $x = x * 10
+        $x
+      })
+      output.outer = $x
+    output: {"mapped": [10, 20, 30], "outer": 100}
+
+  # --- Statement modifies then expression reads ---
+
+  - name: "statement modifies variable, expression reads it"
+    mapping: |
+      $data = {"status": "pending"}
+      if true {
+        $data.status = "done"
+      }
+      output.v = if true { $data.status } else { "unknown" }
+    output: {"v": "done"}
+
+  # --- Expression body variable not visible outside ---
+
+  - name: "variable declared in if-expression not visible outside"
+    mapping: |
+      output.v = if true {
+        $temp = 42
+        $temp
+      } else { 0 }
+      output.leaked = $temp
+    compile_error: "undeclared"
+
+  - name: "variable declared in match-expression not visible outside"
+    mapping: |
+      output.v = match "a" {
+        "a" => {
+          $inner = "hello"
+          $inner
+        },
+        _ => "nope",
+      }
+      output.leaked = $inner
+    compile_error: "undeclared"
+
+  - name: "variable declared in lambda not visible outside"
+    mapping: |
+      output.v = [1].map(x -> {
+        $inner = x * 10
+        $inner
+      })
+      output.leaked = $inner
+    compile_error: "undeclared"
+
+  # --- Path assign in statement mode modifies outer ---
+
+  - name: "path assign in if-statement modifies outer object"
+    mapping: |
+      $config = {"debug": false, "verbose": false}
+      if true {
+        $config.debug = true
+      }
+      output.v = $config
+    output: {"v": {"debug": true, "verbose": false}}
+
+  - name: "path assign in match-statement modifies outer object"
+    mapping: |
+      $config = {"level": "info"}
+      match "debug" {
+        "debug" => { $config.level = "debug" },
+        "trace" => { $config.level = "trace" },
+      }
+      output.v = $config
+    output: {"v": {"level": "debug"}}
+
+  # --- Complex nested: statement with expression inside ---
+
+  - name: "if-statement body uses expression that shadows"
+    mapping: |
+      $items = []
+      if true {
+        $items = [1, 2, 3].map(x -> {
+          $doubled = x * 2
+          $doubled
+        })
+      }
+      output.v = $items
+    output: {"v": [2, 4, 6]}

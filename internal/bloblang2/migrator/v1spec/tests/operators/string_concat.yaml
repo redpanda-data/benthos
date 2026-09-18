@@ -1,0 +1,201 @@
+description: "String and bytes concatenation with + operator — same-type concat, cross-type errors, explicit conversion"
+
+tests:
+  # --- String + String ---
+  - name: "concat_two_strings"
+    mapping: |
+      root = "hello" + " world"
+    output: "hello world"
+
+  - name: "concat_empty_left"
+    mapping: |
+      root = "" + "world"
+    output: "world"
+
+  - name: "concat_empty_right"
+    mapping: |
+      root = "hello" + ""
+    output: "hello"
+
+  - name: "concat_both_empty"
+    mapping: |
+      root = "" + ""
+    output: ""
+
+  - name: "concat_multiple_strings"
+    mapping: |
+      root = "a" + "b" + "c"
+    output: "abc"
+
+  - name: "concat_unicode_strings"
+    mapping: |
+      root = "café" + " ☕"
+    output: "café ☕"
+
+  - name: "concat_emoji_strings"
+    mapping: |
+      root = "hello " + "😀"
+    output: "hello 😀"
+
+  - name: "concat_with_escape_sequences"
+    mapping: |
+      root = "line1\n" + "line2"
+    output: "line1\nline2"
+
+  - name: "concat_from_input"
+    mapping: |
+      root = this.first + " " + this.last
+    input: {"first": "John", "last": "Doe"}
+    output: "John Doe"
+
+  # --- Bytes + Bytes (V1: coerces both to string and concatenates; result is string, not bytes) ---
+  - name: "concat_two_bytes"
+    mapping: |
+      root = "hello".bytes() + " world".bytes()
+    output: "hello world" # V1: bytes+bytes → string concatenation
+
+  - name: "concat_empty_bytes_left"
+    mapping: |
+      root = "".bytes() + "world".bytes()
+    output: "world" # V1: bytes+bytes → string
+
+  - name: "concat_empty_bytes_right"
+    mapping: |
+      root = "hello".bytes() + "".bytes()
+    output: "hello" # V1: bytes+bytes → string
+
+  - name: "concat_both_empty_bytes"
+    mapping: |
+      root = "".bytes() + "".bytes()
+    output: "" # V1: bytes+bytes → string
+
+  - name: "concat_multiple_bytes"
+    mapping: |
+      root = "a".bytes() + "b".bytes() + "c".bytes()
+    output: "abc" # V1: bytes+bytes → string
+
+  # --- Cross-type: V1 string + number is error (same as V2) ---
+  - name: "string_plus_int"
+    mapping: |
+      root = "count: " + 5
+    compile_error: "cannot add types string" # V1 constant-folds literal string + number at compile time
+
+  - name: "int_plus_string"
+    mapping: |
+      root = 5 + " items"
+    compile_error: "cannot add types number" # V1 constant-folds literal number + string at compile time
+
+  - name: "string_plus_float"
+    mapping: |
+      root = "value: " + 3.14
+    compile_error: "cannot add types string" # V1 constant-folds literal string + number at compile time
+
+  - name: "float_plus_string"
+    mapping: |
+      root = 3.14 + " meters"
+    compile_error: "cannot add types number" # V1 constant-folds literal number + string at compile time
+
+  # --- Cross-type: V1 string + bytes works (both coerced to string) ---
+  - name: "string_plus_bytes"
+    mapping: |
+      root = "hello" + "world".bytes()
+    output: "helloworld" # V1: bytes operand → string concatenation
+
+  - name: "bytes_plus_string"
+    mapping: |
+      root = "hello".bytes() + "world"
+    output: "helloworld" # V1: bytes operand → string concatenation
+
+  # --- Cross-type errors: string + bool ---
+  - name: "string_plus_bool"
+    mapping: |
+      root = "flag: " + true
+    compile_error: "cannot add types string" # V1 constant-folds literal string + bool at compile time
+
+  - name: "bool_plus_string"
+    mapping: |
+      root = true + " is set"
+    compile_error: "cannot add types bool" # V1 constant-folds literal bool + string at compile time
+
+  # --- Cross-type errors: string + null ---
+  - name: "string_plus_null"
+    mapping: |
+      root = "value: " + null
+    compile_error: "cannot add types string" # V1 constant-folds literal string + null at compile time
+
+  - name: "null_plus_string"
+    mapping: |
+      root = null + "value"
+    compile_error: "cannot add types null" # V1 constant-folds literal null + string at compile time
+
+  # --- Cross-type errors: string + array ---
+  - name: "string_plus_array"
+    mapping: |
+      root = "items: " + [1, 2, 3]
+    compile_error: "cannot add types string" # V1 constant-folds literal string + array at compile time
+
+  # --- Cross-type errors: string + object ---
+  - name: "string_plus_object"
+    mapping: |
+      root = "data: " + {"a": 1}
+    compile_error: "cannot add types string" # V1 constant-folds literal string + object at compile time
+
+  # --- Cross-type errors: bytes + number ---
+  - name: "bytes_plus_int"
+    mapping: |
+      root = "data".bytes() + 42
+    error: "types" # FIXME-v1: verify
+
+  - name: "int_plus_bytes"
+    mapping: |
+      root = 42 + "data".bytes()
+    error: "types" # FIXME-v1: verify
+
+  # --- Cross-type errors: bytes + bool ---
+  - name: "bytes_plus_bool"
+    mapping: |
+      root = "data".bytes() + true
+    error: "types" # FIXME-v1: verify
+
+  # --- Cross-type errors: bytes + null ---
+  - name: "bytes_plus_null"
+    mapping: |
+      root = "data".bytes() + null
+    error: "types" # FIXME-v1: verify
+
+  # --- Explicit conversion with .string() ---
+  - name: "int_to_string_concat"
+    mapping: |
+      root = 5.string() + "3"
+    output: "53"
+
+  - name: "string_concat_int_rhs_converted"
+    mapping: |
+      root = "count: " + 42.string()
+    output: "count: 42"
+
+  - name: "float_to_string_concat"
+    mapping: |
+      root = 3.14.string() + " meters"
+    output: "3.14 meters"
+
+  - name: "bool_to_string_concat"
+    mapping: |
+      root = "flag is " + true.string()
+    output: "flag is true"
+
+  - name: "null_to_string_concat"
+    mapping: |
+      root = "value is " + null.string()
+    output: "value is null"
+
+  - name: "multiple_conversions"
+    mapping: |
+      root = "sum: " + 2.string() + " + " + 3.string() + " = " + 5.string()
+    output: "sum: 2 + 3 = 5"
+
+  # --- Left-associativity of string concat ---
+  - name: "concat_left_associative"
+    mapping: |
+      root = "a" + "b" + "c" + "d"
+    output: "abcd"

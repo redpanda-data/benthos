@@ -1,0 +1,218 @@
+description: "Match equality form — expression evaluated once, == comparison, first match wins, boolean case error"
+
+tests:
+  # --- Basic equality match ---
+
+  - name: "match equality on animal sound"
+    mapping: |
+      output.sound = match input.animal {
+        "cat" => "meow",
+        "dog" => "woof",
+        _ => "unknown",
+      }
+    cases:
+      - name: "selects first case"
+        input: {"animal": "cat"}
+        output: {"sound": "meow"}
+      - name: "selects second case"
+        input: {"animal": "dog"}
+        output: {"sound": "woof"}
+      - name: "falls to wildcard"
+        input: {"animal": "bird"}
+        output: {"sound": "unknown"}
+
+  # --- First match wins ---
+
+  - name: "first matching case wins when multiple could match"
+    mapping: |
+      $x = "hello"
+      output.result = match $x {
+        "hello" => "first",
+        "hello" => "second",
+        _ => "default",
+      }
+    output: {"result": "first"}
+
+  # --- Numeric equality match ---
+
+  - name: "match on integer value"
+    input: {"code": 200}
+    mapping: |
+      output.status = match input.code {
+        200 => "ok",
+        404 => "not found",
+        500 => "error",
+        _ => "other",
+      }
+    output: {"status": "ok"}
+
+  # --- Null matching ---
+
+  - name: "match null case"
+    input: {"val": null}
+    mapping: |
+      output.result = match input.val {
+        null => "is null",
+        _ => "not null",
+      }
+    output: {"result": "is null"}
+
+  # --- Case expressions are evaluated (not just literals) ---
+
+  - name: "case expression uses variable"
+    mapping: |
+      $target = "hello"
+      output.result = match "hello" {
+        $target => "matched variable",
+        _ => "no match",
+      }
+    output: {"result": "matched variable"}
+
+  - name: "case expression uses concatenation"
+    mapping: |
+      output.result = match "foobar" {
+        "foo" + "bar" => "matched concat",
+        _ => "no match",
+      }
+    output: {"result": "matched concat"}
+
+  # --- Subsequent cases not evaluated after match ---
+
+  - name: "cases after match are not evaluated"
+    mapping: |
+      output.result = match "a" {
+        "a" => "found",
+        throw("should not evaluate") => "never",
+        _ => "default",
+      }
+    output: {"result": "found"}
+
+  # --- Boolean case values are errors ---
+
+  - name: "boolean literal true as case is compile error"
+    mapping: |
+      output.result = match "hello" {
+        true => "yes",
+        _ => "no",
+      }
+    compile_error: "boolean"
+
+  - name: "boolean literal false as case is compile error"
+    mapping: |
+      output.result = match 42 {
+        false => "no",
+        _ => "yes",
+      }
+    compile_error: "boolean"
+
+  - name: "dynamic case evaluating to boolean is runtime error"
+    input: {"threshold": 100, "score": 150}
+    mapping: |
+      output.result = match input.score {
+        input.score >= input.threshold => "high",
+        _ => "low",
+      }
+    error: "boolean"
+
+  - name: "dynamic boolean case error is catchable"
+    input: {"threshold": 100, "score": 150}
+    mapping: |
+      output.result = (match input.score {
+        input.score >= input.threshold => "high",
+        _ => "low",
+      }).catch(err -> "caught: " + err.what)
+    output: {"result": "caught: boolean case value in equality match (use 'as' for boolean conditions)"}
+
+  # --- Expression evaluated once ---
+
+  - name: "matched expression evaluated once (side effects)"
+    mapping: |
+      $counter = 0
+      $counter = $counter + 1
+      output.result = match $counter {
+        1 => "one",
+        2 => "two",
+        _ => "other",
+      }
+    output: {"result": "one"}
+
+  # --- Match with braced case bodies ---
+
+  - name: "match case with braced body containing variables"
+    input: {"currency": "USD", "amount": 42}
+    mapping: |
+      output.formatted = match input.currency {
+        "USD" => {
+          $symbol = "$"
+          $symbol + input.amount.string()
+        },
+        "EUR" => {
+          input.amount.string() + " EUR"
+        },
+        _ => input.currency + " " + input.amount.string(),
+      }
+    output: {"formatted": "$42"}
+
+  # --- Wildcard is only catch-all (no else keyword) ---
+
+  - name: "wildcard catches all unmatched values"
+    mapping: |
+      output.result = match 999 {
+        1 => "one",
+        2 => "two",
+        _ => "catch all",
+      }
+    output: {"result": "catch all"}
+
+  # --- Non-exhaustive match produces void ---
+
+  - name: "non-exhaustive match produces void — assignment skipped"
+    mapping: |
+      output.sound = "default"
+      output.sound = match "bird" {
+        "cat" => "meow",
+        "dog" => "woof",
+      }
+    output: {"sound": "default"}
+
+  # --- Boolean-case runtime check is lazy (Section 4.2) ---
+  # Dynamic boolean cases in an equality match error only if actually
+  # evaluated. A preceding case that matches short-circuits and subsequent
+  # (potentially boolean) cases are never checked.
+
+  - name: "boolean case not evaluated when prior case matches (no error)"
+    mapping: |
+      $b = true
+      output.v = match "x" {
+        "x" => "hit",
+        $b  => "boom",
+      }
+    output: {"v": "hit"}
+
+  - name: "boolean case evaluated when prior cases miss is a runtime error"
+    mapping: |
+      $b = true
+      output.v = match "y" {
+        "x" => "hit",
+        $b  => "boom",
+      }
+    error: ""
+
+  - name: "boolean case order matters — earlier non-boolean hit saves the match"
+    mapping: |
+      $b = false
+      output.v = match 5 {
+        5 => "matched five",
+        $b => "never reached",
+      }
+    output: {"v": "matched five"}
+
+  - name: "wildcard after boolean case short-circuits before the boolean is reached"
+    mapping: |
+      $b = true
+      output.v = match "anything" {
+        "anything" => "direct hit",
+        $b => "never reached",
+        _ => "wildcard",
+      }
+    output: {"v": "direct hit"}

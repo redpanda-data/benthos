@@ -1,0 +1,111 @@
+description: >
+  Complex iterator patterns — nested iterator chains, lambdas with control
+  flow, and iterators operating on map call results.
+
+tests:
+  # --- Nested iterator chains ---
+
+  - name: "map then filter chain"
+    # V1 parser rejects a newline immediately before `.` (§2.1). Break *after* the dot instead.
+    mapping: |
+      root.v = [1, 2, 3, 4, 5].
+        map_each(x -> x * x).
+        filter(x -> x > 5)
+    output: {"v": [9, 16, 25]}
+
+  - name: "filter then map then sort"
+    mapping: |
+      root.v = [5, 1, 4, 2, 3].
+        filter(x -> x > 2).
+        map_each(x -> x * 10).
+        sort()
+    output: {"v": [30, 40, 50]}
+
+  - name: "nested map produces 2D array"
+    mapping: |
+      root.v = [1, 2].map_each(x -> [10, 20].map_each(y -> x + y))
+    output: {"v": [[11, 21], [12, 22]]}
+
+  - name: "flat map via map + flatten"
+    mapping: |
+      root.v = [[1, 2], [3, 4]].map_each(arr -> arr.map_each(x -> x * 10)).flatten()
+    output: {"v": [10, 20, 30, 40]}
+
+  # --- Lambda with control flow ---
+
+  - name: "map with if expression in lambda"
+    # V1 lambda bodies must start on the same line as `->` (§2.1).
+    mapping: |
+      root.v = [1, 2, 3, 4].map_each(x -> if x > 2 { "big" } else { "small" })
+    output: {"v": ["small", "small", "big", "big"]}
+
+  - name: "filter with match expression in lambda"
+    # V1 lambda bodies must start on the same line as `->`. Keep the match on one line.
+    mapping: |
+      root.v = ["apple", "banana", "avocado", "cherry"].filter(s -> match s.slice(0, 1) { "a" => true, _ => false })
+    output: {"v": ["apple", "avocado"]}
+
+  - name: "map with block body and local variables"
+    skip: "V1 lambda bodies are single expressions — no block form with inline let statements"
+
+  # --- Iterators on map call results ---
+  # V1 maps take no parameters; the receiver is `this` inside the map.
+
+  - name: "map call result piped to iterator"
+    mapping: |
+      map get_items { root = this.items }
+      root.v = this.apply("get_items").map_each(x -> x * 2)
+    input: {"items": [1, 2, 3]}
+    output: {"v": [2, 4, 6]}
+
+  - name: "chained map calls with iterators"
+    mapping: |
+      map extract { root = this.values }
+      map sum { root = this.fold(0, item -> item.tally + item.value) }
+      root.v = this.apply("extract").apply("sum")
+    input: {"values": [10, 20, 30]}
+    output: {"v": 60}
+
+  # --- Fold with complex accumulator ---
+
+  - name: "fold concatenates strings"
+    # V1 lambda bodies must start on the same line as `->` — collapse the if onto one line.
+    mapping: |
+      root.v = ["a", "b", "c"].fold("", item -> if item.tally == "" { item.value } else { item.tally + "," + item.value })
+    output: {"v": "a,b,c"}
+
+  - name: "fold builds object from array"
+    # V1 has no block-body lambdas with inline let statements; use .merge() to build the object inline.
+    mapping: |
+      root.v = [
+        {"k": "a", "v": 1},
+        {"k": "b", "v": 2}
+      ].fold({}, item -> item.tally.merge({(item.value.k): item.value.v}))
+    output: {"v": {"a": 1, "b": 2}}
+
+  - name: "fold with string accumulator"
+    # V1 lambda bodies must start on the same line as `->`.
+    mapping: |
+      root.v = ["hello", "world"].fold("", item -> if item.tally == "" { item.value } else { item.tally + " " + item.value })
+    output: {"v": "hello world"}
+
+  # --- any/all with complex predicates ---
+
+  - name: "any with method chain in predicate"
+    mapping: |
+      let items = [
+        {"name": "Alice", "age": 25},
+        {"name": "Bob", "age": 17}
+      ]
+      root.has_minor = $items.any(p -> p.age < 18)
+    output: {"has_minor": true}
+
+  - name: "all with outer variable in predicate"
+    mapping: |
+      let min_age = 18
+      let items = [
+        {"name": "Alice", "age": 25},
+        {"name": "Bob", "age": 30}
+      ]
+      root.all_adult = $items.all(p -> p.age >= $min_age)
+    output: {"all_adult": true}

@@ -105,6 +105,7 @@ func CreateManager(
 		manager.OptSetTracer(trac),
 		manager.OptSetStreamsMode(streamsMode),
 		manager.OptSetBloblangEnvironment(cliOpts.BloblEnvironment),
+		manager.OptSetBloblV2Environment(cliOpts.BloblV2Environment),
 		manager.OptSetEnvironment(cliOpts.Environment),
 	}, mgrOpts...)
 
