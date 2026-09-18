@@ -18,15 +18,16 @@ import (
 )
 
 const (
-	diFieldInputs = "inputs"
-	diFieldPrefix = "prefix"
+	diFieldInputs   = "inputs"
+	diFieldPrefix   = "prefix"
+	diFieldBindHTTP = "bind_http"
 )
 
 func dynInputSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
 		Categories("Utility").
-		Summary(`A special broker type where the inputs are identified by unique labels and can be created, changed and removed during runtime via a REST HTTP interface.`).
+		Summary(`A special broker type where the inputs are identified by unique labels and can be created, changed and removed during runtime via a REST HTTP interface, which is disabled by default and enabled with the `+"`bind_http`"+` field.`).
 		Footnotes(`
 == Endpoints
 
@@ -56,6 +57,10 @@ Returns the uptime of an input as a duration string (of the form "72h3m0.5s"), o
 			service.NewStringField(diFieldPrefix).
 				Description("A path prefix for HTTP endpoints that are registered.").
 				Default(""),
+			service.NewBoolField(diFieldBindHTTP).
+				Description("Whether to register the REST HTTP endpoints (`/inputs`, `/inputs/{id}`, and so on) for creating, updating and removing inputs at runtime. These endpoints are served on the service-wide HTTP server and accept input configuration over HTTP, so they are disabled by default. Enable them only when that server is secured appropriately, for example bound to a trusted interface or protected with `http.basic_auth`.").
+				Default(false).
+				Advanced(),
 		)
 }
 
@@ -99,6 +104,11 @@ func newDynamicInputFromParsed(conf *service.ParsedConfig, res *service.Resource
 	}
 
 	prefix, err := conf.FieldString(diFieldPrefix)
+	if err != nil {
+		return nil, err
+	}
+
+	bindHTTP, err := conf.FieldBool(diFieldBindHTTP)
 	if err != nil {
 		return nil, err
 	}
@@ -182,22 +192,24 @@ func newDynamicInputFromParsed(conf *service.ParsedConfig, res *service.Resource
 		return err
 	})
 
-	mgr.RegisterEndpoint(
-		path.Join(prefix, "/inputs/{id}/uptime"),
-		`Returns the uptime of a specific input as a duration string, or "stopped" for inputs that are no longer running and have gracefully terminated.`,
-		dynAPI.HandleUptime,
-	)
-	mgr.RegisterEndpoint(
-		path.Join(prefix, "/inputs/{id}"),
-		"Perform CRUD operations on the configuration of dynamic inputs. For"+
-			" more information read the `dynamic` input type documentation.",
-		dynAPI.HandleCRUD,
-	)
-	mgr.RegisterEndpoint(
-		path.Join(prefix, "/inputs"),
-		"Get a map of running input identifiers with their current uptimes.",
-		dynAPI.HandleList,
-	)
+	if bindHTTP {
+		mgr.RegisterEndpoint(
+			path.Join(prefix, "/inputs/{id}/uptime"),
+			`Returns the uptime of a specific input as a duration string, or "stopped" for inputs that are no longer running and have gracefully terminated.`,
+			dynAPI.HandleUptime,
+		)
+		mgr.RegisterEndpoint(
+			path.Join(prefix, "/inputs/{id}"),
+			"Perform CRUD operations on the configuration of dynamic inputs. For"+
+				" more information read the `dynamic` input type documentation.",
+			dynAPI.HandleCRUD,
+		)
+		mgr.RegisterEndpoint(
+			path.Join(prefix, "/inputs"),
+			"Get a map of running input identifiers with their current uptimes.",
+			dynAPI.HandleList,
+		)
+	}
 
 	return fanIn, nil
 }

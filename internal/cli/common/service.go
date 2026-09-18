@@ -95,7 +95,15 @@ func RunService(c *cli.Context, cliOpts *CLIOpts, streamsMode bool) error {
 	// Create data streams.
 	watching := cliOpts.RootFlags.GetWatcher(c)
 	if streamsMode {
-		enableStreamsAPI := !c.Bool("no-api")
+		// The streams-mode management API serves stream CRUD endpoints
+		// (POST /streams/{id} and so on) that accept pipeline configuration
+		// over HTTP, so they are only registered when --bind-http is set. The
+		// service-wide HTTP server itself still binds as configured, so
+		// /metrics, /ping and http_server components are unaffected.
+		if c.Bool("no-api") {
+			logger.Warn("The --no-api flag is deprecated and no longer has any effect: the streams-mode HTTP API is now disabled by default and enabled with --bind-http.")
+		}
+		enableStreamsAPI := c.Bool("bind-http")
 		stoppableStream, err = initStreamsMode(cliOpts, strict, watching, enableStreamsAPI, confReader, stoppableManager.Manager())
 	} else {
 		stoppableStream, dataStreamClosedChan, err = initNormalMode(cliOpts, conf, strict, watching, confReader, stoppableManager.Manager())

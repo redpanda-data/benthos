@@ -19,15 +19,16 @@ import (
 )
 
 const (
-	doFieldPrefix  = "prefix"
-	doFieldOutputs = "outputs"
+	doFieldPrefix   = "prefix"
+	doFieldOutputs  = "outputs"
+	doFieldBindHTTP = "bind_http"
 )
 
 func dynOutputSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Categories("Utility").
 		Stable().
-		Summary(`A special broker type where the outputs are identified by unique labels and can be created, changed and removed during runtime via a REST API.`).
+		Summary(`A special broker type where the outputs are identified by unique labels and can be created, changed and removed during runtime via a REST API, which is disabled by default and enabled with the `+"`bind_http`"+` field.`).
 		Description(`The broker pattern used is always `+"`fan_out`"+`, meaning each message will be delivered to each dynamic output.`).
 		Footnotes(`
 == Endpoints
@@ -58,6 +59,10 @@ Returns the uptime of an output as a duration string (of the form "72h3m0.5s").`
 			service.NewStringField(doFieldPrefix).
 				Description("A path prefix for HTTP endpoints that are registered.").
 				Default(""),
+			service.NewBoolField(doFieldBindHTTP).
+				Description("Whether to register the REST HTTP endpoints (`/outputs`, `/outputs/{id}`, and so on) for creating, updating and removing outputs at runtime. These endpoints are served on the service-wide HTTP server and accept output configuration over HTTP, so they are disabled by default. Enable them only when that server is secured appropriately, for example bound to a trusted interface or protected with `http.basic_auth`.").
+				Default(false).
+				Advanced(),
 		)
 }
 
@@ -80,6 +85,11 @@ func newDynamicOutputFromParsed(conf *service.ParsedConfig, res *service.Resourc
 	mgr := interop.UnwrapManagement(res)
 
 	prefix, err := conf.FieldString(doFieldPrefix)
+	if err != nil {
+		return nil, err
+	}
+
+	bindHTTP, err := conf.FieldBool(doFieldBindHTTP)
 	if err != nil {
 		return nil, err
 	}
@@ -171,22 +181,24 @@ func newDynamicOutputFromParsed(conf *service.ParsedConfig, res *service.Resourc
 		return err
 	})
 
-	mgr.RegisterEndpoint(
-		path.Join(prefix, "/outputs/{id}/uptime"),
-		`Returns the uptime of a specific output as a duration string.`,
-		dynAPI.HandleUptime,
-	)
-	mgr.RegisterEndpoint(
-		path.Join(prefix, "/outputs/{id}"),
-		"Perform CRUD operations on the configuration of dynamic outputs. For"+
-			" more information read the `dynamic` output type documentation.",
-		dynAPI.HandleCRUD,
-	)
-	mgr.RegisterEndpoint(
-		path.Join(prefix, "/outputs"),
-		"Get a map of running output identifiers with their current uptimes.",
-		dynAPI.HandleList,
-	)
+	if bindHTTP {
+		mgr.RegisterEndpoint(
+			path.Join(prefix, "/outputs/{id}/uptime"),
+			`Returns the uptime of a specific output as a duration string.`,
+			dynAPI.HandleUptime,
+		)
+		mgr.RegisterEndpoint(
+			path.Join(prefix, "/outputs/{id}"),
+			"Perform CRUD operations on the configuration of dynamic outputs. For"+
+				" more information read the `dynamic` output type documentation.",
+			dynAPI.HandleCRUD,
+		)
+		mgr.RegisterEndpoint(
+			path.Join(prefix, "/outputs"),
+			"Get a map of running output identifiers with their current uptimes.",
+			dynAPI.HandleList,
+		)
+	}
 
 	return fanOut, nil
 }

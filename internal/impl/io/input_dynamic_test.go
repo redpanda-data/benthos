@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	bmock "github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/public/service"
 
@@ -32,8 +31,10 @@ func TestDynamicInputAPI(t *testing.T) {
 		gMux.HandleFunc(path, h)
 	}
 
-	conf := input.NewConfig()
-	conf.Type = "dynamic"
+	conf := parseYAMLInputConf(t, `
+dynamic:
+  bind_http: true
+`)
 
 	i, err := mgr.NewInput(conf)
 	require.NoError(t, err)
@@ -92,6 +93,32 @@ generate:
 	require.NoError(t, i.WaitForClose(ctx))
 }
 
+func TestDynamicInputNoHTTPByDefault(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
+	defer done()
+
+	mgr := bmock.NewManager()
+	var registered []string
+	mgr.OnRegisterEndpoint = func(path string, _ http.HandlerFunc) {
+		registered = append(registered, path)
+	}
+
+	conf := parseYAMLInputConf(t, `
+dynamic:
+  inputs: {}
+`)
+
+	i, err := mgr.NewInput(conf)
+	require.NoError(t, err)
+
+	i.TriggerStartConsuming()
+
+	assert.Empty(t, registered, "dynamic input must not register HTTP endpoints without bind_http")
+
+	i.TriggerStopConsuming()
+	require.NoError(t, i.WaitForClose(ctx))
+}
+
 func TestDynamicInputAPIStopped(t *testing.T) {
 	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
 	defer done()
@@ -103,8 +130,10 @@ func TestDynamicInputAPIStopped(t *testing.T) {
 		gMux.HandleFunc(path, h)
 	}
 
-	conf := input.NewConfig()
-	conf.Type = "dynamic"
+	conf := parseYAMLInputConf(t, `
+dynamic:
+  bind_http: true
+`)
 
 	i, err := mgr.NewInput(conf)
 	require.NoError(t, err)
