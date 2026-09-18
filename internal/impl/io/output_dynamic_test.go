@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/redpanda-data/benthos/v4/internal/component/output"
 	bmock "github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 
@@ -32,8 +31,10 @@ func TestDynamicOutputAPI(t *testing.T) {
 		gMux.HandleFunc(path, h)
 	}
 
-	conf := output.NewConfig()
-	conf.Type = "dynamic"
+	conf := parseYAMLOutputConf(t, `
+dynamic:
+  bind_http: true
+`)
 
 	o, err := mgr.NewOutput(conf)
 	require.NoError(t, err)
@@ -78,6 +79,35 @@ func TestDynamicOutputAPI(t *testing.T) {
 	assert.Equal(t, `label: ""
 drop: {}
 `, res.Body.String())
+
+	o.TriggerCloseNow()
+	require.NoError(t, o.WaitForClose(ctx))
+}
+
+func TestDynamicOutputNoHTTPByDefault(t *testing.T) {
+	ctx, done := context.WithTimeout(t.Context(), time.Second*10)
+	defer done()
+
+	mgr := bmock.NewManager()
+	var registered []string
+	mgr.OnRegisterEndpoint = func(path string, _ http.HandlerFunc) {
+		registered = append(registered, path)
+	}
+
+	conf := parseYAMLOutputConf(t, `
+dynamic:
+  outputs: {}
+`)
+
+	o, err := mgr.NewOutput(conf)
+	require.NoError(t, err)
+
+	tChan := make(chan message.Transaction)
+	require.NoError(t, o.Consume(tChan))
+
+	o.TriggerStartConsuming()
+
+	assert.Empty(t, registered, "dynamic output must not register HTTP endpoints without bind_http")
 
 	o.TriggerCloseNow()
 	require.NoError(t, o.WaitForClose(ctx))
