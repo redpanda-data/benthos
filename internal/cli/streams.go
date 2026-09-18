@@ -11,9 +11,15 @@ import (
 func streamsCliCommand(opts *common.CLIOpts) *cli.Command {
 	flags := []cli.Flag{
 		&cli.BoolFlag{
-			Name:  "no-api",
+			Name:   "no-api",
+			Value:  false,
+			Hidden: true,
+			Usage:  "Deprecated: the streams-mode HTTP API is now disabled by default, enable it with --bind-http.",
+		},
+		&cli.BoolFlag{
+			Name:  "bind-http",
 			Value: false,
-			Usage: "Disable the HTTP API for streams mode",
+			Usage: "Register the streams-mode HTTP API endpoints for creating, updating and removing streams (POST /streams/{id} and so on). These are disabled by default because they accept pipeline configuration over HTTP. They are served on the service-wide HTTP server, so when enabling them secure that server by binding http.address to a trusted interface and/or configuring http.basic_auth. This flag does not affect the server's other endpoints such as /ping, /stats and /metrics.",
 		},
 		&cli.BoolFlag{
 			Name:  "prefix-stream-endpoints",
@@ -39,8 +45,8 @@ func streamsCliCommand(opts *common.CLIOpts) *cli.Command {
 		Flags: flags,
 		Description: opts.ExecTemplate(`
 Run {{.ProductName}} in streams mode, where multiple pipelines can be executed in a
-single process and can be created, updated and removed via REST HTTP
-endpoints.
+single process. When the HTTP API is enabled with --bind-http the pipelines can
+also be created, updated and removed via REST HTTP endpoints.
 
   {{.BinaryName}} streams
   {{.BinaryName}} streams -o ./root_config.yaml
