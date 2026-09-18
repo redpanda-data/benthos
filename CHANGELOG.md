@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Streams API: `POST`/`PUT /streams/{id}` and `POST /resources/{type}/{id}` now accept the config wrapped in an optional envelope of the form `{"env": {...}, "template": "<config>"}` (JSON or YAML). Values in `env` override environment variables referenced by the config for that request only, taking precedence over a same-named OS environment variable. Because the config travels as a string it is never parsed or re-serialised before substitution, so a template that is only valid YAML once substitution has run — such as the `${VAR: default}` form — works with overrides too. A body that is not an envelope is treated as the config itself, exactly as before. Note that a variable overridden to an empty string is treated as unset by the `${VAR:default}` form and will use its default. `PATCH /streams/{id}` also accepts the envelope and applies its `template` as the patch document, but since a patch performs no environment variable substitution it rejects a non-empty `env` with a 400 rather than ignoring it. (@g-hurst)
+
 ### Changed
 
 - Streams mode: The HTTP endpoints for creating, updating and removing streams (`POST /streams/{id}`, `GET /streams`, `/streams/{id}/stats` and `/resources/{type}/{id}`) are no longer registered by default and are enabled with the new `--bind-http` flag. The service-wide HTTP server still binds as configured, so `/ping`, `/stats`, `/metrics` and endpoints registered by `http_server` components are unaffected. The `--no-api` flag is deprecated and now only prints a warning. (@squiidz)

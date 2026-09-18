@@ -298,6 +298,337 @@ func TestTypeAPIBasicOperations(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code, response.Body.String())
 }
 
+// streamTemplate renders a minimal stream config as the string that travels
+// inside an envelope body's `template` field. JSON is used because it is valid
+// YAML, and because it saves hand-quoting mappings into a YAML scalar.
+func streamTemplate(mapping string) string {
+	b, err := json.Marshal(map[string]any{
+		"input":  map[string]any{"generate": map[string]any{"mapping": mapping}},
+		"output": map[string]any{"drop": map[string]any{}},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
+// envelopeRequest builds a request in the envelope form, carrying per-request
+// env overrides alongside the config template. A nil env omits the field.
+func envelopeRequest(verb, url string, env map[string]string, template string) *http.Request {
+	body := map[string]any{"template": template}
+	if env != nil {
+		body["env"] = env
+	}
+	return genRequest(verb, url, body)
+}
+
+// TestTypeAPIStreamEnvOverrides covers the envelope request form accepted by
+// POST/PUT /streams/{id}, which supplies template values for `${FOO}`-style
+// placeholders in the config.
+func TestTypeAPIStreamEnvOverrides(t *testing.T) {
+	res, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr := manager.New(res)
+	r := router(mgr)
+
+	readMapping := func(t *testing.T, id string) any {
+		t.Helper()
+		request := genRequest("GET", "/streams/"+id, nil)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		return gabs.Wrap(parseGetBody(t, response.Body).Config).S("input", "generate", "mapping").Data()
+	}
+
+	t.Run("the envelope alone supplies a var with no OS env var set", func(t *testing.T) {
+		request := envelopeRequest("POST", "/streams/envoverride?chilled=true",
+			map[string]string{"FOO": "root.meow = 5"}, streamTemplate("${FOO}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "root.meow = 5", readMapping(t, "envoverride"))
+	})
+
+	t.Run("an override takes precedence over an OS env var", func(t *testing.T) {
+		t.Setenv("FOO", "root.meow = 99")
+
+		request := envelopeRequest("POST", "/streams/envprecedence?chilled=true",
+			map[string]string{"FOO": "root.meow = 5"}, streamTemplate("${FOO}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "root.meow = 5", readMapping(t, "envprecedence"))
+	})
+
+	// The original request form, unchanged: no envelope, so the body is the
+	// config itself and every variable resolves from the OS as it always has.
+	t.Run("a raw body falls back to the OS env var", func(t *testing.T) {
+		t.Setenv("FOO", "root.meow = 99")
+
+		request := genRequest("POST", "/streams/envfallback?chilled=true", map[string]any{
+			"input":  map[string]any{"generate": map[string]any{"mapping": "${FOO}"}},
+			"output": map[string]any{"drop": map[string]any{}},
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "root.meow = 99", readMapping(t, "envfallback"))
+	})
+
+	// A single config references two variables, one supplied by the envelope
+	// and the other left to resolve from the real OS environment.
+	t.Run("overrides and OS vars resolve together in one config", func(t *testing.T) {
+		t.Setenv("MIXED_OS_ONLY", "root.woof = 7")
+
+		request := envelopeRequest("POST", "/streams/envmixed?chilled=true",
+			map[string]string{"MIXED_OVERRIDE": "root.meow = 5"},
+			streamTemplate("${MIXED_OVERRIDE}\n${MIXED_OS_ONLY}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "root.meow = 5\nroot.woof = 7", readMapping(t, "envmixed"))
+	})
+
+	// An override present in the request must not disturb the
+	// `${FOO:default}` fallback syntax for a different, entirely unset var.
+	t.Run("a default still applies to an unrelated unset var", func(t *testing.T) {
+		request := envelopeRequest("POST", "/streams/envmixeddefault?chilled=true",
+			map[string]string{"MIXED_OVERRIDE": "root.meow = 5"},
+			streamTemplate("${MIXED_OVERRIDE}\n${THIS_VAR_IS_ALSO_NOT_SET_24680:root.woof = 9}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "root.meow = 5\nroot.woof = 9", readMapping(t, "envmixeddefault"))
+	})
+
+	// A `${{FOO}}` escape must not be unescaped *and then* interpolated, which
+	// would leak the real OS value of a variable the caller explicitly asked to
+	// be left as literal text.
+	t.Run("an escape is not unescaped and then interpolated", func(t *testing.T) {
+		t.Setenv("MIXED_ESCAPED", "leaked-os-value")
+
+		request := envelopeRequest("POST", "/streams/envmixedescape?chilled=true",
+			map[string]string{"MIXED_OVERRIDE": "root.meow = 5"},
+			streamTemplate(`root.v = "${{MIXED_ESCAPED}}"`))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, `root.v = "${MIXED_ESCAPED}"`, readMapping(t, "envmixedescape"))
+	})
+
+	// An override elsewhere in the same config doesn't grant a free pass for an
+	// unrelated missing var.
+	t.Run("an unrelated missing var still errors", func(t *testing.T) {
+		request := envelopeRequest("POST", "/streams/envmixedmissing",
+			map[string]string{"MIXED_OVERRIDE": "root.meow = 5"},
+			streamTemplate("${MIXED_OVERRIDE}\n${THIS_VAR_IS_DEFINITELY_NOT_SET_67890}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "required environment variables were not set")
+	})
+
+	t.Run("a missing var in a raw body errors as it always did", func(t *testing.T) {
+		request := genRequest("POST", "/streams/envmissing", map[string]any{
+			"input": map[string]any{
+				"generate": map[string]any{"mapping": "${THIS_VAR_IS_DEFINITELY_NOT_SET_12345}"},
+			},
+			"output": map[string]any{"drop": map[string]any{}},
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "required environment variables were not set")
+	})
+
+	// Mirrors the os.LookupEnv contract of returning only strings.
+	t.Run("a non-string override is a 400", func(t *testing.T) {
+		request := genRequest("POST", "/streams/envbadtype", map[string]any{
+			"env":      map[string]any{"FOO": 3},
+			"template": streamTemplate("${FOO}"),
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "value of 'FOO' must be a string")
+	})
+
+	t.Run("an env value that is not an object is a 400", func(t *testing.T) {
+		request := genRequest("POST", "/streams/envbadshape", map[string]any{
+			"env":      []string{"FOO=bar"},
+			"template": streamTemplate("${FOO}"),
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "must be an object of string values")
+	})
+
+	// `env` is no longer a recognised sibling of the config fields: alongside
+	// real config it is an unknown field like any other, and the name is free
+	// for a genuine config section later.
+	t.Run("an env field beside config fields is not an envelope", func(t *testing.T) {
+		request := genRequest("POST", "/streams/envnotenvelope", map[string]any{
+			"env":    map[string]any{"FOO": "root.meow = 5"},
+			"input":  map[string]any{"generate": map[string]any{"mapping": "root.id = uuid_v4()"}},
+			"output": map[string]any{"drop": map[string]any{}},
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "env")
+	})
+
+	t.Run("PUT accepts the envelope too", func(t *testing.T) {
+		request := envelopeRequest("POST", "/streams/envput?chilled=true",
+			map[string]string{"FOO": "root.meow = 1"}, streamTemplate("${FOO}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		request = envelopeRequest("PUT", "/streams/envput?chilled=true",
+			map[string]string{"FOO": "root.meow = 2"}, streamTemplate("${FOO}"))
+		response = httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "root.meow = 2", readMapping(t, "envput"))
+	})
+}
+
+// The streams API's request bodies are config *templates*: they are not
+// necessarily valid YAML until after env var substitution has run. Carrying the
+// document as a string means it is never parsed before substitution, so a
+// template works with and without overrides alike.
+func TestTypeAPIStreamEnvOverridesPreserveDocument(t *testing.T) {
+	// One case resolves a relative output path, so keep the file it writes out
+	// of the package directory.
+	t.Chdir(t.TempDir())
+
+	res, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr := manager.New(res)
+	r := router(mgr)
+
+	readMapping := func(t *testing.T, id string) any {
+		t.Helper()
+		request := genRequest("GET", "/streams/"+id, nil)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		return gabs.Wrap(parseGetBody(t, response.Body).Config).S("input", "generate", "mapping").Data()
+	}
+
+	// The documented `${VAR: default}` form puts a `: ` inside what is
+	// otherwise a plain scalar, so this template only parses as YAML once
+	// substitution has happened. A block scalar carries it literally, while the
+	// envelope supplies a *different* variable in the same request — the case
+	// the body-field design could not serve.
+	t.Run("accepts a template only valid after substitution", func(t *testing.T) {
+		request := genYAMLRequest("POST", "/streams/envtemplateonly?chilled=true", `
+env:
+  STREAM_ENV_MAPPING: root.id = "x"
+template: |
+  input:
+    generate:
+      interval: 1h
+      mapping: ${STREAM_ENV_MAPPING}
+  output:
+    file:
+      path: ${STREAM_ENV_UNSET_PATH: ./fallback.jsonl}
+`)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		request = genRequest("GET", "/streams/envtemplateonly", nil)
+		response = httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		info := parseGetBody(t, response.Body)
+
+		assert.Equal(t, `root.id = "x"`, gabs.Wrap(info.Config).S("input", "generate", "mapping").Data())
+		assert.Equal(t, "./fallback.jsonl", gabs.Wrap(info.Config).S("output", "file", "path").Data())
+	})
+
+	// Quoting is a property of the YAML node, not of the decoded value, so
+	// re-serialising the document from decoded values would drop the caller's
+	// own quotes around an interpolation. Here the override value contains a
+	// `: `, which parses as a nested mapping the moment those quotes are lost.
+	t.Run("preserves quoting around interpolations", func(t *testing.T) {
+		request := genYAMLRequest("POST", "/streams/envquoted?chilled=true", `
+env:
+  ENV_QUOTED_VALUE: 'a: b'
+template: |
+  input:
+    generate:
+      interval: 1h
+      mapping: 'root.v = "${ENV_QUOTED_VALUE}"'
+  output:
+    drop: {}
+`)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, `root.v = "a: b"`, readMapping(t, "envquoted"))
+	})
+}
+
+// A scalar the caller never referenced must not be re-resolved by YAML's
+// implicit typing just because the request carries overrides.
+func TestTypeAPIStreamEnvOverridesPreserveScalars(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	res, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr := manager.New(res)
+	r := router(mgr)
+
+	// `2024-01-02` is a valid YAML timestamp, so a decode/re-encode round trip
+	// rewrites it as `2024-01-02T00:00:00Z` and the output writes to a
+	// different file than the one the caller asked for.
+	request := genYAMLRequest("POST", "/streams/envscalars?chilled=true", `
+env:
+  ENV_SCALAR_MAPPING: root.id = "x"
+template: |
+  input:
+    generate:
+      count: 1
+      interval: 1ms
+      mapping: ${ENV_SCALAR_MAPPING}
+  output:
+    file:
+      path: 2024-01-02
+`)
+	response := httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+	var names []string
+	assert.Eventually(t, func() bool {
+		entries, err := os.ReadDir(".")
+		if err != nil {
+			return false
+		}
+		names = names[:0]
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		return len(names) > 0
+	}, time.Second*5, time.Millisecond*10)
+	assert.Equal(t, []string{"2024-01-02"}, names)
+}
+
 func TestTypeAPIPatch(t *testing.T) {
 	res, err := bmanager.New(bmanager.NewResourceConfig())
 	require.NoError(t, err)
@@ -345,6 +676,137 @@ func TestTypeAPIPatch(t *testing.T) {
 	}
 
 	assert.Equal(t, "2s", gabs.Wrap(info.Config).S("input", "generate", "interval").Data())
+}
+
+// TestTypeAPIPatchEnvelope covers the envelope request form on
+// PATCH /streams/{id}. The envelope is unwrapped and its `template` is applied
+// as the patch document, exactly as a non-enveloped body would be. PATCH
+// performs no environment variable substitution, so an envelope carrying
+// overrides is rejected rather than silently ignored.
+func TestTypeAPIPatchEnvelope(t *testing.T) {
+	res, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr := manager.New(res)
+	r := router(mgr)
+
+	// createStream seeds a stream to patch, one per subtest so cases cannot
+	// observe each other's patches.
+	createStream := func(t *testing.T, id string) {
+		t.Helper()
+		request := genRequest("POST", "/streams/"+id+"?chilled=true", harmlessConf())
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	}
+
+	readConfig := func(t *testing.T, id string) *gabs.Container {
+		t.Helper()
+		request := genRequest("GET", "/streams/"+id, nil)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		return gabs.Wrap(parseGetBody(t, response.Body).Config)
+	}
+
+	patchTemplate := `{"input":{"generate":{"interval":"2s"}}}`
+
+	t.Run("an envelope template is applied as the patch", func(t *testing.T) {
+		createStream(t, "patchenvelope")
+
+		request := genRequest("PATCH", "/streams/patchenvelope", map[string]any{
+			"template": patchTemplate,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		conf := readConfig(t, "patchenvelope")
+		assert.Equal(t, "2s", conf.S("input", "generate", "interval").Data())
+
+		// The envelope's own keys must not survive into the stored config, which
+		// is what happened while PATCH merged the body verbatim.
+		assert.False(t, conf.Exists("template"), "envelope key `template` leaked into the config")
+		assert.False(t, conf.Exists("env"), "envelope key `env` leaked into the config")
+	})
+
+	t.Run("an explicit null env is accepted", func(t *testing.T) {
+		createStream(t, "patchenvelopenullenv")
+
+		request := genYAMLRequest("PATCH", "/streams/patchenvelopenullenv",
+			"env:\ntemplate: '"+patchTemplate+"'\n")
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "2s", readConfig(t, "patchenvelopenullenv").S("input", "generate", "interval").Data())
+	})
+
+	t.Run("an empty env object is accepted", func(t *testing.T) {
+		createStream(t, "patchenvelopeemptyenv")
+
+		request := genRequest("PATCH", "/streams/patchenvelopeemptyenv", map[string]any{
+			"env":      map[string]any{},
+			"template": patchTemplate,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "2s", readConfig(t, "patchenvelopeemptyenv").S("input", "generate", "interval").Data())
+	})
+
+	// PATCH never substitutes environment variables, so overrides could only
+	// ever be a no-op. Rejecting says so rather than dropping them silently.
+	t.Run("a populated env is a 400", func(t *testing.T) {
+		createStream(t, "patchenvelopeenv")
+
+		request := genRequest("PATCH", "/streams/patchenvelopeenv", map[string]any{
+			"env":      map[string]string{"FOO": "root.meow = 5"},
+			"template": patchTemplate,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "field env: not supported by PATCH")
+
+		// The rejected request must leave the stream exactly as it was. The
+		// stored config is the caller's own document, so an interval never
+		// patched in is simply absent rather than carrying the field default.
+		conf := readConfig(t, "patchenvelopeenv")
+		assert.Nil(t, conf.S("input", "generate", "interval").Data())
+		assert.False(t, conf.Exists("env"), "envelope key `env` leaked into the config")
+	})
+
+	// A malformed envelope is reported by the decoder for PATCH just as it is
+	// for POST and PUT.
+	t.Run("a non-string override is a 400", func(t *testing.T) {
+		createStream(t, "patchenvelopebadtype")
+
+		request := genRequest("PATCH", "/streams/patchenvelopebadtype", map[string]any{
+			"env":      map[string]any{"FOO": 3},
+			"template": patchTemplate,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "value of 'FOO' must be a string")
+	})
+
+	// The original request form, unchanged: a body that is not an envelope is
+	// the patch document itself.
+	t.Run("a raw body is still applied as the patch", func(t *testing.T) {
+		createStream(t, "patchraw")
+
+		request := genRequest("PATCH", "/streams/patchraw", map[string]any{
+			"input": map[string]any{"generate": map[string]any{"interval": "3s"}},
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		assert.Equal(t, "3s", readConfig(t, "patchraw").S("input", "generate", "interval").Data())
+	})
 }
 
 func TestTypeAPIBasicOperationsYAML(t *testing.T) {
@@ -960,6 +1422,205 @@ file:
 	file2Bytes, err := os.ReadFile(filepath.Join(dir2, "second"))
 	require.NoError(t, err)
 	assert.Equal(t, `{"id":"second","content":"hello world 2"}`, string(file2Bytes))
+}
+
+// TestResourceAPIEnvOverrides covers the envelope request form for
+// POST /resources/{type}/{id}, which reuses the same lookup seam as the streams
+// endpoint. Each case observes the cache's resolved directory on disk, since
+// that is the only place a resource's substituted config becomes visible.
+func TestResourceAPIEnvOverrides(t *testing.T) {
+	bmgr, err := bmanager.New(bmanager.NewResourceConfig())
+	require.NoError(t, err)
+
+	mgr := manager.New(bmgr)
+	r := router(mgr)
+
+	tmpDir := t.TempDir()
+	overrideDir := filepath.Join(tmpDir, "override")
+	require.NoError(t, os.MkdirAll(overrideDir, 0o750))
+	osDir := filepath.Join(tmpDir, "os")
+	require.NoError(t, os.MkdirAll(osDir, 0o750))
+
+	// Drives one message through a stream writing to the named cache. Each call
+	// takes its own pipe: a stream created by an earlier case is still running
+	// and would race this one for messages if they shared one.
+	writeVia := func(t *testing.T, pipe, cacheName, id string) {
+		t.Helper()
+
+		tChan := make(chan message.Transaction)
+		bmgr.SetPipe(pipe, tChan)
+
+		streamConf, err := testutil.StreamFromYAML(`
+input:
+  inproc: ` + pipe + `
+output:
+  cache:
+    key: '${! json("id") }'
+    target: ` + cacheName + `
+`)
+		require.NoError(t, err)
+
+		request := genYAMLRequest("POST", "/streams/"+id+"?chilled=true", streamConf)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		resChan := make(chan error)
+		select {
+		case tChan <- message.NewTransaction(message.QuickBatch([][]byte{
+			[]byte(`{"id":"` + id + `","content":"hello world"}`),
+		}), resChan):
+		case <-time.After(time.Second * 5):
+			t.Fatal("timed out sending transaction")
+		}
+		select {
+		case <-resChan:
+		case <-time.After(time.Second * 5):
+			t.Fatal("timed out awaiting response")
+		}
+	}
+
+	// resourceEnvelope builds an envelope body whose template is a cache config
+	// pointing at the given directory expression.
+	resourceEnvelope := func(env map[string]string, directory string) map[string]any {
+		template, err := json.Marshal(map[string]any{
+			"file": map[string]any{"directory": directory},
+		})
+		require.NoError(t, err)
+
+		body := map[string]any{"template": string(template)}
+		if env != nil {
+			body["env"] = env
+		}
+		return body
+	}
+
+	t.Run("an override takes precedence over an OS env var", func(t *testing.T) {
+		t.Setenv("ENV_OVERRIDE_CACHE_DIR", osDir)
+
+		request := genRequest("POST", "/resources/cache/envcache?chilled=true",
+			resourceEnvelope(map[string]string{"ENV_OVERRIDE_CACHE_DIR": overrideDir},
+				"${ENV_OVERRIDE_CACHE_DIR}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		writeVia(t, "feed_in_env", "envcache", "envcacheuser")
+
+		files, err := os.ReadDir(overrideDir)
+		require.NoError(t, err)
+		assert.Len(t, files, 1)
+
+		files, err = os.ReadDir(osDir)
+		require.NoError(t, err)
+		assert.Empty(t, files)
+	})
+
+	// A single field template references two variables, one supplied by the
+	// envelope and the other left to resolve from the real OS environment.
+	t.Run("overrides and OS vars resolve together in one field", func(t *testing.T) {
+		mixedSubDir := "mixedsub"
+		mixedDir := filepath.Join(overrideDir, mixedSubDir)
+		require.NoError(t, os.MkdirAll(mixedDir, 0o750))
+
+		t.Setenv("ENV_MIXED_SUB_DIR", mixedSubDir)
+
+		request := genRequest("POST", "/resources/cache/envmixedcache?chilled=true",
+			resourceEnvelope(map[string]string{"ENV_MIXED_BASE_DIR": overrideDir},
+				"${ENV_MIXED_BASE_DIR}/${ENV_MIXED_SUB_DIR}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		writeVia(t, "feed_in_env_mixed", "envmixedcache", "envmixedcacheuser")
+
+		files, err := os.ReadDir(mixedDir)
+		require.NoError(t, err)
+		assert.Len(t, files, 1)
+	})
+
+	// The original request form, unchanged: the body is the config itself and
+	// the referenced variable resolves from the OS exactly as it always has.
+	t.Run("a raw body falls back to the OS env var", func(t *testing.T) {
+		fallbackDir := filepath.Join(tmpDir, "fallback")
+		require.NoError(t, os.MkdirAll(fallbackDir, 0o750))
+
+		t.Setenv("ENV_FALLBACK_CACHE_DIR", fallbackDir)
+
+		request := genRequest("POST", "/resources/cache/envfallbackcache?chilled=true",
+			map[string]any{"file": map[string]any{"directory": "${ENV_FALLBACK_CACHE_DIR}"}})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		writeVia(t, "feed_in_env_fallback", "envfallbackcache", "envfallbackcacheuser")
+
+		files, err := os.ReadDir(fallbackDir)
+		require.NoError(t, err)
+		assert.Len(t, files, 1)
+	})
+
+	t.Run("an unrelated missing var still errors", func(t *testing.T) {
+		request := genRequest("POST", "/resources/cache/envcachemissing",
+			resourceEnvelope(map[string]string{"ENV_UNRELATED_VAR": "unused"},
+				"${ENV_MISSING_CACHE_DIR}"))
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "required environment variables were not set")
+	})
+
+	// A raw body that is only valid YAML once substitution has run must be
+	// accepted, as it was before overrides existed.
+	t.Run("a raw body only valid after substitution is accepted", func(t *testing.T) {
+		templateOnlyDir := filepath.Join(tmpDir, "templateonly")
+		require.NoError(t, os.MkdirAll(templateOnlyDir, 0o750))
+
+		request := genYAMLRequest("POST", "/resources/cache/envcachetemplateonly?chilled=true", `
+file:
+  directory: ${ENV_UNSET_CACHE_DIR: `+templateOnlyDir+`}
+`)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	})
+
+	// The same case, but inside an envelope supplying an unrelated variable.
+	// The template is carried as a block scalar, so it never has to parse as
+	// YAML before substitution.
+	t.Run("an envelope template only valid after substitution is accepted", func(t *testing.T) {
+		envTemplateDir := filepath.Join(tmpDir, "envtemplateonly")
+		require.NoError(t, os.MkdirAll(envTemplateDir, 0o750))
+
+		request := genYAMLRequest("POST", "/resources/cache/envcacheenvtemplate?chilled=true", `
+env:
+  ENV_UNRELATED_VAR: unused
+template: |
+  file:
+    directory: ${ENV_UNSET_CACHE_DIR: `+envTemplateDir+`}
+`)
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		writeVia(t, "feed_in_env_template", "envcacheenvtemplate", "envcacheenvtemplateuser")
+
+		files, err := os.ReadDir(envTemplateDir)
+		require.NoError(t, err)
+		assert.Len(t, files, 1)
+	})
+
+	// Same contract as the streams endpoint.
+	t.Run("a non-string override is a 400", func(t *testing.T) {
+		request := genRequest("POST", "/resources/cache/envcachebad", map[string]any{
+			"env":      map[string]any{"ENV_OVERRIDE_CACHE_DIR": 3},
+			"template": `{"file":{"directory":"${ENV_OVERRIDE_CACHE_DIR}"}}`,
+		})
+		response := httptest.NewRecorder()
+		r.ServeHTTP(response, request)
+		assert.Equal(t, http.StatusBadRequest, response.Code)
+		assert.Contains(t, response.Body.String(), "value of 'ENV_OVERRIDE_CACHE_DIR' must be a string")
+	})
 }
 
 func TestAPIReady(t *testing.T) {

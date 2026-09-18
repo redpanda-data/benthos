@@ -40,7 +40,14 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 	}
 	m.manager.RegisterEndpoint(
 		"/resources/{type}/{id}",
-		"POST: Create or replace a given resource configuration of a specified type. Types supported are `cache`, `input`, `output`, `processor` and `rate_limit`.",
+		"POST: Create or replace a given resource configuration of a specified type. Types supported are `cache`, `input`, `output`, `processor` and `rate_limit`."+
+			" The config may be sent either as the body itself or wrapped in an envelope"+
+			" of the form `{\"env\": {...}, \"template\": \"<config>\"}`, where `env` is an"+
+			" object of string values overriding environment variables referenced by the"+
+			" config for that request only, taking precedence over a same-named OS"+
+			" environment variable. Note that a variable overridden to an empty string"+
+			" is treated as unset by the `${VAR:default}` form, which will use its"+
+			" default.",
 		m.HandleResourceCRUD,
 	)
 	m.manager.RegisterEndpoint(
@@ -52,14 +59,28 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 		"/streams/{id}",
 		"Perform CRUD operations on streams, supporting POST (Create),"+
 			" GET (Read), PUT (Update), PATCH (Patch update)"+
-			" and DELETE (Delete).",
+			" and DELETE (Delete)."+
+			" POST, PUT and PATCH accept the config either as the body itself or"+
+			" wrapped in an envelope of the form `{\"env\": {...}, \"template\":"+
+			" \"<config>\"}`, where `env` is an object of string values overriding"+
+			" environment variables referenced by the config for that request only,"+
+			" taking precedence over a same-named OS environment variable. Note that a"+
+			" variable overridden to an empty string is treated as unset by the"+
+			" `${VAR:default}` form, which will use its default."+
+			" PATCH performs no environment variable substitution at all, so it takes"+
+			" the envelope's `template` as the patch document and rejects a non-empty"+
+			" `env` rather than silently ignoring it.",
 		m.HandleStreamCRUD,
 	)
 	m.manager.RegisterEndpoint(
 		"/streams",
 		"GET: List all streams along with their status and uptimes."+
 			" POST: Post an object of stream ids to stream configs, all"+
-			" streams will be replaced by this new set.",
+			" streams will be replaced by this new set."+
+			" Unlike POST/PUT /streams/{id}, this endpoint performs no environment"+
+			" variable substitution and does not accept the `{\"env\": {...},"+
+			" \"template\": \"<config>\"}` envelope; a body in that form is read as a"+
+			" set of stream configs named `env` and `template`.",
 		m.HandleStreamsCRUD,
 	)
 }
@@ -79,6 +100,107 @@ func (m *Type) lintStreamConfigNode(node *yaml.Node) (lints []string) {
 		lints = append(lints, dLint.Error())
 	}
 	return
+}
+
+// envelopeEnvField and envelopeTemplateField name the two keys of the envelope
+// request form.
+const (
+	envelopeEnvField      = "env"
+	envelopeTemplateField = "template"
+)
+
+// decodeConfigBody splits a request body into per-request environment variable
+// overrides and the config document to act on.
+//
+// Two body forms are accepted. The envelope form is a mapping whose only keys
+// are "env" and "template", where "template" holds the config document as a
+// string. The original form is the config document itself, in which case the
+// body is returned unchanged and no overrides are produced. Anything that does
+// not match the envelope shape exactly falls back to the original form, so no
+// request that worked before this existed can behave differently.
+//
+// The document is carried as a string rather than as nested structure
+// specifically so that it is never decoded and re-encoded. A body is a
+// template, and a round trip through go-yaml's emitter is free to re-resolve
+// implicit scalar types (`2024-01-02` returning as a timestamp), to drop the
+// caller's quoting around a `${VAR}` (which is what stops an interpolated value
+// containing YAML metacharacters from restructuring the document), and to
+// rewrite comments, anchors and style. Reading a string node hands back exactly
+// the bytes the caller wrote.
+//
+// It also means the envelope is parseable whatever the template contains: a
+// body is only guaranteed to parse once substitution has run, since the
+// documented `${VAR: default}` form puts a `: ` inside an otherwise plain
+// scalar, but as a JSON string or a YAML block scalar that is just text.
+func decodeConfigBody(raw []byte) (overrides map[string]string, template []byte, err error) {
+	var doc yaml.Node
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, raw, nil
+	}
+	if len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {
+		return nil, raw, nil
+	}
+
+	var envNode, templateNode *yaml.Node
+	root := doc.Content[0]
+	for i := 0; i+1 < len(root.Content); i += 2 {
+		// A key repeated, or any key beyond the two the envelope defines, means
+		// this is not an envelope. Falling back rather than erroring is what
+		// keeps every request that predates this feature working untouched.
+		switch key, value := root.Content[i], root.Content[i+1]; key.Value {
+		case envelopeEnvField:
+			if envNode != nil {
+				return nil, raw, nil
+			}
+			envNode = value
+		case envelopeTemplateField:
+			if templateNode != nil {
+				return nil, raw, nil
+			}
+			templateNode = value
+		default:
+			return nil, raw, nil
+		}
+	}
+
+	if templateNode == nil {
+		return nil, raw, nil
+	}
+	if templateNode.Kind == yaml.AliasNode {
+		templateNode = templateNode.Alias
+	}
+	if templateNode.Kind != yaml.ScalarNode || templateNode.Tag != "!!str" {
+		return nil, raw, nil
+	}
+
+	// Past this point the body is unambiguously an envelope, so a malformed env
+	// is reported rather than silently reinterpreted as a config document.
+	if envNode != nil {
+		if envNode.Kind == yaml.AliasNode {
+			envNode = envNode.Alias
+		}
+		switch {
+		case envNode.Kind == yaml.MappingNode:
+			overrides = make(map[string]string, len(envNode.Content)/2)
+			for i := 0; i+1 < len(envNode.Content); i += 2 {
+				key, value := envNode.Content[i], envNode.Content[i+1]
+				// The lookup func contract is func(context.Context, string)
+				// (string, bool), backed by os.LookupEnv, so only strings are
+				// accepted. The node tag distinguishes a quoted "5" from a bare
+				// 5, which a decode into map[string]string would not.
+				if value.Kind != yaml.ScalarNode || value.Tag != "!!str" {
+					return nil, nil, fmt.Errorf("field env: value of '%v' must be a string", key.Value)
+				}
+				overrides[key.Value] = value.Value
+			}
+		case envNode.Tag == "!!null":
+			// An explicit `env:` with no value, treated as no overrides.
+		default:
+			return nil, nil, errors.New("field env: must be an object of string values")
+		}
+	}
+
+	return overrides, []byte(templateNode.Value), nil
 }
 
 // HandleStreamsCRUD is an http.HandleFunc for returning maps of active benthos
@@ -295,7 +417,18 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 
 		ignoreLints := r.URL.Query().Get("chilled") == "true"
 
-		if confBytes, err = config.NewReader("", nil).ReplaceEnvVariables(context.TODO(), confBytes); err != nil {
+		var overrides map[string]string
+		if overrides, confBytes, err = decodeConfigBody(confBytes); err != nil {
+			return
+		}
+
+		var readerOpts []config.OptFunc
+		if len(overrides) > 0 {
+			readerOpts = append(readerOpts, config.OptAddEnvLookupOverrides(overrides))
+		}
+		reader := config.NewReader("", nil, readerOpts...)
+
+		if confBytes, err = reader.ReplaceEnvVariables(context.TODO(), confBytes); err != nil {
 			var errEnvMissing *config.ErrMissingEnvVars
 			if ignoreLints && errors.As(err, &errEnvMissing) {
 				confBytes = errEnvMissing.BestAttempt
@@ -329,6 +462,23 @@ func (m *Type) HandleStreamCRUD(w http.ResponseWriter, r *http.Request) {
 	patchConfig := func(confIn stream.Config) (confOut stream.Config, err error) {
 		var patchBytes []byte
 		if patchBytes, err = io.ReadAll(r.Body); err != nil {
+			return
+		}
+
+		// An envelope is unwrapped and its template applied as the patch
+		// document, exactly as a body that is not an envelope would be. Without
+		// this the envelope's own keys merge into the stream config as ordinary
+		// fields, since a patch is neither linted nor parsed strictly.
+		//
+		// PATCH performs no environment variable substitution, so overrides
+		// could only ever be a no-op here. Rejecting them says so rather than
+		// accepting a request whose whole point is silently dropped.
+		var overrides map[string]string
+		if overrides, patchBytes, err = decodeConfigBody(patchBytes); err != nil {
+			return
+		}
+		if len(overrides) > 0 {
+			err = fmt.Errorf("field %v: not supported by PATCH", envelopeEnvField)
 			return
 		}
 
@@ -543,7 +693,18 @@ func (m *Type) HandleResourceCRUD(w http.ResponseWriter, r *http.Request) {
 
 		ignoreLints := r.URL.Query().Get("chilled") == "true"
 
-		if confBytes, requestErr = config.NewReader("", nil).ReplaceEnvVariables(r.Context(), confBytes); requestErr != nil {
+		var overrides map[string]string
+		if overrides, confBytes, requestErr = decodeConfigBody(confBytes); requestErr != nil {
+			return
+		}
+
+		var readerOpts []config.OptFunc
+		if len(overrides) > 0 {
+			readerOpts = append(readerOpts, config.OptAddEnvLookupOverrides(overrides))
+		}
+		reader := config.NewReader("", nil, readerOpts...)
+
+		if confBytes, requestErr = reader.ReplaceEnvVariables(r.Context(), confBytes); requestErr != nil {
 			var errEnvMissing *config.ErrMissingEnvVars
 			if ignoreLints && errors.As(requestErr, &errEnvMissing) {
 				confBytes = errEnvMissing.BestAttempt

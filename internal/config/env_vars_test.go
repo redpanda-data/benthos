@@ -80,3 +80,73 @@ func TestEnvSwapping(t *testing.T) {
 		}
 	}
 }
+
+func TestEnvLookupOverrides(t *testing.T) {
+	// Stands in for the OS environment that the overrides layer on top of.
+	underlying := func(_ context.Context, s string) (string, bool) {
+		switch s {
+		case "BASE_ONLY":
+			return "base-value", true
+		case "SHADOWED":
+			return "base-value", true
+		}
+		return "", false
+	}
+
+	tests := map[string]struct {
+		overrides   map[string]string
+		result      string
+		errContains string
+	}{
+		"an override supplies a var the underlying lookup lacks": {
+			overrides: map[string]string{"OVERRIDE_ONLY": "override-value"},
+			result:    "override-value",
+		},
+		"an override takes precedence over the underlying lookup": {
+			overrides: map[string]string{"SHADOWED": "override-value"},
+			result:    "override-value",
+		},
+		"a var absent from the overrides falls through": {
+			overrides: map[string]string{"UNRELATED": "override-value"},
+			result:    "base-value",
+		},
+		"a default still applies to a var absent from both": {
+			overrides: map[string]string{"UNRELATED": "override-value"},
+			result:    "default-value",
+		},
+		"an escape is left alone alongside an override": {
+			overrides: map[string]string{"UNRELATED": "override-value"},
+			result:    "${SHADOWED}",
+		},
+		"a var absent from both is still an error": {
+			overrides:   map[string]string{"UNRELATED": "override-value"},
+			errContains: "required environment variables were not set: [NOWHERE]",
+		},
+	}
+
+	inputs := map[string]string{
+		"an override supplies a var the underlying lookup lacks":  "${OVERRIDE_ONLY}",
+		"an override takes precedence over the underlying lookup": "${SHADOWED}",
+		"a var absent from the overrides falls through":           "${BASE_ONLY}",
+		"a default still applies to a var absent from both":       "${NOT_SET_ANYWHERE:default-value}",
+		"an escape is left alone alongside an override":           "${{SHADOWED}}",
+		"a var absent from both is still an error":                "${NOWHERE}",
+	}
+
+	for name, exp := range tests {
+		t.Run(name, func(t *testing.T) {
+			r := NewReader("", nil,
+				OptUseEnvLookupFunc(underlying),
+				OptAddEnvLookupOverrides(exp.overrides),
+			)
+			out, err := r.ReplaceEnvVariables(t.Context(), []byte(inputs[name]))
+			if exp.errContains != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), exp.errContains)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, exp.result, string(out))
+			}
+		})
+	}
+}
