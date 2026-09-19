@@ -25,5 +25,12 @@ func Spec() docs.FieldSpecs {
 			docs.FieldBool(fieldFileRotate, "Whether to rotate log files automatically.").HasDefault(false),
 			docs.FieldInt(fieldFileRotateMaxAge, "The maximum number of days to retain old log files based on the timestamp encoded in their filename, after which they are deleted. Setting to zero disables this mechanism.").HasDefault(0),
 		).Advanced(),
+		docs.FieldObject(fieldSyslog, "Configures optional syslog output. When `host` is set, log entries are forwarded to the syslog server in RFC5424 format over UDP (RFC5426) or TCP (RFC6587) in addition to the normal output.").WithChildren(
+			docs.FieldString(fieldSyslogHost, "Hostname or IP address of the syslog server. Leave empty to disable syslog output.").HasDefault(""),
+			docs.FieldInt(fieldSyslogPort, "Port of the syslog server.").HasDefault(514),
+			docs.FieldString(fieldSyslogTransport, "Transport protocol. `udp` uses RFC5426 (syslog over UDP). `tcp` uses RFC6587 (syslog over TCP, non-transparent framing).").HasOptions("udp", "tcp").HasDefault("udp"),
+			docs.FieldString(fieldSyslogTag, "Application name (APP-NAME) embedded in RFC5424 messages.").HasDefault("benthos"),
+			docs.FieldString(fieldSyslogFacility, "Syslog facility.").HasOptions("user", "local0", "local1", "local2", "local3", "local4", "local5", "local6", "local7").HasDefault("user"),
+		).Advanced(),
 	}
 }
