@@ -98,6 +98,13 @@ func New(stream io.Writer, fs ifs.FS, config Config) (Modular, error) {
 	}
 	logEntry := logger.WithFields(sFields)
 
+	if config.Syslog.Host != "" {
+		syslogMod, err := newSyslogModular(config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to connect to syslog: %w", err)
+		}
+		return TeeLogger(&Logger{entry: logEntry}, syslogMod), nil
+	}
 	return &Logger{entry: logEntry}, nil
 }
 
