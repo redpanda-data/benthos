@@ -83,6 +83,34 @@ func TestNamespacedNothing(t *testing.T) {
 	assert.Contains(t, body, `"timertwo{label3=\"value4\",label4=\"value5\"}":{"p50":13,"p90":13,"p99":13}`)
 }
 
+func TestNamespacedCleanup(t *testing.T) {
+	prom, handler := getTestMetrics(t)
+
+	persistent := metrics.NewNamespaced(prom)
+	persistent.GetCounterVec("counter", "stream").With("persistent").Incr(1)
+
+	scoped := metrics.NewNamespaced(prom).
+		WithLabels("stream", "temporary").
+		WithCleanup()
+	scoped.GetCounter("counter").Incr(1)
+	scoped.GetCounter("counter").Incr(1)
+	scoped.GetGaugeVec("gauge", "status").With("ready").Set(1)
+	scoped.GetTimer("timer").Timing(1)
+
+	body := getPage(t, handler)
+	assert.Contains(t, body, `"counter{stream=\"persistent\"}":1`)
+	assert.Contains(t, body, `"counter{stream=\"temporary\"}":2`)
+	assert.Contains(t, body, `"gauge{status=\"ready\",stream=\"temporary\"}":1`)
+	assert.Contains(t, body, `"timer{stream=\"temporary\"}"`)
+
+	require.NoError(t, scoped.Close())
+	require.NoError(t, scoped.Close())
+
+	body = getPage(t, handler)
+	assert.Contains(t, body, `"counter{stream=\"persistent\"}":1`)
+	assert.NotContains(t, body, `stream=\"temporary\"`)
+}
+
 func TestNamespacedPrefix(t *testing.T) {
 	prom, handler := getTestMetrics(t)
 
