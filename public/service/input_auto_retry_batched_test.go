@@ -367,3 +367,70 @@ func TestBatchAutoRetryBuffer(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, exp3, string(b))
 }
+
+type snapshotAsyncBatchInput interface {
+	BackfillReadBatch(context.Context) (MessageBatch, AckFunc, error)
+}
+
+func TestAutoRetryNacksBatchedWithoutSnapshotSupport(t *testing.T) {
+	i := &fnBatchInput{
+		connect: func() error { return nil },
+		read:    func() (MessageBatch, AckFunc, error) { return nil, nil, ErrEndOfInput },
+	}
+
+	wrapped := AutoRetryNacksBatched(i)
+
+	_, ok := wrapped.(snapshotAsyncBatchInput)
+	assert.False(t, ok, "AutoRetryNacksBatched must not add BackfillReadBatch when the wrapped input has no snapshot phase")
+}
+
+func TestAutoRetryNacksBatchedRetriesNackedSnapshotBatch(t *testing.T) {
+	var mu sync.Mutex
+	delivered := 0
+
+	i := &fnSnapshotBatchInput{
+		fnBatchInput: &fnBatchInput{
+			connect: func() error { return nil },
+			read:    func() (MessageBatch, AckFunc, error) { return nil, nil, ErrEndOfInput },
+		},
+		snapshotRead: func() (MessageBatch, AckFunc, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if delivered >= 2 {
+				return nil, nil, ErrBackfillComplete
+			}
+			delivered++
+			return MessageBatch{NewMessage([]byte("row"))}, func(ctx context.Context, err error) error {
+				return nil
+			}, nil
+		},
+		snapshotComplete: func() error { return nil },
+	}
+
+	wrapped := AutoRetryNacksBatched(i)
+	sa, ok := wrapped.(snapshotAsyncBatchInput)
+	require.True(t, ok, "AutoRetryNacksBatched must forward BackfillReadBatch when the wrapped input implements SnapshotBatchInput")
+
+	ctx, done := context.WithTimeout(t.Context(), 10*time.Second)
+	defer done()
+
+	batch, ackFn, err := sa.BackfillReadBatch(ctx)
+	require.NoError(t, err)
+	require.Len(t, batch, 1)
+
+	// Nack it - a dropped batch here would silently lose a snapshot row.
+	require.NoError(t, ackFn(ctx, errors.New("downstream rejected the row")))
+
+	seen := 0
+	for {
+		_, aFn, err := sa.BackfillReadBatch(ctx)
+		if errors.Is(err, ErrBackfillComplete) {
+			break
+		}
+		require.NoError(t, err)
+		seen++
+		require.NoError(t, aFn(ctx, nil))
+	}
+	// The nacked batch replayed, plus the one fresh batch still pending = 2.
+	assert.Equal(t, 2, seen)
+}

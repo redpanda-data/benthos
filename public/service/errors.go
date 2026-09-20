@@ -29,6 +29,12 @@ var (
 	// ended (as indicated by EndOfInput). This error prompts the upstream
 	// component to gracefully terminate the pipeline.
 	ErrEndOfBuffer = errors.New("end of buffer")
+
+	// ErrBackfillComplete is returned by a SnapshotBatchInput's
+	// BackfillReadBatch method to indicate that its snapshot phase has been
+	// fully read, including any trailing partial batch. It is not itself an
+	// error condition.
+	ErrBackfillComplete = errors.New("snapshot phase complete")
 )
 
 // ErrBackOff is an error that plugins can optionally wrap another error with
@@ -195,6 +201,9 @@ func publicToInternalErr(err error) error {
 	}
 	if errors.Is(err, ErrEndOfBuffer) {
 		return component.ErrTypeClosed
+	}
+	if errors.Is(err, ErrBackfillComplete) {
+		return component.ErrBackfillComplete
 	}
 	if errors.Is(err, ErrNotConnected) {
 		return component.ErrNotConnected
