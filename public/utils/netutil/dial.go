@@ -40,7 +40,7 @@ func DialerConfigSpec() *service.ConfigField {
 	).
 		Description(`Configure TCP socket-level settings to optimize network performance and reliability. These low-level controls are useful for:
 
-- **High-latency networks**: Increase ` + "`" + `connect_timeout` + "`" + ` to allow more time for connection establishment
+- **Unresponsive hosts**: Set ` + "`" + `connect_timeout` + "`" + ` to limit how long a connection attempt can take (the default ` + "`" + `0s` + "`" + ` sets no limit)
 - **Long-lived connections**: Configure ` + "`" + `keep_alive` + "`" + ` settings to detect and recover from stale connections
 - **Unstable networks**: Tune keep-alive probes to balance between quick failure detection and avoiding false positives
 - **Linux systems with specific requirements**: Use ` + "`" + `tcp_user_timeout` + "`" + ` (Linux 2.6.37+) to control data acknowledgment timeouts

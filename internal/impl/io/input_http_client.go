@@ -23,7 +23,7 @@ func httpClientInputSpec() *service.ConfigSpec {
 	streamFields = append(streamFields, codec.DeprecatedCodecFields("lines")...)
 
 	streamField := service.NewObjectField("stream", streamFields...).
-		Description("Enables streaming mode, where the HTTP connection remains open and messages are processed line-by-line.").
+		Description("Configure streaming mode, where the HTTP connection remains open and messages are processed line-by-line. Set `stream.enabled` to `true` to turn it on.").
 		Optional()
 
 	return service.NewConfigSpec().

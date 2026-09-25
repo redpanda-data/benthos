@@ -80,7 +80,7 @@ This field is only applicable when ` + "`" + `propagate_response` + "`" + ` is s
 			Description("A static timeout to apply to requests.").
 			Default("5s"),
 		service.NewDurationField(hcFieldRetryPeriod).
-			Description("The initial period to wait between failed requests before retrying.").
+			Description("The period to wait between failed requests before retrying. For status codes listed in `backoff_on`, this is the starting period, which increases with each attempt up to `max_retry_backoff`.").
 			Advanced().
 			Default("1s"),
 		service.NewDurationField(hcFieldMaxRetryBackoff).
