@@ -18,12 +18,12 @@ import (
 func httpClientInputSpec() *service.ConfigSpec {
 	streamFields := []*service.ConfigField{
 		service.NewBoolField("enabled").Description("Enables streaming mode.").Default(false),
-		service.NewBoolField("reconnect").Description("Sets whether to re-establish the connection once it is lost.").Default(true),
+		service.NewBoolField("reconnect").Description("Whether to automatically reestablish the HTTP connection if it is lost.").Default(true),
 	}
 	streamFields = append(streamFields, codec.DeprecatedCodecFields("lines")...)
 
 	streamField := service.NewObjectField("stream", streamFields...).
-		Description("Allows you to set streaming mode, where requests are kept open and messages are processed line-by-line.").
+		Description("Enables streaming mode, where the HTTP connection remains open and messages are processed line-by-line.").
 		Optional()
 
 	return service.NewConfigSpec().
@@ -66,8 +66,8 @@ rate_limit_resources:
 `,
 		).
 		Field(httpclient.ConfigField("GET", false,
-			service.NewInterpolatedStringField("payload").Description("An optional payload to deliver for each request.").Optional(),
-			service.NewBoolField("drop_empty_bodies").Description("Whether empty payloads received from the target server should be dropped.").Default(true).Advanced(),
+			service.NewInterpolatedStringField("payload").Description("A payload to deliver for each request (optional).").Optional(),
+			service.NewBoolField("drop_empty_bodies").Description("Whether to drop empty payloads received from the target server.").Default(true).Advanced(),
 			streamField,
 		)).
 		Field(service.NewAutoRetryNacksToggleField())

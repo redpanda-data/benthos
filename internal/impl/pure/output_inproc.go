@@ -22,6 +22,7 @@ func init() {
 		"inproc", service.NewConfigSpec().
 			Stable().
 			Categories("Utility").
+			Summary("Sends data directly to inputs in the same process by connecting to a unique ID, to link isolated streams when running in streams mode.").
 			Description(`
 Sends data directly to Redpanda Connect inputs by connecting to a unique ID. This allows you to hook up isolated streams whilst running Redpanda Connect in `+"xref:guides:streams_mode/about.adoc[streams mode]"+`, it is NOT recommended that you connect the inputs of a stream with an output of the same stream, as feedback loops can lead to deadlocks in your message flow.
 

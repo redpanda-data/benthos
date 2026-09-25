@@ -34,11 +34,11 @@ func benchmarkSpec() *service.ConfigSpec {
 		Summary("Logs basic throughput statistics of messages that pass through this processor.").
 		Description("Logs messages per second and bytes per second of messages that are processed at a regular interval. A summary of the amount of messages processed over the entire lifetime of the processor will also be printed when the processor shuts down.\n\nThe following metrics are exposed:\n- benchmark_messages_per_second (gauge): The current throughput in messages per second\n- benchmark_messages_total (counter): The total number of messages processed\n- benchmark_bytes_per_second (gauge): The current throughput in bytes per second\n- benchmark_bytes_total (counter): The total number of bytes processed").Version("4.40.0").
 		Field(service.NewDurationField(bmFieldInterval).
-			Description("How often to emit rolling statistics. If set to 0, only a summary will be logged when the processor shuts down.").
+			Description("How often to emit rolling statistics. Set to `0` to log only summary statistics when the processor shuts down.").
 			Default("5s"),
 		).
 		Field(service.NewBoolField(bmFieldCountBytes).
-			Description("Whether or not to measure the number of bytes per second of throughput. Counting the number of bytes requires serializing structured data, which can cause an unnecessary performance hit if serialization is not required elsewhere in the pipeline.").
+			Description("Whether to measure the number of bytes per second of throughput. If set to `true`, structured data must be serialized to count the number of bytes processed, which can unnecessarily degrade performance if serialization is not required elsewhere in your pipeline.").
 			Default(true),
 		)
 }

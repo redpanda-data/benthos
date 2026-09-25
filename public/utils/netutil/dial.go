@@ -38,7 +38,14 @@ func DialerConfigSpec() *service.ConfigField {
 				"When enabled, keep_alive.idle must be greater than this value per RFC 5482. Zero disables.").
 			Default("0s"),
 	).
-		Description("TCP socket configuration.").
+		Description(`Configure TCP socket-level settings to optimize network performance and reliability. These low-level controls are useful for:
+
+- **High-latency networks**: Increase ` + "`" + `connect_timeout` + "`" + ` to allow more time for connection establishment
+- **Long-lived connections**: Configure ` + "`" + `keep_alive` + "`" + ` settings to detect and recover from stale connections
+- **Unstable networks**: Tune keep-alive probes to balance between quick failure detection and avoiding false positives
+- **Linux systems with specific requirements**: Use ` + "`" + `tcp_user_timeout` + "`" + ` (Linux 2.6.37+) to control data acknowledgment timeouts
+
+Most users should keep the default values. Only modify these settings if you're experiencing connection stability issues or have specific network requirements.`).
 		Optional().
 		Advanced()
 }

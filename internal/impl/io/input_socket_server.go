@@ -78,7 +78,7 @@ func socketServerInputSpec() *service.ConfigSpec {
 					issFieldTLSClientAuthRequireValid:  "requires a valid client certificate.",
 					issFieldTLSClientAuthVerifyIfGiven: "will verify a certificate, if one is sent by the client.",
 				}).
-					Description("How client authentication is handled.").
+					Description("Specifies how client authentication is handled when using TLS.").
 					Default(issFieldTLSClientAuthNoClientCert).
 					Version("4.54.0"),
 			).

@@ -16,13 +16,13 @@ import (
 func IncludeFilterDocs() docs.FieldSpecs {
 	return docs.FieldSpecs{
 		docs.FieldString(
-			"include_prefixes", "Provide a list of explicit metadata key prefixes to match against.",
+			"include_prefixes", "A list of explicit metadata key prefixes to match against.",
 			[]string{"foo_", "bar_"},
 			[]string{"kafka_"},
 			[]string{"content-"},
 		).Array().HasDefault([]any{}),
 		docs.FieldString(
-			"include_patterns", "Provide a list of explicit metadata key regular expression (re2) patterns to match against.",
+			"include_patterns", "A list of explicit metadata key regular expression (re2) patterns to match against.",
 			[]string{".*"},
 			[]string{"_timestamp_unix$"},
 		).Array().HasDefault([]any{}),

@@ -36,7 +36,7 @@ This processor will interpolate functions within the 'content' field, you can fi
 				Description("The index within the batch to insert the message at.").
 				Default(-1),
 			service.NewInterpolatedStringField(ippFieldContent).
-				Description("The content of the message being inserted.").
+				Description(`The content of the message being inserted.`).
 				Default(""),
 		)
 }

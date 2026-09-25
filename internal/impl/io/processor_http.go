@@ -58,8 +58,10 @@ pipeline:
 `,
 		).
 		Field(httpclient.ConfigField("POST", false,
-			service.NewBoolField("batch_as_multipart").Description("Send message batches as a single request using https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341^].").Advanced().Default(false),
-			service.NewBoolField("parallel").Description("When processing batched messages, whether to send messages of the batch in parallel, otherwise they are sent serially.").Default(false)),
+			service.NewBoolField("batch_as_multipart").Description(`When set to `+"`"+`true`+"`"+`, sends all messages in a batch as a single request using https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341^].
+
+When set to `+"`"+`false`+"`"+`, sends messages in a batch as individual requests.`).Advanced().Default(false),
+			service.NewBoolField("parallel").Description("When processing batched messages, this field determines whether messages in the batch are sent in parallel. If set to `false`, messages are sent serially.").Default(false)),
 		)
 }
 

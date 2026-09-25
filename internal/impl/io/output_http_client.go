@@ -26,13 +26,15 @@ The body of the HTTP request is the raw contents of the message payload. If the 
 It's possible to propagate the response from each HTTP request back to the input source by setting ` + "`propagate_response` to `true`" + `. Only inputs that support xref:guides:sync_responses.adoc[synchronous responses] are able to make use of these propagated responses.` + service.OutputPerformanceDocs(true, true)).
 		Field(httpclient.ConfigField("POST", true,
 			service.NewBoolField("batch_as_multipart").
-				Description("Send message batches as a single request using https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341^]. If disabled messages in batches will be sent as individual requests.").
+				Description(`When set to `+"`"+`true`+"`"+`, sends all messages in a batch as a single request using https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341^].
+
+When set to `+"`"+`false`+"`"+`, sends messages in a batch as individual requests.`).
 				Advanced().Default(false),
 			service.NewBoolField("propagate_response").
-				Description("Whether responses from the server should be xref:guides:sync_responses.adoc[propagated back] to the input.").
+				Description("Whether to xref:guides:sync_responses.adoc[propagate server responses back] to the input.").
 				Advanced().Default(false),
 			service.NewIntField("max_in_flight").
-				Description("The maximum number of parallel message batches to have in flight at any given time.").
+				Description("The maximum number of parallel message batches to have in flight at any given time. Increase this value to improve throughput.").
 				Default(64),
 			service.NewBatchPolicyField("batching"),
 			service.NewObjectListField("multipart",
@@ -48,7 +50,9 @@ It's possible to propagate the response from each HTTP request back to the input
 					Description("The body of the individual message part.").
 					Example(`${! this.data.part1 }`).
 					Default(""),
-			).Description("EXPERIMENTAL: Create explicit multipart HTTP requests by specifying an array of parts to add to the request, each part specified consists of content headers and a data field that can be populated dynamically. If this field is populated it will override the default request creation behavior.").
+			).Description(`EXPERIMENTAL: Create explicit multipart HTTP requests by specifying an array of parts to add to a request. Each part consists of content headers and a data field, which can be populated dynamically.
+
+If populated, this field overrides the default request creation behavior.`).
 				Advanced().Version("3.63.0").Default([]any{}),
 		))
 }

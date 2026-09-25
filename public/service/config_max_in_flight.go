@@ -8,7 +8,7 @@ package service
 // max_in_flight, with a typical default of 64.
 func NewOutputMaxInFlightField() *ConfigField {
 	return NewIntField("max_in_flight").
-		Description("The maximum number of messages to have in flight at a given time. Increase this to improve throughput.").
+		Description("The maximum number of messages to have in flight at a given time. For outputs that send messages in batches, this limit applies to message batches. Increase this value to improve throughput.").
 		Default(64)
 }
 

@@ -28,7 +28,7 @@ func init() {
 		Stable().
 		Summary(`Sleep for a period of time specified as a duration string for each message. This processor will interpolate functions within the `+"`duration`"+` field, you can find a list of functions xref:configuration:interpolation.adoc#bloblang-queries[here].`).
 		Field(service.NewInterpolatedStringField(spFieldDuration).
-			Description("The duration of time to sleep for each execution.")),
+			Description(`The duration of time to sleep for each execution.`)),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			sleepStr, err := conf.FieldString(spFieldDuration)
 			if err != nil {

@@ -9,7 +9,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/redpanda-data/benthos/v4/internal/docs"
 	btls "github.com/redpanda-data/benthos/v4/internal/tls"
 )
 
@@ -17,15 +16,8 @@ import (
 // settings for networked components. It is then possible to extract a
 // *tls.Config from the resulting parsed config with the method FieldTLS.
 func NewTLSField(name string) *ConfigField {
-	tf := btls.FieldSpec()
+	tf := btls.NonToggledFieldSpec()
 	tf.Name = name
-	var newChildren []docs.FieldSpec
-	for _, f := range tf.Children {
-		if f.Name != "enabled" {
-			newChildren = append(newChildren, f)
-		}
-	}
-	tf.Children = newChildren
 	return &ConfigField{field: tf}
 }
 
