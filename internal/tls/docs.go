@@ -51,7 +51,7 @@ func FieldSpec() docs.FieldSpec {
 			docs.FieldString("password", `A plain text password for when the private key is password encrypted in PKCS#1 or PKCS#8 format. The obsolete `+"`pbeWithMD5AndDES-CBC`"+` algorithm is not supported for the PKCS#8 format.
 
 Because the obsolete pbeWithMD5AndDES-CBC algorithm does not authenticate the ciphertext, it is vulnerable to padding oracle attacks that can let an attacker recover the plaintext.
-`, "foo", "${KEY_PASSWORD}").HasDefault("").Secret(),
+`, "foo", "${KEY_PASSWORD}").HasDefault("").Secret().AtVersion("4.3.0"),
 		).HasDefault([]any{}),
 	).Advanced()
 }

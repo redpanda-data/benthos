@@ -80,9 +80,9 @@ func socketServerInputSpec() *service.ConfigSpec {
 				}).
 					Description("How client authentication is handled.").
 					Default(issFieldTLSClientAuthNoClientCert).
-					Version("4.44.1"),
+					Version("4.54.0"),
 			).
-				Description("TLS specific configuration, valid when the `network` is set to `tls`.").
+				Description("TLS specific configuration, valid when the `network` is set to `tls`.").Version("4.12.0").
 				Optional(),
 			service.NewAutoRetryNacksToggleField(),
 		).

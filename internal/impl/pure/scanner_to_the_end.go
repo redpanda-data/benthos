@@ -18,7 +18,7 @@ func toTheEndScannerSpec() *service.ConfigSpec {
 ====
 Some sources of data may not have a logical end, therefore caution should be made to exclusively use this scanner when the end of an input stream is clearly defined (and well within memory).
 ====
-`).
+`).Version("4.25.0").
 		Field(service.NewObjectField("").Default(map[string]any{}))
 }
 

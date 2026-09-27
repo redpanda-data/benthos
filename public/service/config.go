@@ -275,6 +275,9 @@ func (c *ConfigField) Examples(e ...any) *ConfigField {
 
 // Version specifies the specific version at which this field was added to the
 // component.
+// The version is the Redpanda Connect release that first ships it, written
+// as x.y.z with no v prefix, because the Redpanda Connect reference docs
+// publish it.
 func (c *ConfigField) Version(v string) *ConfigField {
 	c.field = c.field.AtVersion(v)
 	return c
@@ -390,6 +393,9 @@ func (c *ConfigSpec) Categories(categories ...string) *ConfigSpec {
 }
 
 // Version specifies that this component was introduced in a given version.
+// The version is the Redpanda Connect release that first ships it, written
+// as x.y.z with no v prefix, because the Redpanda Connect reference docs
+// publish it.
 func (c *ConfigSpec) Version(v string) *ConfigSpec {
 	c.component.Version = v
 	return c

@@ -12,7 +12,7 @@ func init() {
 	bloblang.MustRegisterMethodV2("infer_schema",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryParsing).
-			Description("Attempt to infer the schema of a given value. The resulting schema can then be used as an input to schema conversion and enforcement methods."),
+			Description("Attempt to infer the schema of a given value. The resulting schema can then be used as an input to schema conversion and enforcement methods.").Version("4.62.0"),
 		func(args *bloblang.ParsedParams) (bloblang.Method, error) {
 			return func(v any) (any, error) {
 				s, err := schema.InferFromAny(v)

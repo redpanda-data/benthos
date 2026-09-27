@@ -28,7 +28,7 @@ func websocketOutputSpec() *service.ConfigSpec {
 		Categories("Network").
 		Summary("Sends messages to an HTTP server via a websocket connection.").
 		Field(service.NewURLField("url").Description("The URL to connect to.")).
-		Field(service.NewURLField("proxy_url").Description("An optional HTTP proxy URL.").Advanced().Optional()).
+		Field(service.NewURLField("proxy_url").Description("An optional HTTP proxy URL.").Version("4.30.0").Advanced().Optional()).
 		Field(service.NewTLSToggledField("tls"))
 
 	for _, f := range service.NewHTTPRequestAuthSignerFields() {

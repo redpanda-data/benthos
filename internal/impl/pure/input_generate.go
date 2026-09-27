@@ -50,7 +50,7 @@ func genInputSpec() *service.ConfigSpec {
 				Description("An optional number of messages to generate, if set above 0 the specified number of messages is generated and then the input will shut down.").
 				Default(0),
 			service.NewIntField(giFieldBatchSize).
-				Description("The number of generated messages that should be accumulated into each batch flushed at the specified interval.").
+				Description("The number of generated messages that should be accumulated into each batch flushed at the specified interval.").Version("4.5.0").
 				Default(1),
 			service.NewAutoRetryNacksToggleField(),
 		).

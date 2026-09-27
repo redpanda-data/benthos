@@ -54,7 +54,7 @@ pipeline:
 
 In the example above, if either `+"`foo` or `bar`"+` fails for a message then the `+"`mutation`"+` is applied to that message, replacing its contents with a description of the error (read from the metadata object), and the message continues downstream without a failure flag.
 
-More information about error handling can be found in xref:configuration:error_handling.adoc[].`).
+More information about error handling can be found in xref:configuration:error_handling.adoc[].`).Version("4.98.0").
 		Field(service.NewProcessorListField(tcFieldProcessors).
 			Description("A list of processors to execute on each message. If a processor fails for a given message the remaining processors in this list are skipped for that message, and the message is routed to the `catch` processors.").
 			Default([]any{})).

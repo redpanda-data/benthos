@@ -21,7 +21,7 @@ const AutoRetryNacksToggleFieldName = "auto_replay_nacks"
 // AutoRetryNacksBatchedToggled.
 func NewAutoRetryNacksToggleField() *ConfigField {
 	return NewBoolField(AutoRetryNacksToggleFieldName).
-		Description("Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If set to `false` these messages will instead be deleted. Disabling auto replays can greatly improve memory efficiency of high throughput streams as the original shape of the data can be discarded immediately upon consumption and mutation.").
+		Description("Whether messages that are rejected (nacked) at the output level should be automatically replayed indefinitely, eventually resulting in back pressure if the cause of the rejections is persistent. If set to `false` these messages will instead be deleted. Disabling auto replays can greatly improve memory efficiency of high throughput streams as the original shape of the data can be discarded immediately upon consumption and mutation.").Version("4.27.0").
 		Default(true)
 }
 
@@ -152,7 +152,7 @@ const ForceTimelyNacksFieldName = "timely_nacks_maximum_wait"
 // configuration.
 func NewForceTimelyNacksField() *ConfigField {
 	return NewDurationField(ForceTimelyNacksFieldName).
-		Description("EXPERIMENTAL: Specify a maximum period of time in which each message can be consumed and awaiting either acknowledgement or rejection before rejection is instead forced. This can be useful for avoiding situations where certain downstream components can result in blocked confirmation of delivery that exceeds SLAs.").
+		Description("EXPERIMENTAL: Specify a maximum period of time in which each message can be consumed and awaiting either acknowledgement or rejection before rejection is instead forced. This can be useful for avoiding situations where certain downstream components can result in blocked confirmation of delivery that exceeds SLAs.").Version("4.62.0").
 		Advanced().
 		Optional()
 }

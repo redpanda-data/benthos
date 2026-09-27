@@ -90,7 +90,7 @@ func ConfigField(defaultVerb string, forOutput bool, extraChildren ...*service.C
 			Advanced().
 			Default(3),
 		service.NewBoolField(hcFieldFollowRedirects).
-			Description("Whether or not to transparently follow redirects, i.e. responses with 300-399 status codes. If disabled, the response message will contain the body, status, and headers from the redirect response and the processor will not make a request to the URL set in the Location header of the response.").
+			Description("Whether or not to transparently follow redirects, i.e. responses with 300-399 status codes. If disabled, the response message will contain the body, status, and headers from the redirect response and the processor will not make a request to the URL set in the Location header of the response.").Version("4.39.0").
 			Advanced().
 			Default(true),
 		service.NewIntListField(hcFieldBackoffOn).
@@ -113,7 +113,7 @@ func ConfigField(defaultVerb string, forOutput bool, extraChildren ...*service.C
 			Description("Whether or not to disable disable HTTP/2").
 			Advanced().
 			Default(false).
-			Version("4.44.0"),
+			Version("4.47.0"),
 	)
 
 	innerFields = append(innerFields, extraChildren...)

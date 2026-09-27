@@ -58,7 +58,7 @@ Returns the uptime of an input as a duration string (of the form "72h3m0.5s"), o
 				Description("A path prefix for HTTP endpoints that are registered.").
 				Default(""),
 			service.NewBoolField(diFieldBindHTTP).
-				Description("Whether to register the REST HTTP endpoints (`/inputs`, `/inputs/{id}`, and so on) for creating, updating and removing inputs at runtime. These endpoints are served on the service-wide HTTP server and accept input configuration over HTTP, so they are disabled by default. Enable them only when that server is secured appropriately, for example bound to a trusted interface or protected with `http.basic_auth`.").
+				Description("Whether to register the REST HTTP endpoints (`/inputs`, `/inputs/{id}`, and so on) for creating, updating and removing inputs at runtime. These endpoints are served on the service-wide HTTP server and accept input configuration over HTTP, so they are disabled by default. Enable them only when that server is secured appropriately, for example bound to a trusted interface or protected with `http.basic_auth`.").Version("4.111.0").
 				Default(false).
 				Advanced(),
 		)

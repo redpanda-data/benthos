@@ -25,7 +25,7 @@ func init() {
 			Categories("Utility").
 			Summary(`Rejects messages that have failed their processing steps, resulting in nack behavior at the input level, otherwise sends them to a child output.`).
 			Description(`
-The routing of messages rejected by this output depends on the type of input it came from. For inputs that support propagating nacks upstream such as AMQP or NATS the message will be nacked. However, for inputs that are sequential such as files or Kafka the messages will simply be reprocessed from scratch.`).
+The routing of messages rejected by this output depends on the type of input it came from. For inputs that support propagating nacks upstream such as AMQP or NATS the message will be nacked. However, for inputs that are sequential such as files or Kafka the messages will simply be reprocessed from scratch.`).Version("4.27.0").
 			Example(
 				"Rejecting Failed Messages",
 				`

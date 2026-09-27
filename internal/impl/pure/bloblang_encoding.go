@@ -11,7 +11,7 @@ func init() {
 	bloblang.MustRegisterMethodV2("compress",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryEncoding).
-			Description(`Compresses a string or byte array using the specified compression algorithm. Returns compressed data as bytes. Useful for reducing payload size before transmission or storage.`).
+			Description(`Compresses a string or byte array using the specified compression algorithm. Returns compressed data as bytes. Useful for reducing payload size before transmission or storage.`).Version("4.12.0").
 			Param(bloblang.NewStringParam("algorithm").Description("The compression algorithm: `flate`, `gzip`, `pgzip` (parallel gzip), `lz4`, `snappy`, `zlib`, or `zstd`.")).
 			Param(bloblang.NewInt64Param("level").Description("Compression level (default: -1 for default compression). Higher values increase compression ratio but use more CPU. Range and effect varies by algorithm.").Default(-1)).
 			Example("Compress and encode for safe transmission", `root.compressed = content().bytes().compress("gzip").encode("base64")`,
@@ -49,7 +49,7 @@ root.lz4_size = content().compress("lz4").length()`,
 	bloblang.MustRegisterMethodV2("decompress",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryEncoding).
-			Description(`Decompresses a byte array using the specified decompression algorithm. Returns decompressed data as bytes. Use with data that was previously compressed using the corresponding algorithm.`).
+			Description(`Decompresses a byte array using the specified decompression algorithm. Returns decompressed data as bytes. Use with data that was previously compressed using the corresponding algorithm.`).Version("4.12.0").
 			Param(bloblang.NewStringParam("algorithm").Description("The decompression algorithm: `gzip`, `pgzip` (parallel gzip), `zlib`, `bzip2`, `flate`, `snappy`, `lz4`, or `zstd`.")).
 			Example("Decompress base64-encoded compressed data", `root = this.compressed.decode("base64").decompress("gzip")`,
 				[2]string{

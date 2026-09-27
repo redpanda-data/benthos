@@ -278,7 +278,7 @@ You can access these metadata fields using xref:configuration:interpolation.adoc
 				Description("Customize messages returned via xref:guides:sync_responses.adoc[synchronous responses].").
 				Advanced(),
 			netutil.ListenerConfigSpec().
-				Description("TCP listener configuration for the HTTP server. Only valid with a custom `address`.").
+				Description("TCP listener configuration for the HTTP server. Only valid with a custom `address`.").Version("4.78.0").
 				Advanced(),
 		).
 		Example(

@@ -29,7 +29,7 @@ This scanner adds the following metadata to each message:
 
 - `+"`csv_row`"+` The index of each row, beginning at 0.
 
-`).
+`).Version("4.25.0").
 		Fields(
 			service.NewStringField(scsvFieldCustomDelimiter).
 				Description("Use a provided custom delimiter instead of the default comma.").

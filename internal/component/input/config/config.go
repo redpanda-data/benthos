@@ -29,7 +29,7 @@ func connectionField() *service.ConfigField {
 			Example(10).
 			Optional(),
 	).
-		Description("Customise how websocket connection attempts are made.").
+		Description("Customise how websocket connection attempts are made.").Version("4.16.0").
 		Optional().
 		Advanced()
 }

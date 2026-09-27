@@ -20,7 +20,7 @@ func switchScannerSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
 		Summary("Select a child scanner dynamically for source data based on factors such as the filename.").
-		Description("This scanner outlines a list of potential child scanner candidates to be chosen, and for each source of data the first candidate to pass will be selected. A candidate without any conditions acts as a catch-all and will pass for every source, it is recommended to always have a catch-all scanner at the end of your list. If a given source of data does not pass a candidate an error is returned and the data is rejected.").
+		Description("This scanner outlines a list of potential child scanner candidates to be chosen, and for each source of data the first candidate to pass will be selected. A candidate without any conditions acts as a catch-all and will pass for every source, it is recommended to always have a catch-all scanner at the end of your list. If a given source of data does not pass a candidate an error is returned and the data is rejected.").Version("4.25.0").
 		Field(service.NewObjectListField("",
 			service.NewStringField(ssFieldSwitchREMatchName).
 				Description("A regular expression to test against the name of each source of data fed into the scanner (filename or equivalent). If this pattern matches the child scanner is selected.").

@@ -51,7 +51,7 @@ cache_resources:
         foo: bar
 ` + "```" + `
 
-These values can be overridden during execution.`).
+These values can be overridden during execution.`).Version("4.15.0").
 		Field(service.NewIntField(ttlruCacheFieldCapLabel).
 			Description("The cache maximum capacity (number of entries)").
 			Default(ttlruCacheFieldCapDefaultValue)).

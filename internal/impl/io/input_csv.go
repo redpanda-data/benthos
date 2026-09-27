@@ -123,7 +123,7 @@ output:
 				Version("4.1.0").
 				Default(false),
 			service.NewBoolField(csviFieldDeleteOnFinish).
-				Description("Whether to delete input files from the disk once they are fully consumed.").
+				Description("Whether to delete input files from the disk once they are fully consumed.").Version("4.11.0").
 				Advanced().
 				Default(false),
 			service.NewIntField(csviFieldBatchCount).

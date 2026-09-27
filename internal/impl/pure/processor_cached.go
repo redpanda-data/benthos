@@ -24,7 +24,7 @@ func newCachedProcessorConfigSpec() *service.ConfigSpec {
 		Description("The format of the data when stored within the cache is a custom and versioned schema chosen to balance performance and storage space. It is therefore not possible to point this processor to a cache that is pre-populated with data that this processor has not created itself.").
 		Field(service.NewStringField("cache").Description("The cache resource to read and write processor results from.")).
 		Field(service.NewBloblangField("skip_on").
-			Description("A condition that can be used to skip caching the results from the processors.").
+			Description("A condition that can be used to skip caching the results from the processors.").Version("4.16.0").
 			Example("errored()").
 			Optional()).
 		Field(service.NewInterpolatedStringField("key").
