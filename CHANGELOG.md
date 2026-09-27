@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Go API: New `NewOAuth2Field`, `NewRetryBackOffFields` and `NewMaxRetriesField` functions in the `service` package define the `oauth2` object and the `max_retries` and `backoff` retry fields that components in this module use, so plugins can reuse them instead of defining their own copies. (@JakeSCahill)
+
 ### Changed
 
 - Streams mode: The HTTP endpoints for creating, updating and removing streams (`POST /streams/{id}`, `GET /streams`, `/streams/{id}/stats` and `/resources/{type}/{id}`) are no longer registered by default and are enabled with the new `--bind-http` flag. The service-wide HTTP server still binds as configured, so `/ping`, `/stats`, `/metrics` and endpoints registered by `http_server` components are unaffected. The `--no-api` flag is deprecated and now only prints a warning. (@squiidz)
