@@ -37,7 +37,7 @@ func socketInputSpec() *service.ConfigSpec {
 				Examples("/tmp/benthos.sock", "127.0.0.1:6000"),
 			service.NewAutoRetryNacksToggleField(),
 			service.NewBloblangField(isFieldOpenMessageMapping).
-				Description("An optional xref:guides:bloblang/about.adoc[Bloblang mapping] which should evaluate to a string which will be sent upstream before the downstream data flow starts.").
+				Description("An optional xref:guides:bloblang/about.adoc[Bloblang mapping] which should evaluate to a string which will be sent upstream before the downstream data flow starts.").Version("4.56.0").
 				Example(`root = "username,password"`).
 				Optional(),
 			service.NewTLSToggledField(isFieldTls),

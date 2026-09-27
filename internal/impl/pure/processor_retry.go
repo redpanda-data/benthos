@@ -112,7 +112,7 @@ output:
 				Description("When processing batches of messages these batches are ignored and the processors apply to each message sequentially. However, when this field is set to `true` each message will be processed in parallel. Caution should be made to ensure that batch sizes do not surpass a point where this would cause resource (CPU, memory, API limits) contention.").
 				Default(false),
 			service.NewIntField(rpFieldMaxRetries).
-				Description("The maximum number of retry attempts before the request is aborted. Setting this value to `0` will result in unbounded number of retries.").
+				Description("The maximum number of retry attempts before the request is aborted. Setting this value to `0` will result in unbounded number of retries.").Version("4.31.0").
 				Default(0),
 		)
 }

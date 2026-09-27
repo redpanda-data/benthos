@@ -97,7 +97,7 @@ func init() {
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Adds an ISO 8601 duration to a timestamp with calendar-aware precision for years, months, and days. Useful when you need to add durations that account for variable month lengths or leap years.").
+		Description("Adds an ISO 8601 duration to a timestamp with calendar-aware precision for years, months, and days. Useful when you need to add durations that account for variable month lengths or leap years.").Version("4.14.0").
 		Param(bloblang.NewStringParam("duration").Description(`Duration in ISO 8601 format (e.g., "P1Y2M3D" for 1 year, 2 months, 3 days)`)).
 		Example("Add one year to a timestamp.",
 			`root.next_year = this.created_at.ts_add_iso8601("P1Y")`,
@@ -116,7 +116,7 @@ func init() {
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Subtracts an ISO 8601 duration from a timestamp with calendar-aware precision for years, months, and days. Useful when you need to subtract durations that account for variable month lengths or leap years.").
+		Description("Subtracts an ISO 8601 duration from a timestamp with calendar-aware precision for years, months, and days. Useful when you need to subtract durations that account for variable month lengths or leap years.").Version("4.14.0").
 		Param(bloblang.NewStringParam("duration").Description(`Duration in ISO 8601 format (e.g., "P1Y2M3D" for 1 year, 2 months, 3 days)`)).
 		Example("Subtract one year from a timestamp.",
 			`root.last_year = this.created_at.ts_sub_iso8601("P1Y")`,
@@ -272,7 +272,7 @@ func init() {
 		}
 	}
 
-	bloblang.MustRegisterMethodV2("ts_parse", parseTSSpec, parseTSCtor(false))
+	bloblang.MustRegisterMethodV2("ts_parse", parseTSSpec.Version("4.2.0"), parseTSCtor(false))
 
 	bloblang.MustRegisterMethodV2("parse_timestamp", parseTSSpecDep, parseTSCtor(true))
 
@@ -322,7 +322,7 @@ func init() {
 		}
 	}
 
-	bloblang.MustRegisterMethodV2("ts_strptime", parseTSStrptimeSpec, parseTSStrptimeCtor(false))
+	bloblang.MustRegisterMethodV2("ts_strptime", parseTSStrptimeSpec.Version("4.2.0"), parseTSStrptimeCtor(false))
 
 	bloblang.MustRegisterMethodV2("parse_timestamp_strptime", parseTSStrptimeSpecDep, parseTSStrptimeCtor(true))
 
@@ -377,7 +377,7 @@ func init() {
 		}), nil
 	}
 
-	bloblang.MustRegisterMethodV2("ts_format", formatTSSpec, formatTSCtor)
+	bloblang.MustRegisterMethodV2("ts_format", formatTSSpec.Version("4.2.0"), formatTSCtor)
 
 	bloblang.MustRegisterMethodV2("format_timestamp", formatTSSpecDep, formatTSCtor)
 
@@ -432,7 +432,7 @@ func init() {
 		}), nil
 	}
 
-	bloblang.MustRegisterMethodV2("ts_strftime", formatTSStrftimeSpec, formatTSStrftimeCtor)
+	bloblang.MustRegisterMethodV2("ts_strftime", formatTSStrftimeSpec.Version("4.2.0"), formatTSStrftimeCtor)
 
 	bloblang.MustRegisterMethodV2("format_timestamp_strftime", formatTSStrftimeSpecDep, formatTSStrftimeCtor)
 
@@ -466,7 +466,7 @@ func init() {
 		}), nil
 	}
 
-	bloblang.MustRegisterMethodV2("ts_unix", formatTSUnixSpec, formatTSUnixCtor)
+	bloblang.MustRegisterMethodV2("ts_unix", formatTSUnixSpec.Version("4.2.0"), formatTSUnixCtor)
 
 	bloblang.MustRegisterMethodV2("format_timestamp_unix", formatTSUnixSpecDep, formatTSUnixCtor)
 
@@ -474,7 +474,7 @@ func init() {
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Converts a timestamp to a unix timestamp with millisecond precision (milliseconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer representing milliseconds.")
+		Description("Converts a timestamp to a unix timestamp with millisecond precision (milliseconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer representing milliseconds.").Version("4.12.0")
 
 	formatTSUnixMilliSpecDep := asDeprecated(formatTSUnixMilliSpec)
 
@@ -508,7 +508,7 @@ func init() {
 		Category(query.MethodCategoryTime).
 		Beta().
 		Static().
-		Description("Converts a timestamp to a unix timestamp with microsecond precision (microseconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer representing microseconds.")
+		Description("Converts a timestamp to a unix timestamp with microsecond precision (microseconds since epoch). Accepts unix timestamps or RFC 3339 strings. Returns an integer representing microseconds.").Version("4.12.0")
 
 	formatTSUnixMicroSpecDep := asDeprecated(formatTSUnixMicroSpec)
 
@@ -568,7 +568,7 @@ func init() {
 		}), nil
 	}
 
-	bloblang.MustRegisterMethodV2("ts_unix_nano", formatTSUnixNanoSpec, formatTSUnixNanoCtor)
+	bloblang.MustRegisterMethodV2("ts_unix_nano", formatTSUnixNanoSpec.Version("4.2.0"), formatTSUnixNanoCtor)
 
 	bloblang.MustRegisterMethodV2("format_timestamp_unix_nano", formatTSUnixNanoSpecDep, formatTSUnixNanoCtor)
 

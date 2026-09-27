@@ -17,7 +17,7 @@ func init() {
 	bloblang.MustRegisterMethodV2("squash",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryObjectAndArray).
-			Description("Squashes an array of objects into a single object, where key collisions result in the values being merged (following similar rules as the `.merge()` method)").
+			Description("Squashes an array of objects into a single object, where key collisions result in the values being merged (following similar rules as the `.merge()` method)").Version("4.6.0").
 			Example("", `root.locations = this.locations.map_each(loc -> {loc.state: [loc.name]}).squash()`,
 				[2]string{
 					`{"locations":[{"name":"Seattle","state":"WA"},{"name":"New York","state":"NY"},{"name":"Bellevue","state":"WA"},{"name":"Olympia","state":"WA"}]}`,
@@ -42,7 +42,7 @@ func init() {
 			Variadic().
 			Description(`Returns an object where all but one or more xref:configuration:field_paths.adoc[field path] arguments are removed. Each path specifies a specific field to be retained from the input object, allowing for nested fields.
 
-If a key within a nested path does not exist then it is ignored.`).
+If a key within a nested path does not exist then it is ignored.`).Version("4.10.0").
 			Example("", `root = this.with("inner.a","inner.c","d")`,
 				[2]string{
 					`{"inner":{"a":"first","b":"second","c":"third"},"d":"fourth","e":"fifth"}`,
@@ -67,7 +67,7 @@ If a key within a nested path does not exist then it is ignored.`).
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryObjectAndArray).
 			Variadic().
-			Description("Concatenates an array value with one or more argument arrays.").
+			Description("Concatenates an array value with one or more argument arrays.").Version("4.12.0").
 			Example("", `root.foo = this.foo.concat(this.bar, this.baz)`,
 				[2]string{
 					`{"foo":["a","b"],"bar":["c"],"baz":["d","e","f"]}`,
@@ -100,7 +100,7 @@ If a key within a nested path does not exist then it is ignored.`).
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryObjectAndArray).
 			Variadic().
-			Description("Zip an array value with one or more argument arrays. Each array must match in length.").
+			Description("Zip an array value with one or more argument arrays. Each array must match in length.").Version("4.19.0").
 			Example("", `root.foo = this.foo.zip(this.bar, this.baz)`,
 				[2]string{
 					`{"foo":["a","b","c"],"bar":[1,2,3],"baz":[4,5,6]}`,

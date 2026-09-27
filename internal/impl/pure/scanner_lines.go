@@ -29,7 +29,7 @@ func linesScannerSpec() *service.ConfigSpec {
 				Description("Set the maximum buffer size for storing line data, this limits the maximum size that a line can be without causing an error.").
 				Default(bufio.MaxScanTokenSize),
 			service.NewBoolField(slFieldOmitEmpty).
-				Description("Omit empty lines.").
+				Description("Omit empty lines.").Version("4.30.0").
 				Default(false),
 		)
 }

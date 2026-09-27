@@ -19,7 +19,7 @@ func init() {
 		bloblang.NewPluginSpec().
 			Category(query.FunctionCategoryGeneral).
 			Experimental().
-			Description("Generates an incrementing sequence of integers starting from a minimum value (default 1). Each counter instance maintains its own independent state across message processing. When the maximum value is reached, the counter automatically resets to the minimum.").
+			Description("Generates an incrementing sequence of integers starting from a minimum value (default 1). Each counter instance maintains its own independent state across message processing. When the maximum value is reached, the counter automatically resets to the minimum.").Version("4.22.0").
 			Param(bloblang.NewQueryParam("min", true).
 				Default(1).
 				Description("The starting value of the counter. This is the first value yielded. Evaluated once when the mapping is initialized.")).

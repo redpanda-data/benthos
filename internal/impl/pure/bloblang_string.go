@@ -14,7 +14,7 @@ func init() {
 	bloblang.MustRegisterMethodV2("parse_form_url_encoded",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryParsing).
-			Description(`Attempts to parse a url-encoded query string (from an x-www-form-urlencoded request body) and returns a structured result.`).
+			Description(`Attempts to parse a url-encoded query string (from an x-www-form-urlencoded request body) and returns a structured result.`).Version("4.5.0").
 			Example("", `root.values = this.body.parse_form_url_encoded()`,
 				[2]string{
 					`{"body":"noise=meow&animal=cat&fur=orange&fur=fluffy"}`,

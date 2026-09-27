@@ -22,7 +22,7 @@ This scanner adds the following metadata to each message:
 
 - ` + "`tar_name`" + `
 
-`).
+`).Version("4.25.0").
 		Field(service.NewObjectField("").Default(map[string]any{}))
 }
 

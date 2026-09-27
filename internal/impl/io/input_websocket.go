@@ -49,7 +49,7 @@ func websocketInputSpec() *service.ConfigSpec {
 				Description("The URL to connect to.").
 				Example("ws://localhost:4195/get/ws"),
 			service.NewURLField("proxy_url").
-				Description("An optional HTTP proxy URL.").
+				Description("An optional HTTP proxy URL.").Version("4.30.0").
 				Advanced().Optional(),
 			service.NewStringField("open_message").
 				Description("An optional message to send to the server upon connection.").
@@ -57,10 +57,10 @@ func websocketInputSpec() *service.ConfigSpec {
 			service.NewStringAnnotatedEnumField("open_message_type", map[string]string{
 				string(wsOpenMsgTypeBinary): "Binary data open_message.",
 				string(wsOpenMsgTypeText):   "Text data open_message. The text message payload is interpreted as UTF-8 encoded text data.",
-			}).Description("An optional flag to indicate the data type of open_message.").
+			}).Description("An optional flag to indicate the data type of open_message.").Version("4.12.0").
 				Advanced().Default(string(wsOpenMsgTypeBinary)),
 			service.NewIntField("max_message_size").
-				Description("A maximum size in bytes for individual messages received from the server. When a message exceeding this limit is received the connection is closed with a 1009 (message too big) status and the input reconnects. A value of 0 disables the limit, which allows the server to make this process allocate an unbounded amount of memory and is therefore not recommended.").
+				Description("A maximum size in bytes for individual messages received from the server. When a message exceeding this limit is received the connection is closed with a 1009 (message too big) status and the input reconnects. A value of 0 disables the limit, which allows the server to make this process allocate an unbounded amount of memory and is therefore not recommended.").Version("4.106.0").
 				Advanced().Default(defaultMaxMessageSize),
 			service.NewAutoRetryNacksToggleField(),
 			service.NewTLSToggledField("tls"),

@@ -109,7 +109,7 @@ func init() {
 			Description(`
 Converts a numerical type into a 64-bit floating point number, this is for advanced use cases where a specific data type is needed for a given component (such as the ClickHouse SQL driver).
 
-If the value is a string then an attempt will be made to parse it as a 64-bit floating point number. Please refer to the https://pkg.go.dev/strconv#ParseFloat[`+"`strconv.ParseFloat`"+` documentation] for details regarding the supported formats.`).
+If the value is a string then an attempt will be made to parse it as a 64-bit floating point number. Please refer to the https://pkg.go.dev/strconv#ParseFloat[`+"`strconv.ParseFloat`"+` documentation] for details regarding the supported formats.`).Version("4.19.0").
 			Example("", `
 root.out = this.in.float64()
 `,
@@ -127,7 +127,7 @@ root.out = this.in.float64()
 			Description(`
 Converts a numerical type into a 32-bit floating point number, this is for advanced use cases where a specific data type is needed for a given component (such as the ClickHouse SQL driver).
 
-If the value is a string then an attempt will be made to parse it as a 32-bit floating point number. Please refer to the https://pkg.go.dev/strconv#ParseFloat[`+"`strconv.ParseFloat`"+` documentation] for details regarding the supported formats.`).
+If the value is a string then an attempt will be made to parse it as a 32-bit floating point number. Please refer to the https://pkg.go.dev/strconv#ParseFloat[`+"`strconv.ParseFloat`"+` documentation] for details regarding the supported formats.`).Version("4.19.0").
 			Example("", `
 root.out = this.in.float32()
 `,
@@ -171,7 +171,7 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 	bloblang.MustRegisterMethodV2("pow",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
-			Description(`Returns the number raised to the specified exponent.`).
+			Description(`Returns the number raised to the specified exponent.`).Version("4.30.0").
 			Example("", `root.new_value = this.value * 10.pow(-2)`,
 				[2]string{`{"value":2}`, `{"new_value":0.02}`}).
 			Example("", `root.new_value = this.value.pow(-2)`,
@@ -191,7 +191,7 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 	bloblang.MustRegisterMethodV2("sin",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
-			Description(`Calculates the sine of a given angle specified in radians.`).
+			Description(`Calculates the sine of a given angle specified in radians.`).Version("4.30.0").
 			Example("", `root.new_value = (this.value * (pi() / 180)).sin()`,
 				[2]string{`{"value":45}`, `{"new_value":0.7071067811865475}`},
 				[2]string{`{"value":0}`, `{"new_value":0}`},
@@ -205,7 +205,7 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 	bloblang.MustRegisterMethodV2("cos",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
-			Description(`Calculates the cosine of a given angle specified in radians.`).
+			Description(`Calculates the cosine of a given angle specified in radians.`).Version("4.30.0").
 			Example("", `root.new_value = (this.value * (pi() / 180)).cos()`,
 				[2]string{`{"value":45}`, `{"new_value":0.7071067811865476}`},
 				[2]string{`{"value":0}`, `{"new_value":1}`},
@@ -219,7 +219,7 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 	bloblang.MustRegisterMethodV2("tan",
 		bloblang.NewPluginSpec().
 			Category(query.MethodCategoryNumbers).
-			Description(`Calculates the tangent of a given angle specified in radians.`).
+			Description(`Calculates the tangent of a given angle specified in radians.`).Version("4.30.0").
 			Example("", `root.new_value = "%f".format((this.value * (pi() / 180)).tan())`,
 				[2]string{`{"value":0}`, `{"new_value":"0.000000"}`},
 				[2]string{`{"value":45}`, `{"new_value":"1.000000"}`},
@@ -235,7 +235,7 @@ root.outs = this.ins.map_each(ele -> ele.abs())
 	bloblang.MustRegisterFunctionV2("pi",
 		bloblang.NewPluginSpec().
 			Category(query.FunctionCategoryGeneral).
-			Description(`Returns the value of the mathematical constant Pi.`).
+			Description(`Returns the value of the mathematical constant Pi.`).Version("4.30.0").
 			Example("", `root.radians = this.degrees * (pi() / 180)`,
 				[2]string{`{"degrees":45}`, `{"radians":0.7853981633974483}`}).
 			Example("", `root.degrees = this.radians * (180 / pi())`,

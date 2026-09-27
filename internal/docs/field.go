@@ -236,6 +236,9 @@ func (f FieldSpec) HasDefault(v any) FieldSpec {
 
 // AtVersion specifies the version at which this fields behaviour was last
 // modified.
+// The version is the Redpanda Connect release that first ships it, written
+// as x.y.z with no v prefix, because the Redpanda Connect reference docs
+// publish it.
 func (f FieldSpec) AtVersion(v string) FieldSpec {
 	f.Version = v
 	return f

@@ -85,7 +85,7 @@ input:
 			).
 			Optional(),
 		service.NewDurationField(ruiFieldIdleTimeout).
-			Description("The maximum amount of time without receiving new messages after which the input is closed.").
+			Description("The maximum amount of time without receiving new messages after which the input is closed.").Version("4.24.0").
 			Example("5s").
 			Optional(),
 		service.NewBoolField(ruiFieldRestart).

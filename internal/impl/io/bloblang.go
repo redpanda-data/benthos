@@ -133,7 +133,7 @@ func init() {
 				return !noCache
 			}).
 			Category(query.FunctionCategoryEnvironment).
-			Description("Reads a file and returns its contents as bytes. Paths are resolved relative to the mapping file's directory, making it portable across different environments. By default, files are cached after first read.").
+			Description("Reads a file and returns its contents as bytes. Paths are resolved relative to the mapping file's directory, making it portable across different environments. By default, files are cached after first read.").Version("4.21.0").
 			Param(bloblang.NewStringParam("path").
 				Description("The path to the file, relative to the mapping file's directory.")).
 			Param(bloblang.NewBoolParam("no_cache").

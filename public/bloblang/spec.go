@@ -175,6 +175,9 @@ func (p *PluginSpec) Description(str string) *PluginSpec {
 }
 
 // Version specifies that this plugin was introduced in a given version.
+// The version is the Redpanda Connect release that first ships it, written
+// as x.y.z with no v prefix, because the Redpanda Connect reference docs
+// publish it.
 func (p *PluginSpec) Version(v string) *PluginSpec {
 	p.version = v
 	return p
