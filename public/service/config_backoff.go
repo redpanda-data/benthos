@@ -41,7 +41,7 @@ func NewBackOffField(name string, allowUnbounded bool, defaults *backoff.Exponen
 	// TODO: Add linting rule to ensure we aren't unbounded if necessary.
 	return NewObjectField(name,
 		NewDurationField("initial_interval").
-			Description("The initial period to wait between retry attempts.").
+			Description("The initial period to wait between retry attempts. The retry interval increases for each failed attempt, up to the `max_interval` value. This field accepts Go duration format strings such as `100ms`, `1s`, or `5s`.").
 			Default(initDefault).Example("50ms").Example("1s"),
 		NewDurationField("max_interval").
 			Description("The maximum period to wait between retry attempts").

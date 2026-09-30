@@ -14,7 +14,7 @@ import (
 func localRatelimitConfig() *service.ConfigSpec {
 	spec := service.NewConfigSpec().
 		Stable().
-		Summary(`The local rate limit is a simple X every Y type rate limit that can be shared across any number of components within the pipeline but does not support distributed rate limits across multiple running instances of Benthos.`).
+		Summary(`A simple X every Y rate limit that can be shared across any number of components within a pipeline. It does not support distributed rate limiting across instances.`).
 		Field(service.NewIntField("count").
 			Description("The maximum number of requests to allow for a given period of time.").
 			Default(1000)).

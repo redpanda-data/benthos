@@ -25,7 +25,7 @@ func DeprecatedCodecFields(defaultScanner string) []*service.ConfigField {
 		service.NewInternalField(codec.NewReaderDocs(fieldCodecFromString)).Deprecated().Optional(),
 		service.NewIntField(crFieldMaxBuffer).Deprecated().Default(1000000),
 		service.NewScannerField(crFieldCodec).
-			Description("The xref:components:scanners/about.adoc[scanner] by which the stream of bytes consumed will be broken out into individual messages. Scanners are useful for processing large sources of data without holding the entirety of it within memory. For example, the `csv` scanner allows you to process individual CSV rows without loading the entire CSV file in memory at once.").
+			Description("The xref:components:scanners/about.adoc[scanner] used to split the stream of bytes into individual messages. Scanners are useful for processing large data sources efficiently without holding the entire data set in memory. For example, the `csv` scanner processes individual rows in a CSV file without loading the entire file in memory.").
 			Default(map[string]any{defaultScanner: map[string]any{}}).
 			Version("4.25.0").
 			Optional(),

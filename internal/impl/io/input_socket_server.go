@@ -57,7 +57,7 @@ func socketServerInputSpec() *service.ConfigSpec {
 				Description("The address to listen from.").
 				Examples("/tmp/benthos.sock", "0.0.0.0:6000"),
 			service.NewStringField(issFieldAddressCache).
-				Description("An optional xref:components:caches/about.adoc[`cache`] within which this input should write it's bound address once known. The key of the cache item containing the address will be the label of the component suffixed with `_address` (e.g. `foo_address`), or `socket_server_address` when a label has not been provided. This is useful in situations where the address is dynamically allocated by the server (`127.0.0.1:0`) and you want to store the allocated address somewhere for reference by other systems and components.").
+				Description("An optional xref:components:caches/about.adoc[`cache`] within which this input should write its bound address once known. The key of the cache item containing the address will be the label of the component suffixed with `_address` (for example, `foo_address`), or `socket_server_address` when a label has not been provided. This is useful in situations where the address is dynamically allocated by the server (`127.0.0.1:0`) and you want to store the allocated address somewhere for reference by other systems and components.").
 				Optional().
 				Version("4.25.0"),
 			netutil.ListenerConfigSpec(),
@@ -78,7 +78,7 @@ func socketServerInputSpec() *service.ConfigSpec {
 					issFieldTLSClientAuthRequireValid:  "requires a valid client certificate.",
 					issFieldTLSClientAuthVerifyIfGiven: "will verify a certificate, if one is sent by the client.",
 				}).
-					Description("How client authentication is handled.").
+					Description("Specifies how client authentication is handled when using TLS.").
 					Default(issFieldTLSClientAuthNoClientCert).
 					Version("4.54.0"),
 			).

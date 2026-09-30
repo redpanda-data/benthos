@@ -40,7 +40,7 @@ func ConfigField(defaultVerb string, forOutput bool, extraChildren ...*service.C
 		service.NewInterpolatedStringField(hcFieldURL).
 			Description("The URL to connect to."),
 		service.NewStringField(hcFieldVerb).
-			Description("A verb to connect with").
+			Description("A verb to connect with.").
 			Examples("POST", "GET", "DELETE").
 			Default(defaultVerb),
 		service.NewInterpolatedStringMapField(hcFieldHeaders).
@@ -51,20 +51,22 @@ func ConfigField(defaultVerb string, forOutput bool, extraChildren ...*service.C
 			}).
 			Default(map[string]any{}),
 		service.NewMetadataFilterField(hcFieldMetadata).
-			Description("Specify optional matching rules to determine which metadata keys should be added to the HTTP request as headers.").
+			Description("Specify matching rules that determine which metadata keys should be added to the HTTP request as headers.").
 			Advanced().
 			Optional(),
 		service.NewStringEnumField(hcFieldDumpRequestLogLevel, "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL", "").
-			Description("EXPERIMENTAL: Optionally set a level at which the request and response payload of each request made will be logged.").
+			Description("EXPERIMENTAL: Set the logging level for the request and response payloads of each HTTP request.").
 			Advanced().
 			Default("").
 			Version("4.12.0"),
 	}
 	innerFields = append(innerFields, AuthFieldSpecsExpanded()...)
 
-	extractHeadersDesc := "Specify which response headers should be added to resulting messages as metadata. Header keys are lowercased before matching, so ensure that your patterns target lowercased versions of the header keys that you expect."
+	extractHeadersDesc := "Specify which response headers to add to the resulting messages as metadata. Header keys are automatically converted to lowercase before matching, so make sure that your patterns target the lowercase versions of the expected header keys."
 	if forOutput {
-		extractHeadersDesc = "Specify which response headers should be added to resulting synchronous response messages as metadata. Header keys are lowercased before matching, so ensure that your patterns target lowercased versions of the header keys that you expect. This field is not applicable unless `propagate_response` is set to `true`."
+		extractHeadersDesc = `Specify which response headers to add to the resulting synchronous response messages as metadata. Header keys are automatically converted to lowercase before matching, so make sure that your patterns target the lowercase versions of the expected header keys.
+
+This field is only applicable when ` + "`" + `propagate_response` + "`" + ` is set to ` + "`" + `true` + "`" + `.`
 	}
 	innerFields = append(innerFields,
 		service.NewTLSToggledField(hcFieldTLS),
@@ -72,13 +74,13 @@ func ConfigField(defaultVerb string, forOutput bool, extraChildren ...*service.C
 			Description(extractHeadersDesc).
 			Advanced(),
 		service.NewStringField(hcFieldRateLimit).
-			Description("An optional xref:components:rate_limits/about.adoc[rate limit] to throttle requests by.").
+			Description("A xref:components:rate_limits/about.adoc[rate limit] to throttle requests by (optional).").
 			Optional(),
 		service.NewDurationField(hcFieldTimeout).
 			Description("A static timeout to apply to requests.").
 			Default("5s"),
 		service.NewDurationField(hcFieldRetryPeriod).
-			Description("The base period to wait between failed requests.").
+			Description("The period to wait between failed requests before retrying. For status codes listed in `backoff_on`, this is the starting period, which increases with each attempt up to `max_retry_backoff`.").
 			Advanced().
 			Default("1s"),
 		service.NewDurationField(hcFieldMaxRetryBackoff).
@@ -90,27 +92,31 @@ func ConfigField(defaultVerb string, forOutput bool, extraChildren ...*service.C
 			Advanced().
 			Default(3),
 		service.NewBoolField(hcFieldFollowRedirects).
-			Description("Whether or not to transparently follow redirects, i.e. responses with 300-399 status codes. If disabled, the response message will contain the body, status, and headers from the redirect response and the processor will not make a request to the URL set in the Location header of the response.").Version("4.39.0").
+			Description("Whether to transparently follow redirects, that is, responses with HTTP status codes in the 300-399 range. If set to `false`, the response message includes the body, status, and headers from the redirect response, and the component does not make a request to the URL specified in the `Location` header.").Version("4.39.0").
 			Advanced().
 			Default(true),
 		service.NewIntListField(hcFieldBackoffOn).
-			Description("A list of status codes whereby the request should be considered to have failed and retries should be attempted, but the period between them should be increased gradually.").
+			Description("A list of status codes that indicate a request failure and trigger retries with an increasing backoff period between attempts.").
 			Advanced().
 			Default([]any{429}),
 		service.NewIntListField(hcFieldDropOn).
-			Description("A list of status codes whereby the request should be considered to have failed but retries should not be attempted. This is useful for preventing wasted retries for requests that will never succeed. Note that with these status codes the _request_ is dropped, but _message_ that caused the request will not be dropped.").
+			Description(`A list of status codes that indicate a request failure where retries should not be attempted. This helps avoid unnecessary retries for requests that are unlikely to succeed.
+
+NOTE: In these cases, the _request_ is dropped, but the _message_ that triggered the request is retained.`).
 			Advanced().
 			Default([]any{}),
 		service.NewIntListField(hcFieldSuccessfulOn).
-			Description("A list of status codes whereby the attempt should be considered successful, this is useful for dropping requests that return non-2XX codes indicating that the message has been dealt with, such as a 303 See Other or a 409 Conflict. All 2XX codes are considered successful unless they are present within `backoff_on` or `drop_on`, regardless of this field.").
+			Description(`A list of HTTP status codes that should be considered successful, even if they are not 2XX codes. This is useful for handling cases where non-2XX codes indicate that the request was processed successfully, such as `+"`"+`303 See Other`+"`"+` or `+"`"+`409 Conflict`+"`"+`.
+
+By default, all 2XX codes are considered successful unless they are specified in the `+"`"+`backoff_on`+"`"+` or `+"`"+`drop_on`+"`"+` fields, regardless of this field.`).
 			Advanced().
 			Default([]any{}),
 		service.NewStringField(hcFieldProxyURL).
-			Description("An optional HTTP proxy URL.").
+			Description("An HTTP proxy URL (optional).").
 			Advanced().
 			Optional(),
 		service.NewBoolField(hcFieldDisableHTTP2).
-			Description("Whether or not to disable disable HTTP/2").
+			Description("Whether to disable HTTP/2. By default, HTTP/2 is enabled.").
 			Advanced().
 			Default(false).
 			Version("4.47.0"),

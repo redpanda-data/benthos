@@ -51,7 +51,7 @@ output:
     path: docs/${! meta("kafka_key") }/${! count("files") }-${! timestamp_unix_nano() }.tar.gz
 `+"```"+``).
 			Field(service.NewInterpolatedStringField(gbvpFieldValue).
-				Description("The interpolated string to group based on.").
+				Description(`The interpolated string to group based on.`).
 				Examples("${! meta(\"kafka_key\") }", "${! json(\"foo.bar\") }-${! meta(\"baz\") }")),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			valueStr, err := conf.FieldString(gbvpFieldValue)

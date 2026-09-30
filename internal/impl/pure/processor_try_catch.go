@@ -59,7 +59,7 @@ More information about error handling can be found in xref:configuration:error_h
 			Description("A list of processors to execute on each message. If a processor fails for a given message the remaining processors in this list are skipped for that message, and the message is routed to the `catch` processors.").
 			Default([]any{})).
 		Field(service.NewProcessorListField(tcFieldCatch).
-			Description("A list of processors to execute on each message that failed one of the `processors` above. The message is no longer flagged as failed when these run; the error is available as an object in the metadata field named by `error_metadata` (e.g. `@error.what`). When omitted or empty the error is recorded in metadata and the flag is cleared (the failure is swallowed).").
+			Description("A list of processors to execute on each message that failed one of the `processors` above. The message is no longer flagged as failed when these run; the error is available as an object in the metadata field named by `error_metadata` (for example, `@error.what`). When omitted or empty the error is recorded in metadata and the flag is cleared (the failure is swallowed).").
 			Default([]any{})).
 		Field(service.NewStringField(tcFieldErrorMeta).
 			Description("The metadata key under which the caught error is stored, as an object with a `what` field (the error message) plus `name`, `label` and `path` fields describing the component that failed, before the `catch` processors are executed.").

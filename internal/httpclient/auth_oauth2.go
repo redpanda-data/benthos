@@ -92,7 +92,7 @@ func oAuth2FieldSpec() *service.ConfigField {
 			Default(""),
 
 		service.NewStringField(ao2FieldClientSecret).
-			Description("A secret used to establish ownership of the client key.").
+			Description("The secret used to establish ownership of the client key.").
 			Default("").Secret(),
 
 		service.NewURLField(ao2FieldTokenURL).
@@ -100,13 +100,13 @@ func oAuth2FieldSpec() *service.ConfigField {
 			Default(""),
 
 		service.NewStringListField(ao2FieldScopes).
-			Description("A list of optional requested permissions.").
+			Description("A list of requested permissions (optional).").
 			Default([]any{}).
 			Advanced().
 			Version("3.45.0"),
 
 		service.NewAnyMapField(ao2FieldEndpointParams).
-			Description("A list of optional endpoint parameters, values should be arrays of strings.").
+			Description("A map of endpoint parameters (optional). Each value must be an array of strings.").
 			Advanced().
 			Example(map[string]any{
 				"foo": []string{"meow", "quack"},
@@ -128,7 +128,7 @@ root = if this.type() == "object" {
 }
 `),
 	).
-		Description("Allows you to specify open authentication via OAuth version 2 using the client credentials token flow.").
+		Description("Allows you to specify open authentication using OAuth version 2 and the client credentials token flow.").
 		Optional().Advanced()
 }
 

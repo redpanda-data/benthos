@@ -88,13 +88,13 @@ func basicAuthField() *ConfigField {
 			Default(false),
 
 		NewStringField(abFieldUsername).
-			Description("A username to authenticate as.").
+			Description("The username of the account credentials to authenticate as. Used together with `password` for basic authentication.").
 			Default(""),
 
 		NewStringField(abFieldPassword).
-			Description("A password to authenticate with.").
+			Description("The password to use for authentication. Used together with `username` for basic authentication.").
 			Default("").Secret(),
-	).Description("Allows you to specify basic authentication.").
+	).Description("Configure basic authentication for requests from this component.").
 		Advanced().
 		Optional()
 }
@@ -143,26 +143,26 @@ const (
 func oAuthFieldSpec() *ConfigField {
 	return NewObjectField(aFieldOAuth,
 		NewBoolField(aoFieldEnabled).
-			Description("Whether to use OAuth version 1 in requests.").
+			Description("Whether to enable OAuth version 1.0 authentication for requests.").
 			Default(false),
 
 		NewStringField(aoFieldConsumerKey).
-			Description("A value used to identify the client to the service provider.").
+			Description("The value used to identify this component or client to the service provider.").
 			Default(""),
 
 		NewStringField(aoFieldConsumerSecret).
-			Description("A secret used to establish ownership of the consumer key.").
+			Description("The secret that establishes ownership of the consumer key in OAuth 1.0 authentication.").
 			Default("").Secret(),
 
 		NewStringField(aoFieldAccessToken).
-			Description("A value used to gain access to the protected resources on behalf of the user.").
+			Description("The value used to gain access to the protected resources on behalf of the user.").
 			Default(""),
 
 		NewStringField(aoFieldAccessTokenSecret).
-			Description("A secret provided in order to establish ownership of a given access token.").
+			Description("The secret that establishes ownership of the `access_token` in OAuth 1.0 authentication.").
 			Default("").Secret(),
 	).
-		Description("Allows you to specify open authentication via OAuth version 1.").
+		Description("Configure OAuth version 1.0 authentication for secure API access.").
 		Advanced().
 		Optional()
 }
@@ -280,24 +280,24 @@ func jwtFieldSpec() *ConfigField {
 			Default(false),
 
 		NewStringField(ajFieldPrivateKeyFile).
-			Description("A file with the PEM encoded via PKCS1 or PKCS8 as private key.").
+			Description("Path to a file containing the PEM-encoded private key using PKCS#1 or PKCS#8 format. The private key must be compatible with the algorithm specified in the `signing_method` field.").
 			Default(""),
 
 		NewStringField(ajFieldSigningMethod).
-			Description("A method used to sign the token such as RS256, RS384, RS512 or EdDSA.").
+			Description("The cryptographic algorithm used to sign the JWT. Supported algorithms are RS256, RS384, RS512, and EdDSA. This algorithm must be compatible with the private key specified in the `private_key_file` field.").
 			Default(""),
 
 		NewAnyMapField(ajFieldClaims).
-			Description("A value used to identify the claims that issued the JWT.").
+			Description("A map of claims to include in the JWT. Claims pass the identity of the authenticated entity to the service provider.").
 			Default(map[string]any{}).
 			Advanced(),
 
 		NewAnyMapField(ajFieldHeaders).
-			Description("Add optional key/value headers to the JWT.").
+			Description("Additional key-value pairs to include in the JWT header (optional). These headers provide extra metadata for JWT processing.").
 			Default(map[string]any{}).
 			Advanced(),
 	).
-		Description("BETA: Allows you to specify JWT authentication.").
+		Description("BETA: Configure JSON Web Token (JWT) authentication. This feature is in beta and may change in future releases. JWTs provide secure, stateless authentication between services.").
 		Advanced()
 }
 

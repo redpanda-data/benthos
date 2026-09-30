@@ -38,7 +38,7 @@ To reverse this process use the `+"xref:components:processors/unarchive.adoc[`un
 			`json_array`:  `Attempt to parse each message as a JSON document and append the result to an array, which becomes the contents of the resulting message.`,
 		}).Description("The archiving format to apply.")).
 		Field(service.NewInterpolatedStringField("path").
-			Description("The path to set for each message in the archive (when applicable).").
+			Description(`The path to set for each message in the archive (when applicable).`).
 			Example("${!count(\"files\")}-${!timestamp_unix_nano()}.txt").
 			Example("${!meta(\"kafka_key\")}-${!json(\"id\")}.json").
 			Default("")).

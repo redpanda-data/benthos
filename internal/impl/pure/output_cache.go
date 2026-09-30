@@ -55,7 +55,7 @@ In order to create a unique `+"`key`"+` value per item you should use function i
 			service.NewStringField(coFieldTarget).
 				Description("The target cache to store messages in."),
 			service.NewInterpolatedStringField(coFieldKey).
-				Description("The key to store messages by, function interpolation should be used in order to derive a unique key for each message.").
+				Description(`The key to store messages by, function interpolation should be used in order to derive a unique key for each message.`).
 				Examples(
 					`${!count("items")}-${!timestamp_unix_nano()}`,
 					`${!json("doc.id")}`,
@@ -63,7 +63,7 @@ In order to create a unique `+"`key`"+` value per item you should use function i
 				).
 				Default(`${!count("items")}-${!timestamp_unix_nano()}`),
 			service.NewInterpolatedStringField(coFieldTTL).
-				Description("The TTL of each individual item as a duration string. After this period an item will be eligible for removal during the next compaction. Not all caches support per-key TTLs, and those that do not will fall back to their generally configured TTL setting.").
+				Description(`The TTL of each individual item as a duration string. After this period an item will be eligible for removal during the next compaction. Not all caches support per-key TTLs, and those that do not will fall back to their generally configured TTL setting.`).
 				Examples("60s", "5m", "36h").
 				Version("3.33.0").
 				Advanced().

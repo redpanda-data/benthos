@@ -48,7 +48,7 @@ If a non-zero error code is returned by the command then an error containing the
 `).
 		Fields(
 			service.NewInterpolatedStringField(cpNameField).
-				Description("The name of the command to execute.").
+				Description(`The name of the command to execute.`).
 				Examples("bash", "go", "${! @command }"),
 			service.NewBloblangField(cpArgsField).
 				Description("An optional xref:guides:bloblang/about.adoc[Bloblang mapping] that, when specified, should resolve into an array of arguments to pass to the command. Command arguments are expressed this way in order to support dynamic behavior.").

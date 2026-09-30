@@ -65,7 +65,7 @@ root.kafka_topic = meta("kafka_topic")`,
 				).
 				Optional(),
 			service.NewInterpolatedStringField(logPFieldMessage).
-				Description("The message to print.").
+				Description(`The message to print.`).
 				Default(""),
 			service.NewInterpolatedStringMapField(logPFieldFields).
 				Description("A map of fields to print along with the log message.").

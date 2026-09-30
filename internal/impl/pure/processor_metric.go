@@ -130,14 +130,14 @@ metrics:
 			service.NewStringField(metProcFieldName).
 				Description("The name of the metric to create, this must be unique across all Redpanda Connect components otherwise it will overwrite those other metrics."),
 			service.NewInterpolatedStringMapField(metProcFieldLabels).
-				Description("A map of label names and values that can be used to enrich metrics. Labels are not supported by some metric destinations, in which case the metrics series are combined.").
+				Description(`A map of label names and values that can be used to enrich metrics. Labels are not supported by some metric destinations, in which case the metrics series are combined.`).
 				Example(map[string]any{
 					"type":  "${! json(\"doc.type\") }",
 					"topic": "${! meta(\"kafka_topic\") }",
 				}).
 				Optional(),
 			service.NewInterpolatedStringField(metProcFieldValue).
-				Description("For some metric types specifies a value to set, increment. Certain metrics exporters such as Prometheus support floating point values, but those that do not will cast a floating point value into an integer.").
+				Description(`For some metric types specifies a value to set, increment. Certain metrics exporters such as Prometheus support floating point values, but those that do not will cast a floating point value into an integer.`).
 				Default(""),
 		)
 }
