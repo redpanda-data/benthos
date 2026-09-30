@@ -20,7 +20,7 @@ func AuthFieldSpecsExpanded() []*service.ConfigField {
 	pubAuthFields := service.NewHTTPRequestAuthSignerFields()
 	splicedFields := []*service.ConfigField{
 		pubAuthFields[0],
-		oAuth2FieldSpec(),
+		service.NewOAuth2Field(aFieldOAuth2),
 	}
 	return append(splicedFields, pubAuthFields[1:]...)
 }
@@ -80,57 +80,6 @@ const (
 	ao2FieldScopes         = "scopes"
 	ao2FieldEndpointParams = "endpoint_params"
 )
-
-func oAuth2FieldSpec() *service.ConfigField {
-	return service.NewObjectField(aFieldOAuth2,
-		service.NewBoolField(ao2FieldEnabled).
-			Description("Whether to use OAuth version 2 in requests.").
-			Default(false),
-
-		service.NewStringField(ao2FieldClientKey).
-			Description("A value used to identify the client to the token provider.").
-			Default(""),
-
-		service.NewStringField(ao2FieldClientSecret).
-			Description("The secret used to establish ownership of the client key.").
-			Default("").Secret(),
-
-		service.NewURLField(ao2FieldTokenURL).
-			Description("The URL of the token provider.").
-			Default(""),
-
-		service.NewStringListField(ao2FieldScopes).
-			Description("A list of requested permissions (optional).").
-			Default([]any{}).
-			Advanced().
-			Version("3.45.0"),
-
-		service.NewAnyMapField(ao2FieldEndpointParams).
-			Description("A map of endpoint parameters (optional). Each value must be an array of strings.").
-			Advanced().
-			Example(map[string]any{
-				"foo": []string{"meow", "quack"},
-				"bar": []string{"woof"},
-			}).
-			Default(map[string]any{}).
-			Version("4.21.0").
-			Optional().
-			LintRule(`
-root = if this.type() == "object" {
-  this.values().map_each(ele -> if ele.type() != "array" {
-    "field must be an object containing arrays of strings, got %s (%v)".format(ele.format_json(no_indent: true), ele.type())
-  } else {
-    ele.map_each(str -> if str.type() != "string" {
-      "field values must be strings, got %s (%v)".format(str.format_json(no_indent: true), str.type())
-    } else { deleted() })
-  }).
-    flatten()
-}
-`),
-	).
-		Description("Allows you to specify open authentication using OAuth version 2 and the client credentials token flow.").
-		Optional().Advanced()
-}
 
 func oauth2ClientCtorFromParsed(conf *service.ParsedConfig) (res func(context.Context, *http.Client) *http.Client, err error) {
 	if !conf.Contains(aFieldOAuth2) {

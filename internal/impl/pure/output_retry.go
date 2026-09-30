@@ -36,7 +36,10 @@ All messages in Redpanda Connect are always retried on an output error, but this
 This output type is useful whenever we wish to avoid reprocessing a message on the event of a failed send. We might, for example, have a deduplication processor that we want to avoid reapplying to the same message more than once in the pipeline.
 
 Rather than retrying the same output you may wish to retry the send using a different output target (a dead letter queue). In which case you should instead use the ` + "xref:components:outputs/fallback.adoc[`fallback`]" + ` output type.`).
-		Fields(retries.CommonRetryBackOffFields(0, "500ms", "3s", "0s")...).
+		Fields(service.NewRetryBackOffFields(0, &backoff.ExponentialBackOff{
+			InitialInterval: 500 * time.Millisecond,
+			MaxInterval:     3 * time.Second,
+		})...).
 		Fields(
 			service.NewOutputField(roFieldOutput).
 				Description("A child output."),
