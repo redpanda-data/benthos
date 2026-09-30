@@ -1,0 +1,133 @@
+description: "If as expression — returns value, with/without else, else-if chains, void behavior"
+
+tests:
+  # --- Basic if-else expression ---
+
+  - name: "if true with else returns then branch"
+    mapping: |
+      root.result = if true { "yes" } else { "no" }
+    output: {"result": "yes"}
+
+  - name: "if false with else returns else branch"
+    mapping: |
+      root.result = if true == false { "yes" } else { "no" }
+    output: {"result": "no"}
+
+  - name: "if expression returns computed value"
+    input: {"score": 95}
+    mapping: |
+      root.grade = if this.score >= 90 { "A" } else { "B" }
+    output: {"grade": "A"}
+
+  # --- Without else: void behavior ---
+  # V1 returns null when no branch matches, not a void sentinel. So assignment writes null (not skipped).
+
+  - name: "if without else produces void when false — assignment skipped, field absent"
+    input: {}
+    mapping: |
+      root.x = if false { "hello" }
+    output: {}
+
+  - name: "if without else produces value when true"
+    mapping: |
+      root.x = if true { "hello" }
+    output: {"x": "hello"}
+
+  - name: "void preserves prior output value"
+    mapping: |
+      root.status = "pending"
+      root.status = if false { "override" }
+    output: {"status": "pending"}
+
+  # --- Else-if chains ---
+
+  - name: "else-if tier classification"
+    mapping: |
+      root.tier = if this.score >= 90 {
+        "gold"
+      } else if this.score >= 70 {
+        "silver"
+      } else {
+        "bronze"
+      }
+    cases:
+      - name: "selects middle branch"
+        input: {"score": 75}
+        output: {"tier": "silver"}
+      - name: "falls through to else"
+        input: {"score": 30}
+        output: {"tier": "bronze"}
+      - name: "selects first branch"
+        input: {"score": 95}
+        output: {"tier": "gold"}
+
+  - name: "else-if without final else produces void when no branch matches"
+    input: {"score": 30}
+    mapping: |
+      root.tier = "default"
+      root.tier = if this.score >= 90 { "gold" } else if this.score >= 70 { "silver" }
+    output: {"tier": "default"}
+
+  - name: "else-if without final else — branch matches"
+    mapping: |
+      root.tier = if this.score >= 90 { "gold" } else if this.score >= 70 { "silver" }
+    cases:
+      - name: "first branch"
+        input: {"score": 95}
+        output: {"tier": "gold"}
+      - name: "second branch"
+        input: {"score": 75}
+        output: {"tier": "silver"}
+
+  # --- Variable declaration with if expression ---
+
+  - name: "if expression assigned to variable"
+    mapping: |
+      let x = if true { 42 } else { 0 }
+      root.result = $x
+    output: {"result": 42}
+
+  - name: "void in variable declaration is runtime error"
+    mapping: |
+      let x = if false { 42 }
+      root.result = $x
+    error: "variable 'x' undefined"
+
+  - name: "void in variable reassignment is skipped"
+    mapping: |
+      let x = 10
+      let x = if false { 42 }
+      root.result = $x
+    output: {"result": 10}
+
+  # --- Variables inside if expression body ---
+
+  - name: "variables declared inside if expression body"
+    skip: "V1 if-expression branches are single expressions, not statement lists — cannot have let statements inside"
+
+  # --- Cannot contain output assignments (expression context) ---
+
+  - name: "output assignment inside if expression is compile error"
+    skip: "V1 if-expression branches are single expressions; an assignment statement is not parseable inside"
+
+  # --- Nested if expressions ---
+
+  - name: "nested if expression"
+    input: {"a": true, "b": false}
+    mapping: |
+      root.result = if this.a {
+        if this.b { "both" } else { "only a" }
+      } else {
+        "neither"
+      }
+    output: {"result": "only a"}
+
+  # --- If expression with non-boolean condition ---
+
+  - name: "non-boolean condition is error"
+    mapping: |
+      root.x = if "hello" { 1 } else { 2 }
+    error: "bool" # FIXME-v1: verify
+
+  - name: "null condition is error"
+    skip: "V1 treats null as falsy in if conditions (no error raised) — see nullable bool coercion quirk"

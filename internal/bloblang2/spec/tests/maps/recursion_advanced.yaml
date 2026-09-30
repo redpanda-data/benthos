@@ -1,0 +1,185 @@
+description: >
+  Advanced recursion patterns — mutual recursion with accumulator,
+  recursion through match, recursive data structure processing,
+  recursion with lambdas, and recursion limit interaction with
+  map composition.
+
+tests:
+  # --- Mutual recursion with accumulator ---
+
+  - name: "mutual recursion with accumulator"
+    mapping: |
+      map collatz_steps(n, count) {
+        if n == 1 { count } else {
+          collatz_next(n, count)
+        }
+      }
+      map collatz_next(n, count) {
+        if n % 2 == 0 {
+          collatz_steps(n / 2, count + 1)
+        } else {
+          collatz_steps(n * 3 + 1, count + 1)
+        }
+      }
+      output.steps = collatz_steps(6, 0)
+    output: {"steps": 8}
+
+  # --- Recursive data structure traversal ---
+
+  - name: "recursive tree depth calculation"
+    mapping: |
+      map depth(node) {
+        if node == null { 0 } else {
+          $left = depth(node.left)
+          $right = depth(node.right)
+          1 + (if $left > $right { $left } else { $right })
+        }
+      }
+      $tree = {
+        "val": 1,
+        "left": {"val": 2, "left": {"val": 4, "left": null, "right": null}, "right": null},
+        "right": {"val": 3, "left": null, "right": null},
+      }
+      output.d = depth($tree)
+    output: {"d": 3}
+
+  - name: "recursive tree node count"
+    mapping: |
+      map count_nodes(node) {
+        if node == null { 0 } else {
+          1 + count_nodes(node.left) + count_nodes(node.right)
+        }
+      }
+      $tree = {
+        "val": 1,
+        "left": {"val": 2, "left": null, "right": null},
+        "right": {"val": 3, "left": null, "right": {"val": 4, "left": null, "right": null}},
+      }
+      output.count = count_nodes($tree)
+    output: {"count": 4}
+
+  # --- Recursion through match ---
+
+  - name: "recursive map using match with multiple arms"
+    mapping: |
+      map gcd(a, b) {
+        match {
+          b == 0 => a,
+          _ => gcd(b, a % b),
+        }
+      }
+      output.v = gcd(48, 18)
+    output: {"v": 6}
+
+  - name: "recursive map using equality match"
+    mapping: |
+      map describe(n) {
+        match n {
+          0 => "zero",
+          1 => "one",
+          _ => describe(n - 1) + "+",
+        }
+      }
+      output.v = describe(3)
+    output: {"v": "one++"}
+
+  # --- Recursion with iterators ---
+
+  - name: "recursive map called from within lambda"
+    mapping: |
+      map sum_nested(arr) {
+        arr.fold(0, (acc, item) ->
+          acc + (if item.type() == "array" { sum_nested(item) } else { item })
+        )
+      }
+      output.v = sum_nested([1, [2, 3], [4, [5, 6]]])
+    output: {"v": 21}
+
+  # --- Recursion with local variables ---
+
+  - name: "recursive map with local variables per frame"
+    mapping: |
+      map sum_tree(node) {
+        $val = node.value
+        $left = if node.left != null { sum_tree(node.left) } else { 0 }
+        $right = if node.right != null { sum_tree(node.right) } else { 0 }
+        $val + $left + $right
+      }
+      $tree = {
+        "value": 10,
+        "left": {"value": 20, "left": null, "right": null},
+        "right": {"value": 30, "left": {"value": 5, "left": null, "right": null}, "right": null},
+      }
+      output.total = sum_tree($tree)
+    output: {"total": 65}
+
+  - name: "recursive flatten with fold and dynamic keys"
+    mapping: |
+      map flatten_obj(obj, prefix) {
+        $entries = obj.iter()
+        $entries.fold({}, (acc, e) -> {
+          $key = if prefix == "" { e.key } else { prefix + "." + e.key }
+          $acc = acc
+          if e.value.type() == "object" {
+            $nested = flatten_obj(e.value, $key)
+            $nested.iter().fold($acc, (a, ne) -> {
+              $a2 = a
+              $a2[ne.key] = ne.value
+              $a2
+            })
+          } else {
+            $acc[$key] = e.value
+            $acc
+          }
+        })
+      }
+      output = flatten_obj({"a": 1, "b": {"c": 2, "d": 3}}, "")
+    output: {"a": 1, "b.c": 2, "b.d": 3}
+
+  # --- Mutual recursion depth limit ---
+
+  - name: "three-way mutual recursion works within depth limit"
+    mapping: |
+      map a(n) { if n <= 0 { "done" } else { b(n - 1) } }
+      map b(n) { if n <= 0 { "done" } else { c(n - 1) } }
+      map c(n) { if n <= 0 { "done" } else { a(n - 1) } }
+      output.v = a(9)
+    output: {"v": "done"}
+
+  - name: "three-way mutual recursion exceeds limit"
+    mapping: |
+      map a(n) { b(n) }
+      map b(n) { c(n) }
+      map c(n) { a(n) }
+      output.v = a(0)
+    error: "recursion"
+
+  # --- Recursion limit cannot be caught even deeply nested ---
+
+  - name: "recursion limit from mutual recursion is uncatchable"
+    mapping: |
+      map a(n) { b(n) }
+      map b(n) { a(n) }
+      output.v = a(0).catch(err -> "safe")
+    error: "recursion"
+
+  - name: "recursion limit in lambda context is uncatchable"
+    mapping: |
+      map infinite(n) { infinite(n) }
+      output.v = [1].map(x -> infinite(x)).catch(err -> "safe")
+    error: "recursion"
+
+  # --- Recursion called before declaration (hoisting) ---
+
+  - name: "map hoisting allows forward reference"
+    mapping: |
+      output.v = double(5)
+      map double(x) { x * 2 }
+    output: {"v": 10}
+
+  - name: "mutual recursion with both maps declared after use"
+    mapping: |
+      output.v = a(6)
+      map a(n) { if n <= 0 { true } else { b(n - 1) } }
+      map b(n) { if n <= 0 { false } else { a(n - 1) } }
+    output: {"v": true}

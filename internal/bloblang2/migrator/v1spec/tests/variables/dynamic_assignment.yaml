@@ -1,0 +1,80 @@
+description: >
+  Dynamic index assignments — assigning to output or variable paths using
+  computed indices from variables or expressions.
+
+tests:
+  # --- Variable as object key ---
+
+  - name: "output with variable string key"
+    mapping: |
+      let key = "name"
+      root.data = {($key): "Alice"}
+    output: {"data": {"name": "Alice"}}
+
+  - name: "output with variable integer index"
+    skip: "V1 has no bracket-index assignment; dynamic integer indices into arrays cannot be expressed as a writable target"
+    mapping: |
+      let idx = 0
+      root.arr = [].enumerated().map_each(_ -> null)
+    output: {"arr": ["first"]}
+
+  - name: "output with multiple variable keys"
+    mapping: |
+      let k1 = "a"
+      let k2 = "b"
+      root = {($k1): 1, ($k2): 2}
+    output: {"a": 1, "b": 2}
+
+  # --- Nested dynamic paths ---
+
+  - name: "nested dynamic keys"
+    mapping: |
+      let outer = "data"
+      let inner = "name"
+      root = {($outer): {($inner): "Alice"}}
+    output: {"data": {"name": "Alice"}}
+
+  # --- Dynamic assignment on variables ---
+
+  - name: "variable path with dynamic key"
+    skip: "V1 does not support variable path assignment; must rebuild with .merge()"
+    mapping: |
+      let obj = {"a": 1, "b": 2}
+      let key = "a"
+      let obj = $obj.merge({($key): 99})
+      root = $obj
+    output: {"a": 99, "b": 2}
+
+  - name: "variable path with dynamic index"
+    skip: "V1 has no bracket-index assignment for variables"
+    mapping: |
+      let arr = [10, 20, 30]
+      let idx = 1
+      let arr = $arr.enumerated().map_each(e -> if e.index == $idx { 99 } else { e.value })
+      root = $arr
+    output: [10, 99, 30]
+
+  # --- Computed expressions as keys ---
+
+  - name: "computed string key from concatenation"
+    mapping: |
+      let prefix = "key"
+      root = {($prefix + "_1"): "val"}
+    output: {"key_1": "val"}
+
+  - name: "computed key from method result"
+    mapping: |
+      let name = "Hello"
+      root = {($name.lowercase()): true}
+    output: {"hello": true}
+
+  # --- Deleted with dynamic keys ---
+
+  - name: "delete object field with dynamic key"
+    skip: "V1 does not support variable path assignment with dynamic key"
+    mapping: |
+      let obj = {"a": 1, "b": 2, "c": 3}
+      let key = "b"
+      let obj = $obj.without($key)
+      root = $obj
+    output: {"a": 1, "c": 3}

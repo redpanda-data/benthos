@@ -1,0 +1,95 @@
+description: "Discard parameters (_) in lambda expressions"
+
+tests:
+  # V1 lambdas take a single named parameter (or `_`). Multi-param lambdas like `(k, v)` or `(acc, x)`
+  # are a V2-only syntax — V1 supplies multi-argument info via a single object (e.g. fold gives
+  # {tally, value}; map_each on objects gives {key, value}). So "discard key/value" mostly collapses
+  # into "ignore a field of that object" which doesn't need `_` at all.
+
+  # --- Basic discard ---
+
+  - name: "discard key in map_entries"
+    # In V1, .map_each on an object returns just the new value; the key is preserved.
+    # To change the key, we'd rebuild via fold. The V2 semantics here set key="x" and value=v*2
+    # which produces a single-entry object since all keys collapse to "x".
+    mapping: |
+      root.result = {"a": 1}.key_values().fold({}, item -> item.tally.merge({"x": item.value.value * 2}))
+    output: {"result": {"x": 2}}
+
+  - name: "discard value in map_entries"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.key_values().fold({}, item -> item.tally.merge({(item.value.key.uppercase()): 0}))
+    output: {"result": {"A": 0, "B": 0}}
+
+  - name: "discard accumulator in fold"
+    mapping: |
+      root.result = [10, 20, 30].fold(0, item -> item.value)
+    output: {"result": 30}
+
+  - name: "discard element in fold"
+    mapping: |
+      root.result = [10, 20, 30].fold(0, item -> item.tally + 1)
+    output: {"result": 3}
+
+  - name: "discard in filter_entries — use value only"
+    mapping: |
+      root.result = {"a": 1, "b": 5, "c": 3}.filter(item -> item.value > 2)
+    output: {"result": {"b": 5, "c": 3}}
+
+  - name: "discard in filter_entries — use key only"
+    mapping: |
+      root.result = {"aa": 1, "b": 5, "cc": 3}.filter(item -> item.key.length() > 1)
+    output: {"result": {"aa": 1, "cc": 3}}
+
+  # --- Multiple discards ---
+
+  - name: "both params discarded returns constant"
+    # V1: `.merge()` on a key that already exists does NOT overwrite — it appends into an array.
+    # So repeatedly merging `{"z": 99}` yields `{"z": [99, 99]}` after two iterations.
+    mapping: |
+      root.result = {"a": 1, "b": 2}.key_values().fold({}, item -> item.tally.merge({"z": 99}))
+    output: {"result": {"z": [99, 99]}}
+
+  - name: "both params discarded in fold"
+    mapping: |
+      root.result = [1, 2, 3].fold(0, _ -> 42)
+    output: {"result": 42}
+
+  # --- Referencing _ in body is compile error ---
+
+  - name: "referencing discarded param is compile error"
+    skip: "V1 multi-param lambdas use a single item object (item.key, item.value) — there is no per-param discard/reference concept to probe"
+
+  - name: "referencing _ when both discarded is compile error"
+    # V1: `_` as a lambda param binds no name, but referencing `_` in the body is not a compile error —
+    # the parser treats the bare `_` as a path segment against `this`, so it resolves to a (missing) field.
+    # No error at compile OR run time; the body just returns null.
+    mapping: |
+      root.result = [1, 2].fold(0, _ -> _)
+    output: {"result": null}
+
+  - name: "referencing _ in single param discard"
+    # V1: `_` binds no name, so `_ * 2` attempts `this._ * 2` — `this._` is null and the runtime
+    # arithmetic errors. Not a compile error.
+    mapping: |
+      root.result = [1, 2].map_each(_ -> _ * 2)
+    error: "cannot multiply types"
+
+  # --- Discard with non-discard params ---
+
+  - name: "discard first keep second in two-param lambda"
+    mapping: |
+      root.result = [10, 20, 30].fold("start", item -> item.value.string())
+    output: {"result": "30"}
+
+  - name: "keep first discard second in two-param lambda"
+    mapping: |
+      root.result = [10, 20, 30].fold(0, item -> item.tally + 100)
+    output: {"result": 300}
+
+  # --- Discard in map (single param) ---
+
+  - name: "discard single param in map returns constant array"
+    mapping: |
+      root.result = [1, 2, 3].map_each(_ -> "x")
+    output: {"result": ["x", "x", "x"]}

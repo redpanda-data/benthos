@@ -1,0 +1,196 @@
+description: "Array modify methods — append, concat, without_index, join, collect"
+
+tests:
+  # --- append ---
+
+  - name: "append to array"
+    mapping: |
+      output.result = [1, 2, 3].append(4)
+    output: {"result": [1, 2, 3, 4]}
+
+  - name: "append to empty array"
+    mapping: |
+      output.result = [].append("first")
+    output: {"result": ["first"]}
+
+  - name: "append null"
+    mapping: |
+      output.result = [1, 2].append(null)
+    output: {"result": [1, 2, null]}
+
+  - name: "append array as single element"
+    mapping: |
+      output.result = [1, 2].append([3, 4])
+    output: {"result": [1, 2, [3, 4]]}
+
+  - name: "append does not modify original"
+    mapping: |
+      $arr = [1, 2]
+      $new = $arr.append(3)
+      output.original = $arr
+      output.new = $new
+    output: {"original": [1, 2], "new": [1, 2, 3]}
+
+  - name: "append bool"
+    mapping: |
+      output.result = [1, "two"].append(true)
+    output: {"result": [1, "two", true]}
+
+  # --- concat ---
+
+  - name: "concat two arrays"
+    mapping: |
+      output.result = [1, 2].concat([3, 4])
+    output: {"result": [1, 2, 3, 4]}
+
+  - name: "concat with empty array"
+    mapping: |
+      output.result = [1, 2].concat([])
+    output: {"result": [1, 2]}
+
+  - name: "concat empty with non-empty"
+    mapping: |
+      output.result = [].concat([1, 2])
+    output: {"result": [1, 2]}
+
+  - name: "concat two empty arrays"
+    mapping: |
+      output.result = [].concat([])
+    output: {"result": []}
+
+  - name: "concat preserves element types"
+    mapping: |
+      output.result = ["a", "b"].concat([1, 2])
+    output: {"result": ["a", "b", 1, 2]}
+
+  - name: "concat does not modify original"
+    mapping: |
+      $a = [1, 2]
+      $b = [3, 4]
+      $c = $a.concat($b)
+      output.a = $a
+      output.b = $b
+      output.c = $c
+    output: {"a": [1, 2], "b": [3, 4], "c": [1, 2, 3, 4]}
+
+  # --- without_index ---
+
+  - name: "without_index removes element at index"
+    mapping: |
+      output.result = [10, 20, 30].without_index(1)
+    output: {"result": [10, 30]}
+
+  - name: "without_index first element"
+    mapping: |
+      output.result = [10, 20, 30].without_index(0)
+    output: {"result": [20, 30]}
+
+  - name: "without_index last element"
+    mapping: |
+      output.result = [10, 20, 30].without_index(2)
+    output: {"result": [10, 20]}
+
+  - name: "without_index negative index"
+    mapping: |
+      output.result = [10, 20, 30].without_index(-1)
+    output: {"result": [10, 20]}
+
+  - name: "without_index negative index second to last"
+    mapping: |
+      output.result = [10, 20, 30].without_index(-2)
+    output: {"result": [10, 30]}
+
+  - name: "without_index out of bounds positive is error"
+    mapping: |
+      output.result = [10, 20, 30].without_index(3)
+    error: "out of bounds"
+
+  - name: "without_index out of bounds negative is error"
+    mapping: |
+      output.result = [10, 20, 30].without_index(-4)
+    error: "out of bounds"
+
+  - name: "without_index single element array"
+    mapping: |
+      output.result = [42].without_index(0)
+    output: {"result": []}
+
+  - name: "without_index does not modify original"
+    mapping: |
+      $arr = [1, 2, 3]
+      $new = $arr.without_index(1)
+      output.original = $arr
+      output.new = $new
+    output: {"original": [1, 2, 3], "new": [1, 3]}
+
+  # --- join ---
+
+  - name: "join strings with delimiter"
+    mapping: |
+      output.result = ["a", "b", "c"].join(", ")
+    output: {"result": "a, b, c"}
+
+  - name: "join with empty delimiter"
+    mapping: |
+      output.result = ["a", "b", "c"].join("")
+    output: {"result": "abc"}
+
+  - name: "join empty array"
+    mapping: |
+      output.result = [].join(", ")
+    output: {"result": ""}
+
+  - name: "join single element"
+    mapping: |
+      output.result = ["hello"].join(", ")
+    output: {"result": "hello"}
+
+  - name: "join non-string element is error"
+    mapping: |
+      output.result = ["a", 2, "c"].join(", ")
+    error: "string"
+
+  - name: "join with newline delimiter"
+    mapping: |
+      output.result = ["line1", "line2", "line3"].join("\n")
+    output: {"result": "line1\nline2\nline3"}
+
+  # --- collect ---
+
+  - name: "collect key-value pairs into object"
+    mapping: |
+      $pairs = [{"key": "a", "value": 1}, {"key": "b", "value": 2}]
+      output.result = $pairs.collect()
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "collect empty array"
+    mapping: |
+      output.result = [].collect()
+    output: {"result": {}}
+
+  - name: "collect duplicate keys last wins"
+    mapping: |
+      $pairs = [{"key": "a", "value": 1}, {"key": "a", "value": 2}]
+      output.result = $pairs.collect()
+    output: {"result": {"a": 2}}
+
+  - name: "collect missing key field is error"
+    mapping: |
+      output.result = [{"value": 1}].collect()
+    error: "key"
+
+  - name: "collect missing value field is error"
+    mapping: |
+      output.result = [{"key": "a"}].collect()
+    error: "value"
+
+  - name: "collect non-object element is error"
+    mapping: |
+      output.result = ["not an object"].collect()
+    error: "key"
+
+  - name: "collect with mixed value types"
+    mapping: |
+      $pairs = [{"key": "name", "value": "Alice"}, {"key": "age", "value": 30}, {"key": "active", "value": true}]
+      output.result = $pairs.collect()
+    output: {"result": {"name": "Alice", "age": 30, "active": true}}

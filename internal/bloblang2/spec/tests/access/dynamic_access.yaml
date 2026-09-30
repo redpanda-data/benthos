@@ -1,0 +1,185 @@
+description: "Dynamic access with [expr]: arrays, objects, strings, bytes; type errors for wrong index types"
+
+tests:
+  # --- Object dynamic access ---
+
+  - name: "object dynamic access with string literal"
+    mapping: |
+      $obj = {"name": "Alice"}
+      output.v = $obj["name"]
+    output: {"v": "Alice"}
+
+  - name: "object dynamic access with variable"
+    mapping: |
+      $obj = {"color": "blue"}
+      $key = "color"
+      output.v = $obj[$key]
+    output: {"v": "blue"}
+
+  - name: "object dynamic access with expression"
+    mapping: |
+      $obj = {"key_a": "found"}
+      $suffix = "a"
+      output.v = $obj["key_" + $suffix]
+    output: {"v": "found"}
+
+  - name: "object dynamic access non-existent key returns null"
+    mapping: |
+      $obj = {"a": 1}
+      output.v = $obj["missing"]
+    output: {"v": null}
+
+  - name: "object dynamic access with integer key is error"
+    mapping: |
+      $obj = {"name": "Alice"}
+      output.v = $obj[0]
+    error: "non-string"
+
+  - name: "object dynamic access with bool key is error"
+    mapping: |
+      $obj = {"name": "Alice"}
+      output.v = $obj[true]
+    error: "non-string"
+
+  - name: "object dynamic access with null key is error"
+    mapping: |
+      $obj = {"name": "Alice"}
+      output.v = $obj[null]
+    error: "non-string"
+
+  # --- Array dynamic access ---
+
+  - name: "array index zero"
+    mapping: |
+      $arr = ["a", "b", "c"]
+      output.v = $arr[0]
+    output: {"v": "a"}
+
+  - name: "array index middle"
+    mapping: |
+      $arr = ["a", "b", "c"]
+      output.v = $arr[1]
+    output: {"v": "b"}
+
+  - name: "array index last"
+    mapping: |
+      $arr = ["a", "b", "c"]
+      output.v = $arr[2]
+    output: {"v": "c"}
+
+  - name: "array index with float whole number accepted"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[2.0]
+    output: {"v": 30}
+
+  - name: "array index with non-whole float is error"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[1.5]
+    error: "whole number"
+
+  - name: "array index with string is error"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr["0"]
+    error: "non-numeric"
+
+  - name: "array index with bool is error"
+    mapping: |
+      $arr = [10, 20, 30]
+      output.v = $arr[true]
+    error: "non-numeric"
+
+  - name: "array index with variable"
+    mapping: |
+      $arr = [10, 20, 30]
+      $i = 1
+      output.v = $arr[$i]
+    output: {"v": 20}
+
+  - name: "nested array and object dynamic access"
+    input: {"users": [{"name": "Alice"}, {"name": "Bob"}]}
+    mapping: |
+      output.v = input.users[1]["name"]
+    output: {"v": "Bob"}
+
+  # --- String dynamic access (codepoint) ---
+
+  - name: "string index returns codepoint value"
+    mapping: |
+      output.v = "hello"[0]
+    output: {"v": 104}
+
+  - name: "string index with float whole number accepted"
+    mapping: |
+      output.v = "hello"[2.0]
+    output: {"v": 108}
+
+  - name: "string index with non-whole float is error"
+    mapping: |
+      output.v = "hello"[1.5]
+    error: "whole number"
+
+  - name: "string index with string key is error"
+    mapping: |
+      output.v = "hello"["0"]
+    error: "non-numeric"
+
+  - name: "string index non-ascii codepoint value"
+    mapping: |
+      output.v = "caf\u00E9"[3]
+    output: {"v": 233}
+
+  # --- Bytes dynamic access ---
+
+  - name: "bytes index returns byte value"
+    mapping: |
+      output.v = "hello".bytes()[0]
+    output: {"v": 104}
+
+  - name: "bytes index with float whole number accepted"
+    mapping: |
+      output.v = "hello".bytes()[4.0]
+    output: {"v": 111}
+
+  - name: "bytes index with non-whole float is error"
+    mapping: |
+      output.v = "hello".bytes()[1.5]
+    error: "whole number"
+
+  # --- Indexing non-indexable types ---
+
+  - name: "index on boolean is error"
+    mapping: |
+      output.v = true[0]
+    error: "index"
+
+  - name: "index on integer is error"
+    mapping: |
+      output.v = 42[0]
+    error: "index"
+
+  - name: "index on float is error"
+    mapping: |
+      output.v = 3.14[0]
+    error: "index"
+
+  - name: "index on null is error"
+    mapping: |
+      output.v = null[0]
+    error: "index"
+
+  # --- Chained dynamic access ---
+
+  - name: "chained bracket access on nested object"
+    mapping: |
+      $data = {"a": {"b": {"c": "deep"}}}
+      output.v = $data["a"]["b"]["c"]
+    output: {"v": "deep"}
+
+  - name: "mixed dot and bracket access"
+    input: {"users": [{"name": "Alice"}]}
+    mapping: |
+      output.v = input.users[0].name
+    output: {"v": "Alice"}

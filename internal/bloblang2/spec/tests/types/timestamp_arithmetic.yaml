@@ -1,0 +1,195 @@
+description: >
+  Timestamp arithmetic edge cases — subtraction overflow for far-apart
+  timestamps, ts_add overflow, unix conversion round-trips, nanosecond
+  precision, fractional second formatting, and timezone handling.
+
+tests:
+  # --- Subtraction precision ---
+
+  - name: "timestamp subtraction with nanosecond precision"
+    mapping: |
+      $a = timestamp(2024, 3, 1, 0, 0, 0, 0)
+      $b = timestamp(2024, 3, 1, 0, 0, 0, 123456789)
+      output.diff = $b - $a
+    output: {"diff": 123456789}
+
+  - name: "timestamp subtraction across days"
+    mapping: |
+      $a = timestamp(2024, 3, 1, 0, 0, 0)
+      $b = timestamp(2024, 3, 3, 0, 0, 0)
+      output.diff = $b - $a
+    output: {"diff": 172800000000000}
+
+  - name: "timestamp subtraction across months"
+    mapping: |
+      $a = timestamp(2024, 1, 1, 0, 0, 0)
+      $b = timestamp(2024, 2, 1, 0, 0, 0)
+      output.diff = ($b - $a) / second()
+    output: {"diff": 2678400.0}
+
+  - name: "timestamp subtraction yields zero for same timestamp"
+    mapping: |
+      $t = timestamp(2024, 6, 15, 12, 0, 0)
+      output.diff = $t - $t
+    output: {"diff": 0}
+
+  # --- Subtraction overflow (timestamps > ~292 years apart) ---
+
+  - name: "timestamp subtraction overflow — far future minus far past"
+    mapping: |
+      $past = timestamp(1700, 1, 1, 0, 0, 0)
+      $future = timestamp(2300, 1, 1, 0, 0, 0)
+      output.diff = $future - $past
+    error: "overflow"
+
+  # --- ts_add edge cases ---
+
+  - name: "ts_add with nanosecond precision"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(1)
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T00:00:00.000000001Z"}}
+
+  - name: "ts_add with sub-millisecond precision"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(1500000)
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T00:00:00.0015Z"}}
+
+  - name: "ts_add negative one day"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(day() * -1)
+    output: {"ts": {_type: "timestamp", value: "2024-02-29T00:00:00Z"}}
+
+  - name: "ts_add crossing year boundary"
+    mapping: |
+      output.ts = timestamp(2024, 12, 31, 23, 59, 59).ts_add(second())
+    output: {"ts": {_type: "timestamp", value: "2025-01-01T00:00:00Z"}}
+
+  - name: "ts_add multiple days as seconds"
+    mapping: |
+      output.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(second() * 86400 * 7)
+    output: {"ts": {_type: "timestamp", value: "2024-03-08T00:00:00Z"}}
+
+  # --- Unix conversion round-trips ---
+
+  - name: "ts_unix round-trip"
+    mapping: |
+      $ts = timestamp(2024, 3, 1, 12, 0, 0)
+      output.rt = $ts.ts_unix().ts_from_unix().ts_format()
+    output: {"rt": "2024-03-01T12:00:00Z"}
+
+  - name: "ts_unix_milli round-trip with milliseconds"
+    mapping: |
+      $ts = timestamp(2024, 3, 1, 12, 0, 0, 123000000)
+      output.rt = $ts.ts_unix_milli().ts_from_unix_milli().ts_format()
+    output: {"rt": "2024-03-01T12:00:00.123Z"}
+
+  - name: "ts_unix_micro round-trip with microseconds"
+    mapping: |
+      $ts = timestamp(2024, 3, 1, 12, 0, 0, 123456000)
+      output.rt = $ts.ts_unix_micro().ts_from_unix_micro().ts_format()
+    output: {"rt": "2024-03-01T12:00:00.123456Z"}
+
+  - name: "ts_unix_nano lossless round-trip with nanoseconds"
+    mapping: |
+      $ts = timestamp(2024, 3, 1, 12, 0, 0, 123456789)
+      output.rt = $ts.ts_unix_nano().ts_from_unix_nano().ts_format()
+    output: {"rt": "2024-03-01T12:00:00.123456789Z"}
+
+  - name: "ts_unix returns int64"
+    mapping: |
+      output.v = timestamp(2024, 3, 1, 12, 0, 0).ts_unix().type()
+    output: {"v": "int64"}
+
+  - name: "ts_unix_nano returns int64"
+    mapping: |
+      output.v = timestamp(2024, 3, 1, 12, 0, 0).ts_unix_nano().type()
+    output: {"v": "int64"}
+
+  # --- Fractional second formatting ---
+
+  - name: "fractional seconds trim trailing zeros to shortest"
+    mapping: |
+      output.s = timestamp(2024, 3, 1, 12, 0, 0, 100000000).string()
+    output: {"s": "2024-03-01T12:00:00.1Z"}
+
+  - name: "microsecond precision formatting"
+    mapping: |
+      output.s = timestamp(2024, 3, 1, 12, 0, 0, 123456000).string()
+    output: {"s": "2024-03-01T12:00:00.123456Z"}
+
+  - name: "nanosecond precision formatting"
+    mapping: |
+      output.s = timestamp(2024, 3, 1, 12, 0, 0, 123456789).string()
+    output: {"s": "2024-03-01T12:00:00.123456789Z"}
+
+  # --- ts_parse timezone handling ---
+
+  - name: "ts_parse with Z timezone"
+    mapping: |
+      $ts = "2024-03-01T12:00:00Z".ts_parse()
+      output.s = $ts.ts_format()
+    output: {"s": "2024-03-01T12:00:00Z"}
+
+  - name: "ts_parse with positive offset"
+    mapping: |
+      $ts = "2024-03-01T12:00:00+05:30".ts_parse()
+      output.s = $ts.ts_format()
+    output: {"s": "2024-03-01T12:00:00+05:30"}
+
+  - name: "ts_parse with negative offset"
+    mapping: |
+      $ts = "2024-03-01T12:00:00-08:00".ts_parse()
+      output.s = $ts.ts_format()
+    output: {"s": "2024-03-01T12:00:00-08:00"}
+
+  - name: "ts_parse fractional seconds with nanosecond precision"
+    mapping: |
+      output.ts = "2024-03-01T12:00:00.123456789Z".ts_parse()
+    output: {"ts": {_type: "timestamp", value: "2024-03-01T12:00:00.123456789Z"}}
+
+  # --- ts_from_unix with float (limited precision) ---
+
+  - name: "ts_from_unix with integer"
+    mapping: |
+      output.s = 1709294400.ts_from_unix().ts_format()
+    output: {"s": "2024-03-01T12:00:00Z"}
+
+  - name: "ts_from_unix with float gives sub-second"
+    mapping: |
+      output.s = 1709294400.5.ts_from_unix().ts_format()
+    output: {"s": "2024-03-01T12:00:00.5Z"}
+
+  # --- Comparison with timestamps from different construction methods ---
+
+  - name: "timestamps from constructor and parse are equal"
+    mapping: |
+      $a = timestamp(2024, 3, 1, 12, 0, 0)
+      $b = "2024-03-01T12:00:00Z".ts_parse()
+      output.eq = $a == $b
+    output: {"eq": true}
+
+  - name: "timestamps from constructor and unix round-trip are equal"
+    mapping: |
+      $a = timestamp(2024, 3, 1, 12, 0, 0)
+      $b = $a.ts_unix().ts_from_unix()
+      output.eq = $a == $b
+    output: {"eq": true}
+
+  # --- Arithmetic type errors ---
+
+  - name: "number minus timestamp is error"
+    mapping: |
+      output.v = 100 - timestamp(2024, 3, 1)
+    error: "cannot"
+
+  - name: "timestamp plus timestamp is error"
+    mapping: |
+      $a = timestamp(2024, 3, 1)
+      $b = timestamp(2024, 3, 2)
+      output.v = $a + $b
+    error: "cannot add"
+
+  - name: "timestamp minus number is error"
+    mapping: |
+      output.v = timestamp(2024, 3, 1) - 1
+    error: "cannot"

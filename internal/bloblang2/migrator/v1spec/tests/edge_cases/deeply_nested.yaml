@@ -1,0 +1,108 @@
+description: "Edge cases: deeply nested objects, arrays, and expression chains"
+
+tests:
+  # --- Deep object nesting ---
+
+  - name: "access deeply nested object field"
+    mapping: |
+      root = this.a.b.c.d.e
+    input: {"a": {"b": {"c": {"d": {"e": "deep"}}}}}
+    output: "deep"
+
+  - name: "assign deeply nested output path"
+    mapping: |
+      root.a.b.c.d.e = "deep"
+    output: {"a": {"b": {"c": {"d": {"e": "deep"}}}}}
+
+  - name: "deeply nested object with mixed types"
+    mapping: |
+      root.a.b.c = {"x": [1, 2, {"y": true}]}
+    output: {"a": {"b": {"c": {"x": [1, 2, {"y": true}]}}}}
+
+  - name: "multiple deeply nested assignments"
+    mapping: |
+      root.a.b.c = 1
+      root.a.b.d = 2
+      root.a.e = 3
+    output: {"a": {"b": {"c": 1, "d": 2}, "e": 3}}
+
+  # --- Deep array nesting ---
+
+  - name: "access deeply nested array element"
+    mapping: |
+      root = this.arr.0.0.0
+    input: {"arr": [[[42]]]}
+    output: 42
+
+  - name: "deeply nested array literal"
+    mapping: |
+      root = [[[[1, 2], [3, 4]], [[5, 6]]]]
+    output: [[[[1, 2], [3, 4]], [[5, 6]]]]
+
+  - name: "mixed deep nesting — object in array in object"
+    mapping: |
+      root = this.data.0.items.1.value
+    input: {"data": [{"items": [{"value": "a"}, {"value": "b"}]}]}
+    output: "b"
+
+  - name: "long method chain on string"
+    mapping: |
+      root = "  Hello World  ".trim().lowercase().replace_all("hello", "hi").uppercase()
+    output: "HI WORLD"
+
+  - name: "long method chain on array"
+    # V1 `.reverse()` is a string method only — arrays use `.sort(left > right)` for descending order.
+    mapping: |
+      root = [3, 1, 4, 1, 5, 9, 2, 6].unique().sort(left > right)
+    output: [9, 6, 5, 4, 3, 2, 1]
+
+  - name: "chained map calls"
+    mapping: |
+      map inc { root = this + 1 }
+      map double { root = this * 2 }
+      root = 1.apply("inc").apply("double").apply("inc").apply("double")
+    output: 10
+
+  - name: "nested ternary-style if expressions"
+    mapping: |
+      let x = 5
+      root = if $x > 10 { "big" } else { if $x > 3 { "medium" } else { "small" } }
+    output: "medium"
+
+  - name: "nested match expressions"
+    mapping: |
+      let x = "b"
+      root = match $x {
+        "a" => match 1 { 1 => "a1", _ => "a?" },
+        "b" => match 2 { 1 => "b1", 2 => "b2", _ => "b?" },
+        _ => "other",
+      }
+    output: "b2"
+
+  # --- Deep object construction ---
+
+  - name: "object literal with nested objects and arrays"
+    mapping: |
+      root = {
+        "users": [
+          {"name": "Alice", "tags": ["admin", "user"]},
+          {"name": "Bob", "tags": ["user"]},
+        ],
+        "meta": {"count": 2, "active": true},
+      }
+    output: {"users": [{"name": "Alice", "tags": ["admin", "user"]}, {"name": "Bob", "tags": ["user"]}], "meta": {"count": 2, "active": true}}
+
+  # --- Deep null-safe access ---
+
+  - name: "null-safe chain through missing nested fields"
+    mapping: |
+      root = this.a.b.c.d
+    input: {"a": null}
+    output: null
+    # FIXME-v1: verify — V1 path access through null returns null (§12.5), no ?. needed.
+
+  - name: "null-safe chain where middle is present"
+    mapping: |
+      root = this.a.b.c
+    input: {"a": {"b": {"c": 42}}}
+    output: 42

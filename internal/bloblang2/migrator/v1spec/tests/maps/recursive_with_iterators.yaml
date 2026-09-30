@@ -1,0 +1,106 @@
+description: >
+  Recursive maps combined with iterators — recursive map called from
+  within fold, map, and filter lambdas. These stress variable stack
+  frame isolation during recursion.
+
+# V1 .fold has a two-lambda signature: .fold(init, tally -> value -> ...). V2 uses a single
+# (acc, item) -> ... lambda pair. V1's equivalent of V2 .map_values is .map_each paired with
+# .key_values()/.from_all, but the direct analogue used here is .map_values (same name exists in V1).
+# .iter() yields {key,value} entries in both dialects.
+
+tests:
+  # --- Recursive map called from map lambda ---
+
+  - name: "recursive deep_values extracts all leaf values"
+    # V1 fold is NOT curried — its lambda takes a single item parameter `{tally, value}`.
+    # `.concat()` is not registered in the migrator's bare env; use `.merge()` instead.
+    # Lambda bodies must start on the same line as `->`.
+    mapping: |
+      map deep_values {
+        root = this.key_values().fold([], item -> if item.value.value.type() == "object" { item.tally.merge(item.value.value.apply("deep_values")) } else { item.tally.merge([item.value.value]) })
+      }
+      root.v = {"a": 1, "b": {"c": 2, "d": 3}}.apply("deep_values").sort()
+    output: {"v": [1, 2, 3]}
+
+  - name: "recursive deep_values with three levels"
+    mapping: |
+      map deep_values {
+        root = this.key_values().fold([], item -> if item.value.value.type() == "object" { item.tally.merge(item.value.value.apply("deep_values")) } else { item.tally.merge([item.value.value]) })
+      }
+      root.v = {"a": {"b": {"c": 1}}, "d": 2}.apply("deep_values").sort()
+    output: {"v": [1, 2]}
+
+  # --- Recursive map with map_values ---
+
+  - name: "recursive double_all doubles nested values"
+    # V1 has no `.map_values` — for objects, `.map_each(item -> ...)` receives `{key, value}`
+    # entries and returns the new value (the key is preserved).
+    mapping: |
+      map double_all {
+        root = if this.type() == "object" {
+          this.map_each(item -> item.value.apply("double_all"))
+        } else if this.type() == "array" {
+          this.map_each(v -> v.apply("double_all"))
+        } else if this.type() == "number" {
+          this * 2
+        } else {
+          this
+        }
+      }
+      root = {"a": 1, "b": [2, 3], "c": {"d": 4}}.apply("double_all")
+    output: {"a": 2, "b": [4, 6], "c": {"d": 8}}
+
+  # --- Recursive count with filter ---
+
+  - name: "recursive count_strings counts string leaves"
+    # V1 fold is NOT curried — use a single `item -> ...` lambda where item is `{tally, value}`.
+    mapping: |
+      map count_strings {
+        root = if this.type() == "string" {
+          1
+        } else if this.type() == "object" {
+          this.key_values().fold(0, item -> item.tally + item.value.value.apply("count_strings"))
+        } else if this.type() == "array" {
+          this.fold(0, item -> item.tally + item.value.apply("count_strings"))
+        } else {
+          0
+        }
+      }
+      root.v = {"name": "Alice", "age": 30, "tags": ["admin", "user"], "meta": {"role": "lead"}}.apply("count_strings")
+    output: {"v": 4}
+
+  # --- Recursive with local variables in fold ---
+
+  - name: "recursive sum_nested with accumulator variable"
+    # V1 fold is NOT curried — use a single `item -> ...` lambda.
+    mapping: |
+      map sum_nested {
+        root = if this.type() == "array" {
+          this.fold(0, item -> item.tally + item.value.apply("sum_nested"))
+        } else {
+          this
+        }
+      }
+      root.v = [1, [2, [3, 4]], 5].apply("sum_nested")
+    output: {"v": 15}
+
+  # --- Recursive map returning modified copy ---
+
+  - name: "recursive redact replaces strings with ***"
+    # V1 has no `.map_values` — use `.map_each(item -> ...)` on objects. Also: `match <expr> { ... }`
+    # rebinds `this` inside each arm to the match value, so `this.type()` as the match head makes
+    # `this` become a string inside arms. Use `if/else if` chains instead.
+    mapping: |
+      map redact {
+        root = if this.type() == "string" {
+          "***"
+        } else if this.type() == "object" {
+          this.map_each(item -> item.value.apply("redact"))
+        } else if this.type() == "array" {
+          this.map_each(v -> v.apply("redact"))
+        } else {
+          this
+        }
+      }
+      root = {"name": "Alice", "age": 30, "contacts": [{"email": "a@b.com"}]}.apply("redact")
+    output: {"name": "***", "age": 30, "contacts": [{"email": "***"}]}

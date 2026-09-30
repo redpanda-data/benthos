@@ -1,0 +1,108 @@
+description: >
+  Iterator chain patterns — complex combinations of .iter(), .map(),
+  .filter(), .fold(), .map_entries(), .map_values() with nested lambdas,
+  outer variable capture, and control flow inside lambda bodies.
+
+tests:
+  # --- iter + fold to rebuild object ---
+
+  - name: "iter then fold to filter and rebuild object"
+    mapping: |
+      $obj = {"a": 1, "b": 2, "c": 3, "d": 4}
+      output.v = $obj.iter().filter(e -> e.value > 2).fold({}, (acc, e) -> {
+        $a = acc
+        $a[e.key] = e.value
+        $a
+      })
+    output: {"v": {"c": 3, "d": 4}}
+
+  - name: "iter then map then fold"
+    mapping: |
+      output.v = {"x": 1, "y": 2}.iter()
+        .map(e -> {"key": e.key.uppercase(), "value": e.value * 10})
+        .fold({}, (acc, e) -> {
+          $a = acc
+          $a[e.key] = e.value
+          $a
+        })
+    output: {"v": {"X": 10, "Y": 20}}
+
+  # --- map_entries with complex lambda ---
+
+  - name: "map_entries with if in lambda body"
+    mapping: |
+      output.v = {"a": 1, "b": -2, "c": 3}.map_entries((k, v) ->
+        if v < 0 { deleted() } else { {"key": k.uppercase(), "value": v * 10} }
+      )
+    output: {"v": {"A": 10, "C": 30}}
+
+  - name: "map_entries with block body and local variables"
+    mapping: |
+      output.v = {"name": "alice", "city": "london"}.map_entries((k, v) -> {
+        $upper_key = k.uppercase()
+        $upper_val = v.uppercase()
+        {"key": $upper_key, "value": $upper_val}
+      })
+    output: {"v": {"NAME": "ALICE", "CITY": "LONDON"}}
+
+  # --- filter + map + sort chain ---
+
+  - name: "filter then map then sort"
+    mapping: |
+      output.v = [5, -3, 8, -1, 4, -6]
+        .filter(x -> x > 0)
+        .map(x -> x * x)
+        .sort()
+    output: {"v": [16, 25, 64]}
+
+  # --- map with outer capture + dynamic path ---
+
+  - name: "map with outer capture building objects"
+    mapping: |
+      $prefix = "item"
+      output.v = [10, 20, 30].enumerate().map(e -> {
+        $obj = {}
+        $obj[$prefix + "_" + e.index.string()] = e.value
+        $obj
+      })
+    output: {"v": [{"item_0": 10}, {"item_1": 20}, {"item_2": 30}]}
+
+  # --- Nested map operations ---
+
+  - name: "map_values calling map on inner arrays"
+    mapping: |
+      output.v = {"a": [1, 2], "b": [3, 4]}.map_values(arr -> arr.map(x -> x * 10))
+    output: {"v": {"a": [10, 20], "b": [30, 40]}}
+
+  - name: "map_values with fold on inner arrays"
+    mapping: |
+      output.v = {"a": [1, 2, 3], "b": [4, 5]}.map_values(arr -> arr.sum())
+    output: {"v": {"a": 6, "b": 9}}
+
+  # --- Combined filter_entries and map_values ---
+
+  - name: "filter_entries then map_values chain"
+    mapping: |
+      output.v = {"a": 1, "b": 2, "c": 3}
+        .filter_entries((k, v) -> v > 1)
+        .map_values(v -> v * 100)
+    output: {"v": {"b": 200, "c": 300}}
+
+  # --- map producing objects then collect ---
+
+  - name: "map to key-value then collect"
+    mapping: |
+      output.v = [1, 2, 3].map(x -> {"key": "item_" + x.string(), "value": x * 10}).collect()
+    output: {"v": {"item_1": 10, "item_2": 20, "item_3": 30}}
+
+  # --- Chained any/all after transform ---
+
+  - name: "map then any"
+    mapping: |
+      output.v = [1, 2, 3, 4, 5].map(x -> x * x).any(sq -> sq > 20)
+    output: {"v": true}
+
+  - name: "filter then all"
+    mapping: |
+      output.v = [2, 4, 6, 8, 10].filter(x -> x > 3).all(x -> x % 2 == 0)
+    output: {"v": true}

@@ -1,0 +1,187 @@
+description: ".type() method for every runtime type"
+
+tests:
+  # --- String ---
+
+  - name: "type of string"
+    mapping: |
+      root.t = "hello".type()
+    output: {"t": "string"}
+
+  - name: "type of empty string"
+    mapping: |
+      root.t = "".type()
+    output: {"t": "string"}
+
+  # --- Integer types ---
+
+  - name: "type of int64 literal"
+    mapping: |
+      root.t = 42.type()
+    # V1 .type() returns "number" for all numerics
+    output: {"t": "number"}
+
+  - name: "type of negative int64"
+    mapping: |
+      root.t = (-10).type()
+    output: {"t": "number"}
+
+  - name: "type of zero int64"
+    mapping: |
+      root.t = 0.type()
+    output: {"t": "number"}
+
+  - name: "type of int32"
+    mapping: |
+      root.t = 42.number().type()
+    skip: "V2-only: V1 has no int32 type"
+
+  - name: "type of uint32"
+    mapping: |
+      root.t = 42.number().type()
+    skip: "V2-only: V1 has no uint32 type"
+
+  - name: "type of uint64"
+    mapping: |
+      root.t = 42.number().type()
+    skip: "V2-only: V1 has no uint64 type"
+
+  # --- Float types ---
+
+  - name: "type of float64 literal"
+    mapping: |
+      root.t = 3.14.type()
+    output: {"t": "number"}
+
+  - name: "type of float64 zero"
+    mapping: |
+      root.t = 0.0.type()
+    output: {"t": "number"}
+
+  - name: "type of float32"
+    mapping: |
+      root.t = 3.14.number().type()
+    skip: "V2-only: V1 has no float32 type"
+
+  # --- Bool ---
+
+  - name: "type of true"
+    mapping: |
+      root.t = true.type()
+    output: {"t": "bool"}
+
+  - name: "type of false"
+    mapping: |
+      root.t = false.type()
+    output: {"t": "bool"}
+
+  # --- Null ---
+
+  - name: "type of null"
+    mapping: |
+      root.t = null.type()
+    output: {"t": "null"}
+
+  # --- Bytes ---
+
+  - name: "type of bytes"
+    mapping: |
+      root.t = "hello".bytes().type()
+    output: {"t": "bytes"}
+
+  # --- Timestamp ---
+
+  - name: "type of timestamp from constructor"
+    mapping: |
+      root.t = timestamp(2024, 3, 1).type()
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "type of timestamp from now"
+    mapping: |
+      root.t = now().type()
+    # V1 now() returns an RFC3339 string, not a timestamp value
+    output: {"t": "string"}
+
+  - name: "type of timestamp from parse"
+    mapping: |
+      root.t = "2024-03-01T00:00:00Z".ts_parse().type()
+    skip: "V1 ts_parse requires explicit format argument"
+
+  # --- Array ---
+
+  - name: "type of array"
+    mapping: |
+      root.t = [1, 2, 3].type()
+    output: {"t": "array"}
+
+  - name: "type of empty array"
+    mapping: |
+      root.t = [].type()
+    output: {"t": "array"}
+
+  # --- Object ---
+
+  - name: "type of object"
+    mapping: |
+      root.t = {"a": 1}.type()
+    output: {"t": "object"}
+
+  - name: "type of empty object"
+    mapping: |
+      root.t = {}.type()
+    output: {"t": "object"}
+
+  # --- Type checking pattern ---
+
+  - name: "type comparison for runtime check"
+    mapping: |
+      let v = 42
+      root.is_int = $v.type() == "number"
+      root.is_str = $v.type() == "string"
+    # V1: .type() returns "number", not "int64"
+    output: {"is_int": true, "is_str": false}
+
+  - name: "type of null is not object"
+    mapping: |
+      root.is_obj = null.type() == "object"
+      root.is_null = null.type() == "null"
+    output: {"is_obj": false, "is_null": true}
+
+  # --- Type from input ---
+
+  - name: "type of input string field"
+    input: {"name": "Alice"}
+    mapping: |
+      root.t = this.name.type()
+    output: {"t": "string"}
+
+  - name: "type of input number field"
+    input: {"count": 42}
+    mapping: |
+      root.t = this.count.type()
+    output: {"t": "number"}
+
+  - name: "type of input null field"
+    input: {"missing": null}
+    mapping: |
+      root.t = this.missing.type()
+    output: {"t": "null"}
+
+  - name: "type of input array field"
+    input: {"items": [1, 2]}
+    mapping: |
+      root.t = this.items.type()
+    output: {"t": "array"}
+
+  - name: "type of input object field"
+    input: {"user": {"name": "Alice"}}
+    mapping: |
+      root.t = this.user.type()
+    output: {"t": "object"}
+
+  # --- Void: type() is not callable ---
+
+  - name: "type on void is error"
+    mapping: |
+      root.t = (if false { 42 }).type()
+    skip: "V2-only: V1 has no 'void' concept; if-without-else yields null, .type() returns 'null'"

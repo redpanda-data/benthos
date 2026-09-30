@@ -71,6 +71,7 @@ type lintErrors struct {
 func (m *Type) lintCtx() docs.LintContext {
 	lConf := docs.NewLintConfig(m.manager.Environment())
 	lConf.BloblangEnv = bloblang.XWrapEnvironment(m.manager.BloblEnvironment()).Deactivated()
+	lConf.BloblangV2Env = m.manager.BloblV2Environment()
 	return docs.NewLintContext(lConf)
 }
 

@@ -1,0 +1,66 @@
+description: >
+  Parameter shadowing — parameter names shadow map names within the map
+  body. The parameter always wins. Lambda parameters can also shadow.
+
+# V1 maps have no named parameters — the receiver is `this`. There is no parameter-versus-map-name
+# shadowing to test. Lambda-parameter shadowing does still apply in V1, so those cases are translated.
+
+tests:
+  # --- Parameter shadows map name ---
+
+  - name: "parameter with same name as another map shadows it"
+    skip: "V1 maps have no named parameters — there is no parameter-versus-map-name shadowing"
+
+  - name: "shadowed map name not callable in map body"
+    skip: "V1 maps have no named parameters — there is no parameter-versus-map-name shadowing"
+
+  - name: "non-shadowed maps still callable"
+    skip: "V1 maps have no named parameters — there is no parameter-versus-map-name shadowing"
+
+  - name: "parameter shadows map but map callable outside"
+    skip: "V1 maps have no named parameters — there is no parameter-versus-map-name shadowing"
+
+  # --- Lambda parameter shadows outer variable ---
+
+  - name: "lambda parameter shadows outer variable"
+    mapping: |
+      let x = 100
+      root.v = [1, 2, 3].map_each(x -> x * 2)
+    output: {"v": [2, 4, 6]}
+
+  - name: "lambda parameter shadows map parameter"
+    mapping: |
+      map process {
+        # The V2 test passes 999 as `x`; the equivalent in V1 is to ignore `this`.
+        root = [1, 2, 3].map_each(x -> x * 10)
+      }
+      root.v = 999.apply("process")
+    output: {"v": [10, 20, 30]}
+
+  - name: "nested lambda parameters shadow each level"
+    # V1 rejects named-parameter collisions between nested lambdas in the same chain
+    # ("would shadow a parent context") — so the V2 "inner x shadows outer x" form
+    # is a V1 compile error. Rename the inner lambda parameter to y.
+    mapping: |
+      root.v = [1, 2].map_each(x -> [10, 20].map_each(y -> y * 100))
+    output: {"v": [[1000, 2000], [1000, 2000]]}
+
+  # --- Parameter shadow does not affect caller ---
+
+  - name: "shadowing does not leak to caller"
+    skip: "V1 maps have no named parameters — there is no parameter-versus-map-name shadowing"
+
+  # --- Discard parameter does not shadow ---
+
+  - name: "discard parameter does not shadow anything"
+    skip: "V1 maps have no parameter list and no `_` discard placeholder"
+
+  # --- Multiple parameters, one shadows ---
+
+  - name: "one parameter shadows map, other does not"
+    skip: "V1 maps have no named parameters — there is no parameter-versus-map-name shadowing"
+
+  # --- Parameter read-only ---
+
+  - name: "parameter is read-only in map body"
+    skip: "V1 maps have no named parameters — `this` (the receiver) is not an assignment target anywhere"

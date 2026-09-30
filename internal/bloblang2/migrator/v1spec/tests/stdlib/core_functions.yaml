@@ -1,0 +1,210 @@
+description: "Core stdlib functions: uuid_v4, now, random_int, range, timestamp constructor, duration constants"
+
+tests:
+  # --- uuid_v4 ---
+
+  - name: "uuid_v4 returns a string"
+    mapping: |
+      root = uuid_v4().type()
+    output: "string"
+
+  - name: "uuid_v4 is non-deterministic"
+    mapping: |
+      root = uuid_v4()
+    no_output_check: true
+    output_type: "string"
+
+  - name: "uuid_v4 returns 36 chars"
+    mapping: |
+      root = uuid_v4().length()
+    output: 36
+
+  - name: "uuid_v4 two calls differ"
+    mapping: |
+      root = uuid_v4() != uuid_v4()
+    output: true
+
+  # --- now (V1 now() returns RFC3339 string, not timestamp) ---
+
+  - name: "now returns a timestamp"
+    mapping: |
+      root = now()
+    no_output_check: true
+    output_type: "string"
+
+  - name: "now type check"
+    mapping: |
+      root = now().type()
+    output: "string"
+
+  - name: "now called twice may differ"
+    mapping: |
+      let a = now()
+      let b = now()
+      root = $a <= $b
+    output: true
+
+  # --- random_int (V1 positional is (seed, min, max); use named args) ---
+
+  - name: "random_int returns int64"
+    mapping: |
+      root = random_int(min: 0, max: 10).type()
+    output: "number"
+
+  - name: "random_int within range"
+    mapping: |
+      let v = random_int(min: 5, max: 5)
+      root = $v
+    output: 5
+
+  - name: "random_int is non-deterministic"
+    mapping: |
+      root = random_int(min: 0, max: 1000000)
+    no_output_check: true
+    output_type: "int64"
+
+  - name: "random_int min equals max returns that value"
+    mapping: |
+      root = random_int(min: 42, max: 42)
+    output: 42
+
+  - name: "random_int min greater than max is error"
+    mapping: |
+      root = random_int(min: 10, max: 5)
+    compile_error: "min"
+
+  - name: "random_int named args reorder correctly"
+    mapping: |
+      root = random_int(max: 5, min: 5)
+    output: 5
+
+  - name: "random_int named args reversed still works"
+    mapping: |
+      let v = random_int(max: 10, min: 10)
+      root = $v
+    output: 10
+
+  - name: "random_int negative range"
+    skip: "V1 random_int rejects negative min at compile time (must be positive)"
+
+  # --- range ---
+
+  - name: "range ascending default step"
+    mapping: |
+      root = range(0, 5)
+    output: [0, 1, 2, 3, 4]
+
+  - name: "range ascending explicit step"
+    mapping: |
+      root = range(0, 10, 2)
+    output: [0, 2, 4, 6, 8]
+
+  - name: "range descending inferred step"
+    skip: "V1 range does not auto-infer negative step; must be explicit"
+
+  - name: "range descending explicit step"
+    mapping: |
+      root = range(10, 0, -3)
+    output: [10, 7, 4]
+
+  - name: "range start equals stop is empty"
+    mapping: |
+      root = range(5, 5)
+    compile_error: "must be <"
+
+  - name: "range step zero is error"
+    mapping: |
+      root = range(0, 5, 0)
+    compile_error: "step"
+
+  - name: "range step contradicts direction positive"
+    mapping: |
+      root = range(0, 5, -1)
+    compile_error: "step"
+
+  - name: "range step contradicts direction negative"
+    mapping: |
+      root = range(5, 0, 1)
+    compile_error: "step"
+
+  - name: "range single element"
+    mapping: |
+      root = range(0, 1)
+    output: [0]
+
+  - name: "range negative values"
+    mapping: |
+      root = range(-3, 3)
+    output: [-3, -2, -1, 0, 1, 2]
+
+  - name: "range result element type is int64"
+    mapping: |
+      root = range(0, 3).index(0).type()
+    output: "number"
+
+  - name: "range named args reorder correctly"
+    mapping: |
+      root = range(stop: 3, start: 0)
+    output: [0, 1, 2]
+
+  - name: "range named args with step"
+    mapping: |
+      root = range(stop: 10, start: 0, step: 3)
+    output: [0, 3, 6]
+
+  - name: "range named args omit optional step"
+    mapping: |
+      root = range(stop: 3, start: 0)
+    output: [0, 1, 2]
+
+  # --- timestamp constructor ---
+
+  - name: "timestamp required args only"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "timestamp all positional args"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "timestamp with named args"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "timestamp with timezone"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "timestamp invalid month zero"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "timestamp invalid month thirteen"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "timestamp invalid day zero"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "timestamp invalid timezone"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "timestamp named args skip middle optional params"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "timestamp named args all required only"
+    skip: "V1 has no timestamp() function constructor"
+
+  # --- duration constants ---
+
+  - name: "second returns 1e9 nanoseconds"
+    skip: "V1 has no second() duration constant"
+
+  - name: "minute returns 60e9 nanoseconds"
+    skip: "V1 has no minute() duration constant"
+
+  - name: "hour returns 3600e9 nanoseconds"
+    skip: "V1 has no hour() duration constant"
+
+  - name: "day returns 86400e9 nanoseconds"
+    skip: "V1 has no day() duration constant"
+
+  - name: "duration constants are int64"
+    skip: "V1 has no second() duration constant"
+
+  - name: "duration arithmetic 2 hours plus 30 minutes"
+    skip: "V1 has no hour()/minute() duration constants"

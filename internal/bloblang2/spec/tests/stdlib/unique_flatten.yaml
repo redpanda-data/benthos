@@ -1,0 +1,98 @@
+description: >
+  .unique() and .flatten() methods — deduplication and one-level flattening.
+
+tests:
+  # --- unique basic ---
+
+  - name: "unique integers"
+    mapping: |
+      output.v = [1, 2, 3, 2, 1].unique()
+    output: {"v": [1, 2, 3]}
+
+  - name: "unique strings"
+    mapping: |
+      output.v = ["a", "b", "a", "c", "b"].unique()
+    output: {"v": ["a", "b", "c"]}
+
+  - name: "unique preserves first occurrence order"
+    mapping: |
+      output.v = [3, 1, 2, 1, 3, 2].unique()
+    output: {"v": [3, 1, 2]}
+
+  - name: "unique on empty array"
+    mapping: |
+      output.v = [].unique()
+    output: {"v": []}
+
+  - name: "unique single element"
+    mapping: |
+      output.v = [42].unique()
+    output: {"v": [42]}
+
+  - name: "unique all same elements"
+    mapping: |
+      output.v = [5, 5, 5, 5].unique()
+    output: {"v": [5]}
+
+  - name: "unique booleans"
+    mapping: |
+      output.v = [true, false, true, false, true].unique()
+    output: {"v": [true, false]}
+
+  - name: "unique with null values"
+    mapping: |
+      output.v = [1, null, 2, null, 3].unique()
+    output: {"v": [1, null, 2, 3]}
+
+  # --- unique with key function ---
+
+  - name: "unique with key function on objects"
+    mapping: |
+      output.v = [
+        {"id": 1, "name": "Alice"},
+        {"id": 2, "name": "Bob"},
+        {"id": 1, "name": "Alice2"},
+      ].unique(x -> x.id)
+    output: {"v": [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]}
+
+  - name: "unique with key function — string length"
+    mapping: |
+      output.v = ["hi", "hey", "yo", "sup"].unique(s -> s.length())
+    output: {"v": ["hi", "hey"]}
+
+  # --- flatten basic ---
+
+  - name: "flatten nested arrays one level"
+    mapping: |
+      output.v = [[1, 2], [3, 4], [5]].flatten()
+    output: {"v": [1, 2, 3, 4, 5]}
+
+  - name: "flatten empty inner arrays"
+    mapping: |
+      output.v = [[], [1], [], [2, 3], []].flatten()
+    output: {"v": [1, 2, 3]}
+
+  - name: "flatten empty outer array"
+    mapping: |
+      output.v = [].flatten()
+    output: {"v": []}
+
+  - name: "flatten non-array elements kept as-is"
+    mapping: |
+      output.v = [1, [2, 3], 4, [5]].flatten()
+    output: {"v": [1, 2, 3, 4, 5]}
+
+  - name: "flatten only goes one level deep"
+    mapping: |
+      output.v = [[[1, 2]], [[3]]].flatten()
+    output: {"v": [[1, 2], [3]]}
+
+  - name: "flatten single nested array"
+    mapping: |
+      output.v = [[1, 2, 3]].flatten()
+    output: {"v": [1, 2, 3]}
+
+  - name: "flatten preserves non-array types in mixed"
+    mapping: |
+      output.v = ["a", ["b", "c"], "d"].flatten()
+    output: {"v": ["a", "b", "c", "d"]}

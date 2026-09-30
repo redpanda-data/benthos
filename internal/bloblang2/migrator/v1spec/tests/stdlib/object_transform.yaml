@@ -1,0 +1,153 @@
+description: "Object transform methods — map_values, map_keys, map_entries, filter_entries"
+
+tests:
+  # --- map_values (V1: map_each with item.value) ---
+
+  - name: "map_values transforms all values"
+    mapping: |
+      root.result = {"a": 1, "b": 2, "c": 3}.map_each(item -> item.value * 10)
+    output: {"result": {"a": 10, "b": 20, "c": 30}}
+
+  - name: "map_values on empty object"
+    mapping: |
+      root.result = {}.map_each(item -> item.value + 1)
+    output: {"result": {}}
+
+  - name: "map_values can change value types"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.map_each(item -> item.value.string())
+    output: {"result": {"a": "1", "b": "2"}}
+
+  - name: "map_values void return is error"
+    skip: "V1 has no 'void' concept; if-without-else returns null"
+
+  - name: "map_values deleted omits entry"
+    mapping: |
+      root.result = {"a": 1, "b": 2, "c": 3}.map_each(item -> if item.value > 1 { item.value * 10 } else { deleted() })
+    output: {"result": {"b": 20, "c": 30}}
+
+  - name: "map_values does not modify original"
+    mapping: |
+      let obj = {"x": 1, "y": 2}
+      let new = $obj.map_each(item -> item.value + 100)
+      root.original = $obj
+      root.new = $new
+    output: {"original": {"x": 1, "y": 2}, "new": {"x": 101, "y": 102}}
+
+  - name: "map_values with block body"
+    skip: "V1 lambdas do not support block-with-let syntax"
+
+  # --- map_keys (V1: map_each_key) ---
+
+  - name: "map_keys transforms all keys"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.map_each_key(k -> k.uppercase())
+    output: {"result": {"A": 1, "B": 2}}
+
+  - name: "map_keys on empty object"
+    mapping: |
+      root.result = {}.map_each_key(k -> k + "_suffix")
+    output: {"result": {}}
+
+  - name: "map_keys adds prefix"
+    mapping: |
+      root.result = {"name": "Alice", "age": 30}.map_each_key(k -> "user_" + k)
+    output: {"result": {"user_name": "Alice", "user_age": 30}}
+
+  - name: "map_keys must return string"
+    mapping: |
+      root.result = {"a": 1}.map_each_key(k -> 42)
+    error: "string"
+
+  - name: "map_keys void return is error"
+    skip: "V1 has no 'void' concept"
+
+  - name: "map_keys deleted omits entry"
+    mapping: |
+      root.result = {"keep": 1, "drop": 2, "also_keep": 3}.map_each(item -> if item.key.has_prefix("drop") { deleted() } else { item.value })
+    output: {"result": {"keep": 1, "also_keep": 3}}
+
+  - name: "map_keys does not modify original"
+    mapping: |
+      let obj = {"a": 1, "b": 2}
+      let new = $obj.map_each_key(k -> k.uppercase())
+      root.original = $obj
+      root.new = $new
+    output: {"original": {"a": 1, "b": 2}, "new": {"A": 1, "B": 2}}
+
+  # --- map_entries (V1 has no equivalent returning {key,value}) ---
+
+  - name: "map_entries transforms keys and values"
+    skip: "V1 has no map_entries method"
+
+  - name: "map_entries on empty object"
+    skip: "V1 has no map_entries method"
+
+  - name: "map_entries swap keys and values"
+    skip: "V1 has no map_entries method"
+
+  - name: "map_entries deleted omits entry"
+    skip: "V1 has no map_entries method"
+
+  - name: "map_entries void return is error"
+    skip: "V1 has no map_entries method"
+
+  - name: "map_entries with computed keys"
+    skip: "V1 has no map_entries method"
+
+  - name: "map_entries does not modify original"
+    skip: "V1 has no map_entries method"
+
+  - name: "map_entries with block body"
+    skip: "V1 has no map_entries method"
+
+  # --- filter_entries (V1: filter on object with item.key/item.value) ---
+
+  - name: "filter_entries keeps matching entries"
+    mapping: |
+      root.result = {"a": 1, "b": 5, "c": 3}.filter(item -> item.value > 2)
+    output: {"result": {"b": 5, "c": 3}}
+
+  - name: "filter_entries on empty object"
+    mapping: |
+      root.result = {}.filter(item -> true)
+    output: {"result": {}}
+
+  - name: "filter_entries no matches"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.filter(item -> item.value > 100)
+    output: {"result": {}}
+
+  - name: "filter_entries all match"
+    mapping: |
+      root.result = {"a": 1, "b": 2}.filter(item -> item.value > 0)
+    output: {"result": {"a": 1, "b": 2}}
+
+  - name: "filter_entries by key"
+    mapping: |
+      root.result = {"name": "Alice", "age": 30, "note": "test"}.filter(item -> item.key.has_prefix("n"))
+    output: {"result": {"name": "Alice", "note": "test"}}
+
+  - name: "filter_entries non-bool return is error"
+    mapping: |
+      root.result = {"a": 1}.filter(item -> item.value * 2)
+    output: {"result": {}}
+
+  - name: "filter_entries void return is error"
+    skip: "V1 has no 'void' concept"
+
+  - name: "filter_entries does not modify original"
+    mapping: |
+      let obj = {"a": 1, "b": 2, "c": 3}
+      let new = $obj.filter(item -> item.value > 1)
+      root.original = $obj
+      root.new = $new
+    output: {"original": {"a": 1, "b": 2, "c": 3}, "new": {"b": 2, "c": 3}}
+
+  - name: "filter_entries combined key and value condition"
+    mapping: |
+      root.result = {"x": 10, "y": 20, "z": 5}.filter(item -> item.key != "y" && item.value > 3)
+    output: {"result": {"x": 10, "z": 5}}
+
+  - name: "filter_entries with block body"
+    skip: "V1 lambdas do not support block-with-let syntax"

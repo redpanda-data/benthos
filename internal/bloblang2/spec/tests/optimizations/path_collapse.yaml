@@ -1,0 +1,167 @@
+description: "PathExpr collapse: chains of field access, indexing, and method calls are collapsed into flat path expressions"
+
+tests:
+  # --- Input field chains ---
+
+  - name: "input single field"
+    input: {"x": 1}
+    mapping: |
+      output.v = input.x
+    output: {"v": 1}
+
+  - name: "input two-level field chain"
+    input: {"a": {"b": 2}}
+    mapping: |
+      output.v = input.a.b
+    output: {"v": 2}
+
+  - name: "input deep field chain"
+    input: {"a": {"b": {"c": {"d": {"e": 42}}}}}
+    mapping: |
+      output.v = input.a.b.c.d.e
+    output: {"v": 42}
+
+  - name: "input field chain with index"
+    input: {"items": [10, 20, 30]}
+    mapping: |
+      output.v = input.items[1]
+    output: {"v": 20}
+
+  - name: "input field chain with nested index"
+    input: {"data": {"items": [{"name": "Alice"}, {"name": "Bob"}]}}
+    mapping: |
+      output.v = input.data.items[1].name
+    output: {"v": "Bob"}
+
+  - name: "input field chain with method call"
+    input: {"name": "Alice"}
+    mapping: |
+      output.v = input.name.uppercase()
+    output: {"v": "ALICE"}
+
+  - name: "input field chain with method and further field access"
+    input: {"data": [3, 1, 2]}
+    mapping: |
+      output.v = input.data.sort()[0]
+    output: {"v": 1}
+
+  - name: "input field chain with multiple methods"
+    input: {"text": "  Hello World  "}
+    mapping: |
+      output.v = input.text.trim().lowercase()
+    output: {"v": "hello world"}
+
+  # --- Null-safe chains ---
+
+  - name: "null-safe field chain short-circuits"
+    input: {"user": null}
+    mapping: |
+      output.v = input.user?.name?.trim()
+    output: {"v": null}
+
+  - name: "null-safe index chain short-circuits"
+    input: {"items": null}
+    mapping: |
+      output.v = input.items?[0]?.name
+    output: {"v": null}
+
+  - name: "null-safe method chain short-circuits"
+    input: {"value": null}
+    mapping: |
+      output.v = input.value?.uppercase()
+    output: {"v": null}
+
+  - name: "mixed null-safe and regular access"
+    input: {"user": {"address": null}}
+    mapping: |
+      output.v = input.user.address?.city
+    output: {"v": null}
+
+  # --- Output field chains ---
+
+  - name: "output field chain read after write"
+    mapping: |
+      output.user = {"name": "Alice", "age": 30}
+      output.v = output.user.name
+    output: {"user": {"name": "Alice", "age": 30}, "v": "Alice"}
+
+  - name: "output field chain with method"
+    mapping: |
+      output.data = {"name": "Alice"}
+      output.v = output.data.keys().length()
+    output: {"data": {"name": "Alice"}, "v": 1}
+
+  # --- Variable field chains ---
+
+  - name: "variable field chain"
+    mapping: |
+      $user = {"name": "Alice", "address": {"city": "London"}}
+      output.v = $user.address.city
+    output: {"v": "London"}
+
+  - name: "variable field chain with index"
+    mapping: |
+      $items = [10, 20, 30]
+      output.v = $items[2]
+    output: {"v": 30}
+
+  - name: "variable field chain with method"
+    mapping: |
+      $name = "hello"
+      output.v = $name.uppercase()
+    output: {"v": "HELLO"}
+
+  # --- Input metadata chains ---
+
+  - name: "input metadata field chain"
+    input_metadata: {"routing": {"region": "us-west"}}
+    mapping: |
+      output.v = input@.routing.region
+    output: {"v": "us-west"}
+
+  - name: "input metadata with method"
+    input_metadata: {"topic": "events"}
+    mapping: |
+      output.v = input@.topic.uppercase()
+    output: {"v": "EVENTS"}
+
+  # --- Mixed chain with dynamic index ---
+
+  - name: "chain with dynamic string index"
+    input: {"data": {"x": 1, "y": 2}}
+    mapping: |
+      $key = "y"
+      output.v = input.data[$key]
+    output: {"v": 2}
+
+  - name: "chain with negative index"
+    input: {"items": [1, 2, 3]}
+    mapping: |
+      output.v = input.items[-1]
+    output: {"v": 3}
+
+  # --- Chain with lambda method ---
+
+  - name: "chain with filter method"
+    input: {"items": [1, -2, 3, -4]}
+    mapping: |
+      output.v = input.items.filter(x -> x > 0)
+    output: {"v": [1, 3]}
+
+  - name: "chain with map and further access"
+    input: {"items": [1, 2, 3]}
+    mapping: |
+      output.v = input.items.map(x -> x * 2).length()
+    output: {"v": 3}
+
+  # --- Non-collapsible roots are preserved ---
+
+  - name: "method call on literal is not collapsed"
+    mapping: |
+      output.v = "hello".uppercase()
+    output: {"v": "HELLO"}
+
+  - name: "method call on function result is not collapsed"
+    mapping: |
+      output.v = uuid_v4().length()
+    output: {"v": 36}

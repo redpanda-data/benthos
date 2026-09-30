@@ -1,0 +1,139 @@
+==================
+Arithmetic operators
+==================
+
+output = 1 + 2 * 3
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (binary_expression
+      left: (integer)
+      right: (binary_expression
+        left: (integer)
+        right: (integer)))))
+
+==================
+Comparison operator
+==================
+
+output = input.age > 18
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (binary_expression
+      left: (field_access
+        receiver: (input)
+        field: (identifier))
+      right: (integer))))
+
+==================
+Logical operators
+==================
+
+output = input.a > 0 && input.b < 10
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (binary_expression
+      left: (binary_expression
+        left: (field_access
+          receiver: (input)
+          field: (identifier))
+        right: (integer))
+      right: (binary_expression
+        left: (field_access
+          receiver: (input)
+          field: (identifier))
+        right: (integer)))))
+
+==================
+Unary not
+==================
+
+output = !input.active
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (unary_expression
+      operand: (field_access
+        receiver: (input)
+        field: (identifier)))))
+
+==================
+Unary minus
+==================
+
+output = -input.value
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (unary_expression
+      operand: (field_access
+        receiver: (input)
+        field: (identifier)))))
+
+==================
+Parenthesized precedence
+==================
+
+output = (1 + 2) * 3
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (binary_expression
+      left: (parenthesized_expression
+        (binary_expression
+          left: (integer)
+          right: (integer)))
+      right: (integer))))
+
+==================
+Equality
+==================
+
+output = input.x == "test"
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (binary_expression
+      left: (field_access
+        receiver: (input)
+        field: (identifier))
+      right: (string
+        (string_content)))))
+
+==================
+Modulo
+==================
+
+output = 10 % 3
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (binary_expression
+      left: (integer)
+      right: (integer))))
