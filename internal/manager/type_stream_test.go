@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/redpanda-data/benthos/v4/internal/manager"
+	"github.com/redpanda-data/benthos/v4/internal/tracing/tracingtest"
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
 	"github.com/redpanda-data/benthos/v4/public/service"
 
@@ -89,4 +91,20 @@ output_resources:
 			}
 		})
 	}
+}
+
+func TestManagerStreamTracerAttribute(t *testing.T) {
+	tp := tracingtest.NewInMemoryRecordingTracerProvider()
+
+	mgr, err := manager.New(manager.ResourceConfig{}, manager.OptSetTracer(tp))
+	require.NoError(t, err)
+
+	_, rootSpan := mgr.Tracer().Tracer("meow").Start(t.Context(), "root_span")
+	rootSpan.End()
+
+	_, streamSpan := mgr.ForStream("foo").Tracer().Tracer("meow").Start(t.Context(), "stream_span")
+	streamSpan.End()
+
+	assert.Nil(t, tp.FindSpan("root_span").GetAttribute("stream"))
+	assert.Equal(t, "foo", tp.FindSpan("stream_span").GetAttribute("stream"))
 }
