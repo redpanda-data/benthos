@@ -1471,3 +1471,78 @@ http_server:
 	h2.TriggerStopConsuming()
 	require.NoError(t, h2.WaitForClose(tCtx))
 }
+
+// TestHTTPServerSharedServerRestartRecovers exercises repeatedly creating,
+// using and stopping an http_server input that shares the service-wide HTTP
+// server (no dedicated address) on the same path, mimicking what a streams
+// manager does on every stream update (stop old stream, create new one).
+//
+// Previously the stopping input registered a disabled 503 handler from an
+// asynchronous goroutine that raced with the new instance's registration,
+// which could leave the endpoint stuck returning 503 forever. The disabled
+// handler is now registered synchronously before the input signals that it has
+// stopped, so the subsequent registration always wins and the endpoint
+// recovers.
+func TestHTTPServerSharedServerRestartRecovers(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Minute)
+	defer done()
+
+	t.Parallel()
+
+	// Use the real api.Type registry so that repeated RegisterEndpoint calls on
+	// the same path swap the handler (its dynamic handler map), matching the
+	// behaviour of the service-wide HTTP server in production. The gorilla mux
+	// test wrapper used elsewhere adds a new route per call instead.
+	apiConf := api.NewConfig()
+	apiImpl, err := api.New("", "", apiConf, nil, log.Noop(), metrics.Noop())
+	require.NoError(t, err)
+
+	mgr, err := manager.New(manager.ResourceConfig{}, manager.OptSetAPIReg(apiImpl))
+	require.NoError(t, err)
+
+	conf := parseYAMLInputConf(t, `
+http_server:
+  path: /testpost
+`)
+
+	server := httptest.NewServer(apiImpl.Handler())
+	defer server.Close()
+
+	for i := range 20 {
+		h, err := mgr.NewInput(conf)
+		require.NoError(t, err)
+
+		h.TriggerStartConsuming()
+
+		var wg sync.WaitGroup
+		wg.Add(1)
+		var statusCode int
+		go func() {
+			defer wg.Done()
+			res, cerr := http.Post(
+				server.URL+"/testpost",
+				"application/octet-stream",
+				bytes.NewBufferString("hello"),
+			)
+			if cerr != nil {
+				t.Errorf("iteration %v: request failed: %v", i, cerr)
+				return
+			}
+			defer res.Body.Close()
+			statusCode = res.StatusCode
+		}()
+
+		select {
+		case ts := <-h.TransactionChan():
+			require.NoError(t, ts.Ack(tCtx, nil))
+		case <-time.After(5 * time.Second):
+			t.Fatalf("iteration %v: timed out waiting for message", i)
+		}
+
+		wg.Wait()
+		assert.Equalf(t, 200, statusCode, "iteration %v: endpoint should have recovered instead of returning 503", i)
+
+		h.TriggerStopConsuming()
+		require.NoError(t, h.WaitForClose(tCtx))
+	}
+}

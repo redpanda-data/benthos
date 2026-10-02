@@ -840,37 +840,46 @@ func (h *httpServerInput) wsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (h *httpServerInput) loop() {
 	defer func() {
+		// Whether we're using the service-wide HTTP server (rather than a
+		// dedicated listener) must be captured before any changes to the server
+		// reference below.
+		usingServiceWideServer := h.server == nil
+
 		if h.server != nil {
 			if err := h.server.Shutdown(context.Background()); err != nil {
 				h.log.Error("Failed to gracefully terminate http_server: %v\n", err)
 			}
-		} else {
-			// We are using the service-wide HTTP server. In order to prevent
-			// situations where a slow shutdown results in serving an abundance
-			// of 503 responses we wait until either the current requests are
-			// handled and shutdown can commence, or we've been instructed to
-			// close immediately, which prevents these requests from
-			// indefinitely blocking shutdown.
-			go func() {
-				select {
-				case <-h.shutSig.HasStoppedChan():
-				case <-h.shutSig.HardStopChan():
-				}
-
-				if h.conf.Path != "" {
-					h.mgr.RegisterEndpoint(h.conf.Path, "Endpoint disabled.", func(w http.ResponseWriter, r *http.Request) {
-						http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
-					})
-				}
-				if h.conf.WSPath != "" {
-					h.mgr.RegisterEndpoint(h.conf.WSPath, "Endpoint disabled.", func(w http.ResponseWriter, r *http.Request) {
-						http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
-					})
-				}
-			}()
 		}
 
 		h.handlerWG.Wait()
+
+		if usingServiceWideServer {
+			// We are using the service-wide HTTP server, so once all in-flight
+			// requests have drained we replace our endpoints with disabled
+			// handlers that return a 503. In-flight requests are served by the
+			// existing handlers (which already return a 503 once soft stop is
+			// signalled), so waiting for them to drain first avoids serving an
+			// abundance of 503 responses during a slow shutdown.
+			//
+			// This registration is performed synchronously, before signalling
+			// that we've stopped (TriggerHasStopped) which is what WaitForClose
+			// and therefore Stop block on. That ordering guarantees that when
+			// this input is being replaced on the same path (e.g. a stream
+			// update, which stops the old stream then creates a new one) the new
+			// instance's endpoint registration always happens after ours and
+			// wins, allowing the endpoint to recover instead of being left stuck
+			// returning 503.
+			if h.conf.Path != "" {
+				h.mgr.RegisterEndpoint(h.conf.Path, "Endpoint disabled.", func(w http.ResponseWriter, r *http.Request) {
+					http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+				})
+			}
+			if h.conf.WSPath != "" {
+				h.mgr.RegisterEndpoint(h.conf.WSPath, "Endpoint disabled.", func(w http.ResponseWriter, r *http.Request) {
+					http.Error(w, "Service unavailable", http.StatusServiceUnavailable)
+				})
+			}
+		}
 
 		close(h.transactions)
 		h.shutSig.TriggerHasStopped()
