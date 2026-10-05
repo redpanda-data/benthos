@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component/cache"
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
@@ -236,4 +237,42 @@ target: foo
 			t.Errorf("Wrong result: %v != %v", act, exp)
 		}
 	}
+}
+
+// pureBloblManager is a mock manager that only allows pure Bloblang functions
+// and methods, as sandboxed builds do.
+type pureBloblManager struct {
+	*mock.Manager
+}
+
+func (m pureBloblManager) BloblEnvironment() *bloblang.Environment {
+	return bloblang.GlobalEnvironment().OnlyPure()
+}
+
+func TestCacheDefaultKeyPureAndUnique(t *testing.T) {
+	mgr := mock.NewManager()
+	mgr.Caches["foocache"] = map[string]mock.CacheItem{}
+
+	// The key is left at its default, which must parse without impure
+	// functions such as count.
+	w := testCacheOutput(t, pureBloblManager{Manager: mgr}, `
+target: foocache
+`)
+
+	tCtx := t.Context()
+
+	batch := message.QuickBatch(nil)
+	for i := range 50 {
+		batch = append(batch, message.NewPart(fmt.Appendf(nil, "batched %v", i)))
+	}
+	require.NoError(t, w.WriteBatch(tCtx, batch))
+
+	for i := range 50 {
+		require.NoError(t, w.WriteBatch(tCtx, message.QuickBatch([][]byte{
+			fmt.Appendf(nil, "single %v", i),
+		})))
+	}
+
+	// Every message gets its own key, both within a batch and across writes.
+	assert.Len(t, mgr.Caches["foocache"], 100)
 }

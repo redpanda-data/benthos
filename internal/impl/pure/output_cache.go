@@ -32,8 +32,6 @@ func CacheOutputSpec() *service.ConfigSpec {
 		Summary(`Stores each message in a xref:components:caches/about.adoc[cache].`).
 		Description(`Caches are configured as xref:components:caches/about.adoc[resources], where there's a wide variety to choose from.
 
-:cache-support: aws_dynamodb=certified, aws_s3=certified, file=certified, memcached=certified, memory=certified, nats_kv=certified, redis=certified, ristretto=certified, couchbase=community, mongodb=community, sql=community, multilevel=community, ttlru=community, gcp_cloud_storage=community, lru=community, noop=community
-
 The `+"`target`"+` field must reference a configured cache resource label like follows:
 
 `+"```yaml"+`
@@ -57,11 +55,11 @@ In order to create a unique `+"`key`"+` value per item you should use function i
 			service.NewInterpolatedStringField(coFieldKey).
 				Description(`The key to store messages by, function interpolation should be used in order to derive a unique key for each message.`).
 				Examples(
-					`${!count("items")}-${!timestamp_unix_nano()}`,
+					`${!timestamp_unix_nano()}-${!uuid_v4()}`,
 					`${!json("doc.id")}`,
 					`${!meta("kafka_key")}`,
 				).
-				Default(`${!count("items")}-${!timestamp_unix_nano()}`),
+				Default(`${!timestamp_unix_nano()}-${!uuid_v4()}`),
 			service.NewInterpolatedStringField(coFieldTTL).
 				Description(`The TTL of each individual item as a duration string. After this period an item will be eligible for removal during the next compaction. Not all caches support per-key TTLs, and those that do not will fall back to their generally configured TTL setting.`).
 				Examples("60s", "5m", "36h").

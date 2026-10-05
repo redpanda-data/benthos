@@ -812,10 +812,6 @@ var _ = registerSimpleMethod(
 			`{"foo":5}`,
 			`Error("failed assignment (line 1): field `+"`this`"+`: foo invalid type. expected: string, given: integer")`,
 		),
-		NewExampleSpec(
-			"In order to load a schema from a file use the `file` function.",
-			`root = this.json_schema(file(env("BENTHOS_TEST_BLOBLANG_SCHEMA_FILE")))`,
-		),
 	).Beta().Param(ParamString("schema", "The schema to check values against.")),
 	func(args *ParsedParams) (simpleMethod, error) {
 		schemaStr, err := args.FieldString("schema")

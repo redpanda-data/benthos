@@ -47,12 +47,12 @@ Sometimes inputs close themselves. For example, when the `+"`file`"+` input type
 A metadata key `+"`benthos_read_until` containing the value `final`"+` is added to the first part of the message that triggers the input to stop.`).
 		Example(
 			"Consume N Messages",
-			"A common reason to use this input is to consume only N messages from an input and then stop. This can easily be done with the xref:guides:bloblang/functions.adoc#count[`count` function]:",
+			"A common reason to use this input is to consume only N messages from an input and then stop. This can easily be done with the xref:guides:bloblang/functions.adoc#counter[`counter` function]:",
 			`
 # Only read 100 messages, and then exit.
 input:
   read_until:
-    check: count("messages") >= 100
+    check: counter() >= 100
     input:
       kafka:
         addresses: [ TODO ]
@@ -81,7 +81,7 @@ input:
 			Description("A xref:guides:bloblang/about.adoc[Bloblang query] that should return a boolean value indicating whether the input should now be closed.").
 			Examples(
 				`this.type == "foo"`,
-				`count("messages") >= 100`,
+				`counter() >= 100`,
 			).
 			Optional(),
 		service.NewDurationField(ruiFieldIdleTimeout).

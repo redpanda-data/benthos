@@ -39,7 +39,7 @@ To reverse this process use the `+"xref:components:processors/unarchive.adoc[`un
 		}).Description("The archiving format to apply.")).
 		Field(service.NewInterpolatedStringField("path").
 			Description(`The path to set for each message in the archive (when applicable).`).
-			Example("${!count(\"files\")}-${!timestamp_unix_nano()}.txt").
+			Example("${!counter()}-${!timestamp_unix_nano()}.txt").
 			Example("${!meta(\"kafka_key\")}-${!json(\"id\")}.json").
 			Default("")).
 		Example("Tar Archive", `

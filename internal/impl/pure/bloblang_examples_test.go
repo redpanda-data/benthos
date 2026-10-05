@@ -79,26 +79,6 @@ func TestFunctionExamples(t *testing.T) {
 }
 
 func TestMethodExamples(t *testing.T) {
-	tmpJSONFile, err := os.CreateTemp(t.TempDir(), "benthos_bloblang_methods_test")
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		os.Remove(tmpJSONFile.Name())
-	})
-
-	_, err = tmpJSONFile.WriteString(`
-{
-  "type":"object",
-  "properties":{
-    "foo":{
-      "type":"string"
-    }
-  }
-}`)
-	require.NoError(t, err)
-
-	key := "BENTHOS_TEST_BLOBLANG_SCHEMA_FILE"
-	t.Setenv(key, tmpJSONFile.Name())
-
 	env := bloblang.GlobalEnvironment()
 	env.WalkMethods(func(name string, view *bloblang.MethodView) {
 		spec := view.TemplateData()
