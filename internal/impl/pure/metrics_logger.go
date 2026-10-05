@@ -27,7 +27,7 @@ func loggerMetricsSpec() *service.ConfigSpec {
 		Description(`
 Prints each metric produced by Redpanda Connect as a log event (level `+"`info`"+` by default) during shutdown, and optionally on an interval.
 
-This metrics type is useful for debugging pipelines when you only have access to the logger output and not the service-wide server. Otherwise it's recommended that you use either the `+"`prometheus` or `json_api`"+`types.`).
+This metrics type is useful for debugging pipelines when you only have access to the logger output and not the service-wide server. Otherwise it's recommended that you use either the `+"`prometheus` or `json_api`"+` types.`).
 		Fields(
 			service.NewStringField(lmFieldPushInterval).
 				Description("An optional period of time to continuously print all metrics.").

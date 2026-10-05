@@ -18,6 +18,7 @@ func init() {
 			Stable().
 			Categories("Utility").
 			Summary(`Drops all messages.`).
+			Description(`The `+"`drop`"+` output acknowledges each message as soon as it receives it and then discards it, without errors or side effects. Because it adds almost no overhead, it's useful for measuring input and processing throughput without an output bottleneck, for temporarily disabling output while you develop a pipeline, for discarding unwanted messages in a xref:components:outputs/switch.adoc[`+"`switch`"+`] output, and as the final fallback in a xref:components:outputs/fallback.adoc[`+"`fallback`"+`] output.`).
 			Field(service.NewObjectField("").Default(map[string]any{})),
 		func(conf *service.ParsedConfig, res *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			nm := interop.UnwrapManagement(res)

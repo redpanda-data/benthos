@@ -28,7 +28,7 @@ The specified command is executed for each message processed, with the raw bytes
 
 == Metadata
 
-This input adds the following metadata fields to each message:
+This processor adds the following metadata fields to each message:
 
 `+"```text"+`
 - command_stderr - Contains the stderr output of a successful command, if any.
