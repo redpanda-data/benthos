@@ -15,11 +15,11 @@ import (
 func jsonArrayScannerSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
-		Version("4.65.0").
+		Version("4.57.0").
 		Summary("Consumes a stream of one or more JSON elements within a top level array.").
 		Description(`Use this scanner to read exports whose top-level JSON structure is an array, such as logs or bulk exports, or to break a large file of many objects into one message per element. The scanner decodes elements one at a time, so it doesn't load the whole array into memory.
 
-The input must be a single JSON array. The scanner fails with an error if the first token is not ` + "`[`" + `. Each element can be any JSON value, and becomes one structured message.`).
+The input must be one JSON array, or several arrays one after another, such as ` + "`[1,2][3]`" + `. The scanner fails with an error if the input doesn't start with ` + "`[`" + `, or if anything other than another array follows a closing ` + "`]`" + `. Each element can be any JSON value, and becomes one structured message.`).
 		// Just a placeholder empty object as we don't have any fields yet
 		Field(service.NewObjectField("").Default(map[string]any{}))
 }
