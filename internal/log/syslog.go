@@ -3,6 +3,7 @@
 package log
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -20,7 +21,8 @@ type syslogModular struct {
 	hostname    string
 	pid         int
 	fields      map[string]string
-	maxSeverity int // syslog severity ceiling; messages with severity > maxSeverity are dropped
+	maxSeverity int    // syslog severity ceiling; messages with severity > maxSeverity are dropped
+	format      string // "json" or "logfmt"
 }
 
 func newSyslogModular(cfg Config) (*syslogModular, error) {
@@ -48,6 +50,7 @@ func newSyslogModular(cfg Config) (*syslogModular, error) {
 		pid:         os.Getpid(),
 		fields:      map[string]string{},
 		maxSeverity: syslogMaxSeverity(cfg.LogLevel),
+		format:      cfg.Format,
 	}, nil
 }
 
@@ -113,6 +116,30 @@ func syslogMaxSeverity(level string) int {
 	}
 }
 
+// syslogLevelName maps an RFC5424 severity back to a human-readable level string.
+func syslogLevelName(severity int) string {
+	switch severity {
+	case 2:
+		return "fatal"
+	case 3:
+		return "error"
+	case 4:
+		return "warn"
+	case 6:
+		return "info"
+	default:
+		return "debug"
+	}
+}
+
+// logfmtQuote quotes a value if it contains characters that would break logfmt parsing.
+func logfmtQuote(v string) string {
+	if v == "" || strings.ContainsAny(v, " \t\n\"=") {
+		return fmt.Sprintf("%q", v)
+	}
+	return v
+}
+
 func (s *syslogModular) write(severity int, msg string) {
 	if severity > s.maxSeverity {
 		return
@@ -120,13 +147,28 @@ func (s *syslogModular) write(severity int, msg string) {
 	priority := s.facility*8 + severity
 	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
 
-	var sb strings.Builder
-	sb.WriteString(strings.TrimSuffix(msg, "\n"))
-	for k, v := range s.fields {
-		sb.WriteByte(' ')
-		sb.WriteString(k)
-		sb.WriteByte('=')
-		sb.WriteString(v)
+	cleanMsg := strings.TrimSuffix(msg, "\n")
+	var msgStr string
+
+	if s.format == "json" {
+		data := make(map[string]any, len(s.fields)+2)
+		data["level"] = syslogLevelName(severity)
+		data["msg"] = cleanMsg
+		for k, v := range s.fields {
+			data[k] = v
+		}
+		b, _ := json.Marshal(data)
+		msgStr = string(b)
+	} else {
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "level=%s msg=%s", syslogLevelName(severity), logfmtQuote(cleanMsg))
+		for k, v := range s.fields {
+			sb.WriteByte(' ')
+			sb.WriteString(k)
+			sb.WriteByte('=')
+			sb.WriteString(logfmtQuote(v))
+		}
+		msgStr = sb.String()
 	}
 
 	line := fmt.Sprintf("<%d>1 %s %s %s %d - - %s\n",
@@ -135,7 +177,7 @@ func (s *syslogModular) write(severity int, msg string) {
 		s.hostname,
 		s.tag,
 		s.pid,
-		sb.String(),
+		msgStr,
 	)
 
 	s.mu.Lock()
