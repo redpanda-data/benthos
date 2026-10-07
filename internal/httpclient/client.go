@@ -441,12 +441,9 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 	i, j := 0, numRetries
 	for i < j && err != nil {
 		logErr(err)
-		for _, s := range spans {
-			s.SetTagInt("http.request.resend_count", i+1)
-		}
-		if req, err = h.reqCreator.Create(sendMsg); err != nil {
-			continue
-		}
+		// A retry that fails to create its request counts as an attempt and is
+		// backed off, as the failure might be transient.
+		i++
 		if rateLimited {
 			if !h.retryThrottle.ExponentialRetryWithContext(ctx) {
 				if ctx.Err() != nil {
@@ -462,13 +459,22 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 				return nil, errTimedOut
 			}
 		}
+		rateLimited = false
+
+		prevErr := err
+		if req, err = h.reqCreator.Create(sendMsg); err != nil {
+			err = fmt.Errorf("%w, after the previous attempt failed: %w", err, prevErr)
+			continue
+		}
 		if !h.waitForAccess(ctx) {
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
 			return nil, errTimedOut
 		}
-		rateLimited = false
+		for _, s := range spans {
+			s.SetTagInt("http.request.resend_count", i)
+		}
 
 		startedAt = time.Now()
 		if res, err = h.do(req.WithContext(ctx)); err == nil {
@@ -488,7 +494,6 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 			}
 		}
 		h.mLatency.Timing(time.Since(startedAt).Nanoseconds())
-		i++
 	}
 	if err != nil {
 		logErr(err)

@@ -955,3 +955,43 @@ proxy_url: '%v'
 	assert.Contains(t, err.Error(), "proxy_url")
 	assert.NotContains(t, err.Error(), "S3cretPass")
 }
+
+func TestHTTPClientRetryRequestCreationFailure(t *testing.T) {
+	var reqCount uint32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddUint32(&reqCount, 1)
+		http.Error(w, "test error", http.StatusInternalServerError)
+	}))
+	defer ts.Close()
+
+	// The URL interpolates on the first attempt and fails on every retry. The
+	// counter is process wide, so it is named uniquely for each run.
+	counter := fmt.Sprintf("%s-%d", t.Name(), time.Now().UnixNano())
+	conf := clientConfig(t, `
+url: '%v/${! if count("%v") > 1 { throw("create failed") } else { "ok" } }'
+retry_period: 20ms
+retries: 3
+`, ts.URL, counter)
+
+	h, err := NewClientFromOldConfig(conf, service.MockResources())
+	require.NoError(t, err)
+	defer h.Close(t.Context())
+
+	errs := make(chan error, 1)
+	start := time.Now()
+	go func() {
+		_, err := h.Send(t.Context(), service.MessageBatch{service.NewMessage([]byte("test"))})
+		errs <- err
+	}()
+
+	select {
+	case err = <-errs:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Send did not return once the retry budget was spent")
+	}
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "create failed")
+	assert.Contains(t, err.Error(), "500", "the error of the previous attempt is kept")
+	assert.Equal(t, uint32(1), atomic.LoadUint32(&reqCount))
+	assert.GreaterOrEqual(t, time.Since(start), 3*20*time.Millisecond, "failed retries must be backed off")
+}
