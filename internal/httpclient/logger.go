@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package httpclient
 
@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/redpanda-data/benthos/v4/public/service"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 
 	"go.uber.org/multierr"
 )
@@ -112,7 +113,7 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	// append to map only when the http.Request is not nil
 	if req != nil {
 		accessLog["request"] = map[string]any{
-			"url":    req.URL.Redacted(),
+			"url":    redact.URL(req.URL),
 			"method": req.Method,
 			"header": toSimpleMap(req.Header),
 			"body":   reqBodyCaptured,
@@ -155,9 +156,23 @@ func (r *roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return respOriginal, roundTripErr
 }
 
+// credentialHeaders are hidden in dumps. Authorization also carries the
+// userinfo of the request URL.
+var credentialHeaders = map[string]struct{}{
+	"Authorization":       {},
+	"Proxy-Authorization": {},
+	"Cookie":              {},
+	"Set-Cookie":          {},
+	"X-Api-Key":           {},
+}
+
 var toSimpleMap = func(h http.Header) map[string]string {
 	out := map[string]string{}
 	for k, v := range h {
+		if _, ok := credentialHeaders[http.CanonicalHeaderKey(k)]; ok {
+			out[k] = redact.Marker
+			continue
+		}
 		out[k] = strings.Join(v, " ")
 	}
 

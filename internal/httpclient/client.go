@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package httpclient
 
@@ -12,7 +12,6 @@ import (
 	"mime"
 	"mime/multipart"
 	"net/http"
-	"net/url"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,6 +22,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/old/util/throttle"
 	"github.com/redpanda-data/benthos/v4/internal/tracing/v2"
 	"github.com/redpanda-data/benthos/v4/public/service"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 // Client is a component able to send and receive Benthos messages over HTTP.
@@ -102,7 +102,7 @@ func NewClientFromOldConfig(conf OldConfig, mgr *service.Resources, opts ...Requ
 	}
 
 	if conf.ProxyURL != "" {
-		proxyURL, err := url.Parse(conf.ProxyURL)
+		proxyURL, err := redact.ParseURL(conf.ProxyURL)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse proxy_url string: %v", err)
 		}
@@ -386,7 +386,7 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 
 	for _, s := range spans {
 		s.SetTag("http.request.method", req.Method)
-		s.SetTag("url.full", req.URL.String())
+		s.SetTag("url.full", redact.URL(req.URL))
 		s.SetTag("server.address", req.URL.Hostname())
 		if req.URL.Port() != "" {
 			if port, err := strconv.Atoi(req.URL.Port()); err == nil {
@@ -403,8 +403,8 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 
 	// Make sure we log the actual request URL
 	defer func() {
-		if err != nil {
-			err = fmt.Errorf("%s: %w", req.URL, err)
+		if err != nil && req != nil {
+			err = fmt.Errorf("%s: %w", redact.URL(req.URL), err)
 		}
 	}()
 
@@ -419,7 +419,7 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 	numRetries := h.numRetries
 
 	startedAt := time.Now()
-	if res, err = h.client.Do(req.WithContext(ctx)); err == nil {
+	if res, err = h.do(req.WithContext(ctx)); err == nil {
 		h.incrCode(res.StatusCode)
 		for _, s := range spans {
 			s.SetTagInt("http.response.status_code", res.StatusCode)
@@ -471,7 +471,7 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 		rateLimited = false
 
 		startedAt = time.Now()
-		if res, err = h.client.Do(req.WithContext(ctx)); err == nil {
+		if res, err = h.do(req.WithContext(ctx)); err == nil {
 			h.incrCode(res.StatusCode)
 			for _, s := range spans {
 				s.SetTagInt("http.response.status_code", res.StatusCode)
@@ -501,6 +501,15 @@ func (h *Client) SendToResponse(ctx context.Context, sendMsg service.MessageBatc
 	}
 
 	h.retryThrottle.Reset()
+	return res, nil
+}
+
+// do performs req and redacts credentials of the request URL from any error.
+func (h *Client) do(req *http.Request) (*http.Response, error) {
+	res, err := h.client.Do(req)
+	if err != nil {
+		return res, redact.Error(err, redact.Conns(req.URL.String()))
+	}
 	return res, nil
 }
 
