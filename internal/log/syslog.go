@@ -13,13 +13,14 @@ import (
 )
 
 type syslogModular struct {
-	conn     net.Conn
-	mu       *sync.Mutex
-	facility int
-	tag      string
-	hostname string
-	pid      int
-	fields   map[string]string
+	conn        net.Conn
+	mu          *sync.Mutex
+	facility    int
+	tag         string
+	hostname    string
+	pid         int
+	fields      map[string]string
+	maxSeverity int // syslog severity ceiling; messages with severity > maxSeverity are dropped
 }
 
 func newSyslogModular(cfg Config) (*syslogModular, error) {
@@ -39,13 +40,14 @@ func newSyslogModular(cfg Config) (*syslogModular, error) {
 	}
 
 	return &syslogModular{
-		conn:     conn,
-		mu:       &sync.Mutex{},
-		facility: facility,
-		tag:      cfg.Syslog.Tag,
-		hostname: hostname,
-		pid:      os.Getpid(),
-		fields:   map[string]string{},
+		conn:        conn,
+		mu:          &sync.Mutex{},
+		facility:    facility,
+		tag:         cfg.Syslog.Tag,
+		hostname:    hostname,
+		pid:         os.Getpid(),
+		fields:      map[string]string{},
+		maxSeverity: syslogMaxSeverity(cfg.LogLevel),
 	}, nil
 }
 
@@ -76,18 +78,45 @@ func syslogFacilityCode(facility string) (int, error) {
 
 func syslogSeverity(methodName string) int {
 	switch methodName {
-	case "fatal", "error":
-		return 3
+	case "fatal":
+		return 2 // RFC5424 Critical
+	case "error":
+		return 3 // RFC5424 Error
 	case "warn":
-		return 4
+		return 4 // RFC5424 Warning
 	case "info":
-		return 6
+		return 6 // RFC5424 Informational
 	default: // debug, trace
+		return 7 // RFC5424 Debug
+	}
+}
+
+// syslogMaxSeverity maps a benthos log level string to the maximum syslog
+// severity that should be emitted (inclusive). Messages with a higher severity
+// number (less severe) are dropped.
+func syslogMaxSeverity(level string) int {
+	switch strings.ToUpper(level) {
+	case "OFF", "NONE":
+		return -1
+	case "FATAL":
+		return 2
+	case "ERROR":
+		return 3
+	case "WARN":
+		return 4
+	case "INFO":
+		return 6
+	case "DEBUG", "TRACE", "ALL":
 		return 7
+	default:
+		return 6 // default to INFO
 	}
 }
 
 func (s *syslogModular) write(severity int, msg string) {
+	if severity > s.maxSeverity {
+		return
+	}
 	priority := s.facility*8 + severity
 	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
 

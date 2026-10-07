@@ -25,6 +25,7 @@ func Spec() docs.FieldSpecs {
 			docs.FieldBool(fieldFileRotate, "Whether to rotate log files automatically.").HasDefault(false),
 			docs.FieldInt(fieldFileRotateMaxAge, "The maximum number of days to retain old log files based on the timestamp encoded in their filename, after which they are deleted. Setting to zero disables this mechanism.").HasDefault(0),
 		).Advanced(),
+		docs.FieldBool(fieldConsoleOutput, "When set to `false` and `syslog.host` is configured, stdout/stderr output is suppressed and logs are sent exclusively to the syslog server. Has no effect when syslog is not configured.").HasDefault(true).Advanced(),
 		docs.FieldObject(fieldSyslog, "Configures optional syslog output. When `host` is set, log entries are forwarded to the syslog server in RFC5424 format over UDP (RFC5426) or TCP (RFC6587) in addition to the normal output.").WithChildren(
 			docs.FieldString(fieldSyslogHost, "Hostname or IP address of the syslog server. Leave empty to disable syslog output.").HasDefault(""),
 			docs.FieldInt(fieldSyslogPort, "Port of the syslog server.").HasDefault(514),

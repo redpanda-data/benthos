@@ -23,6 +23,8 @@ const (
 	fieldSyslogTransport = "transport"
 	fieldSyslogTag       = "tag"
 	fieldSyslogFacility  = "facility"
+
+	fieldConsoleOutput = "console_output"
 )
 
 // SyslogConfig holds configuration for RFC5424 syslog output.
@@ -45,6 +47,7 @@ type Config struct {
 	StaticFields  map[string]string `yaml:"static_fields"`
 	File          File              `yaml:"file"`
 	Syslog        SyslogConfig      `yaml:"syslog"`
+	ConsoleOutput bool              `yaml:"console_output"`
 }
 
 // File contains configuration for file based logging.
@@ -73,6 +76,7 @@ func NewConfig() Config {
 			Tag:       "benthos",
 			Facility:  "user",
 		},
+		ConsoleOutput: true,
 	}
 }
 
@@ -151,6 +155,10 @@ func FromParsed(pConf *docs.ParsedConfig) (conf Config, err error) {
 		if conf.Syslog.Facility, err = sConf.FieldString(fieldSyslogFacility); err != nil {
 			return
 		}
+	}
+
+	if conf.ConsoleOutput, err = pConf.FieldBool(fieldConsoleOutput); err != nil {
+		return
 	}
 	return
 }

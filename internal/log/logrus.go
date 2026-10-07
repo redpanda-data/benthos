@@ -103,6 +103,9 @@ func New(stream io.Writer, fs ifs.FS, config Config) (Modular, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to syslog: %w", err)
 		}
+		if !config.ConsoleOutput {
+			return syslogMod, nil
+		}
 		return TeeLogger(&Logger{entry: logEntry}, syslogMod), nil
 	}
 	return &Logger{entry: logEntry}, nil
