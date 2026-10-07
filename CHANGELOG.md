@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 
 - Go API: New `NewOAuth2Field`, `NewRetryBackOffFields` and `NewMaxRetriesField` functions in the `service` package define the `oauth2` object and the `max_retries` and `backoff` retry fields that components in this module use, so plugins can reuse them instead of defining their own copies. (@JakeSCahill)
+- Go API: New `public/utils/redact` package for removing credentials from connection strings and errors. (@Jeffail)
 
 ### Changed
 
