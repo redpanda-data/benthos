@@ -1,10 +1,13 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package io_test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -17,6 +20,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/component/processor"
 	"github.com/redpanda-data/benthos/v4/internal/component/testutil"
+	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 	"github.com/redpanda-data/benthos/v4/internal/tracing/tracingtest"
@@ -701,4 +705,45 @@ http:
 
 	// Verify span status is set to Ok after successful retry
 	assert.Equal(t, codes.Ok, httpRequestSpan.Status, "span status should be Ok after successful retry")
+}
+
+func TestHTTPProcessorRedactsCredentials(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := lis.Addr().String()
+	require.NoError(t, lis.Close())
+
+	conf := parseYAMLProcConf(t, `
+http:
+  url: 'http://user:S3cretPass@%v/path?token=S3cretTok'
+  retries: 0
+`, addr)
+
+	var logs bytes.Buffer
+	tp := tracingtest.NewInMemoryRecordingTracerProvider()
+	mgr := mock.NewManager()
+	mgr.L = log.NewBenthosLogAdapter(slog.New(slog.NewTextHandler(&logs, nil)))
+	mgr.T = tp
+
+	h, err := mgr.NewProcessor(conf)
+	require.NoError(t, err)
+
+	msgs, res := h.ProcessBatch(t.Context(), message.QuickBatch([][]byte{[]byte("test")}))
+	require.NoError(t, res)
+	require.Len(t, msgs, 1)
+	require.Error(t, msgs[0].Get(0).ErrorGet())
+
+	reqSpan := tp.FindSpan("http_request")
+	require.NotNil(t, reqSpan)
+
+	require.Contains(t, logs.String(), "HTTP request to")
+	for _, out := range []string{
+		logs.String(),
+		msgs[0].Get(0).ErrorGet().Error(),
+		reqSpan.GetStringAttribute("url.full"),
+		reqSpan.StatusDesc,
+	} {
+		assert.NotContains(t, out, "S3cretPass")
+		assert.NotContains(t, out, "S3cretTok")
+	}
 }
