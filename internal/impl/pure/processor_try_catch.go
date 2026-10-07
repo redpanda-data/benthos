@@ -37,7 +37,7 @@ Any message that failed is then routed to the `+"`catch`"+` processors. Before t
 - `+"`label`"+`: the label of the component that failed (when set).
 - `+"`path`"+`: the dot-path of the component that failed (when known).
 
-So a recovery mapping reads the failure with, for example, `+"`@error.what`"+` (equivalent to `+"`meta(\"error\").what`"+`). Because the flag is cleared, the `+"`catch`"+` processors run under the normal error semantics — including strict — so a _new_ failure raised while recovering is treated as a fresh error and is not silently tolerated.
+So a recovery mapping reads the failure with, for example, `+"`@error.what`"+` (equivalent to `+"`meta(\"error\").what`"+`). Because the flag is cleared, the `+"`catch`"+` processors run under the normal error semantics, including strict mode, so a _new_ failure raised while recovering is treated as a fresh error and is not silently tolerated.
 
 Note that because the failure flag is cleared before the `+"`catch`"+` processors run, the xref:guides:bloblang/functions.adoc#error[`+"`error`"+`] and `+"`error_source_*`"+` functions do not report the original failure within the `+"`catch`"+` block; use the metadata object instead. An empty or omitted `+"`catch`"+` simply records the error in metadata and clears the flag (the failure is swallowed).
 
