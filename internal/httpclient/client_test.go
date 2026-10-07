@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package httpclient
 
@@ -9,9 +9,11 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"net/url"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -906,4 +908,50 @@ tls:
 			assert.Equal(t, dummyMsg, string(mBytes))
 		})
 	}
+}
+
+func TestHTTPClientErrorsRedactCredentials(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := lis.Addr().String()
+	require.NoError(t, lis.Close())
+
+	tests := map[string]string{
+		"request failure": "http://user:S3cretPass@" + addr + "/path?token=S3cretTok",
+		"invalid url":     "http://user:S3cretPass@" + addr + "/%zz?token=S3cretTok",
+	}
+	for name, u := range tests {
+		t.Run(name, func(t *testing.T) {
+			conf := clientConfig(t, `
+url: '%v'
+retries: 0
+`, u)
+
+			h, err := NewClientFromOldConfig(conf, service.MockResources())
+			require.NoError(t, err)
+			defer h.Close(t.Context())
+
+			_, err = h.Send(t.Context(), service.MessageBatch{service.NewMessage([]byte("test"))})
+			require.Error(t, err)
+			assert.NotContains(t, err.Error(), "S3cretPass")
+			assert.NotContains(t, err.Error(), "S3cretTok")
+
+			var uErr *url.Error
+			require.ErrorAs(t, err, &uErr)
+			assert.NotContains(t, uErr.URL, "S3cretPass")
+			assert.NotContains(t, uErr.URL, "S3cretTok")
+		})
+	}
+}
+
+func TestHTTPClientProxyURLErrorRedactsCredentials(t *testing.T) {
+	conf := clientConfig(t, `
+url: http://localhost:4195
+proxy_url: '%v'
+`, "http://user:S3cretPass@localhost:3128/%zz")
+
+	_, err := NewClientFromOldConfig(conf, service.MockResources())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "proxy_url")
+	assert.NotContains(t, err.Error(), "S3cretPass")
 }
