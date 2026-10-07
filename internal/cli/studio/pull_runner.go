@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package studio
 
@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 	"path"
 	"runtime/pprof"
 	"time"
@@ -27,6 +26,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/manager"
 	"github.com/redpanda-data/benthos/v4/internal/stream"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 type noopStopper struct{}
@@ -136,7 +136,7 @@ func NewPullRunner(c *cli.Context, cliOpts *common.CLIOpts, token, secret string
 		}
 	}
 
-	baseURL, err := url.Parse(c.String("endpoint"))
+	baseURL, err := redact.ParseURL(c.String("endpoint"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse endpoint: %w", err)
 	}

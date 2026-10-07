@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package studio_test
 
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -76,4 +77,17 @@ func TestSyncSchema(t *testing.T) {
 			require.NoError(t, cliApp.Run([]string{"benthos", "studio", "--endpoint", testServer.URL, "sync-schema", "--session", "foosession", "--token", "footoken", "--api-path-prefix", test.apiPathPrefix}))
 		})
 	}
+}
+
+func TestSyncSchemaErrorRedactsToken(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := lis.Addr().String()
+	require.NoError(t, lis.Close())
+
+	cliApp := icli.App(common.NewCLIOpts("1.2.3", "justnow"))
+	err = cliApp.Run([]string{"benthos", "studio", "--endpoint", "http://" + addr + "?secret=S3cretPass", "sync-schema", "--session", "foosession", "--token", "S3cretTok"})
+	require.ErrorContains(t, err, "sync request failed")
+	assert.NotContains(t, err.Error(), "S3cretTok")
+	assert.NotContains(t, err.Error(), "S3cretPass")
 }
