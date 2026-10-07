@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package service
 
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/redpanda-data/benthos/v4/internal/docs"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 // NewURLField defines a new config field that describes a string that should
@@ -34,7 +35,7 @@ func (p *ParsedConfig) FieldURL(path ...string) (*url.URL, error) {
 		return nil, fmt.Errorf("expected field '%v' to be a string, got %T", strings.Join(path, "."), v)
 	}
 
-	u, err := url.Parse(str)
+	u, err := redact.ParseURL(str)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse url field '%v': %v", strings.Join(path, "."), err)
 	}
@@ -57,7 +58,7 @@ func urlsFromStr(str string) (urls []*url.URL, err error) {
 			continue
 		}
 		var u *url.URL
-		if u, err = url.Parse(s); err != nil {
+		if u, err = redact.ParseURL(s); err != nil {
 			return
 		}
 		urls = append(urls, u)
