@@ -4,6 +4,7 @@ package io
 
 import (
 	"net"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -100,4 +101,14 @@ func requireAccepted(t *testing.T, d time.Duration, accepted <-chan struct{}) {
 	case <-time.After(d):
 		t.Fatal("the listener accepted no connection, so the dial never reached the handshake")
 	}
+}
+
+func TestCheckTLSSchemeRedactsCredentials(t *testing.T) {
+	u, err := url.Parse("ws://user:S3cretPass@localhost:4195/ws?token=S3cretTok")
+	require.NoError(t, err)
+
+	err = checkTLSScheme(u, true)
+	require.ErrorContains(t, err, "tls is enabled but url scheme is ws")
+	require.NotContains(t, err.Error(), "S3cretPass")
+	require.NotContains(t, err.Error(), "S3cretTok")
 }

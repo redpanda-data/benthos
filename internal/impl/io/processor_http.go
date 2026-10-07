@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package io
 
@@ -9,6 +9,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/httpclient"
 	"github.com/redpanda-data/benthos/v4/public/service"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 func httpProcSpec() *service.ConfigSpec {
@@ -74,10 +75,10 @@ func init() {
 }
 
 type httpProc struct {
+	rawURL      string
 	client      *httpclient.Client
 	asMultipart bool
 	parallel    bool
-	rawURL      string
 	log         *service.Logger
 }
 
@@ -100,7 +101,7 @@ func newHTTPProcFromParsed(conf *service.ParsedConfig, mgr *service.Resources) (
 	rawURL, _ := conf.FieldString("url")
 
 	g := &httpProc{
-		rawURL:      rawURL,
+		rawURL:      redact.String(rawURL),
 		log:         mgr.Logger(),
 		asMultipart: asMultipart,
 		parallel:    parallel,
