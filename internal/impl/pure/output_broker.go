@@ -24,8 +24,12 @@ func brokerOutputSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
 		Categories("Utility").
-		Summary(`Allows you to route messages to multiple child outputs using a range of brokering <<patterns>>.`).
+		Summary(`Routes messages to multiple child outputs using a range of brokering <<patterns>>.`).
 		Description(`
+The `+"`broker`"+` output doesn't send messages anywhere by itself. It wraps other outputs and controls how messages are delivered across them. Use it to fan out the same message to multiple destinations, such as publishing events to Kafka while also writing them to a database, or to spread messages across a pool of outputs for load balancing. The `+"`pattern`"+` field decides whether each message goes to all outputs or to one of them, and whether writes happen in parallel or in sequence.
+
+NOTE: The name `+"`broker`"+` refers to the brokering pattern, not to a Redpanda broker.
+
 xref:components:processors/about.adoc[Processors] can be listed to apply across individual outputs or all outputs:
 
 `+"```yaml"+`
