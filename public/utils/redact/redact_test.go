@@ -205,8 +205,8 @@ func TestErrorConcurrentUse(t *testing.T) {
 }
 
 func TestErrorRedactsURLsInMessage(t *testing.T) {
-	// No connection string is given, and the key is not a known credential
-	// key, so only the URL in the message reveals the credential.
+	// No connection string is given, so only the URL in the message reveals
+	// the credential.
 	err := Error(fmt.Errorf("push to %q failed: 500", "http://gw:9091/metrics?pw="+secret))
 	assert.NotContains(t, err.Error(), secret)
 
