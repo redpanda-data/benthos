@@ -794,7 +794,7 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"json_schema",
-		"Checks a https://json-schema.org/[JSON schema^] against a value and returns the value if it matches or throws and error if it does not.",
+		"Checks a https://json-schema.org/[JSON schema^] against a value and returns the value if it matches or throws an error if it does not. To load the schema from a file, pass it the result of the `file` function, which isn't available in Redpanda Cloud.",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"",
