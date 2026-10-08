@@ -48,7 +48,7 @@ pipeline:
 output:
   aws_s3:
     bucket: TODO
-    path: docs/${! meta("kafka_key") }/${! count("files") }-${! timestamp_unix_nano() }.tar.gz
+    path: docs/${! meta("kafka_key") }/${! counter() }-${! timestamp_unix_nano() }.tar.gz
 `+"```"+``).
 			Field(service.NewInterpolatedStringField(gbvpFieldValue).
 				Description(`The interpolated string to group based on.`).

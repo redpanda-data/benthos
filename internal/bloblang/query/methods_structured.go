@@ -794,7 +794,7 @@ var _ = registerSimpleMethod(
 var _ = registerSimpleMethod(
 	NewMethodSpec(
 		"json_schema",
-		"Checks a https://json-schema.org/[JSON schema^] against a value and returns the value if it matches or throws and error if it does not.",
+		"Checks a https://json-schema.org/[JSON schema^] against a value and returns the value if it matches or throws an error if it does not. To load the schema from a file, pass it the result of the `file` function, which isn't available in Redpanda Cloud.",
 	).InCategory(
 		MethodCategoryObjectAndArray,
 		"",
@@ -811,10 +811,6 @@ var _ = registerSimpleMethod(
 			`{"foo":"bar"}`,
 			`{"foo":5}`,
 			`Error("failed assignment (line 1): field `+"`this`"+`: foo invalid type. expected: string, given: integer")`,
-		),
-		NewExampleSpec(
-			"In order to load a schema from a file use the `file` function.",
-			`root = this.json_schema(file(env("BENTHOS_TEST_BLOBLANG_SCHEMA_FILE")))`,
 		),
 	).Beta().Param(ParamString("schema", "The schema to check values against.")),
 	func(args *ParsedParams) (simpleMethod, error) {
