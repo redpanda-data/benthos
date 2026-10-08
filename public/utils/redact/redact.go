@@ -3,13 +3,12 @@
 // Package redact removes credentials from connection strings, such as URLs
 // and DSNs, so that they can be included in logs and errors.
 //
-// Redaction fails closed where the structure is known: every query value is
-// redacted, and a URL that cannot be parsed keeps only its scheme.
+// Every query value is redacted, not only those that look like credentials,
+// and a URL that cannot be parsed keeps only its scheme.
 //
 // Known limits: an unencoded password that url.Parse splits in the wrong place
 // without failing, such as "postgres://u:1234/abc@host/db", is partly kept, as
 // are credentials in a URL path. Such configurations cannot connect anyway.
-// token as a path segment, are not detected.
 package redact
 
 import (
@@ -51,8 +50,8 @@ func String(s string) string {
 	return redactRawURL(s, u)
 }
 
-// redactRawURL redacts s, which url.Parse accepted as u, keeping the original
-// text where url.Parse splits it rather than re-encoding it.
+// redactRawURL redacts s, which url.Parse accepted as u. It splits s where
+// url.Parse does and keeps its original text, rather than re-encoding it.
 func redactRawURL(s string, u *url.URL) string {
 	rest, fragment, hasFragment := strings.Cut(s, "#")
 	rest, query, hasQuery := strings.Cut(rest, "?")
@@ -383,9 +382,9 @@ type options struct {
 }
 
 // Conns names connection strings that the error might include. They are
-// redacted as by String, their password is removed wherever it appears, and
-// their other values where they appear as a value, such as after "=" or ":"
-// or in quotes, but not in prose, where they might be a host name.
+// redacted as by String, and a password of 4 or more characters is removed
+// wherever it appears. Other values are removed where they appear as a value,
+// after "=" or ":" or in quotes, but not in prose, where they might be a host.
 func Conns(conns ...string) Option {
 	return func(o *options) {
 		o.conns = append(o.conns, conns...)
@@ -516,7 +515,7 @@ func (o *options) redactErr(err error) (error, bool) {
 	redacted = o.replaceValues(redacted)
 
 	// Libraries might include their own rewrite of a connection string, such
-	// as a request URL.
+	// as a request URL, so every URL in the message is redacted too.
 	redacted = redactURLsInText(redacted)
 
 	if redacted == msg && !unsafeURLErr {
@@ -633,8 +632,8 @@ func redactURLsInText(s string) string {
 	return b.String()
 }
 
-// looksCutInUserinfo reports whether m ends in a ":" followed by something
-// other than a port, with no "@", such as "postgres://user:pass".
+// looksCutInUserinfo reports whether m is only a scheme and an authority with
+// no "@", ending in ":" and a non-port, such as "postgres://user:pass".
 func looksCutInUserinfo(m string) bool {
 	_, rest, _ := strings.Cut(m, "://")
 	authority := rest
