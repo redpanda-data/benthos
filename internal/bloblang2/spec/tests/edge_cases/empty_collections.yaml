@@ -1,0 +1,108 @@
+description: "Edge cases: empty array and empty object with all applicable methods"
+
+tests:
+  # --- Empty array methods ---
+
+  - name: "empty array sort returns empty array"
+    mapping: |
+      output = [].sort()
+    output: []
+
+  - name: "empty array sum returns 0"
+    mapping: |
+      output = [].sum()
+    output: 0
+
+  - name: "empty array min is error"
+    mapping: |
+      output = [].min()
+    error: "empty"
+
+  - name: "empty array max is error"
+    mapping: |
+      output = [].max()
+    error: "empty"
+
+  - name: "empty array fold returns initial value"
+    mapping: |
+      output = [].fold(42, (tally, x) -> tally + x)
+    output: 42
+
+  - name: "empty array fold returns initial string"
+    mapping: |
+      output = [].fold("start", (tally, x) -> tally + x)
+    output: "start"
+
+  - name: "empty array length is 0"
+    mapping: |
+      output = [].length()
+    output: 0
+
+  - name: "empty array contains returns false"
+    mapping: |
+      output = [].contains(1)
+    output: false
+
+  - name: "empty array unique returns empty array"
+    mapping: |
+      output = [].unique()
+    output: []
+
+  - name: "empty array filter returns empty array"
+    mapping: |
+      output = [].filter(x -> x > 0)
+    output: []
+
+  - name: "empty array map returns empty array"
+    mapping: |
+      output = [].map(x -> x * 2)
+    output: []
+
+  - name: "empty array reverse returns empty array"
+    mapping: |
+      output = [].reverse()
+    output: []
+
+  # --- Empty object methods ---
+
+  - name: "empty object keys returns empty array"
+    mapping: |
+      output = {}.keys()
+    output: []
+
+  - name: "empty object values returns empty array"
+    mapping: |
+      output = {}.values()
+    output: []
+
+  - name: "empty object length is 0"
+    mapping: |
+      output = {}.length()
+    output: 0
+
+  - name: "empty object type is object"
+    mapping: |
+      output = {}.type()
+    output: "object"
+
+  - name: "empty array type is array"
+    mapping: |
+      output = [].type()
+    output: "array"
+
+  # --- Single element edge cases ---
+
+  - name: "single element array sort returns same"
+    mapping: |
+      output = [42].sort()
+    output: [42]
+
+  - name: "single element array min returns element"
+    mapping: |
+      output = [42].min()
+    output: 42
+
+  - name: "single element array max returns element"
+    mapping: |
+      output = [42].max()
+    output: 42

@@ -1,0 +1,194 @@
+description: "Void behavior in every context — void is not a type, it is the absence of a value"
+
+tests:
+  # --- Output field assignment: void skips assignment ---
+
+  - name: "void skips output assignment (no prior value)"
+    mapping: |
+      root.x = if false { "hello" }
+    # FIXME-v1: V1 if-without-else evaluates to null; assigning null writes null (not skip)
+    skip: "V2-only: V1 if-without-else returns null and assigns it; no void-skip behaviour"
+
+  - name: "void preserves prior output value"
+    mapping: |
+      root.status = "pending"
+      root.status = if false { "override" }
+    skip: "V2-only: V1 second assignment overwrites with null; prior value is lost"
+
+  - name: "void from else-if chain without final else"
+    mapping: |
+      root.tier = "default"
+      root.tier = if false { "gold" } else if false { "silver" }
+    skip: "V2-only: V1 if-else-if without final else returns null and assigns it"
+
+  - name: "void from non-exhaustive match"
+    mapping: |
+      root.sound = "unknown"
+      root.sound = match "bird" {
+        "cat" => "meow",
+        "dog" => "woof",
+      }
+    skip: "V2-only: V1 non-exhaustive match returns null and assigns it, not void-skip"
+
+  # --- Variable declaration: runtime error ---
+
+  - name: "void in variable declaration is runtime error (if)"
+    mapping: |
+      let x = if false { 42 }
+    skip: "V2-only: V1 binds $x = null with no error"
+
+  - name: "void in variable declaration is runtime error (match)"
+    mapping: |
+      let x = match "nope" {
+        "a" => 1,
+      }
+    skip: "V2-only: V1 binds $x = null with no error"
+
+  # --- Variable reassignment: void skips ---
+
+  - name: "void skips variable reassignment"
+    mapping: |
+      let x = 10
+      let x = if false { 42 }
+      root.result = $x
+    skip: "V2-only: V1 overwrites $x with null; no void-skip"
+
+  - name: "void skips variable reassignment from match"
+    mapping: |
+      let x = "original"
+      let x = match "nope" {
+        "a" => "found",
+      }
+      root.result = $x
+    skip: "V2-only: V1 overwrites $x with null; no void-skip"
+
+  # --- Collection literal: error ---
+
+  - name: "void in array literal is error"
+    mapping: |
+      root.arr = [1, if false { 2 }, 3]
+    skip: "V2-only: V1 would include null in the array, not error"
+
+  - name: "void in object literal is error"
+    mapping: |
+      root.obj = {"a": 1, "b": if false { 2 }}
+    skip: "V2-only: V1 would set b: null, not error"
+
+  - name: "void in array from match is error"
+    mapping: |
+      root.arr = [match "x" { "y" => 1 }]
+    skip: "V2-only: V1 non-exhaustive match returns null; array would contain [null]"
+
+  # --- Function/map argument: error ---
+
+  - name: "void as map argument is error"
+    mapping: |
+      map double { root = this * 2 }
+      root.result = (if false { 42 }).apply("double")
+    # FIXME-v1: V1 maps take `this` as the receiver; void arg becomes null → null * 2 is a type error
+    skip: "V2-only: V1 map syntax differs (no argument list); void concept does not apply"
+
+  # --- .or() rescues void ---
+
+  - name: "or rescues void from if-without-else"
+    mapping: |
+      root.result = (if false { "hello" }).or("default")
+    # V1 if-without-else returns null; .or() rescues null → "default"
+    output: {"result": "default"}
+
+  - name: "or rescues void from non-exhaustive match"
+    mapping: |
+      root.result = (match "bird" { "cat" => "meow" }).or("unknown")
+    # V1 non-exhaustive match returns null; .or() rescues → "unknown"
+    output: {"result": "unknown"}
+
+  - name: "or does not trigger when value exists"
+    mapping: |
+      root.result = (if true { "hello" }).or("default")
+    output: {"result": "hello"}
+
+  - name: "or short-circuits argument on non-void"
+    mapping: |
+      root.result = (if true { "hello" }).or(throw("should not run"))
+    output: {"result": "hello"}
+
+  # --- .catch() passes void through unchanged ---
+
+  - name: "catch does not trigger on void"
+    mapping: |
+      root.x = "prior"
+      root.x = (if false { 1 }).catch(0)
+    # FIXME-v1: V1 returns null (not void); .catch only handles errors, so returns null → overwrites "prior"
+    skip: "V2-only: V1 does not preserve prior value here; second assignment overwrites with null"
+
+  - name: "catch passes void through then method errors"
+    mapping: |
+      root.result = (if false { 1 }).catch(0).string().catch("caught")
+    # FIXME-v1: V1 returns null; null.string() returns "null" → "null" (no catch triggers)
+    skip: "V2-only: V1 null.string() returns 'null' without erroring"
+
+  # --- Method calls on void: error ---
+
+  - name: "type on void is error"
+    mapping: |
+      root.t = (if false { 42 }).type()
+    # V1: null.type() returns "null"
+    skip: "V2-only: V1 null.type() returns 'null', no void error"
+
+  - name: "string on void is error"
+    mapping: |
+      root.s = (if false { "hello" }).string()
+    # V1: null.string() returns "null"
+    skip: "V2-only: V1 null.string() returns 'null', no void error"
+
+  - name: "length on void is error"
+    mapping: |
+      root.l = (if false { [1, 2] }).length()
+    # V1: null.length() is a type error
+    skip: "V2-only error type mismatch with V1 (would error on type, not on void)"
+
+  - name: "uppercase on void is error"
+    mapping: |
+      root.s = (if false { "hello" }).uppercase()
+    skip: "V2-only error type mismatch with V1 (would error on null, not on void)"
+
+  # --- Expression operand: error ---
+
+  - name: "void plus number is error"
+    mapping: |
+      root.result = (if false { 42 }) + 1
+    skip: "V2-only: V1 null+number is a type error ('cannot add'), not a void error"
+
+  - name: "number plus void is error"
+    mapping: |
+      root.result = 1 + (if false { 42 })
+    skip: "V2-only: V1 number+null is a type error, not a void error"
+
+  - name: "void in boolean negation is error"
+    mapping: |
+      root.result = !(if false { true })
+    skip: "V2-only: V1 !null is a type error, not a void error"
+
+  - name: "void equality comparison is error"
+    mapping: |
+      root.result = (if false { 42 }) == 42
+    # FIXME-v1: V1 null == 42 returns false, not an error
+    skip: "V2-only: V1 null == 42 returns false without erroring"
+
+  # --- Void rescued with or then used in variable declaration ---
+
+  - name: "or rescues void for variable declaration"
+    mapping: |
+      let x = (if false { 42 }).or(0)
+      root.result = $x
+    output: {"result": 0}
+
+  # --- Void vs deleted distinction ---
+
+  - name: "void preserves prior value while deleted removes it"
+    mapping: |
+      root.a = "exists"
+      root.b = "exists"
+      root.a = if false { "override" }
+      root.b = deleted()
+    skip: "V2-only: V1 overwrites root.a with null (not preserved); only root.b=deleted() matches V2 semantics"

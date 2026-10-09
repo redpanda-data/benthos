@@ -1,0 +1,266 @@
+description: "Logical operators (&&, ||, !) — boolean requirement, short-circuit evaluation, associativity"
+
+tests:
+  # --- Basic AND ---
+  - name: "and_true_true"
+    mapping: |
+      root = true && true
+    output: true
+
+  - name: "and_true_false"
+    mapping: |
+      root = true && false
+    output: false
+
+  - name: "and_false_true"
+    mapping: |
+      root = false && true
+    output: false
+
+  - name: "and_false_false"
+    mapping: |
+      root = false && false
+    output: false
+
+  # --- Basic OR ---
+  - name: "or_true_true"
+    mapping: |
+      root = true || true
+    output: true
+
+  - name: "or_true_false"
+    mapping: |
+      root = true || false
+    output: true
+
+  - name: "or_false_true"
+    mapping: |
+      root = false || true
+    output: true
+
+  - name: "or_false_false"
+    mapping: |
+      root = false || false
+    output: false
+
+  # --- Basic NOT ---
+  - name: "not_true"
+    mapping: |
+      root = !true
+    output: false
+
+  - name: "not_false"
+    mapping: |
+      root = !false
+    output: true
+
+  - name: "double_negation"
+    mapping: |
+      root = !(!true)
+    output: true # V1 note: `!!true` is a parse error; the `!` operator needs parens around the negated expression to double-negate.
+
+  # --- Short-circuit AND ---
+  - name: "and_short_circuit_false_lhs"
+    mapping: |
+      root = false && throw("should not be evaluated")
+    output: false
+
+  - name: "and_no_short_circuit_true_lhs"
+    mapping: |
+      root = true && throw("evaluated")
+    error: "evaluated"
+
+  # --- Short-circuit OR ---
+  - name: "or_short_circuit_true_lhs"
+    mapping: |
+      root = true || throw("should not be evaluated")
+    output: true
+
+  - name: "or_no_short_circuit_false_lhs"
+    mapping: |
+      root = false || throw("evaluated")
+    error: "evaluated"
+
+  # --- Non-boolean operands: AND ---
+  - name: "and_int_lhs"
+    mapping: |
+      root = 5 && true
+    output: true # V1 quirk: `&&` coerces numbers to bool (non-zero → true); no type error.
+
+  - name: "and_int_rhs"
+    mapping: |
+      root = true && 1
+    output: true # V1 quirk: `&&` coerces numbers to bool (non-zero → true); no type error.
+
+  - name: "and_string_lhs"
+    mapping: |
+      root = "yes" && true
+    error: "bool" # FIXME-v1: verify
+
+  - name: "and_null_lhs"
+    mapping: |
+      root = null && true
+    error: "bool" # FIXME-v1: verify
+
+  - name: "and_null_rhs"
+    mapping: |
+      root = true && null
+    error: "bool" # FIXME-v1: verify
+
+  - name: "and_array_lhs"
+    mapping: |
+      root = [1, 2] && true
+    error: "bool" # FIXME-v1: verify
+
+  - name: "and_object_lhs"
+    mapping: |
+      root = {"a": 1} && true
+    error: "bool" # FIXME-v1: verify
+
+  # --- Non-boolean operands: OR ---
+  - name: "or_int_lhs"
+    mapping: |
+      root = 0 || false
+    output: false # V1 quirk: `||` coerces numbers to bool (0 → false); no type error.
+
+  - name: "or_string_rhs"
+    mapping: |
+      root = false || "fallback"
+    error: "bool" # FIXME-v1: verify
+
+  - name: "or_float_lhs"
+    mapping: |
+      root = 1.0 || true
+    output: true # V1 quirk: `||` coerces numbers to bool (non-zero → true); no type error.
+
+  # --- Non-boolean operands: NOT ---
+  - name: "not_int"
+    mapping: |
+      root = !5
+    error: "bool" # FIXME-v1: verify
+
+  - name: "not_string"
+    mapping: |
+      root = !"hello"
+    error: "bool" # FIXME-v1: verify
+
+  - name: "not_null"
+    mapping: |
+      root = !null
+    error: "bool" # FIXME-v1: verify
+
+  - name: "not_zero"
+    mapping: |
+      root = !0
+    error: "bool" # FIXME-v1: verify
+
+  - name: "not_empty_string"
+    mapping: |
+      root = !""
+    error: "bool" # FIXME-v1: verify
+
+  # --- Short-circuit skips type check on unevaluated side ---
+  - name: "and_short_circuit_skips_type_check"
+    mapping: |
+      root = false && "not a bool"
+    output: false
+
+  - name: "or_short_circuit_skips_type_check"
+    mapping: |
+      root = true || 42
+    output: true
+
+  # --- Left-associativity of AND ---
+  - name: "and_left_associative"
+    mapping: |
+      root = true && false && true
+    output: false
+
+  - name: "and_chain_all_true"
+    mapping: |
+      root = true && true && true
+    output: true
+
+  # --- Left-associativity of OR ---
+  - name: "or_left_associative"
+    mapping: |
+      root = false || false || true
+    output: true
+
+  - name: "or_chain_all_false"
+    mapping: |
+      root = false || false || false
+    output: false
+
+  # --- V1 WARNING: && and || are at the SAME precedence level, resolved left-to-right ---
+  # This differs from V2 (and most languages). `a || b && c` in V1 is `(a || b) && c`.
+  - name: "and_binds_tighter_than_or"
+    mapping: |
+      root = true || false && false
+    output: false # V1: (true || false) && false = true && false = false
+
+  - name: "and_binds_tighter_than_or_reversed"
+    mapping: |
+      root = false && false || true
+    output: true # V1: (false && false) || true = false || true = true
+
+  - name: "parens_override_and_or_precedence"
+    mapping: |
+      root = true || false && false
+    output: false # V1: same as "and_binds_tighter_than_or" — (true || false) && false
+
+  - name: "parens_force_or_first"
+    mapping: |
+      root = (true || false) && false
+    output: false
+
+  # --- Combinations ---
+  - name: "not_with_and"
+    mapping: |
+      root = !false && true
+    output: true
+
+  - name: "not_with_or"
+    mapping: |
+      root = !true || false
+    output: false
+
+  - name: "complex_logical_expression"
+    mapping: |
+      root = (true || false) && !(false && true)
+    output: true
+
+  - name: "not_binds_tighter_than_and"
+    mapping: |
+      root = !false && !false
+    output: true
+
+  # --- Short-circuit preserves left-to-right with associativity ---
+  - name: "and_chain_short_circuits_at_first_false"
+    mapping: |
+      root = true && false && throw("should not reach")
+    output: false
+
+  - name: "or_chain_short_circuits_at_first_true"
+    mapping: |
+      root = false || true || throw("should not reach")
+    output: true
+
+  # --- Using input values ---
+  - name: "and_with_input_booleans"
+    mapping: |
+      root = this.a && this.b
+    input: {"a": true, "b": false}
+    output: false
+
+  - name: "or_with_input_booleans"
+    mapping: |
+      root = this.a || this.b
+    input: {"a": false, "b": true}
+    output: true
+
+  - name: "not_with_input_boolean"
+    mapping: |
+      root = !this.flag
+    input: {"flag": true}
+    output: false

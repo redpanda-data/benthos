@@ -1,0 +1,162 @@
+description: "Error propagation through expressions, postfix chains, and multiple error sources"
+
+tests:
+  # --- Errors propagate through arithmetic ---
+
+  - name: "error in left operand propagates through addition"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero) + 1
+    error: "attempted to divide by zero" # V1 literal 5/0 fails at compile; use runtime operand
+
+  - name: "error in right operand propagates through addition"
+    input: {"zero": 0}
+    mapping: |
+      root.result = 1 + (5 / this.zero)
+    error: "attempted to divide by zero"
+
+  - name: "error in left operand propagates through multiplication"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero) * 3
+    error: "attempted to divide by zero"
+
+  - name: "error propagates through nested arithmetic"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (1 + (5 / this.zero)) * 2
+    error: "attempted to divide by zero"
+
+  # --- Errors propagate through comparison and logical operators ---
+
+  - name: "error propagates through equality check"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero) == 0
+    error: "attempted to divide by zero"
+
+  - name: "error propagates through comparison"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero) > 0
+    error: "attempted to divide by zero"
+
+  - name: "error propagates through logical and"
+    input: {"zero": 0}
+    mapping: |
+      root.result = true && ((5 / this.zero) > 0)
+    error: "attempted to divide by zero"
+
+  - name: "error propagates through negation"
+    mapping: |
+      root.result = !throw("bad")
+    error: "bad"
+
+  # --- Postfix chain: subsequent operations skipped ---
+
+  - name: "error in method receiver skips subsequent method"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero).string()
+    error: "attempted to divide by zero"
+
+  - name: "error skips multiple chained methods"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero).string().uppercase().length()
+    error: "attempted to divide by zero"
+
+  - name: "error from method skips subsequent methods"
+    mapping: |
+      root.result = "hello".number().string()
+    error: "strconv.ParseFloat" # V1 core env has no abs/int64 methods; use .number() which errors on non-numeric string
+
+  - name: "error in field access skips subsequent field"
+    input: {}
+    mapping: |
+      root.result = throw("no data").name.length()
+    error: "no data"
+
+  - name: "error in index access skips subsequent operations"
+    mapping: |
+      let arr = [1, 2]
+      root.result = $arr.index(5).string()
+    error: "out of bounds"
+
+  # --- Error propagation through string interpolation ---
+
+  - name: "error in string concatenation propagates"
+    input: {"zero": 0}
+    mapping: |
+      root.result = "value is: " + (5 / this.zero).string()
+    error: "attempted to divide by zero"
+
+  # --- Error propagates into variable assignment ---
+
+  - name: "error assigned to variable propagates on use"
+    input: {"zero": 0}
+    mapping: |
+      let x = 5 / this.zero
+      root.result = $x
+    error: "attempted to divide by zero"
+
+  # --- Error propagates through collection literal ---
+
+  - name: "error in array element propagates"
+    input: {"zero": 0}
+    mapping: |
+      root.result = [1, 5 / this.zero, 3]
+    error: "attempted to divide by zero"
+
+  - name: "error in object value propagates"
+    input: {"zero": 0}
+    mapping: |
+      root.result = {"a": 5 / this.zero}
+    error: "attempted to divide by zero"
+
+  # --- Error propagates through if condition ---
+
+  - name: "error in if condition propagates"
+    input: {"zero": 0}
+    mapping: |
+      root.result = if (5 / this.zero) > 0 { "positive" } else { "negative" }
+    error: "attempted to divide by zero"
+
+  # --- Error propagates through match subject ---
+
+  - name: "error in match subject propagates"
+    input: {"zero": 0}
+    mapping: |
+      root.result = match (5 / this.zero) {
+        0 => "zero",
+        _ => "other",
+      }
+    error: "attempted to divide by zero"
+
+  # --- Error propagates through map arguments ---
+  # V1 named-map invocation is via `.apply("name")`, not function-style `double(x)`;
+  # the equivalent pattern is `(5 / 0).apply("double")` which propagates errors the
+  # same way.
+
+  - name: "error in map argument propagates"
+    input: {"zero": 0}
+    mapping: |
+      map double { root = this * 2 }
+      root.result = (5 / this.zero).apply("double")
+    error: "attempted to divide by zero" # V1 map bodies assign to root; applied with .apply("name")
+
+  # --- Type mismatch errors propagate ---
+
+  - name: "type mismatch error propagates through chain"
+    input: {"s": "hello"}
+    mapping: |
+      root.result = (5 + this.s).string()
+    error: "cannot add" # V1 literal `5 + "hello"` fails at compile; use runtime operand so the type mismatch errors at runtime
+
+  # --- Multiple error sources: first error wins ---
+
+  - name: "left operand error reported when both sides error"
+    input: {"zero": 0}
+    mapping: |
+      root.result = (5 / this.zero) + (3 / this.zero)
+    error: "attempted to divide by zero"

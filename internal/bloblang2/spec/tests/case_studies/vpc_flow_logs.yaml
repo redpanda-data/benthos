@@ -1,0 +1,159 @@
+description: >
+  VPC Flow Logs parsing and enrichment — split space-delimited log records into
+  structured objects, map protocol numbers to names, classify IPs by address
+  range, identify well-known port services, detect anomalies (rejected SSH),
+  compute per-flow throughput, filter NODATA records, and aggregate a summary.
+
+tests:
+  - name: "parse and enrich VPC flow log batch"
+    input:
+      owner: "123456789012"
+      logGroup: "/aws/vpc/flowlogs/vpc-0a1b2c3d"
+      logStream: "eni-0f1a2b3c-all"
+      logEvents:
+        - message: "2 123456789012 eni-0f1a2b3c 10.0.1.47 203.0.113.50 44832 443 6 12 1680 1710505200 1710505260 ACCEPT OK"
+        - message: "2 123456789012 eni-0f1a2b3c 198.51.100.22 10.0.1.47 55912 22 6 847 52140 1710505200 1710505260 REJECT OK"
+        - message: "2 123456789012 eni-0f1a2b3c 10.0.1.47 10.0.2.83 38210 5432 6 245 89200 1710505200 1710505260 ACCEPT OK"
+        - message: "2 123456789012 eni-0f1a2b3c - - - - - - - 1710505260 1710505320 - NODATA"
+    mapping: |
+      map protocol_name(num) {
+        match num {
+          "6" => "TCP",
+          "17" => "UDP",
+          "1" => "ICMP",
+          _ => "proto-" + num,
+        }
+      }
+
+      map port_service(port) {
+        match port {
+          "443" => "HTTPS",
+          "80" => "HTTP",
+          "22" => "SSH",
+          "5432" => "PostgreSQL",
+          "3306" => "MySQL",
+          _ => null,
+        }
+      }
+
+      map classify_ip(addr) {
+        match {
+          addr.has_prefix("10.") => "internal",
+          addr.has_prefix("172.") => "internal",
+          addr.has_prefix("192.168.") => "internal",
+          addr.has_prefix("169.254.") => "link-local",
+          _ => "external",
+        }
+      }
+
+      $nodata_count = input.logEvents
+        .filter(e -> e.message.has_suffix("NODATA")).length()
+
+      # Parse space-delimited records, dropping NODATA
+      $flows = input.logEvents
+        .filter(e -> !e.message.has_suffix("NODATA"))
+        .map(e -> {
+          $f = e.message.split(" ")
+          $srcaddr = $f[3]
+          $dstaddr = $f[4]
+          $srcport = $f[5]
+          $dstport = $f[6]
+          $proto = protocol_name($f[7])
+          $service = port_service($dstport).or(port_service($srcport).or(null))
+          $src_class = classify_ip($srcaddr)
+          $dst_class = classify_ip($dstaddr)
+          $direction = match {
+            $src_class == "internal" && $dst_class == "external" => "outbound",
+            $src_class == "external" && $dst_class == "internal" => "inbound",
+            _ => "internal",
+          }
+          $action = $f[12]
+          $packets = $f[8].int64()
+          $bytes = $f[9].int64()
+          $duration = $f[11].int64() - $f[10].int64()
+          $bps = ($bytes.float64() / $duration.float64()).round(1)
+          $is_anomaly = $action == "REJECT" && $service == "SSH"
+          {
+            "protocol": $proto,
+            "src_addr": $srcaddr,
+            "dst_addr": $dstaddr,
+            "src_port": $srcport.int64(),
+            "dst_port": $dstport.int64(),
+            "service": $service,
+            "direction": $direction,
+            "traffic_class": match $direction {
+              "outbound" => $dst_class,
+              "inbound" => $src_class,
+              _ => "internal",
+            },
+            "action": $action,
+            "packets": $packets,
+            "bytes": $bytes,
+            "bytes_per_sec": $bps,
+            "anomaly": $is_anomaly,
+          }
+        })
+
+      output.vpc_id = input.logGroup.split("/")[-1]
+      output.account_id = input.owner
+      output.interface_id = input.logStream.split("-all")[0]
+      output.flows = $flows
+      output.summary = {
+        "total_flows": $flows.length(),
+        "accepted": $flows.filter(r -> r.action == "ACCEPT").length(),
+        "rejected": $flows.filter(r -> r.action == "REJECT").length(),
+        "anomalies": $flows.filter(r -> r.anomaly).length(),
+        "total_bytes": $flows.map(r -> r.bytes).sum(),
+        "nodata_dropped": $nodata_count,
+      }
+    output:
+      vpc_id: "vpc-0a1b2c3d"
+      account_id: "123456789012"
+      interface_id: "eni-0f1a2b3c"
+      flows:
+        - protocol: "TCP"
+          src_addr: "10.0.1.47"
+          dst_addr: "203.0.113.50"
+          src_port: 44832
+          dst_port: 443
+          service: "HTTPS"
+          direction: "outbound"
+          traffic_class: "external"
+          action: "ACCEPT"
+          packets: 12
+          bytes: 1680
+          bytes_per_sec: 28.0
+          anomaly: false
+        - protocol: "TCP"
+          src_addr: "198.51.100.22"
+          dst_addr: "10.0.1.47"
+          src_port: 55912
+          dst_port: 22
+          service: "SSH"
+          direction: "inbound"
+          traffic_class: "external"
+          action: "REJECT"
+          packets: 847
+          bytes: 52140
+          bytes_per_sec: 869.0
+          anomaly: true
+        - protocol: "TCP"
+          src_addr: "10.0.1.47"
+          dst_addr: "10.0.2.83"
+          src_port: 38210
+          dst_port: 5432
+          service: "PostgreSQL"
+          direction: "internal"
+          traffic_class: "internal"
+          action: "ACCEPT"
+          packets: 245
+          bytes: 89200
+          bytes_per_sec: 1486.7
+          anomaly: false
+      summary:
+        total_flows: 3
+        accepted: 2
+        rejected: 1
+        anomalies: 1
+        total_bytes: 143020
+        nodata_dropped: 1

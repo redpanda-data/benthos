@@ -1,0 +1,152 @@
+description: >
+  AWS CloudFormation resource inventory — transform a stack description and its
+  resources into a CMDB-friendly record. Parses account and region from the stack
+  ARN, converts KV-pair arrays (Parameters, Tags, Outputs) into objects, coerces
+  numeric string parameters to integers, groups resources by AWS service
+  category, and checks overall health status.
+
+tests:
+  - name: "build inventory record from CloudFormation stack"
+    input:
+      stack:
+        StackName: "prod-api-stack"
+        StackId: "arn:aws:cloudformation:us-east-1:123456789012:stack/prod-api-stack/guid"
+        StackStatus: "UPDATE_COMPLETE"
+        LastUpdatedTime: "2024-01-14T22:15:00Z"
+        Parameters:
+          - {ParameterKey: "environment", ParameterValue: "production"}
+          - {ParameterKey: "instance_type", ParameterValue: "m5.xlarge"}
+          - {ParameterKey: "min_capacity", ParameterValue: "3"}
+          - {ParameterKey: "max_capacity", ParameterValue: "12"}
+        Tags:
+          - {Key: "team", Value: "platform"}
+          - {Key: "cost-center", Value: "eng-1234"}
+        Outputs:
+          - {OutputKey: "LoadBalancerDNS", OutputValue: "prod-api-lb-123.us-east-1.elb.amazonaws.com"}
+          - {OutputKey: "ApiEndpoint", OutputValue: "https://api.example.com"}
+      resources:
+        - LogicalResourceId: "WebLoadBalancer"
+          PhysicalResourceId: "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/prod-api-lb/abc123"
+          ResourceType: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+          ResourceStatus: "UPDATE_COMPLETE"
+        - LogicalResourceId: "WebTargetGroup"
+          PhysicalResourceId: "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/prod-api-tg/def456"
+          ResourceType: "AWS::ElasticLoadBalancingV2::TargetGroup"
+          ResourceStatus: "UPDATE_COMPLETE"
+        - LogicalResourceId: "AppAutoScalingGroup"
+          PhysicalResourceId: "prod-api-asg-XYZ789"
+          ResourceType: "AWS::AutoScaling::AutoScalingGroup"
+          ResourceStatus: "UPDATE_COMPLETE"
+        - LogicalResourceId: "AppSecurityGroup"
+          PhysicalResourceId: "sg-0a1b2c3d"
+          ResourceType: "AWS::EC2::SecurityGroup"
+          ResourceStatus: "UPDATE_COMPLETE"
+        - LogicalResourceId: "AppLogGroup"
+          PhysicalResourceId: "/aws/ecs/prod-api"
+          ResourceType: "AWS::Logs::LogGroup"
+          ResourceStatus: "CREATE_COMPLETE"
+    mapping: |
+      # Map AWS resource type to a friendly service category.
+      map service_category(resource_type) {
+        match resource_type.split("::")[1] {
+          "ElasticLoadBalancingV2" => "ELB",
+          "AutoScaling" => "AutoScaling",
+          "EC2" => "EC2",
+          "Logs" => "CloudWatch",
+          _ => resource_type.split("::")[1],
+        }
+      }
+
+      # Extract the short resource type (e.g. "LoadBalancer" from
+      # "AWS::ElasticLoadBalancingV2::LoadBalancer").
+      map short_type(resource_type) {
+        resource_type.split("::")[2]
+      }
+
+      $stack = input.stack
+
+      # Parse region and account from the stack ARN
+      $arn_parts = $stack.StackId.split(":")
+      $region = $arn_parts[3]
+      $account = $arn_parts[4]
+
+      # Convert Parameters KV array to object, parsing pure-numeric values
+      $config = $stack.Parameters.map(p -> {
+        $val = if p.ParameterValue.re_match("^[0-9]+$") {
+          p.ParameterValue.int64()
+        } else {
+          p.ParameterValue
+        }
+        {"key": p.ParameterKey, "value": $val}
+      }).collect()
+
+      # Convert Tags and Outputs KV arrays to objects
+      $tags = $stack.Tags
+        .map(t -> {"key": t.Key, "value": t.Value}).collect()
+      $endpoints = $stack.Outputs
+        .map(o -> {"key": o.OutputKey, "value": o.OutputValue}).collect()
+
+      # Group resources by service category
+      $services = input.resources.map(r -> service_category(r.ResourceType)).unique()
+      $resources_by_service = $services.map(svc -> {
+        "key": svc,
+        "value": input.resources
+          .filter(r -> service_category(r.ResourceType) == svc)
+          .map(r -> {
+            "logical_id": r.LogicalResourceId,
+            "physical_id": r.PhysicalResourceId,
+            "type": short_type(r.ResourceType),
+          }),
+      }).collect()
+
+      output.stack = $stack.StackName
+      output.region = $region
+      output.account = $account
+      output.status = $stack.StackStatus
+      output.last_updated = $stack.LastUpdatedTime
+      output.team = $tags.team
+      output.cost_center = $tags."cost-center"
+      output.config = $config
+      output.endpoints = $endpoints
+      output.resources_by_service = $resources_by_service
+      output.resource_count = input.resources.length()
+      output.all_healthy = input.resources
+        .all(r -> r.ResourceStatus.has_suffix("COMPLETE"))
+    output:
+      stack: "prod-api-stack"
+      region: "us-east-1"
+      account: "123456789012"
+      status: "UPDATE_COMPLETE"
+      last_updated: "2024-01-14T22:15:00Z"
+      team: "platform"
+      cost_center: "eng-1234"
+      config:
+        environment: "production"
+        instance_type: "m5.xlarge"
+        min_capacity: 3
+        max_capacity: 12
+      endpoints:
+        LoadBalancerDNS: "prod-api-lb-123.us-east-1.elb.amazonaws.com"
+        ApiEndpoint: "https://api.example.com"
+      resources_by_service:
+        ELB:
+          - logical_id: "WebLoadBalancer"
+            physical_id: "arn:aws:elasticloadbalancing:us-east-1:123456789012:loadbalancer/app/prod-api-lb/abc123"
+            type: "LoadBalancer"
+          - logical_id: "WebTargetGroup"
+            physical_id: "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/prod-api-tg/def456"
+            type: "TargetGroup"
+        AutoScaling:
+          - logical_id: "AppAutoScalingGroup"
+            physical_id: "prod-api-asg-XYZ789"
+            type: "AutoScalingGroup"
+        EC2:
+          - logical_id: "AppSecurityGroup"
+            physical_id: "sg-0a1b2c3d"
+            type: "SecurityGroup"
+        CloudWatch:
+          - logical_id: "AppLogGroup"
+            physical_id: "/aws/ecs/prod-api"
+            type: "LogGroup"
+      resource_count: 5
+      all_healthy: true

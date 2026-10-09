@@ -1,0 +1,161 @@
+description: "Static field access: dot notation, keywords as fields, quoted fields, nested access, null for missing, errors on non-objects"
+
+tests:
+  # --- Basic dot notation ---
+
+  - name: "access input field"
+    input: {"name": "Alice"}
+    mapping: |
+      root.v = this.name
+    output: {"v": "Alice"}
+
+  - name: "access nested input field"
+    input: {"user": {"name": "Alice"}}
+    mapping: |
+      root.v = this.user.name
+    output: {"v": "Alice"}
+
+  - name: "deeply nested field access"
+    mapping: |
+      root.v = this.a.b.c.d
+    cases:
+      - name: "all present"
+        input: {"a": {"b": {"c": {"d": 42}}}}
+        output: {"v": 42}
+      - name: "null intermediate is error"
+        input: {"a": {}}
+        output: {"v": null} # FIXME-v1: verify - V1 path access into missing/null returns null (no error) per §12.5
+
+  - name: "access output field after assignment"
+    mapping: |
+      root.x = 10
+      root.y = root.x + 5
+    output: {"x": 10, "y": 15}
+
+  - name: "access variable field"
+    mapping: |
+      let obj = {"name": "Bob", "age": 25}
+      root.name = $obj.name
+      root.age = $obj.age
+    output: {"name": "Bob", "age": 25}
+
+  # --- Non-existent fields return null ---
+
+  - name: "non-existent field on input returns null"
+    input: {"name": "Alice"}
+    mapping: |
+      root.v = this.missing
+    output: {"v": null}
+
+  - name: "non-existent nested field returns null"
+    input: {"user": {"name": "Alice"}}
+    mapping: |
+      root.v = this.user.email
+    output: {"v": null}
+
+  - name: "non-existent field on variable returns null"
+    mapping: |
+      let obj = {"x": 1}
+      root.v = $obj.y
+    output: {"v": null}
+
+  - name: "non-existent field on empty object returns null"
+    input: {}
+    mapping: |
+      root.v = this.anything
+    output: {"v": null}
+
+  # --- Keywords as valid field names ---
+
+  - name: "keyword map as field name"
+    input: {"map": "value"}
+    mapping: |
+      root.v = this.map
+    output: {"v": "value"}
+
+  - name: "keyword if as field name"
+    mapping: |
+      root.if = "conditional"
+      root.v = root.if
+    output: {"if": "conditional", "v": "conditional"}
+
+  - name: "keyword match as field name"
+    input: {"match": 42}
+    mapping: |
+      root.v = this.match
+    output: {"v": 42}
+
+  - name: "keyword true as field name"
+    input: {"true": "yes"}
+    mapping: |
+      root.v = this.true
+    output: {"v": "yes"}
+
+  - name: "keyword null as field name"
+    input: {"null": "not actually null"}
+    mapping: |
+      root.v = this.null
+    output: {"v": "not actually null"}
+
+  # --- Quoted field names ---
+
+  - name: "quoted field with spaces"
+    input: {"field with spaces": "hello"}
+    mapping: |
+      root.v = this."field with spaces"
+    output: {"v": "hello"}
+
+  - name: "quoted field with special characters"
+    input: {"special-chars!@#": "value"}
+    mapping: |
+      root.v = this."special-chars!@#"
+    output: {"v": "value"}
+
+  - name: "quoted field starting with digit"
+    input: {"123": "numeric"}
+    mapping: |
+      root.v = this."123"
+    output: {"v": "numeric"}
+
+  - name: "quoted field with dots"
+    input: {"a.b.c": "dotted"}
+    mapping: |
+      root.v = this."a.b.c"
+    output: {"v": "dotted"}
+
+  - name: "quoted field on output"
+    mapping: |
+      root."my-field" = "works"
+    output: {"my-field": "works"}
+
+  - name: "quoted field nested access"
+    input: {"top level": {"inner-key": "found"}}
+    mapping: |
+      root.v = this."top level"."inner-key"
+    output: {"v": "found"}
+
+  # --- Field access on non-object types is error ---
+
+  - name: "field access on string is error"
+    mapping: |
+      let s = "hello"
+      root.v = $s.field
+    output: {"v": null} # V1 silently returns null for field access on non-object values
+
+  - name: "field access on integer is error"
+    mapping: |
+      let n = 42
+      root.v = $n.field
+    output: {"v": null} # V1 silently returns null for field access on non-object values
+
+  - name: "field access on boolean is error"
+    mapping: |
+      let b = true
+      root.v = $b.field
+    output: {"v": null} # V1 silently returns null for field access on non-object values
+
+  - name: "field access on array is error"
+    mapping: |
+      let arr = [1, 2, 3]
+      root.v = $arr.field
+    output: {"v": null} # V1 silently returns null for field access on non-object values

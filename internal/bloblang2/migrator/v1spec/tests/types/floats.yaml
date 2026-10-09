@@ -1,0 +1,260 @@
+description: "Float types: float32, float64, NaN, Infinity, negative zero"
+
+tests:
+  # --- float64 literals (default) ---
+
+  - name: "float literal is float64"
+    mapping: |
+      root = 3.14.type()
+    # V1 .type() reports "number" for any numeric value, not "float64"
+    skip: "V2-only: V1 .type() returns 'number' for all numerics, no float64/int64 distinction"
+
+  - name: "float64 zero"
+    mapping: |
+      root = 0.0
+    output: 0.0
+
+  - name: "float64 negative"
+    mapping: |
+      root = -3.14
+    output: -3.14
+
+  - name: "float64 small decimal"
+    mapping: |
+      root = 0.001
+    output: 0.001
+
+  - name: "float64 large value"
+    mapping: |
+      root = 1000000.5
+    output: 1000000.5
+
+  # --- float32 conversions ---
+
+  - name: "float32 from float64"
+    mapping: |
+      root = 3.14.number()
+    skip: "V2-only: V1 has no float32 type"
+
+  - name: "float32 type check"
+    mapping: |
+      root = 3.14.number().type()
+    skip: "V2-only: V1 has no float32 type"
+
+  - name: "float32 from string"
+    mapping: |
+      root = "3.14".number()
+    skip: "V2-only: V1 has no float32 type (string.number is available but returns float64)"
+
+  - name: "float32 from integer"
+    mapping: |
+      root = 42.number()
+    skip: "V2-only: V1 has no float32 type"
+
+  - name: "float32 zero"
+    mapping: |
+      root = 0.0.number()
+    skip: "V2-only: V1 has no float32 type"
+
+  - name: "float32 negative"
+    mapping: |
+      root = (-2.5).number()
+    skip: "V2-only: V1 has no float32 type"
+
+  # --- float64 conversions ---
+
+  - name: "float64 from string"
+    mapping: |
+      root = "3.14".number()
+    output: 3.14
+
+  - name: "float64 from integer"
+    mapping: |
+      root = 42.number()
+    # FIXME-v1: V1 .number() on an int returns the same int (no int→float promotion)
+    skip: "V1 .number() preserves int vs float distinction, no forced promotion"
+
+  - name: "float64 from bool is error"
+    mapping: |
+      root = true.number()
+    # FIXME-v1: verify error substring
+    error: "expected number"
+
+  - name: "float64 from invalid string"
+    # V1 surfaces strconv's own error text; "invalid syntax" is stable.
+    mapping: |
+      root = "not_a_number".number()
+    error: "invalid syntax"
+
+  # --- float64 arithmetic ---
+
+  - name: "float64 addition"
+    mapping: |
+      root = 1.5 + 2.5
+    output: 4.0
+
+  - name: "float64 subtraction"
+    mapping: |
+      root = 5.0 - 3.5
+    output: 1.5
+
+  - name: "float64 multiplication"
+    mapping: |
+      root = 2.5 * 4.0
+    output: 10.0
+
+  - name: "float64 division"
+    mapping: |
+      root = 10.0 / 3.0
+    output: 3.3333333333333335
+
+  - name: "float64 modulo"
+    mapping: |
+      root = 7.5 % 2.0
+    # V1 modulo requires integer operands — non-integer is a type error
+    skip: "V1 %: operands must be integers; non-integer operands are a type error"
+
+  # --- Division by zero ---
+
+  - name: "float division by zero is error"
+    # V1 detects literal division-by-zero at compile time.
+    mapping: |
+      root = 7.0 / 0.0
+    compile_error: "divide by zero"
+
+  - name: "integer division by zero is error"
+    # V1 detects literal division-by-zero at compile time.
+    mapping: |
+      root = 7 / 0
+    compile_error: "divide by zero"
+
+  # --- NaN behavior ---
+
+  - name: "nan not equal to itself"
+    mapping: |
+      let nan = this.nan
+      root = $nan == $nan
+    input: {nan: {_type: "float64", value: "NaN"}}
+    skip: "V2-only: V1 test harness cannot inject raw NaN via {_type} markers"
+
+  - name: "nan not equal to nan explicit"
+    mapping: |
+      let nan = this.nan
+      root = $nan != $nan
+    input: {nan: {_type: "float64", value: "NaN"}}
+    skip: "V2-only: V1 test harness cannot inject raw NaN via {_type} markers"
+
+  - name: "nan less than any is false"
+    mapping: |
+      root = this.nan < 1.0
+    input: {nan: {_type: "float64", value: "NaN"}}
+    skip: "V2-only: V1 test harness cannot inject raw NaN via {_type} markers"
+
+  - name: "nan greater than any is false"
+    mapping: |
+      root = this.nan > 1.0
+    input: {nan: {_type: "float64", value: "NaN"}}
+    skip: "V2-only: V1 test harness cannot inject raw NaN via {_type} markers"
+
+  - name: "nan arithmetic produces nan"
+    mapping: |
+      root = this.nan + 1.0
+    input: {nan: {_type: "float64", value: "NaN"}}
+    skip: "V2-only: V1 test harness cannot inject raw NaN via {_type} markers"
+
+  - name: "nan type is float64"
+    mapping: |
+      root = this.nan.type()
+    input: {nan: {_type: "float64", value: "NaN"}}
+    skip: "V2-only: V1 .type() returns 'number', not 'float64'"
+
+  - name: "nan bool conversion is error"
+    mapping: |
+      root = this.nan.bool()
+    input: {nan: {_type: "float64", value: "NaN"}}
+    skip: "V2-only: V1 test harness cannot inject raw NaN via {_type} markers"
+
+  # --- Infinity behavior ---
+
+  - name: "infinity greater than any number"
+    mapping: |
+      root = this.inf > 999999999.0
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    skip: "V2-only: V1 test harness cannot inject raw Infinity via {_type} markers"
+
+  - name: "infinity equals infinity"
+    mapping: |
+      root = this.inf == this.inf
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    skip: "V2-only: V1 test harness cannot inject raw Infinity via {_type} markers"
+
+  - name: "negative infinity less than any number"
+    mapping: |
+      root = this.ninf < -999999999.0
+    input: {ninf: {_type: "float64", value: "-Infinity"}}
+    skip: "V2-only: V1 test harness cannot inject raw Infinity via {_type} markers"
+
+  - name: "infinity type is float64"
+    mapping: |
+      root = this.inf.type()
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    skip: "V2-only: V1 .type() returns 'number', not 'float64'"
+
+  - name: "infinity minus infinity is nan"
+    mapping: |
+      root = this.inf - this.inf
+    input: {inf: {_type: "float64", value: "Infinity"}}
+    skip: "V2-only: V1 test harness cannot inject raw Infinity via {_type} markers"
+
+  # --- Negative zero ---
+
+  - name: "negative zero equals positive zero"
+    mapping: |
+      root = this.nz == 0.0
+    input: {nz: {_type: "float64", value: "-0.0"}}
+    skip: "V2-only: V1 test harness cannot inject -0.0 via {_type} markers"
+
+  - name: "negative zero not less than positive zero"
+    mapping: |
+      root = this.nz < 0.0
+    input: {nz: {_type: "float64", value: "-0.0"}}
+    skip: "V2-only: V1 test harness cannot inject -0.0 via {_type} markers"
+
+  - name: "negative zero string normalizes to zero"
+    mapping: |
+      root = this.nz.string()
+    input: {nz: {_type: "float64", value: "-0.0"}}
+    skip: "V2-only: V1 test harness cannot inject -0.0 via {_type} markers"
+
+  # --- Float-integer promotion ---
+
+  - name: "int plus float promotes to float64"
+    mapping: |
+      root = 5 + 3.0
+    output: 8.0
+
+  - name: "int plus float result type"
+    mapping: |
+      root = (5 + 3.0).type()
+    # V1 .type() returns "number" for both int and float
+    skip: "V2-only: V1 .type() returns 'number' for all numerics"
+
+  - name: "large int to float precision error"
+    mapping: |
+      root = 9007199254740993 + 1.0
+    # V1 does not raise precision-loss errors; promotes silently
+    skip: "V1 has no int-to-float precision-loss check; arithmetic proceeds silently"
+
+  # --- float32 arithmetic promotion ---
+
+  - name: "float32 plus float64 promotes to float64"
+    mapping: |
+      root = (1.5.number() + 2.5).type()
+    skip: "V2-only: V1 has no float32 type"
+
+  - name: "float32 division result"
+    mapping: |
+      let a = 10.0.number()
+      let b = 3.0.number()
+      root = ($a / $b).type()
+    skip: "V2-only: V1 has no float32 type"

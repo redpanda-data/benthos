@@ -1,0 +1,263 @@
+description: "Bytes type: creation from strings, byte-level operations, encoding"
+
+tests:
+  # --- Bytes creation ---
+
+  - name: "bytes from string"
+    mapping: |
+      output = "hello".bytes()
+    output: {_type: "bytes", value: "aGVsbG8="}
+
+  - name: "bytes type check"
+    mapping: |
+      output = "hello".bytes().type()
+    output: "bytes"
+
+  - name: "bytes from empty string"
+    mapping: |
+      output = "".bytes()
+    output: {_type: "bytes", value: ""}
+
+  - name: "bytes from bytes is unchanged"
+    mapping: |
+      output = "hello".bytes().bytes()
+    output: {_type: "bytes", value: "aGVsbG8="}
+
+  - name: "bytes from integer goes through string"
+    mapping: |
+      output = 42.bytes()
+    output: {_type: "bytes", value: "NDI="}
+
+  - name: "bytes from bool goes through string"
+    mapping: |
+      output = true.bytes()
+    output: {_type: "bytes", value: "dHJ1ZQ=="}
+
+  - name: "bytes from null goes through string"
+    mapping: |
+      output = null.bytes()
+    output: {_type: "bytes", value: "bnVsbA=="}
+
+  # --- Bytes length (byte-based) ---
+
+  - name: "bytes length ascii"
+    mapping: |
+      output = "hello".bytes().length()
+    output: 5
+
+  - name: "bytes length empty"
+    mapping: |
+      output = "".bytes().length()
+    output: 0
+
+  - name: "bytes length multibyte utf8"
+    mapping: |
+      output = "\u{1F44B}".bytes().length()
+    output: 4
+
+  - name: "bytes length non-ascii two byte"
+    mapping: |
+      output = "\u00E9".bytes().length()
+    output: 2
+
+  # --- Bytes indexing (byte-based, returns int64) ---
+
+  - name: "bytes index first byte"
+    mapping: |
+      output = "hello".bytes()[0]
+    output: 104
+
+  - name: "bytes index last byte"
+    mapping: |
+      output = "hello".bytes()[4]
+    output: 111
+
+  - name: "bytes negative index"
+    mapping: |
+      output = "hello".bytes()[-1]
+    output: 111
+
+  - name: "bytes index out of bounds"
+    mapping: |
+      output = "hello".bytes()[5]
+    error: "out of bounds"
+
+  - name: "bytes negative index out of bounds"
+    mapping: |
+      output = "hello".bytes()[-6]
+    error: "out of bounds"
+
+  - name: "bytes index returns byte value 0-255"
+    mapping: |
+      output = "\u00E9".bytes()[0]
+    output: 195
+
+  # --- Bytes to string ---
+
+  - name: "bytes to string utf8"
+    mapping: |
+      output = "hello".bytes().string()
+    output: "hello"
+
+  - name: "bytes to string empty"
+    mapping: |
+      output = "".bytes().string()
+    output: ""
+
+  # --- Bytes concatenation ---
+
+  - name: "bytes concatenation"
+    mapping: |
+      output = "hello".bytes() + " world".bytes()
+    output: {_type: "bytes", value: "aGVsbG8gd29ybGQ="}
+
+  - name: "bytes concat with empty"
+    mapping: |
+      output = "hello".bytes() + "".bytes()
+    output: {_type: "bytes", value: "aGVsbG8="}
+
+  - name: "bytes plus string is error"
+    mapping: |
+      output = "hello".bytes() + " world"
+    error: "cannot add"
+
+  - name: "string plus bytes is error"
+    mapping: |
+      output = "hello" + " world".bytes()
+    error: "cannot add"
+
+  # --- Bytes slicing ---
+
+  - name: "bytes slice basic"
+    mapping: |
+      output = "hello".bytes().slice(0, 3)
+    output: {_type: "bytes", value: "aGVs"}
+
+  - name: "bytes slice to end"
+    mapping: |
+      output = "hello".bytes().slice(3)
+    output: {_type: "bytes", value: "bG8="}
+
+  - name: "bytes slice negative"
+    mapping: |
+      output = "hello".bytes().slice(-3, -1)
+    output: {_type: "bytes", value: "bGw="}
+
+  - name: "bytes slice clamped"
+    mapping: |
+      output = "hello".bytes().slice(0, 100)
+    output: {_type: "bytes", value: "aGVsbG8="}
+
+  - name: "bytes slice empty result"
+    mapping: |
+      output = "hello".bytes().slice(3, 1)
+    output: {_type: "bytes", value: ""}
+
+  # --- Bytes reverse ---
+
+  - name: "bytes reverse"
+    mapping: |
+      output = "hello".bytes().reverse()
+    output: {_type: "bytes", value: "b2xsZWg="}
+
+  - name: "bytes reverse empty"
+    mapping: |
+      output = "".bytes().reverse()
+    output: {_type: "bytes", value: ""}
+
+  # --- Bytes contains ---
+
+  - name: "bytes contains subsequence true"
+    mapping: |
+      output = "hello".bytes().contains("ll".bytes())
+    output: true
+
+  - name: "bytes contains subsequence false"
+    mapping: |
+      output = "hello".bytes().contains("xyz".bytes())
+    output: false
+
+  # --- Bytes index_of ---
+
+  - name: "bytes index_of found"
+    mapping: |
+      output = "hello".bytes().index_of("ll".bytes())
+    output: 2
+
+  - name: "bytes index_of not found"
+    mapping: |
+      output = "hello".bytes().index_of("xyz".bytes())
+    output: -1
+
+  # --- Bytes encoding ---
+
+  - name: "bytes encode base64"
+    mapping: |
+      output = "hello".bytes().encode("base64")
+    output: "aGVsbG8="
+
+  - name: "bytes encode hex"
+    mapping: |
+      output = "hello".bytes().encode("hex")
+    output: "68656c6c6f"
+
+  - name: "string encode base64"
+    mapping: |
+      output = "hello".encode("base64")
+    output: "aGVsbG8="
+
+  # --- Bytes decoding ---
+
+  - name: "decode base64 to bytes"
+    mapping: |
+      output = "aGVsbG8=".decode("base64")
+    output: {_type: "bytes", value: "aGVsbG8="}
+
+  - name: "decode hex to bytes"
+    mapping: |
+      output = "68656c6c6f".decode("hex")
+    output: {_type: "bytes", value: "aGVsbG8="}
+
+  - name: "decode base64 then string"
+    mapping: |
+      output = "aGVsbG8=".decode("base64").string()
+    output: "hello"
+
+  - name: "decode invalid base64 is error"
+    mapping: |
+      output = "not-valid-base64!!!".decode("base64")
+    error: "decode"
+
+  - name: "decode invalid hex is error"
+    mapping: |
+      output = "zzzz".decode("hex")
+    error: "decode"
+
+  # --- Bytes equality ---
+
+  - name: "bytes equal same content"
+    mapping: |
+      output = "hello".bytes() == "hello".bytes()
+    output: true
+
+  - name: "bytes not equal different content"
+    mapping: |
+      output = "hello".bytes() == "world".bytes()
+    output: false
+
+  - name: "bytes not equal to string cross type"
+    mapping: |
+      output = "hello".bytes() == "hello"
+    output: false
+
+  # --- Bytes comparison ---
+
+  - name: "bytes less than lexicographic"
+    mapping: |
+      output = "abc".bytes() < "abd".bytes()
+    output: true
+
+  - name: "bytes greater than lexicographic"
+    mapping: |
+      output = "b".bytes() > "a".bytes()
+    output: true

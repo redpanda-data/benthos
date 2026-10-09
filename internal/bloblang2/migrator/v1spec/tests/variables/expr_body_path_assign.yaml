@@ -1,0 +1,109 @@
+description: >
+  Path assignments inside expression bodies — variable path mutations
+  like $obj[$key] = val in if-expressions, match-expressions, lambda
+  blocks, and nested combinations. These must resolve to the existing
+  variable slot, not shadow it.
+
+tests:
+  # --- Path assignment in if-expression body ---
+
+  - name: "path assign with dynamic key in if-expression"
+    skip: "V1 does not support variable path assignment; V1 if-expression body is a single expression, not a statement list"
+    mapping: |
+      let key = "x"
+      root.v = if true {
+        let obj = {}
+        {($key): 42}
+      } else { {} }
+    output: {"v": {"x": 42}}
+
+  - name: "path assign in else branch reads correct slot"
+    skip: "V1 if-expression body is a single expression; cannot declare + mutate within"
+    mapping: |
+      root.v = if false {
+        "never"
+      } else {
+        {"base": true, "extra": "added"}
+      }
+    output: {"v": {"base": true, "extra": "added"}}
+
+  - name: "path assign in if-expression both branches"
+    skip: "V1 if-expression body is a single expression; cannot chain var declare + mutate"
+    mapping: |
+      let flag = true
+      root.v = if $flag {
+        {"branch": "then", "tag": "tagged"}
+      } else {
+        {"branch": "else", "tag": "tagged"}
+      }
+    output: {"v": {"branch": "then", "tag": "tagged"}}
+
+  # --- Path assignment in lambda block body ---
+
+  - name: "path assign in map lambda block"
+    skip: "V1 lambda body is a single expression; no multi-statement blocks"
+    mapping: |
+      root.v = [1, 2, 3].map_each(x -> {"val": x, "doubled": x * 2})
+    output: {"v": [{"val": 1, "doubled": 2}, {"val": 2, "doubled": 4}, {"val": 3, "doubled": 6}]}
+
+  - name: "path assign with dynamic key in map lambda"
+    skip: "V1 lambda body is a single expression"
+    mapping: |
+      let keys = ["a", "b", "c"]
+      root.v = [0, 1, 2].map_each(i -> {($keys.index(i)): i * 10})
+    output: {"v": [{"a": 0}, {"b": 10}, {"c": 20}]}
+
+  - name: "path assign in fold accumulator"
+    skip: "V1 fold lambda `tally -> value -> expr` is a single expression; use .merge on accumulator"
+    mapping: |
+      root.v = ["x", "y", "z"].fold({}, tally -> value -> $tally.merge({($value.value): true}))
+    output: {"v": {"x": true, "y": true, "z": true}}
+
+  - name: "path assign in fold with index tracking"
+    skip: "V1 fold lambda is a single expression; rebuild via .merge"
+    mapping: |
+      root.v = ["a", "b", "c"].enumerated().fold({}, tally -> value -> $tally.merge({($value.value.value): $value.value.index}))
+    output: {"v": {"a": 0, "b": 1, "c": 2}}
+
+  # --- Nested path assignments across lambda + if ---
+
+  - name: "path assign via statement if inside lambda"
+    skip: "V1 lambda body is a single expression; cannot embed statement-mode if"
+    mapping: |
+      root.v = [1, -2, 3, -4].map_each(x -> {"value": x, "sign": if x > 0 { "positive" } else { "negative" }})
+    output:
+      v:
+        - value: 1
+          sign: "positive"
+        - value: -2
+          sign: "negative"
+        - value: 3
+          sign: "positive"
+        - value: -4
+          sign: "negative"
+
+  - name: "path assign in nested lambdas"
+    skip: "V1 lambda body is a single expression"
+    mapping: |
+      root.v = [[1, 2], [3, 4]].map_each(row -> {"items": row.map_each(x -> x * 10)})
+    output: {"v": [{"items": [10, 20]}, {"items": [30, 40]}]}
+
+  # --- Multiple path assigns in lambda block ---
+
+  - name: "multiple path assigns in lambda block accumulate"
+    skip: "V1 lambda body is a single expression; no multi-statement blocks"
+    mapping: |
+      root.v = [1].map_each(x -> {"a": 1, "b": 2, "c": 3})
+    output: {"v": [{"a": 1, "b": 2, "c": 3}]}
+
+  - name: "path assign to array index in lambda block"
+    skip: "V1 lambda body is a single expression; no sequential index assignments"
+    mapping: |
+      root.v = [1].map_each(x -> [10, 20, 30])
+    output: {"v": [[10, 20, 30]]}
+
+  - name: "path assign then read modified field in lambda"
+    skip: "V1 lambda body is a single expression"
+    mapping: |
+      root.v = [1].map_each(x -> 5 + 10)
+    output: {"v": [15]}

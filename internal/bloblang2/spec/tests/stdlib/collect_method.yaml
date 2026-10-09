@@ -1,0 +1,74 @@
+description: >
+  .collect() method — converts array of {key, value} objects into an object.
+  Last value wins on duplicate keys.
+
+tests:
+  # --- Basic collect ---
+
+  - name: "collect simple key-value pairs"
+    mapping: |
+      output.v = [
+        {"key": "a", "value": 1},
+        {"key": "b", "value": 2},
+      ].collect()
+    output: {"v": {"a": 1, "b": 2}}
+
+  - name: "collect single entry"
+    mapping: |
+      output.v = [{"key": "x", "value": 42}].collect()
+    output: {"v": {"x": 42}}
+
+  - name: "collect empty array"
+    mapping: |
+      output.v = [].collect()
+    output: {"v": {}}
+
+  # --- Last value wins on duplicates ---
+
+  - name: "collect duplicate keys — last wins"
+    mapping: |
+      output.v = [
+        {"key": "a", "value": 1},
+        {"key": "a", "value": 2},
+      ].collect()
+    output: {"v": {"a": 2}}
+
+  - name: "collect multiple duplicates — last wins"
+    mapping: |
+      output.v = [
+        {"key": "x", "value": "first"},
+        {"key": "x", "value": "second"},
+        {"key": "x", "value": "third"},
+      ].collect()
+    output: {"v": {"x": "third"}}
+
+  # --- Mixed value types ---
+
+  - name: "collect with mixed value types"
+    mapping: |
+      output.v = [
+        {"key": "str", "value": "hello"},
+        {"key": "num", "value": 42},
+        {"key": "bool", "value": true},
+        {"key": "arr", "value": [1, 2]},
+        {"key": "null", "value": null},
+      ].collect()
+    output: {"v": {"str": "hello", "num": 42, "bool": true, "arr": [1, 2], "null": null}}
+
+  # --- Collect from transformed data ---
+
+  - name: "enumerate then collect round-trips"
+    mapping: |
+      output.v = ["a", "b", "c"]
+        .enumerate()
+        .map(e -> {"key": e.index.string(), "value": e.value})
+        .collect()
+    output: {"v": {"0": "a", "1": "b", "2": "c"}}
+
+  - name: "map_entries to key-value then collect"
+    mapping: |
+      output.v = {"x": 1, "y": 2}
+        .iter()
+        .map(e -> {"key": e.key + "_new", "value": e.value * 10})
+        .collect()
+    output: {"v": {"x_new": 10, "y_new": 20}}

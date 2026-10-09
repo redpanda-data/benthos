@@ -1,0 +1,247 @@
+description: "Timestamp creation, formatting, arithmetic, and comparison"
+
+tests:
+  # --- Creation ---
+
+  - name: "timestamp constructor with required args only"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1)
+    skip: "V2-only: V1 has no timestamp(year, month, day, ...) constructor"
+
+  - name: "timestamp constructor with all positional args"
+    mapping: |
+      root.ts = timestamp(2024, 12, 25, 8, 30, 45, 123000000)
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp constructor with named args"
+    mapping: |
+      root.ts = timestamp(year: 2024, month: 1, day: 15, hour: 10)
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp constructor with timezone"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 12, 30, 0, 0, "America/New_York")
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp constructor invalid month"
+    mapping: |
+      root.ts = timestamp(2024, 13, 1)
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp constructor invalid timezone"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0, 0, "Not/A/Zone")
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "now returns a timestamp"
+    # V1 `now()` returns an RFC3339-formatted STRING, not a first-class timestamp value.
+    mapping: |
+      root = now()
+    no_output_check: true
+    output_type: "string"
+
+  # --- Parsing ---
+
+  - name: "ts_parse with default format (RFC 3339)"
+    mapping: |
+      root.ts = "2024-03-01T12:00:00Z".ts_parse()
+    # FIXME-v1: V1 ts_parse requires a format string argument; there is no zero-arg default
+    skip: "V1 ts_parse requires an explicit format argument"
+
+  - name: "ts_parse with explicit format"
+    mapping: |
+      root.ts = "2024-03-01".ts_parse("2006-01-02")
+    # FIXME-v1: V1 ts_parse uses Go reference-layout format, not strftime (%Y-%m-%d)
+    skip: "V1 ts_parse uses Go reference-layout format; %Y/%m/%d is V1 ts_strptime"
+
+  - name: "ts_parse with fractional seconds"
+    mapping: |
+      root.ts = "2024-03-01T12:00:00.123Z".ts_parse()
+    skip: "V1 ts_parse requires an explicit format argument"
+
+  - name: "ts_parse with timezone offset"
+    mapping: |
+      root.ts = "2024-03-01T12:00:00+05:30".ts_parse()
+    skip: "V1 ts_parse requires an explicit format argument"
+
+  - name: "ts_parse invalid string"
+    # V1 `ts_parse` is registered in `internal/impl/pure` (not in the bare `public/bloblang`
+    # environment used by the migrator test harness), so the method is not visible to this runner.
+    skip: "ts_parse not registered in the migrator's bare V1 environment (lives in internal/impl/pure)"
+
+  # --- Formatting ---
+
+  - name: "ts_format default is RFC 3339"
+    mapping: |
+      root.s = timestamp(2024, 3, 1, 12, 0, 0).ts_format()
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "ts_format custom format"
+    mapping: |
+      root.s = timestamp(2024, 3, 1).ts_format("%Y-%m-%d")
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp string serialization trims trailing zeros"
+    mapping: |
+      root.s = timestamp(2024, 3, 1, 12, 0, 0, 500000000).string()
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp string serialization whole seconds omit fraction"
+    mapping: |
+      root.s = timestamp(2024, 3, 1, 12, 0, 0).string()
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  # --- Comparison ---
+
+  - name: "timestamp equality same value"
+    mapping: |
+      let a = timestamp(2024, 3, 1)
+      let b = timestamp(2024, 3, 1)
+      root.eq = $a == $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp equality different values"
+    mapping: |
+      let a = timestamp(2024, 3, 1)
+      let b = timestamp(2024, 3, 2)
+      root.eq = $a == $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp inequality"
+    mapping: |
+      let a = timestamp(2024, 3, 1)
+      let b = timestamp(2024, 3, 2)
+      root.neq = $a != $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp less than"
+    mapping: |
+      let a = timestamp(2024, 3, 1)
+      let b = timestamp(2024, 3, 2)
+      root.lt = $a < $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp greater than"
+    mapping: |
+      let a = timestamp(2024, 3, 2)
+      let b = timestamp(2024, 3, 1)
+      root.gt = $a > $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp less than or equal (equal case)"
+    mapping: |
+      let a = timestamp(2024, 3, 1)
+      let b = timestamp(2024, 3, 1)
+      root.le = $a <= $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp greater than or equal (greater case)"
+    mapping: |
+      let a = timestamp(2024, 3, 2)
+      let b = timestamp(2024, 3, 1)
+      root.ge = $a >= $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  # --- Arithmetic ---
+
+  - name: "timestamp subtraction returns nanoseconds"
+    mapping: |
+      let a = timestamp(2024, 3, 1, 0, 0, 0)
+      let b = timestamp(2024, 3, 1, 0, 0, 1)
+      root.diff = $b - $a
+    skip: "V2-only: V1 has no timestamp() constructor; V1 uses .ts_sub() for timestamp diff"
+
+  - name: "timestamp subtraction negative result"
+    mapping: |
+      let a = timestamp(2024, 3, 1, 0, 0, 1)
+      let b = timestamp(2024, 3, 1, 0, 0, 0)
+      root.diff = $b - $a
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp addition is an error"
+    mapping: |
+      let a = timestamp(2024, 3, 1)
+      let b = timestamp(2024, 3, 2)
+      root.bad = $a + $b
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp plus number is an error"
+    mapping: |
+      root.bad = timestamp(2024, 3, 1) + 1
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "number minus timestamp is an error"
+    mapping: |
+      root.bad = 1 - timestamp(2024, 3, 1)
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp multiply is an error"
+    mapping: |
+      root.bad = timestamp(2024, 3, 1) * 2
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp divide is an error"
+    mapping: |
+      root.bad = timestamp(2024, 3, 1) / 2
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  - name: "timestamp modulo is an error"
+    mapping: |
+      root.bad = timestamp(2024, 3, 1) % 2
+    skip: "V2-only: V1 has no timestamp() constructor"
+
+  # --- ts_add ---
+
+  - name: "ts_add positive duration"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(second())
+    skip: "V2-only: V1 has no ts_add(nanos) method, no duration constants, no timestamp() constructor"
+
+  - name: "ts_add negative duration"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(second() * -1)
+    skip: "V2-only: V1 has no ts_add/duration constants"
+
+  - name: "ts_add with minute constant"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(minute())
+    skip: "V2-only: V1 has no ts_add/duration constants"
+
+  - name: "ts_add with hour constant"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(hour())
+    skip: "V2-only: V1 has no ts_add/duration constants"
+
+  - name: "ts_add with day constant"
+    mapping: |
+      root.ts = timestamp(2024, 3, 1, 0, 0, 0).ts_add(day())
+    skip: "V2-only: V1 has no ts_add/duration constants"
+
+  # --- Duration constants ---
+
+  - name: "second returns nanoseconds"
+    mapping: |
+      root.v = second()
+    skip: "V2-only: V1 has no second() constant"
+
+  - name: "minute returns nanoseconds"
+    mapping: |
+      root.v = minute()
+    skip: "V2-only: V1 has no minute() constant"
+
+  - name: "hour returns nanoseconds"
+    mapping: |
+      root.v = hour()
+    skip: "V2-only: V1 has no hour() constant"
+
+  - name: "day returns nanoseconds"
+    mapping: |
+      root.v = day()
+    skip: "V2-only: V1 has no day() constant"
+
+  # --- Type ---
+
+  - name: "timestamp type"
+    mapping: |
+      root.t = timestamp(2024, 3, 1).type()
+    skip: "V2-only: V1 has no timestamp() constructor"

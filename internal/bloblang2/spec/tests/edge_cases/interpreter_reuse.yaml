@@ -1,0 +1,39 @@
+description: >
+  Interpreter reuse correctness — the same compiled mapping must produce
+  independent results when executed multiple times with different inputs.
+  Verifies no state leakage between executions.
+
+tests:
+  - name: "second execution sees fresh input"
+    input: {"x": 2}
+    mapping: |
+      output.doubled = input.x * 2
+    output: {"doubled": 4}
+
+  - name: "variables do not persist between executions"
+    mapping: |
+      $x = 42
+      output.v = $x
+    output: {"v": 42}
+
+  - name: "output starts empty on each execution"
+    mapping: |
+      output.fresh = true
+    output: {"fresh": true}
+
+  - name: "map local variables are independent per execution"
+    mapping: |
+      map counter(n) {
+        $local = n * 10
+        $local + 1
+      }
+      output.v = counter(3)
+    output: {"v": 31}
+
+  - name: "recursive map frames do not leak between executions"
+    mapping: |
+      map factorial(n) {
+        if n <= 1 { 1 } else { n * factorial(n - 1) }
+      }
+      output.v = factorial(5)
+    output: {"v": 120}

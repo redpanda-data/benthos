@@ -1,0 +1,89 @@
+description: >
+  Bare identifier resolution — bare identifiers (without $ prefix) must NOT
+  resolve to variables. Variables require the $ prefix for both declaration
+  and reference. Bare identifiers resolve only to map parameters, lambda
+  parameters, match-as bindings, map names (in call/method-arg context),
+  and standard library functions (in call/method-arg context).
+
+tests:
+  # --- Bare identifier must not resolve to a $variable ---
+
+  - name: "bare identifier does not resolve to variable of same name"
+    mapping: |
+      $foo = "hello world"
+      output = foo
+    compile_error: "undeclared"
+
+  - name: "bare identifier in expression does not resolve to variable"
+    mapping: |
+      $x = 10
+      output.v = x + 1
+    compile_error: "undeclared"
+
+  - name: "bare identifier in method chain does not resolve to variable"
+    mapping: |
+      $name = "alice"
+      output.v = name.uppercase()
+    compile_error: "undeclared"
+
+  - name: "bare identifier in array literal does not resolve to variable"
+    mapping: |
+      $val = 42
+      output.v = [val]
+    compile_error: "undeclared"
+
+  - name: "bare identifier in object value does not resolve to variable"
+    mapping: |
+      $val = 42
+      output.v = {"key": val}
+    compile_error: "undeclared"
+
+  - name: "bare identifier in if condition does not resolve to variable"
+    mapping: |
+      $flag = true
+      output.v = if flag { "yes" } else { "no" }
+    compile_error: "undeclared"
+
+  - name: "bare identifier with $ prefix works correctly"
+    mapping: |
+      $foo = "hello world"
+      output = $foo
+    output: "hello world"
+
+  # --- Bare identifiers that ARE valid (parameters, match-as bindings) ---
+
+  - name: "bare identifier as lambda parameter is valid"
+    mapping: |
+      output.v = [1, 2, 3].map(x -> x * 2)
+    output: {"v": [2, 4, 6]}
+
+  - name: "bare identifier as match-as binding is valid"
+    mapping: |
+      output.v = match 42 as val {
+        val > 0 => "positive",
+        _ => "other",
+      }
+    output: {"v": "positive"}
+
+  - name: "bare identifier as map parameter is valid"
+    mapping: |
+      map double(x) { x * 2 }
+      output.v = double(21)
+    output: {"v": 42}
+
+  # --- Variable with same name as parameter does not leak through bare ident ---
+
+  - name: "variable does not shadow lambda parameter via bare ident"
+    mapping: |
+      $x = 999
+      output.v = [1, 2, 3].map(x -> x * 2)
+    output: {"v": [2, 4, 6]}
+
+  - name: "bare ident after lambda still requires $ for variable"
+    mapping: |
+      $x = 10
+      output.items = [1, 2].map(x -> x + 1)
+      output.v = $x
+    output:
+      items: [2, 3]
+      v: 10

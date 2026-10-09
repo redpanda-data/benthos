@@ -1,0 +1,235 @@
+description: "Constant folding: literal-only expressions evaluated at compile time"
+
+tests:
+  # --- Integer arithmetic ---
+
+  - name: "fold integer addition"
+    mapping: |
+      output.v = 2 + 3
+    output: {"v": 5}
+
+  - name: "fold integer subtraction"
+    mapping: |
+      output.v = 10 - 4
+    output: {"v": 6}
+
+  - name: "fold integer multiplication"
+    mapping: |
+      output.v = 3 * 7
+    output: {"v": 21}
+
+  - name: "fold integer modulo"
+    mapping: |
+      output.v = 17 % 5
+    output: {"v": 2}
+
+  - name: "fold chained integer arithmetic"
+    mapping: |
+      output.v = 2 + 3 * 4
+    output: {"v": 14}
+
+  - name: "fold left-associative subtraction"
+    mapping: |
+      output.v = 10 - 3 - 2
+    output: {"v": 5}
+
+  - name: "fold negative result"
+    mapping: |
+      output.v = 3 - 10
+    output: {"v": -7}
+
+  - name: "fold zero"
+    mapping: |
+      output.v = 5 - 5
+    output: {"v": 0}
+
+  # --- Integer overflow not folded (runtime error) ---
+
+  - name: "integer overflow not folded"
+    mapping: |
+      output.v = 9223372036854775807 + 1
+    error: "overflow"
+
+  - name: "integer multiplication overflow not folded"
+    mapping: |
+      output.v = 9223372036854775807 * 2
+    error: "overflow"
+
+  # --- Float arithmetic ---
+
+  - name: "fold float addition"
+    mapping: |
+      output.v = 1.5 + 2.5
+    output: {"v": 4.0}
+
+  - name: "fold float subtraction"
+    mapping: |
+      output.v = 10.0 - 3.5
+    output: {"v": 6.5}
+
+  - name: "fold float multiplication"
+    mapping: |
+      output.v = 2.0 * 3.5
+    output: {"v": 7.0}
+
+  - name: "fold float division"
+    mapping: |
+      output.v = 10.0 / 4.0
+    output: {"v": 2.5}
+
+  - name: "fold float modulo"
+    mapping: |
+      output.v = 7.5 % 2.0
+    output: {"v": 1.5}
+
+  - name: "fold mixed int and float addition"
+    mapping: |
+      output.v = 5 + 3.0
+    output: {"v": 8.0}
+
+  - name: "division by zero not folded"
+    mapping: |
+      output.v = 10.0 / 0.0
+    error: "division by zero"
+
+  # --- Large int + float precision loss not folded ---
+
+  - name: "large int plus float not folded due to precision"
+    mapping: |
+      output.v = 9007199254740993 + 1.0
+    error: "exact"
+
+  - name: "safe int plus float is folded"
+    mapping: |
+      output.v = 100 + 1.5
+    output: {"v": 101.5}
+
+  # --- String concatenation ---
+
+  - name: "fold string concatenation"
+    mapping: |
+      output.v = "hello" + " " + "world"
+    output: {"v": "hello world"}
+
+  - name: "fold empty string concatenation"
+    mapping: |
+      output.v = "" + "abc"
+    output: {"v": "abc"}
+
+  - name: "fold raw string concatenation"
+    mapping: |
+      output.v = `raw` + " normal"
+    output: {"v": "raw normal"}
+
+  # --- Boolean logic ---
+
+  - name: "fold true AND true"
+    mapping: |
+      output.v = true && true
+    output: {"v": true}
+
+  - name: "fold true AND false"
+    mapping: |
+      output.v = true && false
+    output: {"v": false}
+
+  - name: "fold false OR true"
+    mapping: |
+      output.v = false || true
+    output: {"v": true}
+
+  - name: "fold false OR false"
+    mapping: |
+      output.v = false || false
+    output: {"v": false}
+
+  - name: "fold boolean equality"
+    mapping: |
+      output.v = true == true
+    output: {"v": true}
+
+  - name: "fold boolean inequality"
+    mapping: |
+      output.v = true != false
+    output: {"v": true}
+
+  # --- Unary ---
+
+  - name: "fold unary minus on int"
+    mapping: |
+      output.v = -42
+    output: {"v": -42}
+
+  - name: "fold unary minus on float"
+    mapping: |
+      output.v = -3.14
+    output: {"v": -3.14}
+
+  - name: "fold unary not on true"
+    mapping: |
+      output.v = !true
+    output: {"v": false}
+
+  - name: "fold unary not on false"
+    mapping: |
+      output.v = !false
+    output: {"v": true}
+
+  # --- Equality of same-type literals ---
+
+  - name: "fold string equality"
+    mapping: |
+      output.v = "abc" == "abc"
+    output: {"v": true}
+
+  - name: "fold string inequality"
+    mapping: |
+      output.v = "abc" != "xyz"
+    output: {"v": true}
+
+  - name: "fold integer equality"
+    mapping: |
+      output.v = 42 == 42
+    output: {"v": true}
+
+  - name: "fold integer inequality"
+    mapping: |
+      output.v = 42 != 43
+    output: {"v": true}
+
+  - name: "fold null equality"
+    mapping: |
+      output.v = null == null
+    output: {"v": true}
+
+  # --- Cross-type equality ---
+
+  - name: "fold cross-type equality int vs string"
+    mapping: |
+      output.v = 42 == "42"
+    output: {"v": false}
+
+  - name: "fold cross-type inequality bool vs null"
+    mapping: |
+      output.v = true != null
+    output: {"v": true}
+
+  # --- Non-foldable expressions preserved ---
+
+  - name: "runtime value prevents folding"
+    input: {"x": 5}
+    mapping: |
+      output.v = input.x + 3
+    output: {"v": 8}
+
+  - name: "one literal one runtime not folded"
+    input: {"x": 10}
+    mapping: |
+      output.v = 2 * input.x
+    output: {"v": 20}
+
+  - name: "variable prevents folding"
+    mapping: |
+      $x = 5
+      output.v = $x + 3
+    output: {"v": 8}

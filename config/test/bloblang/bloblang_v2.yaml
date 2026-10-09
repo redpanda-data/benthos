@@ -1,0 +1,37 @@
+pipeline:
+  processors:
+    - bloblang_v2: |
+        output@ = input@
+        output.id = input.id
+        output.fans = input.fans.filter(fan -> fan.obsession > 0.5)
+
+tests:
+  - name: Filters fans by obsession score
+    target_processors: /pipeline/processors
+    input_batch:
+      - json_content:
+          id: foo
+          fans:
+            - {"name":"bev","obsession":0.57}
+            - {"name":"grace","obsession":0.21}
+            - {"name":"ali","obsession":0.89}
+            - {"name":"vic","obsession":0.43}
+    output_batches:
+      - - json_equals:
+            id: foo
+            fans:
+              - {"name":"bev","obsession":0.57}
+              - {"name":"ali","obsession":0.89}
+
+  - name: Copies incoming metadata when mapping uses output@ = input@
+    target_processors: /pipeline/processors
+    input_batch:
+      - content: '{"id":"bar","fans":[]}'
+        metadata:
+          origin: upstream
+          tenant: acme
+    output_batches:
+      - - json_equals: {"id":"bar","fans":[]}
+          metadata_equals:
+            origin: upstream
+            tenant: acme

@@ -4,6 +4,7 @@ package service_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/filepath/ifs"
 	"github.com/redpanda-data/benthos/v4/public/bloblang"
+	"github.com/redpanda-data/benthos/v4/public/bloblangv2"
 	"github.com/redpanda-data/benthos/v4/public/service"
 )
 
@@ -155,6 +157,334 @@ logger:
 	require.NoError(t, strm.StopWithin(time.Second))
 	assert.Equal(t, []string{"meow"}, received)
 }
+
+func TestEnvironmentBloblangV2SchemaIncludesPlugins(t *testing.T) {
+	bEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, bEnv.RegisterFunction("hoot", bloblangv2.NewPluginSpec().Description("owl noise"),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+			return func() (any, error) { return "hoot", nil }, nil
+		},
+	))
+	require.NoError(t, bEnv.RegisterMethod("yell", bloblangv2.NewPluginSpec(),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			return bloblangv2.StringMethod(func(s string) (any, error) { return s + "!", nil }), nil
+		},
+	))
+
+	env := service.NewEnvironment()
+	env.UseBloblangV2Environment(bEnv)
+
+	flat := env.GenerateSchema("test", "now").XFlattened()
+	assert.Contains(t, flat["bloblang-v2-functions"], "hoot")
+	assert.Contains(t, flat["bloblang-v2-methods"], "yell")
+}
+
+func TestConfigSchemaFromJSONV0RoundTripsBloblangV2(t *testing.T) {
+	// Build a schema dump on a "remote" environment that has registered V2
+	// plugins, then load it as JSON on a fresh "local" environment that has
+	// no implementations of those plugins. Linting against the loaded
+	// schema should accept mappings that reference the remote plugins, and
+	// reject mappings that reference unknown ones — proving the stub
+	// registrations carried through.
+	remoteEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, remoteEnv.RegisterFunction("hoot",
+		bloblangv2.NewPluginSpec().Description("owl noise"),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+			return func() (any, error) { return "hoot", nil }, nil
+		},
+	))
+	require.NoError(t, remoteEnv.RegisterMethod("yell", bloblangv2.NewPluginSpec().
+		Param(bloblangv2.NewStringParam("suffix").Default("!")),
+		func(args *bloblangv2.ParsedParams) (bloblangv2.Method, error) {
+			suf, _ := args.GetString("suffix")
+			return bloblangv2.StringMethod(func(s string) (any, error) { return s + suf, nil }), nil
+		},
+	))
+
+	remoteSvcEnv := service.NewEmptyEnvironment()
+	remoteSvcEnv.UseBloblangV2Environment(remoteEnv)
+	dump, err := remoteSvcEnv.FullConfigSchema("v0", "now").MarshalJSONV0()
+	require.NoError(t, err)
+
+	localSchema, err := service.ConfigSchemaFromJSONV0(dump)
+	require.NoError(t, err)
+
+	// Re-marshal the loaded schema and confirm the V2 plugin descriptors
+	// survived the decode → register-stub → enumerate cycle. If the decode
+	// step had silently dropped them, MarshalJSONV0 on the loaded schema
+	// would emit an empty set.
+	rehydrated, err := localSchema.MarshalJSONV0()
+	require.NoError(t, err)
+
+	var redump struct {
+		BloblangV2Functions []bloblangv2.PluginInfo `json:"bloblang-v2-functions"`
+		BloblangV2Methods   []bloblangv2.PluginInfo `json:"bloblang-v2-methods"`
+	}
+	require.NoError(t, json.Unmarshal(rehydrated, &redump))
+
+	require.Len(t, redump.BloblangV2Functions, 1)
+	assert.Equal(t, "hoot", redump.BloblangV2Functions[0].Name)
+	assert.Equal(t, "owl noise", redump.BloblangV2Functions[0].Description)
+
+	require.Len(t, redump.BloblangV2Methods, 1)
+	assert.Equal(t, "yell", redump.BloblangV2Methods[0].Name)
+	require.Len(t, redump.BloblangV2Methods[0].Params, 1)
+	assert.Equal(t, "suffix", redump.BloblangV2Methods[0].Params[0].Name)
+	assert.Equal(t, "string", redump.BloblangV2Methods[0].Params[0].Kind)
+	assert.True(t, redump.BloblangV2Methods[0].Params[0].HasDefault)
+}
+
+func TestEnvironmentBloblangV2ClonePropagation(t *testing.T) {
+	customEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, customEnv.RegisterFunction("oink", bloblangv2.NewPluginSpec(), func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+		return func() (any, error) { return "oink", nil }, nil
+	}))
+
+	procSpec := service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping"))
+	procCtor := func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+		exec, err := conf.FieldBloblangV2("mapping")
+		if err != nil {
+			return nil, err
+		}
+		return &v2MappingProc{exec: exec}, nil
+	}
+
+	base := service.NewEnvironment()
+	base.UseBloblangV2Environment(customEnv)
+	require.NoError(t, base.RegisterProcessor("v2_clone_map", procSpec, procCtor))
+
+	// A clone must inherit the custom V2 env and resolve the plugin.
+	cloned := base.Clone()
+	assertEnvResolves(t, cloned, "v2_clone_map", "output = oink()", "oink")
+
+	// The With* variants also propagate the V2 env (exercise Without as the
+	// most restrictive one — others share the same Clone-based machinery).
+	without := base.Without("nonexistent_plugin")
+	assertEnvResolves(t, without, "v2_clone_map", "output = oink()", "oink")
+}
+
+// assertEnvResolves runs a minimal stream that uses the v2_clone_map processor
+// with the given mapping and asserts the consumer receives the expected output.
+func assertEnvResolves(t *testing.T, env *service.Environment, procName, mapping, expected string) {
+	t.Helper()
+
+	yamlConf := fmt.Sprintf(`
+pipeline:
+  processors:
+    - %s:
+        mapping: '%s'
+
+input:
+  generate:
+    count: 1
+    mapping: 'root = "hello"'
+
+output:
+  drop: {}
+
+logger:
+  level: OFF
+`, procName, mapping)
+
+	builder := env.NewStreamBuilder()
+	require.NoError(t, builder.SetYAML(yamlConf))
+
+	var received []string
+	require.NoError(t, builder.AddConsumerFunc(func(_ context.Context, m *service.Message) error {
+		b, err := m.AsBytes()
+		if err != nil {
+			return err
+		}
+		received = append(received, string(b))
+		return nil
+	}))
+
+	strm, err := builder.Build()
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, strm.Run(ctx))
+
+	assert.Equal(t, []string{expected}, received)
+}
+
+func TestEnvironmentBloblangV2LintFailsForBadMapping(t *testing.T) {
+	env := service.NewEnvironment()
+	require.NoError(t, env.RegisterProcessor(
+		"v2_lint_check",
+		service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping")),
+		func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+			_, err := conf.FieldBloblangV2("mapping")
+			return nil, err
+		},
+	))
+
+	badConfig := `
+pipeline:
+  processors:
+    - v2_lint_check:
+        mapping: 'output = nope('
+
+output:
+  drop: {}
+
+logger:
+  level: OFF
+`
+	err := env.NewStreamBuilder().SetYAML(badConfig)
+	require.Error(t, err, "lint pass should reject malformed V2 mappings at SetYAML time")
+	assert.Contains(t, err.Error(), "expected")
+}
+
+func TestEnvironmentBloblangV2LintRespectsCustomEnv(t *testing.T) {
+	bEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, bEnv.RegisterFunction("squeak", bloblangv2.NewPluginSpec(), func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+		return func() (any, error) { return "squeak", nil }, nil
+	}))
+
+	env := service.NewEnvironment()
+	env.UseBloblangV2Environment(bEnv)
+	require.NoError(t, env.RegisterProcessor(
+		"v2_lint_check",
+		service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping")),
+		func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+			_, err := conf.FieldBloblangV2("mapping")
+			return nil, err
+		},
+	))
+
+	goodConfig := `
+pipeline:
+  processors:
+    - v2_lint_check:
+        mapping: 'output = squeak()'
+
+output:
+  drop: {}
+
+logger:
+  level: OFF
+`
+	// The custom env knows squeak so SetYAML should accept the mapping. A
+	// fresh environment with the global V2 env would reject it during lint.
+	require.NoError(t, env.NewStreamBuilder().SetYAML(goodConfig))
+
+	plainEnv := service.NewEnvironment()
+	require.NoError(t, plainEnv.RegisterProcessor(
+		"v2_lint_check",
+		service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping")),
+		func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+			_, err := conf.FieldBloblangV2("mapping")
+			return nil, err
+		},
+	))
+	err := plainEnv.NewStreamBuilder().SetYAML(goodConfig)
+	require.Error(t, err, "lint should reject squeak() against the default V2 env")
+}
+
+func TestEnvironmentBloblangV2Isolation(t *testing.T) {
+	bEnv := bloblangv2.NewEmptyEnvironment()
+	require.NoError(t, bEnv.RegisterFunction("woof", bloblangv2.NewPluginSpec(), func(args *bloblangv2.ParsedParams) (bloblangv2.Function, error) {
+		return func() (any, error) {
+			return "woof", nil
+		}, nil
+	}))
+
+	// Register a processor plugin on the global environment that extracts a V2
+	// mapping at construction time. Both environments below share this plugin,
+	// but each environment has its own Bloblang V2 registry — so the "woof"
+	// function only resolves on the environment that has the custom env set.
+	procSpec := service.NewConfigSpec().Field(service.NewBloblangV2Field("mapping"))
+	procCtor := func(conf *service.ParsedConfig, _ *service.Resources) (service.Processor, error) {
+		exec, err := conf.FieldBloblangV2("mapping")
+		if err != nil {
+			return nil, err
+		}
+		return &v2MappingProc{exec: exec}, nil
+	}
+
+	envOne := service.NewEnvironment()
+	envOne.UseBloblangV2Environment(bEnv)
+	require.NoError(t, envOne.RegisterProcessor("v2_test_map", procSpec, procCtor))
+
+	envTwo := service.NewEnvironment()
+	require.NoError(t, envTwo.RegisterProcessor("v2_test_map", procSpec, procCtor))
+
+	mappingConfig := `
+pipeline:
+  processors:
+    - v2_test_map:
+        mapping: 'output = woof()'
+
+input:
+  generate:
+    count: 1
+    mapping: 'root = "hello"'
+
+output:
+  drop: {}
+
+logger:
+  level: OFF
+`
+
+	// envTwo has the default global V2 environment, which does not have
+	// "woof". The lint pass at SetYAML time should reject the mapping.
+	builderTwo := envTwo.NewStreamBuilder()
+	err := builderTwo.SetYAML(mappingConfig)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "woof")
+
+	// envOne has a custom V2 env containing "woof". Run must succeed and the
+	// processor must rewrite messages to "woof".
+	builderOne := envOne.NewStreamBuilder()
+	require.NoError(t, builderOne.SetYAML(mappingConfig))
+
+	var received []string
+	require.NoError(t, builderOne.AddConsumerFunc(func(_ context.Context, m *service.Message) error {
+		b, err := m.AsBytes()
+		if err != nil {
+			return err
+		}
+		received = append(received, string(b))
+		return nil
+	}))
+
+	strm, err := builderOne.Build()
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, strm.Run(ctx))
+
+	assert.Equal(t, []string{"woof"}, received)
+}
+
+type v2MappingProc struct {
+	exec *bloblangv2.Executor
+}
+
+func (p *v2MappingProc) Process(_ context.Context, m *service.Message) (service.MessageBatch, error) {
+	in, err := m.AsStructured()
+	if err != nil {
+		b, _ := m.AsBytes()
+		in = b
+	}
+	out, err := p.exec.Query(in)
+	if err != nil {
+		return nil, err
+	}
+	nm := m.Copy()
+	if s, ok := out.(string); ok {
+		nm.SetBytes([]byte(s))
+	} else {
+		nm.SetStructured(out)
+	}
+	return service.MessageBatch{nm}, nil
+}
+
+func (p *v2MappingProc) Close(context.Context) error { return nil }
 
 type testFS struct {
 	ifs.FS

@@ -1,0 +1,210 @@
+description: "Comparison operators (>, >=, <, <=) for numeric, string, timestamp, bytes; cross-family errors, null errors, NaN"
+
+tests:
+  # --- Numeric comparisons (int64) ---
+
+  - name: "int64 less than true"
+    mapping: |
+      root.result = 3 < 5
+    output: {"result": true}
+
+  - name: "int64 less than false"
+    mapping: |
+      root.result = 5 < 3
+    output: {"result": false}
+
+  - name: "int64 greater than"
+    mapping: |
+      root.result = 10 > 3
+    output: {"result": true}
+
+  - name: "int64 greater than or equal (equal case)"
+    mapping: |
+      root.result = 5 >= 5
+    output: {"result": true}
+
+  - name: "int64 less than or equal (less case)"
+    mapping: |
+      root.result = 4 <= 5
+    output: {"result": true}
+
+  - name: "int64 less than or equal false"
+    mapping: |
+      root.result = 6 <= 5
+    output: {"result": false}
+
+  # --- Numeric with promotion ---
+
+  - name: "int32 < int64 with promotion"
+    mapping: |
+      root.result = 3.int32() < 5
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "int64 > float64 with promotion"
+    mapping: |
+      root.result = 5 > 4.5
+    output: {"result": true}
+
+  - name: "float32 <= float64 with promotion"
+    mapping: |
+      root.result = 3.0.float32() <= 3.0
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint32 >= int32 with promotion to int64"
+    mapping: |
+      root.result = 10.uint32() >= 10.int32()
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  # --- String comparisons (lexicographic by codepoint) ---
+
+  - name: "string less than lexicographic"
+    mapping: |
+      root.result = "apple" < "banana"
+    output: {"result": true}
+
+  - name: "string equal not less than"
+    mapping: |
+      root.result = "hello" <= "hello"
+    output: {"result": true}
+
+  - name: "string prefix is less than longer string"
+    mapping: |
+      root.result = "abc" < "abcd"
+    output: {"result": true}
+
+  - name: "string uppercase A < lowercase a (codepoint ordering)"
+    mapping: |
+      root.result = "A" < "a"
+    output: {"result": true}
+
+  # --- Bytes comparisons (lexicographic by byte) ---
+
+  - name: "bytes less than"
+    mapping: |
+      root.result = "abc".bytes() < "abd".bytes()
+    output: {"result": true} # FIXME-v1: verify — V1 may coerce bytes to string for comparison
+
+  - name: "bytes greater than"
+    mapping: |
+      root.result = "xyz".bytes() > "abc".bytes()
+    output: {"result": true} # FIXME-v1: verify
+
+  - name: "bytes prefix is less than longer bytes"
+    mapping: |
+      root.result = "ab".bytes() < "abc".bytes()
+    output: {"result": true} # FIXME-v1: verify
+
+  # --- Timestamp comparisons ---
+
+  - name: "earlier timestamp less than later"
+    input:
+      a: {_type: "timestamp", value: "2024-01-01T00:00:00Z"}
+      b: {_type: "timestamp", value: "2024-06-15T00:00:00Z"}
+    mapping: |
+      root.result = this.a < this.b
+    skip: "V2-only: typed timestamp (_type/value) inputs not modelled in V1"
+
+  - name: "same timestamp greater than or equal"
+    input:
+      a: {_type: "timestamp", value: "2024-01-01T00:00:00Z"}
+    mapping: |
+      root.result = this.a >= this.a
+    skip: "V2-only: typed timestamp (_type/value) inputs not modelled in V1"
+
+  # --- Cross-family comparisons: error (not just false) ---
+
+  - name: "int64 < string is error"
+    mapping: |
+      root.result = 5 < "hello"
+    compile_error: "cannot compare types number" # V1 constant-folds literal number < string at compile time
+
+  - name: "string > int64 is error"
+    mapping: |
+      root.result = "hello" > 5
+    compile_error: "cannot compare types string" # V1 constant-folds literal string > number at compile time
+
+  - name: "int64 < bool is error"
+    mapping: |
+      root.result = 5 < true
+    compile_error: "cannot compare types number" # V1 constant-folds literal number < bool at compile time
+
+  - name: "string < bytes is error"
+    mapping: |
+      root.result = "hello" < "hello".bytes()
+    output: {"result": false} # FIXME-v1: verify — V1 likely coerces bytes→string, giving "hello" < "hello" = false
+
+  - name: "timestamp < int64 is error"
+    input:
+      a: {_type: "timestamp", value: "2024-01-01T00:00:00Z"}
+    mapping: |
+      root.result = this.a < 5
+    skip: "V2-only: typed timestamp (_type/value) inputs not modelled in V1"
+
+  - name: "bool < bool is error (not comparable)"
+    mapping: |
+      root.result = true < false
+    compile_error: "cannot compare types bool" # V1 constant-folds literal bool < bool at compile time
+
+  - name: "array < array is error (not comparable)"
+    mapping: |
+      root.result = [1, 2] < [3, 4]
+    compile_error: "cannot compare types array" # V1 constant-folds literal array < array at compile time
+
+  # --- Null in comparison: error ---
+
+  - name: "null < int64 is error"
+    mapping: |
+      root.result = null < 5
+    compile_error: "cannot compare types null" # V1 constant-folds literal null < number at compile time
+
+  - name: "int64 > null is error"
+    mapping: |
+      root.result = 5 > null
+    compile_error: "cannot compare types number" # V1 constant-folds literal number > null at compile time
+
+  - name: "null <= null is error"
+    mapping: |
+      root.result = null <= null
+    compile_error: "cannot compare types null" # V1 constant-folds literal null <= null at compile time
+
+  # --- NaN comparisons: all return false ---
+
+  - name: "NaN < float64 is false"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      root.result = this.val < 1.0
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"
+
+  - name: "NaN > float64 is false"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      root.result = this.val > 1.0
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"
+
+  - name: "NaN >= NaN is false"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      root.result = this.val >= this.val
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"
+
+  # --- Infinity comparisons ---
+
+  - name: "Infinity > float64"
+    input: {val: {_type: "float64", value: "Infinity"}}
+    mapping: |
+      root.result = this.val > 999999.0
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"
+
+  - name: "negative Infinity < float64"
+    input: {val: {_type: "float64", value: "-Infinity"}}
+    mapping: |
+      root.result = this.val < -999999.0
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"
+
+  # --- Non-associative chaining is compile error ---
+
+  - name: "chained comparison is compile error"
+    mapping: |
+      root.result = 1 < 2 < 3
+    # V1 constant-folds `1 < 2` → `true` at compile time, then rejects `true < 3` at compile time.
+    compile_error: "cannot compare types bool"
