@@ -35,7 +35,7 @@ Executes child processors and if a resulting message is errored then, after a sp
 
 It is important to note that any mutations performed on the message during these child processors will be discarded for the next retry, and therefore it is safe to assume that each execution of the child processors will always be performed on the data as it was when it first reached the retry processor.
 
-By default the retry backoff has a specified `+"<<backoffmax_elapsed_time,`max_elapsed_time`>>"+`, if this time period is reached during retries and an error still occurs these errored messages will proceed through to the next processor after the retry (or your outputs). Normal xref:configuration:error_handling.adoc[error handling patterns] can be used on these messages.
+By default the retry backoff has a specified `+"<<backoff-max_elapsed_time,`max_elapsed_time`>>"+`, if this time period is reached during retries and an error still occurs these errored messages will proceed through to the next processor after the retry (or your outputs). Normal xref:configuration:error_handling.adoc[error handling patterns] can be used on these messages.
 
 In order to avoid permanent loops any error associated with messages as they first enter a retry processor will be cleared.
 
