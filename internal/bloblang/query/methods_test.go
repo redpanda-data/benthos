@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package query
 
@@ -2384,4 +2384,14 @@ func TestMethodNoArgsTargets(t *testing.T) {
 		})
 		assert.Contains(t, targets, exp, "method: %v", k)
 	}
+}
+
+func TestMethodParseURLErrorRedactsCredentials(t *testing.T) {
+	fn, err := InitMethodHelper("parse_url", NewLiteralFunction("", "postgres://user:S3cretPass@host/%zz?password=S3cretPass"))
+	require.NoError(t, err)
+
+	_, err = fn.Exec(FunctionContext{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid URL escape")
+	assert.NotContains(t, err.Error(), "S3cretPass")
 }

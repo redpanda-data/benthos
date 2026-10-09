@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package httpclient
 
@@ -14,6 +14,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/value"
 	"github.com/redpanda-data/benthos/v4/public/service"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 // MultipartExpressions represents three dynamic expressions that define a
@@ -227,6 +228,7 @@ func (r *RequestCreator) Create(refBatch service.MessageBatch) (req *http.Reques
 		return
 	}
 	if req, err = http.NewRequest(r.verb, urlStr, body); err != nil {
+		err = redact.Error(err, redact.Conns(urlStr))
 		return
 	}
 

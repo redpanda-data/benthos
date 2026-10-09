@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package service
 
@@ -80,4 +80,27 @@ func TestURLListField(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestURLFieldsRedactCredentials(t *testing.T) {
+	const pass = "S3cretPass"
+
+	spec := NewConfigSpec().
+		Field(NewURLField("a")).
+		Field(NewURLListField("b"))
+
+	conf, err := spec.ParseYAML(`
+a: 'http://u:`+pass+`@bad host:8080'
+b: [ 'http://u:`+pass+`1@good:8080,http://u:`+pass+`2@bad host:8080' ]
+`, nil)
+	require.NoError(t, err)
+
+	_, err = conf.FieldURL("a")
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), pass)
+	assert.Contains(t, err.Error(), "failed to parse url field 'a'")
+
+	_, err = conf.FieldURLList("b")
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), pass)
 }

@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package query
 
@@ -40,6 +40,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/redpanda-data/benthos/v4/internal/value"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 var _ = registerSimpleMethod(
@@ -1605,7 +1606,7 @@ var _ = registerSimpleMethod(
 	),
 	func(*ParsedParams) (simpleMethod, error) {
 		return stringMethod(func(data string) (any, error) {
-			urlParsed, err := url.Parse(data)
+			urlParsed, err := redact.ParseURL(data)
 			if err != nil {
 				return nil, err
 			}

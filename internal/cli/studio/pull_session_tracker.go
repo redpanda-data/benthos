@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package studio
 
@@ -19,6 +19,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/studio/metrics"
 	"github.com/redpanda-data/benthos/v4/internal/cli/studio/tracing"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 // DeploymentConfigMeta describes a file that makes up part of a deployment.
@@ -167,7 +168,9 @@ func (s *sessionTracker) doRateLimitedReq(ctx context.Context, reqFn func() (*ht
 		// Wait for one second after an error by default
 		nextWait := s.nowFn().Add(time.Second)
 		var abortReq bool
-		if res, err = http.DefaultClient.Do(req.WithContext(ctx)); err == nil {
+		if res, err = http.DefaultClient.Do(req.WithContext(ctx)); err != nil {
+			err = redact.Error(err, redact.Conns(req.URL.String()))
+		} else {
 			// No request error, but also check the response status and rate
 			// limit suggestions.
 			var nextWaitTmp *time.Time
@@ -205,7 +208,7 @@ func (s *sessionTracker) init(ctx context.Context) error {
 	// NOTE: No locking actually needed here as this is exclusively called
 	// during construction and nowhere else.
 
-	initURL, err := url.Parse(s.baseURL)
+	initURL, err := redact.ParseURL(s.baseURL)
 	if err != nil {
 		return err
 	}
@@ -272,7 +275,7 @@ func (s *sessionTracker) Leave(ctx context.Context) error {
 		return err
 	}
 
-	leaveURL, err := url.Parse(s.baseURL)
+	leaveURL, err := redact.ParseURL(s.baseURL)
 	if err != nil {
 		return err
 	}
@@ -312,7 +315,7 @@ func (s *sessionTracker) ReadFile(ctx context.Context, name string, headOnly boo
 
 	var fileURLStr string
 	{
-		fileURL, err := url.Parse(s.baseURL)
+		fileURL, err := redact.ParseURL(s.baseURL)
 		if err != nil {
 			return nil, err
 		}
@@ -431,7 +434,7 @@ func (s *sessionTracker) Sync(
 	s.mut.Unlock()
 
 	var syncURL *url.URL
-	if syncURL, err = url.Parse(s.baseURL); err != nil {
+	if syncURL, err = redact.ParseURL(s.baseURL); err != nil {
 		return
 	}
 	syncURL.Path = path.Join(syncURL.Path, fmt.Sprintf("/deployment/%v/sync", depID))

@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package query
 
@@ -153,7 +153,7 @@ var _ = registerMethod(
 		NewExampleSpec("The fallback argument can be a mapping, allowing you to capture the error string and yield structured data back.",
 			`root.url = this.url.parse_url().catch(err -> {"error":err,"input":this.url})`,
 			`{"url":"invalid %&# url"}`,
-			`{"url":{"error":"field `+"`this.url`"+`: parse \"invalid %&\": invalid URL escape \"%&\"","input":"invalid %&# url"}}`,
+			`{"url":{"error":"field `+"`this.url`"+`: parse \"xxxxx\": invalid URL escape","input":"invalid %&# url"}}`,
 		),
 		NewExampleSpec("When the input document is not structured attempting to reference structured fields with `this` will result in an error. Therefore, a convenient way to delete non-structured data is with a catch.",
 			`root = this.catch(deleted())`,

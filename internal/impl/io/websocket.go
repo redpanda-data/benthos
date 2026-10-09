@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 // checkTLSScheme rejects a config that enables TLS against a ws:// URL.
@@ -21,7 +23,7 @@ import (
 // Fail at construction so the contradiction is visible instead of silent.
 func checkTLSScheme(u *url.URL, tlsEnabled bool) error {
 	if tlsEnabled && u.Scheme == "ws" {
-		return fmt.Errorf("tls is enabled but url scheme is ws, use wss:// for %v", u.Redacted())
+		return fmt.Errorf("tls is enabled but url scheme is ws, use wss:// for %v", redact.URL(u))
 	}
 	return nil
 }
