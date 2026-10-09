@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 4.82.0 - 2026-10-09
+
 ### Added
 
 - Go API: New `NewOAuth2Field`, `NewRetryBackOffFields` and `NewMaxRetriesField` functions in the `service` package define the `oauth2` object and the `max_retries` and `backoff` retry fields that components in this module use, so plugins can reuse them instead of defining their own copies. (@JakeSCahill)
@@ -12,6 +14,11 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - The `cache` output now defaults `key` to `${!timestamp_unix_nano()}-${!uuid_v4()}` instead of using the impure `count` function, so the default works in builds that only allow pure Bloblang, such as Redpanda Cloud. Keys stay unique per message. Examples that used `count` or `env` now use pure alternatives, and the `json_schema` method describes loading a schema with `file` instead of showing it in an example. (@JakeSCahill)
+
+## 4.81.0 - 2026-09-18
+
+### Changed
+
 - Streams mode: The HTTP endpoints for creating, updating and removing streams (`POST /streams/{id}`, `GET /streams`, `/streams/{id}/stats` and `/resources/{type}/{id}`) are no longer registered by default and are enabled with the new `--bind-http` flag. The service-wide HTTP server still binds as configured, so `/ping`, `/stats`, `/metrics` and endpoints registered by `http_server` components are unaffected. The `--no-api` flag is deprecated and now only prints a warning. (@squiidz)
 - Inputs and outputs `dynamic`: Added a `bind_http` field (default `false`) that gates registration of the runtime REST endpoints (`/inputs`, `/inputs/{id}`, `/outputs`, `/outputs/{id}` and so on). Existing configurations that manage components over HTTP must set `bind_http: true`. (@squiidz)
 
