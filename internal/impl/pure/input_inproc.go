@@ -21,7 +21,7 @@ func inprocInputSpec() *service.ConfigSpec {
 	return service.NewConfigSpec().
 		Stable().
 		Categories("Utility").
-		Summary("Directly connects to an output within the same process by a chosen ID, to link isolated streams when running in streams mode.").
+		Summary("Directly connects to an output within the same process by a chosen ID.").
 		Description(`
 Directly connect to an output within a Redpanda Connect process by referencing it by a chosen ID.
 

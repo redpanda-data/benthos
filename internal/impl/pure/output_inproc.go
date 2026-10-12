@@ -22,7 +22,7 @@ func init() {
 		"inproc", service.NewConfigSpec().
 			Stable().
 			Categories("Utility").
-			Summary("Sends data directly to inputs in the same process by connecting to a unique ID, to link isolated streams when running in streams mode.").
+			Summary("Sends data directly to inputs in the same process by connecting to a unique ID.").
 			Description(`
 Sends data directly to Redpanda Connect inputs by connecting to a unique ID.
 
