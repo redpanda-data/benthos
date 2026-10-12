@@ -3,7 +3,6 @@
 package schema
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang/query"
@@ -89,7 +88,7 @@ func (r *renderer) render(s, page, where string) string {
 func (r *renderer) component(c *docs.ComponentSpec, page string) {
 	where := strings.TrimPrefix(page, "components/")
 	if strings.Contains(c.Summary, "ifdef::") || strings.Contains(c.Summary, "ifndef::") {
-		r.problems = append(r.problems, fmt.Sprintf("%s: the summary has a conditional; summaries render as one line in catalogs and page metadata, so put the conditional text in the description", where))
+		r.problems = append(r.problems, where+": the summary has a conditional; summaries render as one line in catalogs and page metadata, so put the conditional text in the description")
 	}
 	c.Summary = r.render(c.Summary, page, where+" summary")
 	c.Description = r.render(c.Description, page, where+" description")

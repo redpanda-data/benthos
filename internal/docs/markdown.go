@@ -343,7 +343,7 @@ func AsciidocToMarkdown(src, page string, opts MarkdownOptions) string {
 			}
 		}
 
-		text := line
+		var text string
 		if m := mdHeadingRx.FindStringSubmatch(trimmed); m != nil {
 			text = strings.Repeat("#", len(m[1])) + " " + inline(m[2], page, opts)
 		} else if m := mdAdmonLineRx.FindStringSubmatch(trimmed); m != nil {
