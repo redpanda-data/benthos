@@ -73,3 +73,35 @@ type Async interface {
 	// completion or context cancellation.
 	Close(ctx context.Context) error
 }
+
+// BackfillAsync is an optional extension of Async for readers that have a
+// distinct initial backfill (backfill) phase before switching to continuous
+// streaming, such as CDC-style connectors performing a table backfill ahead
+// of log-based replication.
+//
+// When a reader implements this interface, AsyncReader calls
+// BackfillReadBatch repeatedly - exactly like ReadBatch - until it returns
+// component.ErrBackfillComplete. AsyncReader tracks every batch dispatched
+// this way against a barrier scoped to the backfill phase, and blocks until
+// each has been acknowledged (or nacked) downstream before moving on to
+// steady-state ReadBatch calls. This removes the need for the reader to
+// build its own ack-counting barrier in order to safely persist a
+// post-backfill resume position.
+type BackfillAsync interface {
+	Async
+
+	// BackfillReadBatch attempts to read the next batch belonging to the
+	// backfill phase. Once the backfill has been fully read, including any
+	// trailing partial batch, this must return component.ErrBackfillComplete.
+	BackfillReadBatch(ctx context.Context) (message.Batch, AsyncAckFn, error)
+}
+
+// BackfillCompleter is an optional extension for BackfillAsync readers that
+// want to be notified once every batch read via BackfillReadBatch has been
+// fully acknowledged or nacked downstream, and before AsyncReader begins
+// calling ReadBatch. This is the safe point at which to persist a
+// post-backfill resume position, since it's guaranteed no backfill batch is
+// still in flight.
+type BackfillCompleter interface {
+	BackfillComplete(ctx context.Context) error
+}

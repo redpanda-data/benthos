@@ -50,6 +50,11 @@ var (
 	ErrNoAck = errors.New("failed to receive acknowledgement")
 
 	ErrFailedSend = errors.New("message failed to reach a target destination")
+
+	// ErrBackfillComplete is returned by a BackfillAsync reader's
+	// BackfillReadBatch method to indicate that its snapshot phase has been
+	// fully read. It is not itself an error condition.
+	ErrBackfillComplete = errors.New("snapshot phase complete")
 )
 
 // ErrBackOff is an error returned that allows for a back off duration to be specified
