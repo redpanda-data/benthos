@@ -15,6 +15,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config/schema"
 	"github.com/redpanda-data/benthos/v4/internal/cuegen"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/jsonschema"
 )
 
@@ -24,6 +25,11 @@ func listCliCommand(opts *common.CLIOpts) *cli.Command {
 			Name:  "format",
 			Value: "text",
 			Usage: "Print the component list in a specific format. Options are text, json, jsonschema, or cue.",
+		},
+		&cli.StringFlag{
+			Name:  "docs-format",
+			Value: "asciidoc",
+			Usage: "The format of doc strings in json-full output. Options are asciidoc, as the docs site uses them, or markdown, with links resolved to the documentation URL.",
 		},
 		&cli.StringFlag{
 			Name:  "status",
@@ -80,6 +86,13 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 		schema.ReduceToStatus(status)
 	}
 	schema.Config = opts.MainConfigSpecCtor()
+	if c.String("docs-format") == "markdown" {
+		schema.RenderMarkdown(docs.MarkdownOptions{
+			BaseURL:       opts.DocumentationURL,
+			Attributes:    opts.DocsAttributes,
+			ComponentURLs: opts.DocsComponentURLs,
+		})
+	}
 
 	switch c.String("format") {
 	case "text":

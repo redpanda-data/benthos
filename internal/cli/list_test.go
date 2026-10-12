@@ -5,6 +5,8 @@ package cli_test
 import (
 	"bytes"
 	"encoding/json"
+	"regexp"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -262,4 +264,59 @@ func TestListJSONSchemaComponentsNotAffected(t *testing.T) {
 	// Should have typical JSON schema fields (definitions and properties)
 	assert.Contains(t, result, "definitions", "Should be a JSON schema document with definitions")
 	assert.Contains(t, result, "properties", "Should be a JSON schema document with properties")
+}
+
+// Every doc string renders without AsciiDoc left over, so consumers of
+// --docs-format markdown never see xrefs, anchors, conditionals, or block
+// delimiters. Config snippets, mappings, and example results are code and
+// left alone.
+func TestListJSONFullMarkdownHasNoAsciidoc(t *testing.T) {
+	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "json-full", "--docs-format", "markdown"})
+	require.NoError(t, err)
+
+	var doc any
+	require.NoError(t, json.Unmarshal([]byte(outStr), &doc))
+
+	leftovers := map[string]*regexp.Regexp{
+		"xref":        regexp.MustCompile(`xref:`),
+		"anchor":      regexp.MustCompile(`<<[^\s<]|[^\s>]>>`),
+		"conditional": regexp.MustCompile(`(?m)^(ifn?def|endif)::`),
+		"delimiter":   regexp.MustCompile(`(?m)^(====|----|\|===|\[tabs\])$`),
+		"link macro":  regexp.MustCompile(`https?://[^\s)]+\[`),
+	}
+	code := map[string]bool{"config": true, "mapping": true, "results": true, "examples": true, "default": true}
+
+	tt := t
+	var walk func(v any, path, key string)
+	walk = func(v any, path, key string) {
+		if code[key] {
+			return
+		}
+		switch t := v.(type) {
+		case string:
+			s := t
+			for name, rx := range leftovers {
+				assert.False(tt, rx.MatchString(s), "%v: leftover %v in %q", path, name, s)
+			}
+		case []any:
+			for i, e := range t {
+				walk(e, path+"/"+strconv.Itoa(i), key)
+			}
+		case map[string]any:
+			for k, e := range t {
+				walk(e, path+"/"+k, k)
+			}
+		}
+	}
+	walk(doc, "", "")
+}
+
+func TestListJSONFullMarkdownResolvesLinksAndConditionals(t *testing.T) {
+	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "json-full", "--docs-format", "markdown", "inputs"})
+	require.NoError(t, err)
+	assert.Contains(t, outStr, "](https://benthos.dev/docs/components/rate_limits/about/)")
+
+	raw, err := executeListSubcmd([]string{"benthos", "list", "--format", "json-full", "inputs"})
+	require.NoError(t, err)
+	assert.Contains(t, raw, "xref:components:rate_limits/about.adoc", "asciidoc stays the default")
 }

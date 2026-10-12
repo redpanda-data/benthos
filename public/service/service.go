@@ -143,6 +143,27 @@ func CLIOptSetDocumentationURL(n string) CLIOptFunc {
 	}
 }
 
+// CLIOptSetDocsAttributes sets the AsciiDoc attributes treated as set when doc
+// strings render as Markdown, for example "env-cloud" in a binary that runs in
+// Redpanda Cloud, so that ifdef and ifndef conditionals resolve for it.
+func CLIOptSetDocsAttributes(attrs ...string) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.DocsAttributes = map[string]bool{}
+		for _, a := range attrs {
+			c.opts.DocsAttributes[a] = true
+		}
+	}
+}
+
+// CLIOptSetDocsComponentURLs maps the docs site components that doc strings
+// link to with component-qualified xrefs, such as xref:streaming:x.adoc[], to
+// their base URLs, for doc strings rendered as Markdown.
+func CLIOptSetDocsComponentURLs(urls map[string]string) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.DocsComponentURLs = urls
+	}
+}
+
 // CLIOptSetShowRunCommand determines whether a `run` subcommand should appear
 // in CLI help and autocomplete.
 //
