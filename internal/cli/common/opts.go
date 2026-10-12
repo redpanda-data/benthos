@@ -37,10 +37,11 @@ type CLIOpts struct {
 	ProductName      string
 	DocumentationURL string
 
-	// DocsAttributes are the AsciiDoc attributes treated as set when doc
-	// strings render as Markdown, for example env-cloud in a binary that runs
-	// in Redpanda Cloud.
-	DocsAttributes map[string]bool
+	// DocsAttributes returns the AsciiDoc attributes the main schema declares
+	// as set for this distribution's readers, for example env-cloud in a
+	// binary that runs in Redpanda Cloud, used when doc strings render as
+	// Markdown. Nil when the schema declares none.
+	DocsAttributes func() []string
 
 	// DocsComponentURLs maps other docs site components named in xrefs to their
 	// base URLs, for doc strings rendered as Markdown.

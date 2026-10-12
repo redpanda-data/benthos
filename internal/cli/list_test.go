@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,7 @@ import (
 
 	icli "github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
+	"github.com/redpanda-data/benthos/v4/public/service"
 
 	_ "github.com/redpanda-data/benthos/v4/public/components/io"
 	_ "github.com/redpanda-data/benthos/v4/public/components/pure"
@@ -283,6 +285,8 @@ func TestListJSONFullMarkdownHasNoAsciidoc(t *testing.T) {
 		"conditional": regexp.MustCompile(`(?m)^(ifn?def|endif)::`),
 		"delimiter":   regexp.MustCompile(`(?m)^(====|----|\|===|\[tabs\])$`),
 		"link macro":  regexp.MustCompile(`https?://[^\s)]+\[`),
+		"raw target":  regexp.MustCompile(`\.adoc\]\(`),
+		"bold":        regexp.MustCompile(`(^|\s)\*[^*\s][^*\n]*[^*\s]\*(\s|$)`),
 	}
 	code := map[string]bool{"config": true, "mapping": true, "results": true, "examples": true, "default": true}
 
@@ -311,12 +315,58 @@ func TestListJSONFullMarkdownHasNoAsciidoc(t *testing.T) {
 	walk(doc, "", "")
 }
 
+// Every raw doc string follows the one supported conditional form, so a
+// malformed conditional fails here rather than dropping text for readers.
+func TestListJSONFullConditionalsAreWellFormed(t *testing.T) {
+	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "json-full"})
+	require.NoError(t, err)
+
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal([]byte(outStr), &doc))
+	assert.Equal(t, "asciidoc", doc["docs_format"])
+
+	code := map[string]bool{"config": true, "mapping": true, "results": true, "default": true}
+	var walk func(v any, path, key string)
+	walk = func(v any, path, key string) {
+		if code[key] {
+			return
+		}
+		switch x := v.(type) {
+		case string:
+			for _, p := range service.LintDocsConditionals(x) {
+				assert.Fail(t, "malformed conditional", "%v: %v", path, p)
+			}
+			if key == "summary" && (strings.Contains(x, "ifdef::") || strings.Contains(x, "ifndef::")) {
+				assert.Fail(t, "conditional in a summary", "%v: summaries render as one line", path)
+			}
+		case []any:
+			for i, e := range x {
+				walk(e, path+"/"+strconv.Itoa(i), key)
+			}
+		case map[string]any:
+			for k, e := range x {
+				walk(e, path+"/"+k, k)
+			}
+		}
+	}
+	walk(doc, "", "")
+}
+
+func TestListJSONFullMarkdownRejectsMalformedConditionals(t *testing.T) {
+	assert.Contains(t, service.LintDocsConditionals("ifndef::env-cloud[]\ntext")[0], "never closed")
+}
+
 func TestListJSONFullMarkdownResolvesLinksAndConditionals(t *testing.T) {
 	outStr, err := executeListSubcmd([]string{"benthos", "list", "--format", "json-full", "--docs-format", "markdown", "inputs"})
 	require.NoError(t, err)
 	assert.Contains(t, outStr, "](https://benthos.dev/docs/components/rate_limits/about/)")
 
+	assert.Contains(t, outStr, `"docs_format":"markdown"`)
+
 	raw, err := executeListSubcmd([]string{"benthos", "list", "--format", "json-full", "inputs"})
 	require.NoError(t, err)
 	assert.Contains(t, raw, "xref:components:rate_limits/about.adoc", "asciidoc stays the default")
+
+	_, err = executeListSubcmd([]string{"benthos", "list", "--format", "json-full", "--docs-format", "html"})
+	require.Error(t, err)
 }

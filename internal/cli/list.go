@@ -4,6 +4,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -29,7 +30,7 @@ func listCliCommand(opts *common.CLIOpts) *cli.Command {
 		&cli.StringFlag{
 			Name:  "docs-format",
 			Value: "asciidoc",
-			Usage: "The format of doc strings in json-full output. Options are asciidoc, as the docs site uses them, or markdown, with links resolved to the documentation URL.",
+			Usage: "The format of the doc strings carried by the json-full and cue formats and by jsonschema for Bloblang functions and methods. Options are asciidoc, as the specs hold them and the docs site needs them, or markdown, with links resolved to the documentation URL and Cloud conditionals resolved for this distribution.",
 		},
 		&cli.StringFlag{
 			Name:  "status",
@@ -69,13 +70,15 @@ only those specific items:
 			return common.PreApplyEnvFilesAndTemplates(c, opts)
 		},
 		Action: func(c *cli.Context) error {
-			listComponents(c, opts)
+			if err := listComponents(c, opts); err != nil {
+				return err
+			}
 			return nil
 		},
 	}
 }
 
-func listComponents(c *cli.Context, opts *common.CLIOpts) {
+func listComponents(c *cli.Context, opts *common.CLIOpts) error {
 	ofTypes := map[string]struct{}{}
 	for _, k := range c.Args().Slice() {
 		ofTypes[k] = struct{}{}
@@ -86,12 +89,24 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 		schema.ReduceToStatus(status)
 	}
 	schema.Config = opts.MainConfigSpecCtor()
-	if c.String("docs-format") == "markdown" {
-		schema.RenderMarkdown(docs.MarkdownOptions{
+	switch c.String("docs-format") {
+	case "asciidoc", "":
+	case "markdown":
+		attrs := map[string]bool{}
+		if opts.DocsAttributes != nil {
+			for _, a := range opts.DocsAttributes() {
+				attrs[a] = true
+			}
+		}
+		if problems := schema.RenderMarkdown(docs.MarkdownOptions{
 			BaseURL:       opts.DocumentationURL,
-			Attributes:    opts.DocsAttributes,
+			Attributes:    attrs,
 			ComponentURLs: opts.DocsComponentURLs,
-		})
+		}); len(problems) > 0 {
+			return errors.New("doc strings have malformed conditionals:\n  " + strings.Join(problems, "\n  "))
+		}
+	default:
+		return fmt.Errorf("unknown docs format %q, options are asciidoc or markdown", c.String("docs-format"))
 	}
 
 	switch c.String("format") {
@@ -168,7 +183,7 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 			}
 
 			outputBloblangJSON(opts, "bloblang-functions", functions)
-			return
+			return nil
 		}
 		if _, isMethods := ofTypes["bloblang-methods"]; isMethods {
 			methods := schema.BloblangMethods
@@ -185,7 +200,7 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 			}
 
 			outputBloblangJSON(opts, "bloblang-methods", methods)
-			return
+			return nil
 		}
 
 		// Default: Component jsonschema
@@ -201,6 +216,7 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) {
 		}
 		fmt.Fprintln(opts.Stdout, string(source))
 	}
+	return nil
 }
 
 func outputBloblangJSON(opts *common.CLIOpts, key string, data any) {

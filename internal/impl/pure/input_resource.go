@@ -63,7 +63,7 @@ input_resources:
 
 Resources also allow you to reference a single input in multiple places, such as multiple streams mode configs, or multiple entries in a broker input. However, when a resource is referenced more than once the messages it produces are distributed across those references, so each message will only be directed to a single reference, not all of them.
 
-You can find out more about resources in xref:configuration:resources.adoc[].`).
+You can find out more about resources in xref:configuration:resources.adoc[Resources].`).
 		Field(service.NewStringField("").Default(""))
 }
 

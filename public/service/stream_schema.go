@@ -30,6 +30,7 @@ type ConfigSchema struct {
 	fields             docs.FieldSpecs
 	env                *Environment
 	version, dateBuilt string
+	docsAttributes     []string
 }
 
 // FullConfigSchema returns a config schema containing all the standard config
@@ -192,6 +193,10 @@ func ConfigSchemaFromJSONV0(jBytes []byte) (*ConfigSchema, error) {
 // config and plugin ecosystem schema such that other applications can
 // potentially execute their own linting and generation tools with it.
 func (s *ConfigSchema) MarshalJSONV0() ([]byte, error) {
+	return json.Marshal(s.fullSchema())
+}
+
+func (s *ConfigSchema) fullSchema() schema.Full {
 	bEnv := s.env.getBloblangParserEnv()
 
 	var functionDocs []query.FunctionSpec
@@ -207,6 +212,7 @@ func (s *ConfigSchema) MarshalJSONV0() ([]byte, error) {
 	iSchema := schema.Full{
 		Version:           s.version,
 		Date:              s.dateBuilt,
+		DocsFormat:        "asciidoc",
 		Config:            s.fields,
 		Buffers:           s.env.internal.BufferDocs(),
 		Caches:            s.env.internal.CacheDocs(),
@@ -220,8 +226,7 @@ func (s *ConfigSchema) MarshalJSONV0() ([]byte, error) {
 		BloblangFunctions: functionDocs,
 		BloblangMethods:   methodDocs,
 	}
-
-	return json.Marshal(iSchema)
+	return iSchema
 }
 
 // MarshalJSONSchema attempts to marshal a JSON Schema definition containing the

@@ -36,7 +36,7 @@ When messages leave the catch block their fail flags are cleared. This processor
 
 NOTE: When strict error handling (`+"`error_handling.strict`"+`) is enabled this processor does not recover anything, as a failed message short-circuits past it rather than reaching it. Use the xref:components:processors/try_catch.adoc[`+"`try_catch`"+`] processor instead, which contains both the fallible step and its recovery.
 
-More information about error handling can be found in xref:configuration:error_handling.adoc[].`).
+More information about error handling can be found in xref:configuration:error_handling.adoc[Error handling].`).
 		LintRule(`if this.or([]).any(pconf -> pconf.type.or("") == "try" || pconf.try.type() == "array" ) {
   "'catch' block contains a 'try' block which will never execute due to errors only being cleared at the end of the 'catch', for more information about nesting 'try' within 'catch' read: https://docs.redpanda.com/redpanda-connect/components/processors/try#nesting-within-a-catch-block"
 }`).
