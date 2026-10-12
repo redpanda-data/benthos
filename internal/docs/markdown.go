@@ -51,7 +51,7 @@ var (
 	mdURLRx        = regexp.MustCompile(`(?:link:)?(https?://[^\s\[\]]+)\[` + mdLabel + `\]`)
 	mdAnchorRx     = regexp.MustCompile(`<<([^,>\s]+)(?:,\s*([^>]*))?>>`)
 	mdLinkAttrRx   = regexp.MustCompile(`,\s*(?:window|role|opts|id|title)=.*$`)
-	mdBoldRx       = regexp.MustCompile("(^|[\\s(])\\*([^*\\s`](?:[^*`]*?[^*\\s`])?)\\*([\\s).,:;!?]|$)")
+	mdBoldRx       = regexp.MustCompile(`(^|[\s(])\*([^*\s](?:[^*]*?[^*\s])?)\*([\s).,:;!?]|$)`)
 	mdPassDoubleRx = regexp.MustCompile(`\+\+([^+\n]+?)\+\+`)
 	mdPassSingleRx = regexp.MustCompile(`(^|[^\w+])\+([^+\s](?:[^+\n]*?[^+\s])?)\+($|[^\w+])`)
 	mdCondRx       = regexp.MustCompile(`^(ifdef|ifndef)::([^\[\]]+)\[(.*)\]$`)
@@ -402,9 +402,10 @@ func inline(s, page string, opts MarkdownOptions) string {
 	})
 	parts := strings.Split(s, "`")
 	for i := 0; i < len(parts); i += 2 {
-		parts[i] = inlineText(parts[i])
+		parts[i] = mdPassSingleRx.ReplaceAllString(parts[i], "$1$2$3")
 	}
 	s = strings.Join(parts, "`")
+	s = boldOutsideCode(s)
 	// Links whose text is code, such as xref:x.adoc[`x` input], span
 	// backticks, so resolve them across the whole string.
 	s = mdXrefRx.ReplaceAllStringFunc(s, func(x string) string {
@@ -438,10 +439,23 @@ func inline(s, page string, opts MarkdownOptions) string {
 	return s
 }
 
-func inlineText(s string) string {
-	s = mdPassSingleRx.ReplaceAllString(s, "$1$2$3")
-	s = mdBoldRx.ReplaceAllString(s, "$1**$2**$3")
-	return s
+// boldOutsideCode converts *bold* to **bold**. Bold may span a code span, as
+// in *Merge-key (`identifier_fields`) types:*, but an asterisk inside a code
+// span never opens one.
+func boldOutsideCode(s string) string {
+	var b strings.Builder
+	last := 0
+	for _, m := range mdBoldRx.FindAllStringSubmatchIndex(s, -1) {
+		// m[4] is where the bold text starts, just after the opening asterisk.
+		if strings.Count(s[:m[4]], "`")%2 == 1 {
+			continue
+		}
+		b.WriteString(s[last:m[0]])
+		b.WriteString(s[m[2]:m[3]] + "**" + s[m[4]:m[5]] + "**" + s[m[6]:m[7]])
+		last = m[1]
+	}
+	b.WriteString(s[last:])
+	return b.String()
 }
 
 // link renders Markdown for a link whose AsciiDoc text may carry \] escapes,

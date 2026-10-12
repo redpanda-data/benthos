@@ -107,6 +107,11 @@ func TestAsciidocToMarkdown(t *testing.T) {
 			out:  "## Performance\n\n> **Note:** This is **important**, but *.json and 2 * 3 are not bold.",
 		},
 		{
+			name: "bold may span a code span, but asterisks in code never open one",
+			in:   "*Merge-key (`identifier_fields`) types:* `int`. Pattern `a*b` and `*c*` stay.",
+			out:  "**Merge-key (`identifier_fields`) types:** `int`. Pattern `a*b` and `*c*` stay.",
+		},
+		{
 			name: "admonition blocks become quotes",
 			in:   "[WARNING]\n====\nThis component is deprecated.\n====",
 			out:  "> **Warning:**\n> This component is deprecated.",

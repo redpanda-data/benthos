@@ -37,7 +37,7 @@ func TestSyncSchema(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.ElementsMatch(t, slices.Collect(maps.Keys(schema)), []string{
-				"version", "date",
+				"version", "date", "docs_format",
 				"config",
 				"buffers", "caches", "inputs", "outputs", "processors", "rate-limits", "metrics", "tracers", "scanners",
 				"bloblang-functions", "bloblang-methods",
