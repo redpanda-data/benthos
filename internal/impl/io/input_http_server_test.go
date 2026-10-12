@@ -1324,6 +1324,7 @@ http_server:
   cors:
     enabled: true
     allowed_origins: [ foo, bar ]
+    allowed_headers: [ Content-Type ]
 `, freePort)
 
 	server, err := mock.NewManager().NewInput(conf)
@@ -1343,7 +1344,7 @@ http_server:
 
 		req.Header.Add("Origin", "foo")
 		req.Header.Add("Access-Control-Request-Method", "POST")
-		req.Header.Set("Content-Type", "text/plain")
+		req.Header.Set("Access-Control-Request-Headers", "content-type")
 
 		if resp, cerr = http.DefaultClient.Do(req); cerr == nil {
 			succeeded = true
@@ -1354,6 +1355,7 @@ http_server:
 
 	assert.Equal(t, "200 OK", resp.Status)
 	assert.Equal(t, "foo", resp.Header.Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "Content-Type", resp.Header.Get("Access-Control-Allow-Headers"))
 }
 
 // TestHTTPServerReload tests that the server can be closed and recreated on the same port
