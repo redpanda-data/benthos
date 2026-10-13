@@ -6,7 +6,7 @@
 > Note: if you are looking for the original benthos repo with connectors, it moved here: https://github.com/redpanda-data/connect
 
 
-Benthos is a framework for creating declarative stream processors where a pipeline of one or more sources, an arbitrary series of processing stages, and one or more sinks can be configured in a single config:
+Redpanda Benthos is a framework for creating declarative stream processors where a pipeline of one or more sources, an arbitrary series of processing stages, and one or more sinks can be configured in a single config:
 
 ```yaml
 input:
@@ -30,13 +30,13 @@ output:
 
 ### Delivery Guarantees
 
-Delivery guarantees [can be a dodgy subject](https://youtu.be/QmpBOCvY8mY). Benthos processes and acknowledges messages using an in-process transaction model with no need for any disk persisted state, so when connecting to at-least-once sources and sinks it's able to guarantee at-least-once delivery even in the event of crashes, disk corruption, or other unexpected server faults.
+Delivery guarantees [can be a dodgy subject](https://youtu.be/QmpBOCvY8mY). Redpanda Benthos processes and acknowledges messages using an in-process transaction model with no need for any disk persisted state, so when connecting to at-least-once sources and sinks it's able to guarantee at-least-once delivery even in the event of crashes, disk corruption, or other unexpected server faults.
 
-This behaviour is the default and free of caveats, which also makes deploying and scaling Benthos much simpler.
+This behaviour is the default and free of caveats, which also makes deploying and scaling Redpanda Benthos much simpler.
 
 ## Formatting and Linting
 
-Benthos uses [golangci-lint][golangci-lint] for formatting and linting.
+Redpanda Benthos uses [golangci-lint][golangci-lint] for formatting and linting.
 
 - `task fmt` to format the codebase,
 - `task lint` to lint the codebase.
