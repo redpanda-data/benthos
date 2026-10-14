@@ -27,6 +27,8 @@ In order to map or encode the payload to a specific request body, and map the re
 
 Redpanda Connect considers any response code between 200 and 299 inclusive to indicate a successful response, you can add more success status codes with the field `+"`successful_on`"+`.
 
+Response codes between 300 and 399 are redirects, which the processor follows by default. If you set `+"<<follow_redirects,`follow_redirects`>>"+` to `+"`false`"+`, the processor does not follow a redirect. Instead, it treats the redirect response as successful, unless its code is listed in `+"`backoff_on`"+` or `+"`drop_on`"+`.
+
 When a request returns a response code within the `+"`backoff_on`"+` field it will be retried after increasing intervals.
 
 When a request returns a response code within the `+"`drop_on`"+` field it will not be reattempted and is immediately considered a failed request.
