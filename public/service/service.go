@@ -143,6 +143,15 @@ func CLIOptSetDocumentationURL(n string) CLIOptFunc {
 	}
 }
 
+// CLIOptSetDocsComponentURLs maps the docs site components that doc strings
+// link to with component-qualified xrefs, such as xref:streaming:x.adoc[], to
+// their base URLs, for doc strings rendered as Markdown.
+func CLIOptSetDocsComponentURLs(urls map[string]string) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.DocsComponentURLs = urls
+	}
+}
+
 // CLIOptSetShowRunCommand determines whether a `run` subcommand should appear
 // in CLI help and autocomplete.
 //
@@ -187,6 +196,9 @@ func CLIOptSetMainSchemaFrom(fn func() *ConfigSchema) CLIOptFunc {
 	return func(c *CLIOptBuilder) {
 		c.opts.MainConfigSpecCtor = func() docs.FieldSpecs {
 			return fn().fields
+		}
+		c.opts.DocsAttributes = func() []string {
+			return fn().DocsAttributes()
 		}
 	}
 }

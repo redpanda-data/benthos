@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- CLI: `list --format json-full --docs-format markdown` renders every doc string as Markdown, with xrefs and anchors resolved to absolute docs links, links to components the distribution lacks reduced to text, and `env-cloud` conditionals resolved for the distribution. The output's new `docs_format` field says which format the doc strings are in. The default stays `asciidoc`. (@JakeSCahill)
+- Go API: `ConfigSchema.SetDocsAttributes` declares the AsciiDoc attributes set for a distribution's readers (`DocsAttributeCloud` for Redpanda Cloud), `ConfigSchema.MarshalJSONV0Markdown` renders the schema with Markdown doc strings, `LintDocsConditionals` checks a doc string's conditionals, and `CLIOptSetDocsComponentURLs` maps other docs site components for link resolution. `ConfigSpec.Description` documents how doc strings are published and how to write a Cloud conditional. (@JakeSCahill)
+
 ## 4.82.0 - 2026-10-09
 
 ### Added

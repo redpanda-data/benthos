@@ -26,7 +26,7 @@ func init() {
 			Description(`
 The field `+"`cap`"+`, if greater than zero, caps the maximum number of parallel processing threads.
 
-The functionality of this processor depends on being applied across messages that are batched. You can find out more about batching in xref:configuration:batching.adoc[].`).
+The functionality of this processor depends on being applied across messages that are batched. You can find out more about batching in xref:configuration:batching.adoc[Message batching].`).
 			Fields(
 				service.NewIntField(parProcFieldCap).
 					Description("The maximum number of messages to have processing at a given time.").

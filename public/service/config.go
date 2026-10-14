@@ -206,7 +206,10 @@ func NewInternalField(ifield docs.FieldSpec) *ConfigField {
 }
 
 // Description adds a description to the field which will be shown when printing
-// documentation for the component config spec.
+// documentation for the component config spec. It is AsciiDoc and may use the
+// same links and env-cloud conditionals as ConfigSpec.Description; see that
+// method for where doc strings are published and the one supported
+// conditional form.
 func (c *ConfigField) Description(d string) *ConfigField {
 	c.field.Description = d
 	return c
@@ -402,7 +405,10 @@ func (c *ConfigSpec) Version(v string) *ConfigSpec {
 }
 
 // Summary adds a short summary to the plugin configuration spec that describes
-// the general purpose of the component.
+// the general purpose of the component. It is one sentence of AsciiDoc that
+// renders as one line in component catalogs and page metadata, so it must
+// not contain a conditional. See Description for how doc strings are
+// published.
 func (c *ConfigSpec) Summary(summary string) *ConfigSpec {
 	c.component.Summary = summary
 	return c
@@ -411,6 +417,37 @@ func (c *ConfigSpec) Summary(summary string) *ConfigSpec {
 // Description adds a description to the plugin configuration spec that
 // describes in more detail the behaviour of the component and how it should be
 // used.
+//
+// Doc strings are AsciiDoc. This includes the Summary, Description and
+// Footnotes, field descriptions, annotated option summaries, example
+// summaries, and Bloblang function and method docs. They are published in
+// several places: the Redpanda Connect docs site, the Redpanda Cloud docs
+// site (which builds with the env-cloud attribute set), and each
+// distribution's `list --format json-full --docs-format markdown` output,
+// which the Cloud UI and other tools read, where the Cloud binaries set
+// env-cloud too. Links are written as xref:components:inputs/kafka.adoc[text]
+// or <<field_name>> and resolve on every surface. A link to a component that
+// a distribution lacks renders as plain text there, so no conditional is
+// needed just to hide a link.
+//
+// Wrap text about behaviour that differs in Redpanda Cloud in a conditional,
+// one whole paragraph at a time, with the directive at column 0 and a blank
+// line before and after:
+//
+//	Sends data directly to inputs in the same process by a unique ID.
+//
+//	ifndef::env-cloud[]
+//	This links isolated streams in xref:guides:streams_mode/about.adoc[streams mode],
+//	which Redpanda Cloud does not run.
+//	endif::[]
+//
+//	It is possible to connect multiple inputs to the same ID.
+//
+// Use ifdef::env-cloud[] for text that applies only in Cloud. env-cloud is
+// the only attribute (DocsAttributeCloud); the single-line form
+// ifndef::env-cloud[text] and conditionals inside a Summary or a code block
+// are rejected by LintDocsConditionals, which the schema tests run, because
+// a malformed conditional makes a renderer drop text without any error.
 func (c *ConfigSpec) Description(description string) *ConfigSpec {
 	c.component.Description = description
 	return c
