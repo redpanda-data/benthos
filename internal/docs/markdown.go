@@ -94,8 +94,12 @@ func LintConditionals(s string) []string {
 		if !isDirective {
 			continue
 		}
-		if trimmed != line {
+		if strings.TrimLeft(line, " \t") != line {
 			problems = append(problems, fmt.Sprintf("line %d: %q must start at column 0 to be a directive", i+1, trimmed))
+			continue
+		}
+		if strings.TrimRight(line, " \t\r") != line {
+			problems = append(problems, fmt.Sprintf("line %d: remove the whitespace after %q; a line that does not end in ] is not a directive to the Markdown renderer", i+1, trimmed))
 			continue
 		}
 		if mdIfevalRx.MatchString(trimmed) {

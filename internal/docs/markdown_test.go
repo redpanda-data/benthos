@@ -182,6 +182,7 @@ func TestLintConditionals(t *testing.T) {
 		{name: "indented directive", in: "- a\n  ifndef::env-cloud[]\n  b\n  endif::[]", problems: 2, contains: "column 0"},
 		{name: "glued to the paragraphs around it", in: "A.\nifndef::env-cloud[]\nB.\nendif::[]\nC.", problems: 2, contains: "blank line"},
 		{name: "ifeval", in: "ifeval::[1 == 1]\nB.\nendif::[]", problems: 2, contains: "ifeval"},
+		{name: "trailing whitespace after a directive", in: "A.\n\nifdef::env-cloud[]   \nB.\nendif::[]", problems: 2, contains: "remove the whitespace"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got := docs.LintConditionals(test.in)
