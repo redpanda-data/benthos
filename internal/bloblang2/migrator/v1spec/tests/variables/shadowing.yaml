@@ -1,0 +1,235 @@
+description: "Variable shadowing in expression contexts: if-expression, match expression, lambda bodies; outer unchanged; same-scope reassignment within expression"
+
+tests:
+  # --- If-expression shadows outer variable ---
+
+  - name: "if-expression variable shadowing"
+    skip: "V1 if-expression body is a single expression; cannot declare + return. V1 also has no block scope — `let value = 20` would mutate the outer binding."
+    mapping: |
+      let value = 10
+      root.inner = if this.flag {
+        let value = 20
+        $value
+      }
+      root.outer = $value
+    cases:
+      - name: "shadow when true"
+        input: {"flag": true}
+        output: {"inner": 20, "outer": 10}
+      - name: "outer unchanged when false"
+        input: {"flag": false}
+        output: {"outer": 10}
+
+  - name: "if-else expression shadowing"
+    skip: "V1 if-expression body is a single expression; no scope isolation either"
+    mapping: |
+      let x = "original"
+      root.result = if this.flag {
+        let x = "from-if"
+        $x
+      } else {
+        let x = "from-else"
+        $x
+      }
+      root.outer = $x
+    cases:
+      - name: "if branch shadow"
+        input: {"flag": true}
+        output: {"result": "from-if", "outer": "original"}
+      - name: "else branch shadow"
+        input: {"flag": false}
+        output: {"result": "from-else", "outer": "original"}
+
+  # --- Match expression shadows outer variable ---
+
+  - name: "match expression shadows outer variable"
+    skip: "V1 match arm body is a single expression; cannot declare + return"
+    input: {"kind": "a"}
+    mapping: |
+      let val = "outer"
+      root.result = match this.kind {
+        "a" => {
+          let val = "inner-a"
+          $val
+        },
+        _ => "default",
+      }
+      root.outer = $val
+    output: {"result": "inner-a", "outer": "outer"}
+
+  - name: "match expression shadow in different arms"
+    skip: "V1 match arm body is a single expression"
+    input: {"kind": "b"}
+    mapping: |
+      let val = "outer"
+      root.result = match this.kind {
+        "a" => {
+          let val = "inner-a"
+          $val
+        },
+        "b" => {
+          let val = "inner-b"
+          $val
+        },
+        _ => "default",
+      }
+      root.outer = $val
+    output: {"result": "inner-b", "outer": "outer"}
+
+  - name: "match expression default arm also shadows"
+    skip: "V1 match arm body is a single expression"
+    input: {"kind": "c"}
+    mapping: |
+      let val = 0
+      root.result = match this.kind {
+        "a" => {
+          let val = 1
+          $val
+        },
+        _ => {
+          let val = 99
+          $val
+        },
+      }
+      root.outer = $val
+    output: {"result": 99, "outer": 0}
+
+  # --- Same-scope reassignment within expression body ---
+
+  - name: "reassignment within if-expression body is mutation not shadow"
+    skip: "V1 if-expression body is a single expression; cannot declare + reassign + return"
+    input: {"flag": true}
+    mapping: |
+      let outer = "untouched"
+      root.result = if this.flag {
+        let x = 1
+        let x = 2
+        let x = 3
+        $x
+      }
+      root.outer = $outer
+    output: {"result": 3, "outer": "untouched"}
+
+  - name: "reassignment within match-expression body is mutation"
+    skip: "V1 match arm body is a single expression"
+    input: {"kind": "a"}
+    mapping: |
+      root.result = match this.kind {
+        "a" => {
+          let acc = 0
+          let acc = $acc + 10
+          let acc = $acc + 20
+          $acc
+        },
+        _ => 0,
+      }
+    output: {"result": 30}
+
+  # --- New variables in expression block are block-scoped ---
+
+  - name: "new variable in if-expression not visible outside"
+    skip: "V1 if-expression body is a single expression; V1 also has no block scope for let"
+    input: {"flag": true}
+    mapping: |
+      root.result = if this.flag {
+        let local = 42
+        $local
+      }
+      root.after = $local
+    compile_error: "undeclared" # FIXME-v1
+
+  - name: "new variable in match-expression not visible outside"
+    skip: "V1 match arm body is a single expression"
+    mapping: |
+      root.result = match "a" {
+        "a" => {
+          let inner = "found"
+          $inner
+        },
+        _ => "default",
+      }
+      root.after = $inner
+    compile_error: "undeclared" # FIXME-v1
+
+  # --- Nested expression contexts ---
+
+  - name: "output assignment in expression context is compile error"
+    skip: "V1 if-expression body is a single expression; statement-level root assignment inside it is a parse error, but the error message differs"
+    input: {"a": true, "b": true}
+    mapping: |
+      let x = "top"
+      root.inner = if this.a {
+        let x = "level1"
+        root.nested = if this.b {
+          let x = "level2"
+          $x
+        }
+        $x
+      }
+      root.outer = $x
+    compile_error: "output" # FIXME-v1: V1 parse error message will not contain "output"
+
+  - name: "shadow does not leak between sibling expressions"
+    skip: "V1 if-expression body is a single expression; cannot declare + return. V1 has no scope isolation either — `let x = \"first\"` persists across siblings."
+    input: {"flag": true}
+    mapping: |
+      let x = "original"
+      root.first = if this.flag {
+        let x = "first"
+        $x
+      }
+      root.second = if this.flag {
+        $x
+      }
+      root.outer = $x
+    output: {"first": "first", "second": "original", "outer": "original"}
+
+  # --- Lambda expression context shadows ---
+
+  - name: "lambda body shadows outer variable"
+    skip: "V1 lambda body is a single expression; cannot declare + return. V1 also has no block scope."
+    mapping: |
+      let x = "outer"
+      root.result = [1, 2, 3].map_each(n -> {
+        let x = n * 10
+        $x
+      })
+      root.outer = $x
+    output: {"result": [10, 20, 30], "outer": "outer"}
+
+  # --- Map body expression context shadows ---
+
+  - name: "map body shadows outer variable via expression context"
+    skip: "V1 maps do not take parameters; receiver is `this`. Also V1 clears variables on apply entry and doesn't leak them out, so shadowing is irrelevant here."
+    mapping: |
+      map add_label(data) {
+        let tag = "inner"
+        {"value": data, "tag": $tag}
+      }
+      let tag = "outer"
+      root.result = add_label(42)
+      root.tag = $tag
+    output: {"result": {"value": 42, "tag": "inner"}, "tag": "outer"}
+
+  # --- Expression context: outer variable read but not mutated ---
+
+  - name: "expression reads outer variable without mutating it"
+    input: {"flag": true}
+    mapping: |
+      let base = 100
+      root.result = if this.flag {
+        $base + 50
+      }
+      root.base = $base
+    output: {"result": 150, "base": 100}
+
+  - name: "match expression reads outer variable without mutating it"
+    input: {"multiplier": 3}
+    mapping: |
+      let base = 10
+      root.result = match this.multiplier {
+        3 => $base * 3,
+        _ => $base,
+      }
+      root.base = $base
+    output: {"result": 30, "base": 10}

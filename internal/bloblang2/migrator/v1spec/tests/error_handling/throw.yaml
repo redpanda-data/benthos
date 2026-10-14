@@ -1,0 +1,135 @@
+description: "throw() — produces catchable errors, compile errors for bad args, conditional throw"
+
+tests:
+  # --- Basic throw ---
+
+  - name: "throw with string message produces error"
+    mapping: |
+      root.result = throw("something went wrong")
+    error: "something went wrong"
+
+  - name: "throw with empty string"
+    mapping: |
+      root.result = throw("")
+    error: "" # FIXME-v1: verify — V1 error may include line/target prefix like "failed assignment (line 1): "
+
+  - name: "throw error propagates to output"
+    mapping: |
+      root.result = throw("halt")
+    error: "halt"
+
+  # --- Caught by catch ---
+
+  - name: "throw caught by catch returns fallback"
+    mapping: |
+      root.result = throw("x").catch(err -> "fallback")
+    output: {"result": "fallback"}
+
+  - name: "throw caught by catch — error message accessible"
+    mapping: |
+      root.result = throw("details here").catch(err -> err)
+    output: {"result": "details here"} # FIXME-v1: verify — V1 err is the error string directly (no .what), and may include "failed assignment" prefix
+
+  - name: "throw in chain caught by catch at end"
+    mapping: |
+      root.result = throw("fail").string().catch(err -> "ok")
+    output: {"result": "ok"}
+
+  # --- Uncaught throw halts mapping ---
+
+  - name: "uncaught throw halts mapping — subsequent assignment not reached"
+    mapping: |
+      root.a = throw("halt")
+      root.b = "should not appear"
+    error: "halt"
+
+  # --- Compile errors for bad arguments ---
+
+  - name: "throw with zero args is compile error"
+    mapping: |
+      root.result = throw()
+    compile_error: "missing parameter: why" # V1 names the throw arg `why`; errors reference that name, not the function name
+
+  - name: "throw with integer literal is compile error"
+    mapping: |
+      root.result = throw(42)
+    compile_error: "field why: wrong argument type, expected string, got number" # V1 ParamString rejects non-string literal
+
+  - name: "throw with boolean literal is compile error"
+    mapping: |
+      root.result = throw(true)
+    compile_error: "field why: wrong argument type, expected string, got bool"
+
+  - name: "throw with null literal is compile error"
+    mapping: |
+      root.result = throw(null)
+    compile_error: "field why: wrong argument type, expected string, got null"
+
+  - name: "throw with two arguments is compile error"
+    mapping: |
+      root.result = throw("a", "b")
+    compile_error: "wrong number of arguments, expected 1, got 2"
+
+  # --- Non-string dynamic expression is runtime error ---
+
+  - name: "throw with dynamic int expression is runtime error"
+    mapping: |
+      let x = 42
+      root.result = throw($x)
+    error: "throw" # FIXME-v1: verify — V1 may reject at parse time if ParamString refuses non-string query
+
+  - name: "throw with dynamic bool expression is runtime error"
+    mapping: |
+      let x = true
+      root.result = throw($x)
+    error: "throw" # FIXME-v1: verify
+
+  # --- Dynamic string expression works ---
+
+  - name: "throw with dynamic string expression"
+    mapping: |
+      let msg = "dynamic error"
+      root.result = throw($msg)
+    error: "dynamic error"
+
+  - name: "throw with dynamic string concatenation"
+    mapping: |
+      let code = 404
+      root.result = throw("error code: " + $code.string())
+    error: "error code: 404"
+
+  # --- Conditional throw ---
+
+  - name: "conditional throw in if — condition true"
+    mapping: |
+      let x = -1
+      root.result = if $x < 0 { throw("negative value") } else { $x }
+    error: "negative value"
+
+  - name: "conditional throw in if — condition false"
+    mapping: |
+      let x = 5
+      root.result = if $x < 0 { throw("negative value") } else { $x }
+    output: {"result": 5}
+
+  - name: "conditional throw in statement assignment"
+    mapping: |
+      let valid = false
+      if !$valid { root.err = throw("invalid") }
+    error: "invalid"
+
+  - name: "conditional throw in match arm"
+    mapping: |
+      let status = "error"
+      root.result = match $status {
+        "ok" => "success",
+        "error" => throw("status was error"),
+        _ => "unknown",
+      }
+    error: "status was error"
+
+  - name: "conditional throw caught by catch"
+    mapping: |
+      let x = -1
+      root.result = (if $x < 0 { throw("negative") } else { $x }).catch(err -> 0)
+    output: {"result": 0}

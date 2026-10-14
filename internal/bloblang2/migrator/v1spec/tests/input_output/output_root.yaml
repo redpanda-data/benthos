@@ -1,0 +1,149 @@
+description: "Output root assignment: root = expr replaces entire output, any type, COW from input, continued building after root assignment"
+
+tests:
+  # --- Root assignment replaces entire output ---
+
+  - name: "root assignment replaces empty output with string"
+    mapping: |
+      root = "hello"
+    output: "hello"
+
+  - name: "root assignment replaces empty output with integer"
+    mapping: |
+      root = 42
+    output: 42
+
+  - name: "root assignment replaces empty output with float"
+    mapping: |
+      root = 3.14
+    output: 3.14
+
+  - name: "root assignment replaces empty output with boolean"
+    mapping: |
+      root = true
+    output: true
+
+  - name: "root assignment replaces empty output with null"
+    mapping: |
+      root = null
+    output: null
+
+  - name: "root assignment replaces empty output with array"
+    mapping: |
+      root = [1, 2, 3]
+    output: [1, 2, 3]
+
+  - name: "root assignment replaces empty output with object"
+    mapping: |
+      root = {"name": "Alice", "age": 30}
+    output: {"name": "Alice", "age": 30}
+
+  # --- Previous assignments discarded ---
+
+  - name: "root assignment discards previous field assignments"
+    mapping: |
+      root.name = "Alice"
+      root.age = 30
+      root = "replaced"
+    output: "replaced"
+
+  - name: "root assignment discards complex previous structure"
+    mapping: |
+      root.user.name = "Alice"
+      root.user.address.city = "London"
+      root.items.0 = "a"
+      root = 99
+    output: 99
+
+  - name: "multiple root assignments keep last one"
+    mapping: |
+      root = "first"
+      root = "second"
+      root = "third"
+    output: "third"
+
+  # --- COW from input ---
+
+  - name: "output = input copies various types"
+    mapping: |
+      root = this
+    cases:
+      - name: "object"
+        input: {"name": "Alice", "age": 30}
+        output: {"name": "Alice", "age": 30}
+      - name: "array"
+        input: [1, 2, 3]
+        output: [1, 2, 3]
+      - name: "string"
+        input: "hello"
+        output: "hello"
+      - name: "null"
+        input: null
+        output: null
+
+  - name: "output = input is logical copy with COW"
+    input: {"name": "Alice", "score": 100}
+    mapping: |
+      root = this
+      root.name = "Bob"
+      root.original = this.name
+    output: {"name": "Bob", "score": 100, "original": "Alice"}
+
+  # --- Continued building after root assignment ---
+
+  - name: "continue building after root assignment to object"
+    mapping: |
+      root = {"name": "Alice"}
+      root.age = 30
+    output: {"name": "Alice", "age": 30}
+
+  - name: "continue building nested after root assignment"
+    mapping: |
+      root = {}
+      root.user.name = "Alice"
+      root.user.age = 30
+    output: {"user": {"name": "Alice", "age": 30}}
+
+  - name: "root assign from input then extend"
+    input: {"name": "Alice"}
+    mapping: |
+      root = this
+      root.greeting = "Hello, " + this.name
+    output: {"name": "Alice", "greeting": "Hello, Alice"}
+
+  - name: "root assign object then overwrite field"
+    mapping: |
+      root = {"status": "pending", "count": 0}
+      root.status = "done"
+      root.count = 1
+    output: {"status": "done", "count": 1}
+
+  # --- Root assignment to non-object then field access is error ---
+
+  - name: "field assignment after root assign to string is error"
+    # FIXME-v1: verify — V1 may silently overwrite rather than error.
+    mapping: |
+      root = "hello"
+      root.field = "x"
+    error: "field"
+
+  - name: "field assignment after root assign to integer is error"
+    # FIXME-v1: verify
+    mapping: |
+      root = 42
+      root.field = "x"
+    error: "field"
+
+  - name: "field assignment after root assign to array is error"
+    # FIXME-v1: verify
+    mapping: |
+      root = [1, 2, 3]
+      root.field = "x"
+    error: "field"
+
+  - name: "index assignment after root assign to array works"
+    # V1 uses `.N` path segments, not `[N]` brackets.
+    mapping: |
+      root = [10, 20, 30]
+      root.1 = 99
+    output: [10, 99, 30]

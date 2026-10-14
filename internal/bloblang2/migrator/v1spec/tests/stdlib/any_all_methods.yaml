@@ -1,0 +1,98 @@
+description: >
+  .any() and .all() methods — short-circuit semantics (required),
+  empty array behavior, and boolean return enforcement.
+
+tests:
+  # --- .any() basic ---
+
+  - name: "any returns true when one element matches"
+    mapping: |
+      root.v = [1, 2, 3, 4, 5].any(x -> x > 4)
+    output: {"v": true}
+
+  - name: "any returns false when no element matches"
+    mapping: |
+      root.v = [1, 2, 3].any(x -> x > 10)
+    output: {"v": false}
+
+  - name: "any on empty array returns false"
+    mapping: |
+      root.v = [].any(x -> true)
+    output: {"v": false}
+
+  - name: "any returns true on first match"
+    mapping: |
+      root.v = [true, true, true].any(x -> x)
+    output: {"v": true}
+
+  # --- .all() basic ---
+
+  - name: "all returns true when all match"
+    mapping: |
+      root.v = [2, 4, 6].all(x -> x % 2 == 0)
+    output: {"v": true}
+
+  - name: "all returns false when one doesn't match"
+    mapping: |
+      root.v = [2, 3, 6].all(x -> x % 2 == 0)
+    output: {"v": false}
+
+  - name: "all on empty array returns true"
+    skip: "V1 .all() on empty array returns false (unlike V2 which returns true by vacuous truth)"
+
+  # --- Short-circuit required ---
+
+  - name: "any short-circuits on first true (throw not reached)"
+    mapping: |
+      root.v = [1, 2, 3].any(x -> if x == 1 { true } else { throw("boom") })
+    output: {"v": true}
+
+  - name: "all short-circuits on first false (throw not reached)"
+    mapping: |
+      root.v = [1, 2, 3].all(x -> if x == 1 { false } else { throw("boom") })
+    output: {"v": false}
+
+  # --- Complex predicates ---
+
+  - name: "any with object field access"
+    mapping: |
+      let items = [
+        {"status": "active"},
+        {"status": "pending"},
+        {"status": "inactive"},
+      ]
+      root.v = $items.any(item -> item.status == "pending")
+    output: {"v": true}
+
+  - name: "all with method chain in predicate"
+    mapping: |
+      root.v = ["hello", "world", "test"].all(s -> s.length() >= 4)
+    output: {"v": true}
+
+  - name: "all fails with short string"
+    mapping: |
+      root.v = ["hello", "hi", "test"].all(s -> s.length() >= 4)
+    output: {"v": false}
+
+  # --- any and all with outer captures ---
+
+  - name: "any with outer variable in predicate"
+    mapping: |
+      let min = 10
+      root.v = [5, 15, 25].any(x -> x > $min)
+    output: {"v": true}
+
+  - name: "all with outer variable in predicate"
+    mapping: |
+      let min = 0
+      root.v = [5, 15, 25].all(x -> x > $min)
+    output: {"v": true}
+
+  # --- Combined any/all ---
+
+  - name: "any and all on same array"
+    mapping: |
+      let nums = [2, 4, 6, 8]
+      root.any_odd = $nums.any(x -> x % 2 != 0)
+      root.all_even = $nums.all(x -> x % 2 == 0)
+    output: {"any_odd": false, "all_even": true}

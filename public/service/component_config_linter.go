@@ -29,6 +29,7 @@ type ComponentConfigLinter struct {
 func (e *Environment) NewComponentConfigLinter() *ComponentConfigLinter {
 	lintConf := docs.NewLintConfig(e.internal)
 	lintConf.BloblangEnv = e.bloblangEnv.Deactivated()
+	lintConf.BloblangV2Env = e.getBloblangV2ParserEnv()
 	return &ComponentConfigLinter{
 		env:            e,
 		lintConf:       lintConf,

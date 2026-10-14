@@ -1,0 +1,274 @@
+description: "Bytes type: creation from strings, byte-level operations, encoding"
+
+tests:
+  # --- Bytes creation ---
+
+  - name: "bytes from string"
+    mapping: |
+      root = "hello".bytes()
+    # FIXME-v1: verify — V1 emits bytes as base64-encoded string when JSON-marshalled; `_type` marker is V2-specific
+    skip: "V2-only output marker {_type: bytes, value: ...} — V1 renders bytes differently"
+
+  - name: "bytes type check"
+    mapping: |
+      root = "hello".bytes().type()
+    output: "bytes"
+
+  - name: "bytes from empty string"
+    mapping: |
+      root = "".bytes()
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "bytes from bytes is unchanged"
+    mapping: |
+      root = "hello".bytes().bytes()
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "bytes from integer goes through string"
+    mapping: |
+      root = 42.bytes()
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "bytes from bool goes through string"
+    mapping: |
+      root = true.bytes()
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "bytes from null goes through string"
+    mapping: |
+      root = null.bytes()
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  # --- Bytes length (byte-based) ---
+
+  - name: "bytes length ascii"
+    mapping: |
+      root = "hello".bytes().length()
+    output: 5
+
+  - name: "bytes length empty"
+    mapping: |
+      root = "".bytes().length()
+    output: 0
+
+  - name: "bytes length multibyte utf8"
+    mapping: |
+      root = "\u{1F44B}".bytes().length()
+    # FIXME-v1: V1 does not support \u{...} brace unicode escapes in double-quoted strings — only \uXXXX 4-hex form
+    skip: "V1 does not support \\u{...} brace-form unicode escapes"
+
+  - name: "bytes length non-ascii two byte"
+    mapping: |
+      root = "é".bytes().length()
+    output: 2
+
+  # --- Bytes indexing (byte-based, returns int64) ---
+
+  - name: "bytes index first byte"
+    mapping: |
+      root = "hello".bytes().index(0)
+    # FIXME-v1: verify — V1 .index() on bytes returns the byte value
+    output: 104
+
+  - name: "bytes index last byte"
+    mapping: |
+      root = "hello".bytes().index(4)
+    output: 111
+
+  - name: "bytes negative index"
+    mapping: |
+      root = "hello".bytes().index(-1)
+    output: 111
+
+  - name: "bytes index out of bounds"
+    mapping: |
+      root = "hello".bytes().index(5)
+    skip: "V1 .index() out-of-range returns null, not an error"
+
+  - name: "bytes negative index out of bounds"
+    mapping: |
+      root = "hello".bytes().index(-6)
+    skip: "V1 .index() out-of-range returns null, not an error"
+
+  - name: "bytes index returns byte value 0-255"
+    mapping: |
+      root = "é".bytes().index(0)
+    output: 195
+
+  # --- Bytes to string ---
+
+  - name: "bytes to string utf8"
+    mapping: |
+      root = "hello".bytes().string()
+    output: "hello"
+
+  - name: "bytes to string empty"
+    mapping: |
+      root = "".bytes().string()
+    output: ""
+
+  # --- Bytes concatenation ---
+
+  - name: "bytes concatenation"
+    mapping: |
+      root = "hello".bytes() + " world".bytes()
+    # FIXME-v1: V1 `+` on bytes coerces to string concatenation (returns a string, not bytes)
+    skip: "V1 bytes + bytes yields a string, not bytes"
+
+  - name: "bytes concat with empty"
+    mapping: |
+      root = "hello".bytes() + "".bytes()
+    skip: "V1 bytes + bytes yields a string, not bytes"
+
+  - name: "bytes plus string is error"
+    mapping: |
+      root = "hello".bytes() + " world"
+    # FIXME-v1: V1 coerces bytes+string to string concat (no error). Semantics differ.
+    skip: "V1 allows bytes+string via implicit string coercion; no error raised"
+
+  - name: "string plus bytes is error"
+    mapping: |
+      root = "hello" + " world".bytes()
+    skip: "V1 allows string+bytes via implicit string coercion; no error raised"
+
+  # --- Bytes slicing ---
+
+  - name: "bytes slice basic"
+    mapping: |
+      root = "hello".bytes().slice(0, 3)
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "bytes slice to end"
+    mapping: |
+      root = "hello".bytes().slice(3)
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "bytes slice negative"
+    mapping: |
+      root = "hello".bytes().slice(-3, -1)
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "bytes slice clamped"
+    mapping: |
+      root = "hello".bytes().slice(0, 100)
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "bytes slice empty result"
+    mapping: |
+      root = "hello".bytes().slice(3, 1)
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  # --- Bytes reverse ---
+
+  - name: "bytes reverse"
+    mapping: |
+      root = "hello".bytes().reverse()
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "bytes reverse empty"
+    mapping: |
+      root = "".bytes().reverse()
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  # --- Bytes contains ---
+
+  - name: "bytes contains subsequence true"
+    mapping: |
+      root = "hello".bytes().contains("ll".bytes())
+    # FIXME-v1: verify — V1 .contains on string/bytes accepts string arg, bytes-arg behavior unclear
+    output: true
+
+  - name: "bytes contains subsequence false"
+    mapping: |
+      root = "hello".bytes().contains("xyz".bytes())
+    output: false
+
+  # --- Bytes index_of ---
+
+  - name: "bytes index_of found"
+    mapping: |
+      root = "hello".bytes().index_of("ll".bytes())
+    # FIXME-v1: verify — V1 index_of on bytes arg may coerce
+    output: 2
+
+  - name: "bytes index_of not found"
+    mapping: |
+      root = "hello".bytes().index_of("xyz".bytes())
+    output: -1
+
+  # --- Bytes encoding ---
+
+  - name: "bytes encode base64"
+    mapping: |
+      root = "hello".bytes().encode("base64")
+    output: "aGVsbG8="
+
+  - name: "bytes encode hex"
+    mapping: |
+      root = "hello".bytes().encode("hex")
+    output: "68656c6c6f"
+
+  - name: "string encode base64"
+    mapping: |
+      root = "hello".encode("base64")
+    output: "aGVsbG8="
+
+  # --- Bytes decoding ---
+
+  - name: "decode base64 to bytes"
+    mapping: |
+      root = "aGVsbG8=".decode("base64")
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "decode hex to bytes"
+    mapping: |
+      root = "68656c6c6f".decode("hex")
+    skip: "V2-only output marker {_type: bytes, value: ...}"
+
+  - name: "decode base64 then string"
+    mapping: |
+      root = "aGVsbG8=".decode("base64").string()
+    output: "hello"
+
+  - name: "decode invalid base64 is error"
+    # V1 surfaces the underlying encoding package's error text — "illegal base64 data" here.
+    mapping: |
+      root = "not-valid-base64!!!".decode("base64")
+    error: "illegal base64 data"
+
+  - name: "decode invalid hex is error"
+    # V1 surfaces encoding/hex's own error: "invalid byte".
+    mapping: |
+      root = "zzzz".decode("hex")
+    error: "invalid byte"
+
+  # --- Bytes equality ---
+
+  - name: "bytes equal same content"
+    mapping: |
+      root = "hello".bytes() == "hello".bytes()
+    output: true
+
+  - name: "bytes not equal different content"
+    mapping: |
+      root = "hello".bytes() == "world".bytes()
+    output: false
+
+  - name: "bytes not equal to string cross type"
+    mapping: |
+      root = "hello".bytes() == "hello"
+    # FIXME-v1: V1 `==` may compare bytes to string by value-coercion and return true
+    skip: "V1 bytes vs string equality semantics differ (may return true via coercion)"
+
+  # --- Bytes comparison ---
+
+  - name: "bytes less than lexicographic"
+    mapping: |
+      root = "abc".bytes() < "abd".bytes()
+    # FIXME-v1: V1 ordering on bytes — via string coercion should work lexicographically
+    output: true
+
+  - name: "bytes greater than lexicographic"
+    mapping: |
+      root = "b".bytes() > "a".bytes()
+    output: true

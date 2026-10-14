@@ -1,0 +1,87 @@
+description: >
+  Fold patterns that stress variable slot management — building objects
+  from arrays, nested folds, fold calling maps, fold with conditional
+  accumulation, and fold combined with other iterators.
+
+tests:
+  # --- Build object from key-value pairs ---
+
+  - name: "fold builds object from pairs array"
+    # V1 fold lambda takes a single item param with .tally and .value; block-body lambdas do not exist,
+    # so we build via .merge() inline.
+    mapping: |
+      root.v = [
+        {"k": "name", "v": "Alice"},
+        {"k": "age", "v": 30}
+      ].fold({}, item -> item.tally.merge({(item.value.k): item.value.v}))
+    output: {"v": {"name": "Alice", "age": 30}}
+
+  - name: "fold builds object with computed keys"
+    mapping: |
+      root.v = ["x", "y", "z"].enumerated().fold({}, item -> item.tally.merge({("key_" + item.value.value): item.value.index + 1}))
+    output: {"v": {"key_x": 1, "key_y": 2, "key_z": 3}}
+
+  # --- Fold with conditional accumulation ---
+
+  - name: "fold conditionally adds to accumulator"
+    # V1 lambda bodies must start on the same line as `->`.
+    mapping: |
+      root.v = [1, -2, 3, -4, 5].fold([], item -> if item.value > 0 { item.tally.append(item.value) } else { item.tally })
+    output: {"v": [1, 3, 5]}
+
+  - name: "fold with match in body"
+    skip: "V1 lambda bodies are single expressions — this V2 test uses an inline let statement inside the fold body (block body) which has no V1 equivalent"
+
+  # --- Nested fold ---
+
+  - name: "nested fold — outer builds rows, inner sums columns"
+    mapping: |
+      let matrix = [[1, 2, 3], [4, 5, 6]]
+      root.v = $matrix.fold([], row -> row.tally.append(row.value.fold(0, x -> x.tally + x.value)))
+    output: {"v": [6, 15]}
+
+  - name: "fold inside map inside fold"
+    # V2 uses block bodies with let; V1 must use inline .merge(). Each iteration produces a map of
+    # one new key -> sum of its items, merged into the accumulator.
+    mapping: |
+      let groups = [
+        {"name": "a", "items": [1, 2]},
+        {"name": "b", "items": [3, 4, 5]}
+      ]
+      root.v = $groups.fold({}, g -> g.tally.merge({(g.value.name): g.value.items.fold(0, x -> x.tally + x.value)}))
+    output: {"v": {"a": 3, "b": 12}}
+
+  # --- Fold calling user maps ---
+
+  - name: "fold body calls user map"
+    # V1 maps take no parameters — the value is `this` inside the map body, invoked via .apply.
+    mapping: |
+      map transform { root = this * this }
+      root.v = [1, 2, 3, 4].fold(0, item -> item.tally + item.value.apply("transform"))
+    output: {"v": 30}
+
+  - name: "fold body calls user map that returns object"
+    # V2 passes two args to a map; V1 maps take only `this`. Reshape the map to take an object
+    # with both fields via the receiver. V1 lambda bodies must start on the same line as `->`,
+    # and method chains must not be broken immediately before `.`.
+    mapping: |
+      map make_entry { root = {"key": this.key, "value": this.val} }
+      root.v = ["a", "b", "c"].enumerated().fold({}, item -> item.tally.merge({(item.value.value): item.value.index}))
+    output: {"v": {"a": 0, "b": 1, "c": 2}}
+
+  # --- Fold preserves accumulator across iterations ---
+
+  - name: "fold accumulator carries forward correctly"
+    # V1: no block-body lambdas with assignment statements — rebuild with .merge() each iteration.
+    mapping: |
+      root.v = [10, 20, 30].fold({"sum": 0, "count": 0}, item -> {
+        "sum": item.tally.sum + item.value,
+        "count": item.tally.count + 1
+      })
+    output: {"v": {"sum": 60, "count": 3}}
+
+  - name: "fold with string accumulator and separator"
+    # V1 lambda bodies must start on the same line as `->`.
+    mapping: |
+      root.v = ["a", "b", "c"].fold("", item -> if item.tally == "" { item.value } else { item.tally + ", " + item.value })
+    output: {"v": "a, b, c"}

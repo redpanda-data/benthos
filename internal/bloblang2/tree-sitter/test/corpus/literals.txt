@@ -1,0 +1,212 @@
+==================
+Integer literal
+==================
+
+output = 42
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (integer)))
+
+==================
+Float literal
+==================
+
+output = 3.14
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (float)))
+
+==================
+String literal
+==================
+
+output = "hello world"
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (string
+      (string_content))))
+
+==================
+String with escape sequences
+==================
+
+output = "line\none\ttwo\\"
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (string
+      (string_content)
+      (escape_sequence)
+      (string_content)
+      (escape_sequence)
+      (string_content)
+      (escape_sequence))))
+
+==================
+String with unicode escape
+==================
+
+output = "\u0041\u{1F600}"
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (string
+      (escape_sequence)
+      (escape_sequence))))
+
+==================
+Raw string literal
+==================
+
+output = `raw\nstring`
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (raw_string)))
+
+==================
+Boolean literals
+==================
+
+output = true
+output = false
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (boolean))
+  (assignment
+    (assign_target)
+    (boolean)))
+
+==================
+Null literal
+==================
+
+output = null
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (null)))
+
+==================
+Array literal
+==================
+
+output = [1, 2, 3]
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (array
+      (integer)
+      (integer)
+      (integer))))
+
+==================
+Empty array
+==================
+
+output = []
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (array)))
+
+==================
+Object literal
+==================
+
+output = {"key": "value", "num": 42}
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (object
+      (object_entry
+        key: (string
+          (string_content))
+        value: (string
+          (string_content)))
+      (object_entry
+        key: (string
+          (string_content))
+        value: (integer)))))
+
+==================
+Empty object
+==================
+
+output = {}
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (object)))
+
+==================
+Trailing comma in array
+==================
+
+output = [1, 2,]
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (array
+      (integer)
+      (integer))))
+
+==================
+Trailing comma in object
+==================
+
+output = {"a": 1,}
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (object
+      (object_entry
+        key: (string
+          (string_content))
+        value: (integer)))))

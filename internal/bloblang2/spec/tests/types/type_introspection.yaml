@@ -1,0 +1,184 @@
+description: ".type() method for every runtime type"
+
+tests:
+  # --- String ---
+
+  - name: "type of string"
+    mapping: |
+      output.t = "hello".type()
+    output: {"t": "string"}
+
+  - name: "type of empty string"
+    mapping: |
+      output.t = "".type()
+    output: {"t": "string"}
+
+  # --- Integer types ---
+
+  - name: "type of int64 literal"
+    mapping: |
+      output.t = 42.type()
+    output: {"t": "int64"}
+
+  - name: "type of negative int64"
+    mapping: |
+      output.t = (-10).type()
+    output: {"t": "int64"}
+
+  - name: "type of zero int64"
+    mapping: |
+      output.t = 0.type()
+    output: {"t": "int64"}
+
+  - name: "type of int32"
+    mapping: |
+      output.t = 42.int32().type()
+    output: {"t": "int32"}
+
+  - name: "type of uint32"
+    mapping: |
+      output.t = 42.uint32().type()
+    output: {"t": "uint32"}
+
+  - name: "type of uint64"
+    mapping: |
+      output.t = 42.uint64().type()
+    output: {"t": "uint64"}
+
+  # --- Float types ---
+
+  - name: "type of float64 literal"
+    mapping: |
+      output.t = 3.14.type()
+    output: {"t": "float64"}
+
+  - name: "type of float64 zero"
+    mapping: |
+      output.t = 0.0.type()
+    output: {"t": "float64"}
+
+  - name: "type of float32"
+    mapping: |
+      output.t = 3.14.float32().type()
+    output: {"t": "float32"}
+
+  # --- Bool ---
+
+  - name: "type of true"
+    mapping: |
+      output.t = true.type()
+    output: {"t": "bool"}
+
+  - name: "type of false"
+    mapping: |
+      output.t = false.type()
+    output: {"t": "bool"}
+
+  # --- Null ---
+
+  - name: "type of null"
+    mapping: |
+      output.t = null.type()
+    output: {"t": "null"}
+
+  # --- Bytes ---
+
+  - name: "type of bytes"
+    mapping: |
+      output.t = "hello".bytes().type()
+    output: {"t": "bytes"}
+
+  # --- Timestamp ---
+
+  - name: "type of timestamp from constructor"
+    mapping: |
+      output.t = timestamp(2024, 3, 1).type()
+    output: {"t": "timestamp"}
+
+  - name: "type of timestamp from now"
+    mapping: |
+      output.t = now().type()
+    output: {"t": "timestamp"}
+
+  - name: "type of timestamp from parse"
+    mapping: |
+      output.t = "2024-03-01T00:00:00Z".ts_parse().type()
+    output: {"t": "timestamp"}
+
+  # --- Array ---
+
+  - name: "type of array"
+    mapping: |
+      output.t = [1, 2, 3].type()
+    output: {"t": "array"}
+
+  - name: "type of empty array"
+    mapping: |
+      output.t = [].type()
+    output: {"t": "array"}
+
+  # --- Object ---
+
+  - name: "type of object"
+    mapping: |
+      output.t = {"a": 1}.type()
+    output: {"t": "object"}
+
+  - name: "type of empty object"
+    mapping: |
+      output.t = {}.type()
+    output: {"t": "object"}
+
+  # --- Type checking pattern ---
+
+  - name: "type comparison for runtime check"
+    mapping: |
+      $v = 42
+      output.is_int = $v.type() == "int64"
+      output.is_str = $v.type() == "string"
+    output: {"is_int": true, "is_str": false}
+
+  - name: "type of null is not object"
+    mapping: |
+      output.is_obj = null.type() == "object"
+      output.is_null = null.type() == "null"
+    output: {"is_obj": false, "is_null": true}
+
+  # --- Type from input ---
+
+  - name: "type of input string field"
+    input: {"name": "Alice"}
+    mapping: |
+      output.t = input.name.type()
+    output: {"t": "string"}
+
+  - name: "type of input number field"
+    input: {"count": 42}
+    mapping: |
+      output.t = input.count.type()
+    output: {"t": "int64"}
+
+  - name: "type of input null field"
+    input: {"missing": null}
+    mapping: |
+      output.t = input.missing.type()
+    output: {"t": "null"}
+
+  - name: "type of input array field"
+    input: {"items": [1, 2]}
+    mapping: |
+      output.t = input.items.type()
+    output: {"t": "array"}
+
+  - name: "type of input object field"
+    input: {"user": {"name": "Alice"}}
+    mapping: |
+      output.t = input.user.type()
+    output: {"t": "object"}
+
+  # --- Void: type() is not callable ---
+
+  - name: "type on void is error"
+    mapping: |
+      output.t = (if false { 42 }).type()
+    error: "void"

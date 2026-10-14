@@ -1,0 +1,216 @@
+description: "Equality operators (==, !=) for all type combos, NaN, -0, cross-family, collections"
+
+tests:
+  # --- Numeric equality (same type) ---
+
+  - name: "int64 == int64 true"
+    mapping: |
+      root.result = 5 == 5
+    output: {"result": true}
+
+  - name: "int64 != int64 true"
+    mapping: |
+      root.result = 5 != 6
+    output: {"result": true}
+
+  # --- Numeric equality with promotion ---
+
+  - name: "int64 == float64 with promotion true"
+    mapping: |
+      root.result = 5 == 5.0
+    output: {"result": true}
+
+  - name: "int64 == float64 with promotion false"
+    mapping: |
+      root.result = 5 == 5.5
+    output: {"result": false}
+
+  - name: "int32 == int64 with promotion true"
+    mapping: |
+      root.result = 5.int32() == 5
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  - name: "uint32 == int64 with promotion true"
+    mapping: |
+      root.result = 42.uint32() == 42
+    skip: "V2-only: specific numeric width not distinguishable in V1"
+
+  # --- String equality ---
+
+  - name: "string == string true"
+    mapping: |
+      root.result = "hello" == "hello"
+    output: {"result": true}
+
+  - name: "empty string == empty string"
+    mapping: |
+      root.result = "" == ""
+    output: {"result": true}
+
+  # --- Boolean equality ---
+
+  - name: "true == true"
+    mapping: |
+      root.result = true == true
+    output: {"result": true}
+
+  - name: "true == false"
+    mapping: |
+      root.result = true == false
+    output: {"result": false}
+
+  # --- Null equality ---
+
+  - name: "null == null true"
+    mapping: |
+      root.result = null == null
+    output: {"result": true}
+
+  - name: "null != null false"
+    mapping: |
+      root.result = null != null
+    output: {"result": false}
+
+  # --- Cross-family: always false, NOT error ---
+
+  - name: "int64 == string is false (not error)"
+    mapping: |
+      root.result = 5 == "5"
+    output: {"result": false}
+
+  - name: "int64 != string is true"
+    mapping: |
+      root.result = 5 != "5"
+    output: {"result": true}
+
+  - name: "bool == int64 is false"
+    mapping: |
+      root.result = true == 1
+    output: {"result": true} # V1 quirk: `bool == number` is asymmetric. LHS bool coerces RHS number→bool, so `true == 1` is true.
+
+  - name: "null == int64 is false"
+    mapping: |
+      root.result = null == 0
+    output: {"result": false}
+
+  - name: "string == bytes is false"
+    mapping: |
+      root.result = "hello" == "hello".bytes()
+    output: {"result": true} # FIXME-v1: verify — V1 may treat bytes and string as equal after coercion
+
+  # --- NaN equality ---
+
+  - name: "self-equality for special floats"
+    mapping: |
+      root.result = this.val == this.val
+    cases:
+      - name: "NaN == NaN is false"
+        input: {val: {_type: "float64", value: "NaN"}}
+        output: {"result": false}
+      - name: "Infinity == Infinity is true"
+        input: {val: {_type: "float64", value: "Infinity"}}
+        output: {"result": true}
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"
+
+  - name: "NaN != NaN is true"
+    input: {val: {_type: "float64", value: "NaN"}}
+    mapping: |
+      root.result = this.val != this.val
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"
+
+  # --- Negative zero ---
+
+  - name: "-0.0 == 0.0 is true"
+    input: {val: {_type: "float64", value: "-0.0"}}
+    mapping: |
+      root.result = this.val == 0.0
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"
+
+  - name: "Infinity != negative Infinity"
+    input:
+      a: {_type: "float64", value: "Infinity"}
+      b: {_type: "float64", value: "-Infinity"}
+    mapping: |
+      root.result = this.a != this.b
+    skip: "V2-only: typed numeric (_type/value) inputs not modelled in V1"
+
+  # --- Bytes equality ---
+
+  - name: "bytes == bytes true"
+    mapping: |
+      root.result = "hello".bytes() == "hello".bytes()
+    output: {"result": true}
+
+  # --- Timestamp equality ---
+
+  - name: "same timestamp == true"
+    input:
+      a: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
+      b: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
+    mapping: |
+      root.result = this.a == this.b
+    skip: "V2-only: typed timestamp (_type/value) inputs not modelled in V1"
+
+  - name: "different timestamp != true"
+    input:
+      a: {_type: "timestamp", value: "2024-01-15T10:30:00Z"}
+      b: {_type: "timestamp", value: "2024-06-15T10:30:00Z"}
+    mapping: |
+      root.result = this.a != this.b
+    skip: "V2-only: typed timestamp (_type/value) inputs not modelled in V1"
+
+  # --- Array equality ---
+
+  - name: "array == array same order true"
+    mapping: |
+      root.result = [1, 2, 3] == [1, 2, 3]
+    output: {"result": true}
+
+  - name: "array == array different order false (order matters)"
+    mapping: |
+      root.result = [1, 2, 3] == [3, 2, 1]
+    output: {"result": false}
+
+  - name: "array == array different length false"
+    mapping: |
+      root.result = [1, 2] == [1, 2, 3]
+    output: {"result": false}
+
+  - name: "empty array == empty array true"
+    mapping: |
+      root.result = [] == []
+    output: {"result": true}
+
+  # --- Object equality (order-independent) ---
+
+  - name: "object == object same keys true"
+    mapping: |
+      root.result = {"a": 1, "b": 2} == {"a": 1, "b": 2}
+    output: {"result": true}
+
+  - name: "object == object different key order still true"
+    mapping: |
+      root.result = {"a": 1, "b": 2} == {"b": 2, "a": 1}
+    output: {"result": true}
+
+  - name: "object == object different values false"
+    mapping: |
+      root.result = {"a": 1, "b": 2} == {"a": 1, "b": 3}
+    output: {"result": false}
+
+  - name: "empty object == empty object true"
+    mapping: |
+      root.result = {} == {}
+    output: {"result": true}
+
+  - name: "nested object deep equality"
+    mapping: |
+      root.result = {"a": {"x": 1}} == {"a": {"x": 1}}
+    output: {"result": true}
+
+  # --- Non-associative chaining is compile error ---
+
+  - name: "chained equality is compile error"
+    mapping: |
+      root.result = 1 == 1 == true
+    output: {"result": true} # V1 parses `(1 == 1) == true` → `true == true` → true

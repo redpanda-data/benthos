@@ -1,0 +1,106 @@
+description: "Imports: nested import chains (A imports B, B imports C)"
+
+# V1 imports are flat — every transitively-imported map is pulled into the importing
+# file's global map table, so there is no separate "transitive namespace". Multi-argument
+# V2 maps (`map f(a, b)`) are encoded as `map f { root = this.a + this.b }` with an object
+# receiver at the call site.
+
+files:
+  "math_core.blobl": |
+    map square { root = this * this }
+    map inc { root = this + 1 }
+
+  "math_utils.blobl": |
+    import "math_core.blobl"
+    map square_plus_one { root = this.apply("square").apply("inc") }
+    map double_square { root = this.apply("square") * 2 }
+
+  "app_helpers.blobl": |
+    import "math_utils.blobl"
+    map transform { root = this.apply("square_plus_one") + this.apply("inc") }
+
+tests:
+  # --- Two-level chain ---
+
+  - name: "import file that imports another file"
+    mapping: |
+      import "math_utils.blobl"
+      root.v = 5.apply("square_plus_one")
+    output: {"v": 26}
+
+  - name: "nested import calls inner map through wrapper"
+    mapping: |
+      import "math_utils.blobl"
+      root.v = 3.apply("double_square")
+    output: {"v": 18}
+
+  # --- Three-level chain ---
+
+  - name: "three-level import chain"
+    mapping: |
+      import "app_helpers.blobl"
+      root.v = 4.apply("transform")
+    output: {"v": 22}
+
+  # --- Diamond import (A imports B and C, B imports C) ---
+  # V1 does not treat diamond imports as an error in themselves, but the transitive
+  # `math_core` maps (`square`, `inc`) from `math_utils` clash with the explicit
+  # `math_core` import at the top. Expect a map-name collision.
+
+  - name: "diamond import — same file imported by two paths"
+    skip: "V1 imports share a flat map-name table; importing math_core explicitly after math_utils (which already pulls it in) raises a map-name collision — the V2 diamond scenario does not translate cleanly."
+
+  # --- Nested import with multiple maps ---
+
+  - name: "call multiple maps from nested import"
+    mapping: |
+      import "math_utils.blobl"
+      root.a = 2.apply("square_plus_one")
+      root.b = 2.apply("double_square")
+    output: {"a": 5, "b": 8}
+
+  # --- Cannot access transitive namespace ---
+  # V1's flat import table is the opposite of V2 here: transitively-imported maps ARE
+  # accessible from the top file by their bare name. This test's intent does not
+  # translate.
+
+  - name: "cannot access transitively imported namespace"
+    skip: "V1 imports are flat — transitively-imported maps are visible at the top level by bare name. The V2 restriction does not exist."
+
+  # --- Nested import with local maps ---
+
+  - name: "local map wraps nested-imported map"
+    mapping: |
+      import "math_utils.blobl"
+      map process { root = this.apply("square_plus_one") * 2 }
+      root.v = 3.apply("process")
+    output: {"v": 20}
+
+  # --- Deep chain with input ---
+
+  - name: "nested import processes input data"
+    mapping: |
+      import "math_utils.blobl"
+      root.v = this.n.apply("square_plus_one")
+    input: {"n": 6}
+    output: {"v": 37}
+
+  # --- Error: non-existent map in nested import ---
+
+  - name: "non-existent map in nested namespace is compile error"
+    mapping: |
+      import "math_utils.blobl"
+      root.v = 1.apply("nonexistent")
+    error: "map nonexistent was not found" # V1 resolves .apply() targets at runtime, not compile time
+
+  # --- Error: nested file not found ---
+
+  - name: "nested import with missing file is error"
+    files:
+      "bad_chain.blobl": |
+        import "nonexistent.blobl"
+        map foo { root = this.apply("bar") }
+    mapping: |
+      import "bad_chain.blobl"
+      root.v = 1.apply("foo")
+    compile_error: "nonexistent"

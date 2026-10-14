@@ -15,7 +15,7 @@ type EnvironmentSchema struct {
 
 // GenerateSchema creates a new EnvironmentSchema.
 func (e *Environment) GenerateSchema(version, dateBuilt string) *EnvironmentSchema {
-	schema := schema.New(version, dateBuilt, e.internal, e.getBloblangParserEnv())
+	schema := schema.New(version, dateBuilt, e.internal, e.getBloblangParserEnv(), e.getBloblangV2ParserEnv())
 	return &EnvironmentSchema{s: schema}
 }
 

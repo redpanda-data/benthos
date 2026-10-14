@@ -1,0 +1,139 @@
+description: >
+  String codepoint operations — indexing returns codepoints (int64),
+  .char() converts back, .length() counts codepoints, .split("") splits
+  by codepoint, and .reverse() reverses by codepoint.
+
+tests:
+  # --- String indexing returns codepoint values ---
+
+  - name: "ASCII character index returns codepoint"
+    mapping: |
+      output.v = "hello"[0]
+    output: {"v": 104}
+
+  - name: "second ASCII character"
+    mapping: |
+      output.v = "hello"[1]
+    output: {"v": 101}
+
+  - name: "space codepoint"
+    mapping: |
+      output.v = "a b"[1]
+    output: {"v": 32}
+
+  - name: "digit character codepoint"
+    mapping: |
+      output.v = "0"[0]
+    output: {"v": 48}
+
+  # --- .char() round-trip ---
+
+  - name: "char converts codepoint back to string"
+    mapping: |
+      output.v = 104.char()
+    output: {"v": "h"}
+
+  - name: "char round-trip from indexing"
+    mapping: |
+      output.v = "hello"[0].char()
+    output: {"v": "h"}
+
+  - name: "char with emoji codepoint"
+    mapping: |
+      output.v = 128075.char()
+    output: {"v": "\U0001F44B"}
+
+  # --- .length() counts codepoints ---
+
+  - name: "ASCII string length"
+    mapping: |
+      output.v = "hello".length()
+    output: {"v": 5}
+
+  - name: "empty string length"
+    mapping: |
+      output.v = "".length()
+    output: {"v": 0}
+
+  - name: "unicode string length counts codepoints"
+    mapping: |
+      output.v = "café".length()
+    output: {"v": 4}
+
+  # --- .split("") splits by codepoint ---
+
+  - name: "split empty delimiter splits by codepoint"
+    mapping: |
+      output.v = "abc".split("")
+    output: {"v": ["a", "b", "c"]}
+
+  - name: "split empty delimiter on empty string"
+    mapping: |
+      output.v = "".split("")
+    output: {"v": []}
+
+  - name: "split on normal delimiter"
+    mapping: |
+      output.v = "a,b,c".split(",")
+    output: {"v": ["a", "b", "c"]}
+
+  - name: "split on multi-char delimiter"
+    mapping: |
+      output.v = "a::b::c".split("::")
+    output: {"v": ["a", "b", "c"]}
+
+  # --- .reverse() reverses by codepoint ---
+
+  - name: "reverse ASCII string"
+    mapping: |
+      output.v = "hello".reverse()
+    output: {"v": "olleh"}
+
+  - name: "reverse empty string"
+    mapping: |
+      output.v = "".reverse()
+    output: {"v": ""}
+
+  - name: "reverse single character"
+    mapping: |
+      output.v = "a".reverse()
+    output: {"v": "a"}
+
+  # --- Negative indexing ---
+
+  - name: "negative index -1 is last codepoint"
+    mapping: |
+      output.v = "hello"[-1]
+    output: {"v": 111}
+
+  - name: "negative index -1 char round-trip"
+    mapping: |
+      output.v = "hello"[-1].char()
+    output: {"v": "o"}
+
+  # --- Slice on strings ---
+
+  - name: "string slice basic"
+    mapping: |
+      output.v = "hello world".slice(0, 5)
+    output: {"v": "hello"}
+
+  - name: "string slice from middle"
+    mapping: |
+      output.v = "hello world".slice(6, 11)
+    output: {"v": "world"}
+
+  - name: "string slice clamped to length"
+    mapping: |
+      output.v = "hi".slice(0, 100)
+    output: {"v": "hi"}
+
+  - name: "string slice with negative start"
+    mapping: |
+      output.v = "hello".slice(-3, 5)
+    output: {"v": "llo"}
+
+  - name: "string slice empty range"
+    mapping: |
+      output.v = "hello".slice(3, 3)
+    output: {"v": ""}

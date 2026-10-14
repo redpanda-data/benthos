@@ -1,0 +1,125 @@
+description: "Higher-order maps: maps as arguments to .map()/.filter()/.sort_by(), store-in-variable error, bare-name error"
+
+# V1 has no first-class map references — a named map cannot be passed by bare identifier to
+# .map_each()/.filter()/.sort_by(). The idiomatic V1 equivalent is an explicit lambda that
+# calls .apply("name") on the element: `.map_each(v -> v.apply("name"))`.
+# The V2 bare-map-name forms (`.map(double)`, etc.) are not representable in V1, so tests
+# that rely on that syntax are skipped.
+
+tests:
+  # --- Maps as argument to .map() ---
+
+  - name: "map name passed to .map() method"
+    mapping: |
+      map double {
+        root = this * 2
+      }
+      root.v = [1, 2, 3].map_each(v -> v.apply("double"))
+    output: {"v": [2, 4, 6]}
+
+  - name: "map name passed to .map() is same as lambda"
+    mapping: |
+      map inc {
+        root = this + 1
+      }
+      root.direct = [10, 20].map_each(v -> v.apply("inc"))
+      root.lambda = [10, 20].map_each(v -> v.apply("inc"))
+    output: {"direct": [11, 21], "lambda": [11, 21]}
+
+  - name: "map with string transformation passed to .map()"
+    mapping: |
+      map shout {
+        root = this.uppercase()
+      }
+      root.v = ["hello", "world"].map_each(v -> v.apply("shout"))
+    output: {"v": ["HELLO", "WORLD"]}
+
+  - name: "map returning object passed to .map()"
+    mapping: |
+      map wrap {
+        root = {"value": this}
+      }
+      root.v = [1, 2].map_each(v -> v.apply("wrap"))
+    output: {"v": [{"value": 1}, {"value": 2}]}
+
+  - name: "map passed to .map() from input"
+    input: {"items": [5, 10, 15]}
+    mapping: |
+      map halve {
+        root = this / 2
+      }
+      root.v = this.items.map_each(v -> v.apply("halve"))
+    output: {"v": [2.5, 5.0, 7.5]}
+
+  # --- Maps as argument to .filter() ---
+
+  - name: "map name passed to .filter() method"
+    mapping: |
+      map is_positive {
+        root = this > 0
+      }
+      root.v = [-1, 0, 1, 2, -3].filter(v -> v.apply("is_positive"))
+    output: {"v": [1, 2]}
+
+  - name: "map name passed to .filter() with strings"
+    mapping: |
+      map is_long {
+        root = this.length() > 3
+      }
+      root.v = ["hi", "hello", "yo", "world"].filter(v -> v.apply("is_long"))
+    output: {"v": ["hello", "world"]}
+
+  # --- Maps as argument to .sort_by() ---
+
+  - name: "map name passed to .sort_by() method"
+    skip: "V1 has no .sort_by() method; use .sort(left, right -> left.x < right.x) with inline field access instead"
+
+  # --- Chaining higher-order calls ---
+
+  - name: "chained .filter() and .map() with map names"
+    mapping: |
+      map is_even {
+        root = this % 2 == 0
+      }
+      map double {
+        root = this * 2
+      }
+      root.v = [1, 2, 3, 4, 5].filter(v -> v.apply("is_even")).map_each(v -> v.apply("double"))
+    output: {"v": [4, 8]}
+
+  # --- Map defined after use (hoisting with higher-order) ---
+
+  - name: "map name used in .map() before declaration"
+    mapping: |
+      root.v = [1, 2, 3].map_each(v -> v.apply("triple"))
+      map triple {
+        root = this * 3
+      }
+    output: {"v": [3, 6, 9]}
+
+  # --- Cannot store map reference in variable ---
+
+  - name: "storing map name in variable is compile error"
+    skip: "V1 has no first-class map references — a bare map name is not an expression, so this restriction has no V1 analogue"
+
+  - name: "storing map name in variable without calling is compile error"
+    skip: "V1 has no first-class map references — a bare map name is not an expression"
+
+  # --- Cannot use bare map name as expression ---
+
+  - name: "bare map name assigned to output is compile error"
+    skip: "V1 has no first-class map references — a bare map name is not an expression"
+
+  - name: "bare map name in array literal is compile error"
+    skip: "V1 has no first-class map references — a bare map name is not an expression"
+
+  - name: "bare map name in object value is compile error"
+    skip: "V1 has no first-class map references — a bare map name is not an expression"
+
+  # --- Only single-param maps work with higher-order (arity mismatch) ---
+
+  - name: "multi-param map passed to .map() is error"
+    skip: "V1 maps have no parameter list — there is no arity check when a map is invoked via .apply()"
+
+  - name: "zero-param map passed to .map() is error"
+    skip: "V1 maps have no parameter list — there is no arity check when a map is invoked via .apply()"

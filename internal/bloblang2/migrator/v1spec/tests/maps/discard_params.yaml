@@ -1,0 +1,68 @@
+description: "Discard parameters (_): ignoring arguments, referencing _ error, multiple _, no defaults, named call restriction"
+
+# V1 maps take a single receiver (`this`) rather than a parameter list. There are no positional
+# arguments to discard, no `_` placeholder, and no named-argument call form. All discard-parameter
+# semantics are V2-only and cannot be ported.
+
+tests:
+  # --- Basic discard ---
+
+  - name: "single discard parameter ignores first arg"
+    skip: "V1 maps have no parameter list — there is no `_` discard placeholder"
+
+  - name: "discard last parameter"
+    skip: "V1 maps have no parameter list — there is no `_` discard placeholder"
+
+  - name: "discard middle parameter"
+    skip: "V1 maps have no parameter list — there is no `_` discard placeholder"
+
+  # --- Multiple discards ---
+
+  - name: "multiple discard parameters"
+    skip: "V1 maps have no parameter list — there is no `_` discard placeholder"
+
+  - name: "all parameters discarded except one"
+    skip: "V1 maps have no parameter list — there is no `_` discard placeholder"
+
+  - name: "all parameters discarded"
+    skip: "V1 maps have no parameter list — there is no `_` discard placeholder"
+
+  # --- Referencing _ is compile error ---
+
+  - name: "referencing _ in body is compile error"
+    skip: "V1 maps have no parameter list — there is no `_` discard placeholder"
+
+  - name: "referencing _ as method target in body is compile error"
+    skip: "V1 maps have no parameter list — there is no `_` discard placeholder"
+
+  - name: "referencing _ in variable declaration is compile error"
+    skip: "V1 maps have no parameter list — there is no `_` discard placeholder"
+
+  # --- Discard with defaults is compile error ---
+
+  - name: "discard parameter with default value is compile error"
+    skip: "V1 maps have no parameter list, defaults, or `_` — the combination is not representable"
+
+  - name: "discard after default parameters is compile error"
+    skip: "V1 maps have no parameter list, defaults, or `_` — the combination is not representable"
+
+  # --- Named call to map with discard is compile error ---
+
+  - name: "named call to map with discard parameter is compile error"
+    skip: "V1 maps are invoked via .apply(receiver) — there is no named-argument call form"
+
+  - name: "named call to map with multiple discards is compile error"
+    skip: "V1 maps are invoked via .apply(receiver) — there is no named-argument call form"
+
+  # --- Positional call still works ---
+
+  - name: "positional call to map with discard works normally"
+    skip: "V1 maps have no parameter list — the V2 positional-with-discard call form is not representable"
+
+  # --- Arity still enforced with discards ---
+
+  - name: "too few args with discard is error"
+    skip: "V1 maps have no parameter list — arity is not checked at the call site"
+
+  - name: "too many args with discard is error"
+    skip: "V1 maps have no parameter list — arity is not checked at the call site"

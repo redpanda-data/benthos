@@ -1,0 +1,188 @@
+description: "Timestamp methods: ts_parse, ts_format, ts_unix*, ts_from_unix*, ts_add"
+
+tests:
+  # --- ts_parse (V1 requires explicit format arg; no default) ---
+
+  - name: "ts_parse default format RFC 3339"
+    skip: "migrator V1 core env lacks ts_parse (lives in internal/impl/pure, not loaded by the test harness)"
+
+  - name: "ts_parse with fractional seconds"
+    skip: "migrator V1 core env lacks ts_parse"
+
+  - name: "ts_parse with timezone offset"
+    skip: "migrator V1 core env lacks ts_parse"
+
+  - name: "ts_parse with negative offset"
+    skip: "migrator V1 core env lacks ts_parse"
+
+  - name: "ts_parse custom format date only"
+    skip: "migrator V1 core env lacks ts_strptime/ts_format"
+
+  - name: "ts_parse invalid string errors"
+    skip: "migrator V1 core env lacks ts_strptime"
+
+  - name: "ts_parse returns timestamp type"
+    skip: "migrator V1 core env lacks ts_parse"
+
+  - name: "ts_parse named format arg"
+    skip: "migrator V1 core env lacks ts_strptime/ts_format"
+
+  # --- ts_format (V1 requires explicit layout; no default) ---
+
+  - name: "ts_format default RFC 3339"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_format custom date only"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_format with fractional seconds"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_format whole seconds omit fraction"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_format matches string conversion"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_format named format arg"
+    skip: "V1 has no timestamp() function constructor"
+
+  # --- ts_unix (V1 has ts_unix but V2 uses timestamp() constructor) ---
+
+  - name: "ts_unix returns epoch seconds"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_unix returns int64"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_unix epoch zero"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_unix truncates sub-second"
+    skip: "V1 has no timestamp() function constructor"
+
+  # --- ts_unix_milli ---
+
+  - name: "ts_unix_milli returns epoch millis"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_unix_milli with fractional seconds"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_unix_milli returns int64"
+    skip: "V1 has no timestamp() function constructor"
+
+  # --- ts_unix_micro ---
+
+  - name: "ts_unix_micro returns epoch micros"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_unix_micro with fractional seconds"
+    skip: "V1 has no timestamp() function constructor"
+
+  # --- ts_unix_nano ---
+
+  - name: "ts_unix_nano returns epoch nanos"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_unix_nano with full precision"
+    skip: "V1 has no timestamp() function constructor"
+
+  - name: "ts_unix_nano returns int64"
+    skip: "V1 has no timestamp() function constructor"
+
+  # --- ts_from_unix (V1 has no ts_from_unix methods) ---
+
+  - name: "ts_from_unix integer seconds"
+    skip: "V1 has no ts_from_unix method"
+
+  - name: "ts_from_unix float sub-second"
+    skip: "V1 has no ts_from_unix method"
+
+  - name: "ts_from_unix epoch zero"
+    skip: "V1 has no ts_from_unix method"
+
+  - name: "ts_from_unix returns timestamp type"
+    skip: "V1 has no ts_from_unix method"
+
+  - name: "ts_from_unix non-numeric receiver is error"
+    skip: "V1 has no ts_from_unix method"
+
+  - name: "ts_from_unix bool receiver is error"
+    skip: "V1 has no ts_from_unix method"
+
+  # --- ts_from_unix_milli ---
+
+  - name: "ts_from_unix_milli whole seconds"
+    skip: "V1 has no ts_from_unix_milli method"
+
+  - name: "ts_from_unix_milli with millis"
+    skip: "V1 has no ts_from_unix_milli method"
+
+  # --- ts_from_unix_micro ---
+
+  - name: "ts_from_unix_micro whole seconds"
+    skip: "V1 has no ts_from_unix_micro method"
+
+  - name: "ts_from_unix_micro with micros"
+    skip: "V1 has no ts_from_unix_micro method"
+
+  # --- ts_from_unix_nano ---
+
+  - name: "ts_from_unix_nano whole seconds"
+    skip: "V1 has no ts_from_unix_nano method"
+
+  - name: "ts_from_unix_nano with full precision"
+    skip: "V1 has no ts_from_unix_nano method"
+
+  # --- Round-trips ---
+
+  - name: "ts_unix round-trip"
+    skip: "V1 has no timestamp() function constructor or ts_from_unix method"
+
+  - name: "ts_unix_milli round-trip"
+    skip: "V1 has no timestamp() function constructor or ts_from_unix_milli method"
+
+  - name: "ts_unix_micro round-trip"
+    skip: "V1 has no timestamp() function constructor or ts_from_unix_micro method"
+
+  - name: "ts_unix_nano round-trip lossless"
+    skip: "V1 has no timestamp() function constructor or ts_from_unix_nano method"
+
+  - name: "ts_parse ts_format round-trip"
+    skip: "migrator V1 core env lacks ts_parse/ts_format"
+
+  # --- ts_add (V1 has ts_add_iso8601, not ts_add) ---
+
+  - name: "ts_add one second"
+    skip: "V1 has no timestamp() function constructor, no ts_add (has ts_add_iso8601), no second() constant"
+
+  - name: "ts_add one minute"
+    skip: "V1 has no timestamp() function constructor, no ts_add, no minute() constant"
+
+  - name: "ts_add one hour"
+    skip: "V1 has no timestamp() function constructor, no ts_add, no hour() constant"
+
+  - name: "ts_add one day"
+    skip: "V1 has no timestamp() function constructor, no ts_add, no day() constant"
+
+  - name: "ts_add negative subtracts"
+    skip: "V1 has no timestamp() function constructor, no ts_add, no second() constant"
+
+  - name: "ts_add negative crosses day boundary"
+    skip: "V1 has no timestamp() function constructor, no ts_add, no second() constant"
+
+  - name: "ts_add multiple hours"
+    skip: "V1 has no timestamp() function constructor, no ts_add, no hour() constant"
+
+  - name: "ts_add compound duration"
+    skip: "V1 has no timestamp() function constructor, no ts_add, no hour()/minute() constants"
+
+  - name: "ts_add zero is identity"
+    skip: "V1 has no timestamp() function constructor or ts_add method"
+
+  - name: "ts_add named arg"
+    skip: "V1 has no timestamp() function constructor, no ts_add, no second() constant"
+
+  - name: "ts_add crosses leap day"
+    skip: "V1 has no timestamp() function constructor, no ts_add, no day() constant"

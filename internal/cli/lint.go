@@ -211,6 +211,7 @@ func LintAction(c *cli.Context, opts *common.CLIOpts, stderr io.Writer) error {
 
 	lConf := docs.NewLintConfig(opts.Environment)
 	lConf.BloblangEnv = bloblang.XWrapEnvironment(opts.BloblEnvironment)
+	lConf.BloblangV2Env = opts.BloblV2Environment
 	lConf.RejectDeprecated = c.Bool("deprecated")
 	lConf.RequireLabels = c.Bool("labels")
 	skipEnvVarCheck := c.Bool("skip-env-var-check")

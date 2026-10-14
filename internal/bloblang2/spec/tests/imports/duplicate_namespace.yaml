@@ -1,0 +1,81 @@
+description: "Imports: duplicate namespace name — compile-time error"
+
+files:
+  "helpers.blobl": |
+    map double(x) { x * 2 }
+
+  "utils.blobl": |
+    map triple(x) { x * 3 }
+
+  "more_helpers.blobl": |
+    map quad(x) { x * 4 }
+
+tests:
+  # --- Same namespace name for different files ---
+
+  - name: "duplicate namespace from two different files is compile error"
+    mapping: |
+      import "helpers.blobl" as lib
+      import "utils.blobl" as lib
+      output.v = lib::double(5)
+    compile_error: "duplicate"
+
+  - name: "duplicate namespace with three imports"
+    mapping: |
+      import "helpers.blobl" as a
+      import "utils.blobl" as b
+      import "more_helpers.blobl" as a
+      output.v = a::double(1)
+    compile_error: "duplicate"
+
+  # --- Same file imported twice with same namespace ---
+
+  - name: "same file imported twice with same namespace is compile error"
+    mapping: |
+      import "helpers.blobl" as h
+      import "helpers.blobl" as h
+      output.v = h::double(5)
+    compile_error: "duplicate"
+
+  # --- Same file imported twice with different namespaces is ok ---
+
+  - name: "same file imported with different namespaces is valid"
+    mapping: |
+      import "helpers.blobl" as h1
+      import "helpers.blobl" as h2
+      output.a = h1::double(3)
+      output.b = h2::double(4)
+    output: {"a": 6, "b": 8}
+
+  # --- Different files with distinct namespaces is ok ---
+
+  - name: "different files with distinct namespaces is valid"
+    mapping: |
+      import "helpers.blobl" as h
+      import "utils.blobl" as u
+      output.a = h::double(5)
+      output.b = u::triple(5)
+    output: {"a": 10, "b": 15}
+
+  # --- Duplicate namespace in nested import ---
+
+  - name: "duplicate namespace within imported file is compile error"
+    files:
+      "bad_imports.blobl": |
+        import "helpers.blobl" as x
+        import "utils.blobl" as x
+        map wrapper(v) { x::double(v) }
+    mapping: |
+      import "bad_imports.blobl" as bi
+      output.v = bi::wrapper(5)
+    compile_error: "duplicate"
+
+  # --- Namespace shadows local map name (still valid — different resolution) ---
+
+  - name: "namespace name can differ from local map names"
+    mapping: |
+      import "helpers.blobl" as helpers
+      map local_double(x) { x * 2 }
+      output.a = helpers::double(5)
+      output.b = local_double(5)
+    output: {"a": 10, "b": 10}

@@ -1,0 +1,223 @@
+description: "Named arguments: syntax, order independence, positional-prefix mixing, duplicate error, unknown arg error"
+
+tests:
+  # --- Basic named argument syntax ---
+
+  - name: "single named argument"
+    mapping: |
+      map double(x) { x * 2 }
+      output.v = double(x: 21)
+    output: {"v": 42}
+
+  - name: "two named arguments"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 10, b: 20)
+    output: {"v": 30}
+
+  - name: "three named arguments"
+    mapping: |
+      map calc(x, y, z) { x + y * z }
+      output.v = calc(x: 1, y: 2, z: 3)
+    output: {"v": 7}
+
+  # --- Order independence ---
+
+  - name: "named arguments in reverse order"
+    mapping: |
+      map sub(a, b) { a - b }
+      output.v = sub(b: 3, a: 10)
+    output: {"v": 7}
+
+  - name: "named arguments in arbitrary order"
+    mapping: |
+      map calc(x, y, z) { x + y * z }
+      output.v = calc(z: 3, x: 1, y: 2)
+    output: {"v": 7}
+
+  - name: "named arguments shuffled with three params"
+    mapping: |
+      map join(sep, first, second) {
+        first + sep + second
+      }
+      output.v = join(first: "hello", second: "world", sep: " ")
+    output: {"v": "hello world"}
+
+  # --- Named with defaults ---
+
+  - name: "named args with some defaults omitted"
+    mapping: |
+      map tag(value, prefix = "item", suffix = "end") {
+        prefix + ":" + value + ":" + suffix
+      }
+      output.v = tag(value: "foo")
+    output: {"v": "item:foo:end"}
+
+  - name: "named args override specific default"
+    mapping: |
+      map tag(value, prefix = "item", suffix = "end") {
+        prefix + ":" + value + ":" + suffix
+      }
+      output.v = tag(value: "foo", suffix: "done")
+    output: {"v": "item:foo:done"}
+
+  - name: "named args override all defaults"
+    mapping: |
+      map tag(value, prefix = "item", suffix = "end") {
+        prefix + ":" + value + ":" + suffix
+      }
+      output.v = tag(value: "foo", prefix: "x", suffix: "y")
+    output: {"v": "x:foo:y"}
+
+  # --- Mixed calls: leading positionals followed by named args (Section 3.3) ---
+
+  - name: "positional prefix followed by named argument is valid"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(1, b: 2)
+    output: {"v": 3}
+
+  - name: "positional prefix skips optionals via named argument"
+    mapping: |
+      map format_price(amount, currency = "USD", decimals = 2) {
+        currency + " " + amount.round(decimals).string()
+      }
+      output.v = format_price(99.99, decimals: 3)
+    output: {"v": "USD 99.99"}
+
+  - name: "positional prefix with multiple named arguments"
+    mapping: |
+      map join3(a, b = "-", c = "!") { a + b + c }
+      output.v = join3("x", c: "?", b: ":")
+    output: {"v": "x:?"}
+
+  - name: "positional argument after named argument is parse error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1, 2)
+    compile_error: "positional argument after named"
+
+  - name: "named argument targeting positionally-filled parameter is compile error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(1, a: 2)
+    compile_error: "already provided positionally"
+
+  - name: "mixed call on stdlib method"
+    mapping: |
+      output.v = "a,b,c".replace_all(",", new: "-")
+    output: {"v": "a-b-c"}
+
+  - name: "mixed call unknown named argument on stdlib method is compile error"
+    mapping: |
+      output.v = {"a": 1}.format_json("  ", bogus: true)
+    compile_error: "bogus"
+
+  - name: "mixed call missing required named argument is compile error"
+    mapping: |
+      map add3(a, b, c) { a + b + c }
+      output.v = add3(1, c: 3)
+    compile_error: "missing required"
+
+  # --- Duplicate named argument is compile error ---
+
+  - name: "duplicate named argument is compile error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1, a: 2)
+    compile_error: "duplicate"
+
+  - name: "duplicate named argument second param is compile error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1, b: 2, b: 3)
+    compile_error: "duplicate"
+
+  # --- Unknown named argument is error ---
+
+  - name: "unknown named argument is error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1, c: 2)
+    compile_error: "unknown"
+
+  - name: "all unknown named arguments is error"
+    mapping: |
+      map identity(x) { x }
+      output.v = identity(y: 42)
+    compile_error: "unknown"
+
+  # --- Missing required named argument is error ---
+
+  - name: "missing required named argument is error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1)
+    compile_error: "arity"
+
+  - name: "missing all required named arguments is error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add()
+    compile_error: "arity"
+
+  # --- Named arguments with expressions ---
+
+  - name: "named argument values can be expressions"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 3 * 2, b: 10 - 3)
+    output: {"v": 13}
+
+  - name: "named argument values from input"
+    input: {"x": 5, "y": 10}
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: input.x, b: input.y)
+    output: {"v": 15}
+
+  # --- Trailing commas are NOT permitted in argument lists (Section 10) ---
+
+  - name: "trailing comma in map call arguments is parse error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(1, 2,)
+    compile_error: "trailing comma"
+
+  - name: "trailing comma in named arguments is parse error"
+    mapping: |
+      map add(a, b) { a + b }
+      output.v = add(a: 1, b: 2,)
+    compile_error: "trailing comma"
+
+  # --- Mixed/named args on lambda methods ---
+
+  - name: "all-named lambda argument on fold"
+    mapping: |
+      output.v = [1, 2, 3].fold(0, fn: (tally, value) -> tally + value)
+    output: {"v": 6}
+
+  - name: "mixed positional and named on slice"
+    mapping: |
+      output.v = [1, 2, 3, 4].slice(1, high: 3)
+    output: {"v": [2, 3]}
+
+  # --- Named args on path-root-attached methods (path-collapse form) ---
+
+  - name: "named argument on method attached to a variable root"
+    mapping: |
+      $x = {"h": "<b>"}
+      output.v = $x.format_json(escape_html: true)
+    output: {"v": '{"h":"\u003cb\u003e"}'}
+
+  - name: "unknown named argument on root-attached method is compile error"
+    mapping: |
+      $x = {"a": 1}
+      output.v = $x.format_json(bogus: true)
+    compile_error: "bogus"
+
+  - name: "named argument on method attached to input root"
+    input: {"a": 1}
+    mapping: |
+      output.v = input.format_json(indent: " ")
+    output: {"v": "{\n \"a\": 1\n}"}

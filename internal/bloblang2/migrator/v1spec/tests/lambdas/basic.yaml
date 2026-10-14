@@ -1,0 +1,128 @@
+description: "Lambda expressions — single/multi param, block bodies, nested expressions, higher-order methods"
+
+tests:
+  # --- Single parameter lambdas ---
+
+  - name: "single param lambda in map"
+    mapping: |
+      root.result = [1, 2, 3].map_each(x -> x * 2)
+    output: {"result": [2, 4, 6]}
+
+  - name: "single param lambda in filter"
+    mapping: |
+      root.result = [1, 2, 3, 4, 5].filter(x -> x > 3)
+    output: {"result": [4, 5]}
+
+  - name: "single param lambda in sort_by"
+    mapping: |
+      root.result = [{"n": 3}, {"n": 1}, {"n": 2}].sort_by(x -> x.n)
+    output: {"result": [{"n": 1}, {"n": 2}, {"n": 3}]}
+
+  - name: "single param lambda with string method"
+    mapping: |
+      root.result = ["hello", "world"].map_each(s -> s.uppercase())
+    output: {"result": ["HELLO", "WORLD"]}
+
+  - name: "single param lambda accessing nested fields"
+    mapping: |
+      let items = [{"price": 10, "qty": 2}, {"price": 5, "qty": 4}]
+      root.totals = $items.map_each(item -> item.price * item.qty)
+    output: {"totals": [20, 20]}
+
+  # --- Multi parameter lambdas ---
+  # V1 fold lambda takes a single parameter which is an object with `tally` and `value` fields.
+
+  - name: "two param lambda in fold"
+    mapping: |
+      root.sum = [1, 2, 3, 4].fold(0, item -> item.tally + item.value)
+    output: {"sum": 10}
+
+  - name: "two param lambda in map_entries"
+    # V1 has no map_entries — .map_each on an object gives {key,value} entries; lambda returns the new value.
+    # The V2 semantics (returning {"key":..., "value":...} to set both) have no direct V1 equivalent,
+    # but we can simulate via fold into an object.
+    mapping: |
+      root.result = {"a": 1, "b": 2}.key_values().fold({}, item -> item.tally.merge({item.value.key.uppercase(): item.value.value * 10}))
+    output: {"result": {"A": 10, "B": 20}}
+
+  - name: "two param lambda in filter_entries"
+    mapping: |
+      root.result = {"a": 1, "b": 5, "c": 3}.filter(item -> item.value > 2)
+    output: {"result": {"b": 5, "c": 3}}
+
+  - name: "fold with string accumulator"
+    mapping: |
+      root.result = ["a", "b", "c"].fold("", item -> item.tally + item.value)
+    output: {"result": "abc"}
+
+  # --- Block body lambdas ---
+
+  - name: "block body with variable declarations"
+    skip: "V1 lambda bodies are single expressions — no block form with inline let statements"
+
+  - name: "block body with multiple variables"
+    skip: "V1 lambda bodies are single expressions — no block form with inline let statements"
+
+  - name: "block body must end with expression"
+    skip: "V1 has no block-body lambda form — this V2-only compile error does not apply"
+
+  - name: "block body with conditional expression"
+    skip: "V1 lambda bodies are single expressions — no block form with inline let statements"
+
+  # --- Nested lambdas ---
+
+  - name: "nested lambda — map inside map"
+    mapping: |
+      let matrix = [[1, 2], [3, 4]]
+      root.result = $matrix.map_each(row -> row.map_each(x -> x * 10))
+    output: {"result": [[10, 20], [30, 40]]}
+
+  - name: "filter inside map"
+    mapping: |
+      let groups = [[1, 2, 3], [4, 5, 6]]
+      root.result = $groups.map_each(g -> g.filter(x -> x % 2 == 0))
+    output: {"result": [[2], [4, 6]]}
+
+  # --- Passing map names to higher-order methods ---
+
+  - name: "pass map name directly to .map()"
+    skip: "V1 map definitions take no parameters and are invoked via .apply('name'); cannot pass map name as a value to .map_each"
+
+  - name: "pass map name directly to .filter()"
+    skip: "V1 map definitions take no parameters and are invoked via .apply('name'); cannot pass map name as a value to .filter"
+
+  - name: "pass map name directly to .sort_by()"
+    skip: "V1 map definitions take no parameters and are invoked via .apply('name'); cannot pass map name as a value to .sort_by"
+
+  # --- Lambda is not a value ---
+  # V1 lambdas ARE first-class query expressions (§8.5), but assigning them to root or let-binding
+  # them produces behaviour that isn't a clean parse error — flag for review.
+
+  - name: "cannot store lambda in variable"
+    # V1 lambdas ARE query expressions and parse in a `let` RHS, but the RHS is evaluated eagerly
+    # against the current `this`. With input `{}`, `x` resolves against `this` (not an unbound param)
+    # and the body executes — `null * 2` is a runtime type error.
+    mapping: |
+      let fn = x -> x * 2
+      root.ok = true
+    error: "cannot multiply types"
+
+  - name: "cannot assign lambda to output"
+    # Same as above: `root.fn = x -> x * 2` eagerly evaluates `x * 2` (where `x` is a field read
+    # from `this`) and errors at runtime.
+    mapping: |
+      root.fn = x -> x * 2
+    error: "cannot multiply types"
+
+  # --- Parameter is read-only ---
+
+  - name: "lambda parameter cannot be assigned to"
+    skip: "V1 lambda bodies are single expressions — there is no syntax for assigning to a lambda parameter"
+
+  # --- map_values with single param lambda ---
+
+  - name: "map_values with lambda"
+    # V1 has no map_values, but .map_each on an object returns the (transformed) value, matching map_values semantics exactly.
+    mapping: |
+      root.result = {"x": 1, "y": 2}.map_each(item -> item.value + 100)
+    output: {"result": {"x": 101, "y": 102}}

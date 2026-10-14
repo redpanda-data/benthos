@@ -1,0 +1,82 @@
+description: >
+  NLP enrichment merge — combine entity recognition and key phrase extraction
+  results into a unified structure. Groups entities by type, correlates key
+  phrases with overlapping entities by character offset, and ranks entities
+  by confidence score.
+
+tests:
+  - name: "merge NER entities and key phrases into enriched document"
+    input:
+      source_text: "Bob ordered two sandwiches from Seattle Deli on January 5th for $24.99"
+      entities:
+        - {text: "Bob", score: 0.997, type: "PERSON", begin_offset: 0, end_offset: 3}
+        - {text: "two", score: 0.95, type: "QUANTITY", begin_offset: 12, end_offset: 15}
+        - {text: "Seattle Deli", score: 0.988, type: "ORGANIZATION", begin_offset: 33, end_offset: 45}
+        - {text: "January 5th", score: 0.999, type: "DATE", begin_offset: 49, end_offset: 60}
+        - {text: "$24.99", score: 0.93, type: "QUANTITY", begin_offset: 65, end_offset: 71}
+      sentiment:
+        label: "NEUTRAL"
+        scores: {positive: 0.12, negative: 0.03, neutral: 0.84, mixed: 0.01}
+      key_phrases:
+        - {text: "two sandwiches", score: 0.99, begin_offset: 12, end_offset: 27}
+        - {text: "Seattle Deli", score: 0.98, begin_offset: 33, end_offset: 45}
+        - {text: "January 5th", score: 0.97, begin_offset: 49, end_offset: 60}
+    mapping: |
+      let entities = this.entities
+
+      # Group entities by type using unique types + filter.
+      # V2 .collect() → V1 fold {key,value} records into an object.
+      let entity_types = $entities.map_each(e -> e.type).unique()
+      let entities_by_type = $entity_types.
+        map_each(t -> {
+          "key": t,
+          "value": $entities.filter(e -> e.type == t).map_each(e -> e.text),
+        }).
+        fold({}, item -> item.tally.merge({(item.value.key): item.value.value}))
+
+      # For each key phrase, find the first entity whose character span overlaps.
+      # V2 .find(lambda) → V1 .filter(lambda).index(0) (returns null if none).
+      # V1 lambdas must put body on the same line as `->`.
+      let enriched_phrases = this.key_phrases.map_each(kp -> {
+        "phrase": kp.text,
+        "overlapping_entity_type": $entities.filter(e -> e.begin_offset < kp.end_offset && e.end_offset > kp.begin_offset).index(0).type.catch(null),
+      })
+
+      # High-confidence entities (>= 0.95), sorted by score descending
+      # V1 `reverse` only applies to strings, so sort descending by negating
+      # the sort key rather than reversing the result array.
+      let high_conf = $entities.
+        filter(e -> e.score >= 0.95).
+        sort_by(e -> -e.score).
+        map_each(e -> {"text": e.text, "type": e.type, "score": e.score})
+
+      # Pick the dominant sentiment score
+      let sent = this.sentiment
+
+      root.text = this.source_text
+      root.sentiment = $sent.label
+      root.sentiment_confidence = $sent.scores.values().max()
+      root.entities_by_type = $entities_by_type
+      root.enriched_phrases = $enriched_phrases
+      root.high_confidence_entities = $high_conf
+    output:
+      text: "Bob ordered two sandwiches from Seattle Deli on January 5th for $24.99"
+      sentiment: "NEUTRAL"
+      sentiment_confidence: 0.84
+      entities_by_type:
+        PERSON: ["Bob"]
+        QUANTITY: ["two", "$24.99"]
+        ORGANIZATION: ["Seattle Deli"]
+        DATE: ["January 5th"]
+      enriched_phrases:
+        - phrase: "two sandwiches"
+          overlapping_entity_type: "QUANTITY"
+        - phrase: "Seattle Deli"
+          overlapping_entity_type: "ORGANIZATION"
+        - phrase: "January 5th"
+          overlapping_entity_type: "DATE"
+      high_confidence_entities:
+        - {text: "January 5th", type: "DATE", score: 0.999}
+        - {text: "Bob", type: "PERSON", score: 0.997}
+        - {text: "Seattle Deli", type: "ORGANIZATION", score: 0.988}
+        - {text: "two", type: "QUANTITY", score: 0.95}

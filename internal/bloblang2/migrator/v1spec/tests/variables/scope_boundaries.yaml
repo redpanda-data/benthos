@@ -1,0 +1,140 @@
+description: >
+  Variable scope boundary semantics — variables crossing if/match/lambda
+  boundaries, statement-mode write-through, and expression-mode shadowing.
+
+tests:
+  # --- Statement-mode write-through ---
+
+  - name: "if-statement branch modifies outer variable"
+    mapping: |
+      let x = 1
+      if true {
+        let x = 99
+      }
+      root.v = $x
+    output: {"v": 99}
+
+  - name: "if-statement false branch does not execute"
+    mapping: |
+      let x = 1
+      if false {
+        let x = 99
+      }
+      root.v = $x
+    output: {"v": 1}
+
+  - name: "nested if-statements both modify outer"
+    mapping: |
+      let x = 0
+      if true {
+        let x = 1
+        if true {
+          let x = 2
+        }
+      }
+      root.v = $x
+    output: {"v": 2}
+
+  - name: "match-statement arm modifies outer variable"
+    skip: "V1 has no statement-mode match with `{ let x = ... }` arm blocks"
+    mapping: |
+      let x = 0
+      match "a" {
+        "a" => { let x = 42 }
+      }
+      root.v = $x
+    output: {"v": 42}
+
+  # --- Block-scoped variables ---
+
+  - name: "variable declared in if-branch not visible outside"
+    skip: "V1 has no block scope for let"
+    mapping: |
+      if true {
+        let inner = 10
+      }
+      root.v = $inner
+    compile_error: "undeclared" # FIXME-v1: V1 has no scope boundary — no error
+
+  - name: "variable declared in match-arm not visible outside"
+    skip: "V1 has no statement-mode match with block arms, and no block scope"
+    mapping: |
+      match "a" {
+        "a" => { let inner = 10 }
+      }
+      root.v = $inner
+    compile_error: "undeclared" # FIXME-v1
+
+  # --- Expression-mode shadowing ---
+
+  - name: "if-expression shadows outer variable"
+    skip: "V1 if-expression body is a single expression; cannot declare + return. Also V1 has no block scope."
+    mapping: |
+      let x = "outer"
+      let result = if true {
+        let x = "shadow"
+        $x
+      }
+      root.outer = $x
+      root.result = $result
+    output:
+      outer: "outer"
+      result: "shadow"
+
+  - name: "match-expression shadows outer variable"
+    skip: "V1 match arm body is a single expression; cannot declare + return"
+    mapping: |
+      let x = "outer"
+      let result = match "a" {
+        "a" => {
+          let x = "shadow"
+          $x
+        }
+      }
+      root.outer = $x
+      root.result = $result
+    output:
+      outer: "outer"
+      result: "shadow"
+
+  # --- Combined patterns ---
+
+  - name: "pre-declare then write in both branches"
+    mapping: |
+      let result = ""
+      if this.flag {
+        let result = "yes"
+      } else {
+        let result = "no"
+      }
+      root.v = $result
+    cases:
+      - name: "true branch"
+        input: {"flag": true}
+        output: {"v": "yes"}
+      - name: "false branch"
+        input: {"flag": false}
+        output: {"v": "no"}
+
+  - name: "outer variable and block-scoped variable coexist"
+    skip: "V1 has no block scope for let; $y leaks out of the if-block (visible after it). FIXME-v1: this would still evaluate without error but semantics differ."
+    mapping: |
+      let x = "outer"
+      if true {
+        let x = "modified"
+        let y = "local"
+        root.local = $y
+      }
+      root.outer = $x
+    output:
+      outer: "modified"
+      local: "local"
+
+  - name: "lambda reads outer variable modified by if-statement"
+    mapping: |
+      let factor = 1
+      if true {
+        let factor = 10
+      }
+      root.v = [1, 2, 3].map_each(x -> x * $factor)
+    output: {"v": [10, 20, 30]}

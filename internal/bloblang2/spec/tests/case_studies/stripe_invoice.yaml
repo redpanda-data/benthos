@@ -1,0 +1,111 @@
+description: >
+  Stripe invoice webhook normalization — parse embedded JSON from metadata,
+  convert Unix timestamps to RFC 3339, convert amounts from cents to dollars,
+  transform object keys, and restructure for a billing data warehouse.
+
+tests:
+  - name: "normalize Stripe invoice.paid event"
+    input:
+      type: "invoice.paid"
+      created: 1709251200
+      data:
+        object:
+          id: "in_1OqR3m"
+          number: "INV-2024-0218"
+          customer: "cus_PaB3xK"
+          customer_email: "ops@megacorp.io"
+          customer_name: "MegaCorp Engineering"
+          metadata:
+            internal_account_id: "acct-00482"
+            provisioning: '{"tier":"growth","seats":25,"features":["sso","audit_log"]}'
+            salesforce_opp_id: "006Dn000002XLPQ"
+          status: "paid"
+          subscription: "sub_1NrT7a"
+          currency: "usd"
+          subtotal: 14900
+          tax: 1200
+          total: 16100
+          status_transitions:
+            paid_at: 1709251200
+            voided_at: null
+          lines:
+            data:
+              - amount: 9900
+                description: "Growth Plan"
+                quantity: 1
+                product: "prod_Growth"
+              - amount: 5000
+                description: "Extra seats"
+                quantity: 5
+                product: "prod_Seats"
+    mapping: |
+      $inv = input.data.object
+
+      # Parse embedded JSON from the provisioning metadata field
+      $provisioning = $inv.metadata.provisioning.parse_json()
+
+      # Convert each line item: cents to dollars
+      $line_items = $inv.lines.data.map(item -> {
+        "description": item.description,
+        "amount_dollars": item.amount.float64() / 100.0,
+        "quantity": item.quantity,
+        "product_id": item.product,
+      })
+
+      output.invoice_id = $inv.id
+      output.invoice_number = $inv.number
+      output.event_type = input.type
+      output.customer = {
+        "id": $inv.customer,
+        "name": $inv.customer_name,
+        "email": $inv.customer_email,
+      }
+      output.provisioning = $provisioning
+      output.currency = $inv.currency.uppercase()
+      output.subtotal_dollars = $inv.subtotal.float64() / 100.0
+      output.tax_dollars = $inv.tax.float64() / 100.0
+      output.total_dollars = $inv.total.float64() / 100.0
+      output.line_items = $line_items
+      output.status = $inv.status
+
+      # Convert Unix epoch to RFC 3339 timestamp
+      output.paid_at = $inv.status_transitions.paid_at
+        .ts_from_unix().string()
+
+      output.subscription_id = $inv.subscription
+
+      # Strip the parsed provisioning field, then kebab-case the remaining keys
+      output.external_refs = $inv.metadata
+        .without(["provisioning"])
+        .map_keys(k -> k.replace_all("_", "-"))
+    output:
+      invoice_id: "in_1OqR3m"
+      invoice_number: "INV-2024-0218"
+      event_type: "invoice.paid"
+      customer:
+        id: "cus_PaB3xK"
+        name: "MegaCorp Engineering"
+        email: "ops@megacorp.io"
+      provisioning:
+        tier: "growth"
+        seats: 25
+        features: ["sso", "audit_log"]
+      currency: "USD"
+      subtotal_dollars: 149.0
+      tax_dollars: 12.0
+      total_dollars: 161.0
+      line_items:
+        - description: "Growth Plan"
+          amount_dollars: 99.0
+          quantity: 1
+          product_id: "prod_Growth"
+        - description: "Extra seats"
+          amount_dollars: 50.0
+          quantity: 5
+          product_id: "prod_Seats"
+      status: "paid"
+      paid_at: "2024-03-01T00:00:00Z"
+      subscription_id: "sub_1NrT7a"
+      external_refs:
+        internal-account-id: "acct-00482"
+        salesforce-opp-id: "006Dn000002XLPQ"

@@ -1,0 +1,158 @@
+description: "Map isolation: no access to input, output, or top-level $variables from map body; lambdas inside maps also isolated"
+
+tests:
+  # --- Cannot access input ---
+
+  - name: "accessing input in map body is compile error"
+    input: {"x": 42}
+    mapping: |
+      map bad(v) {
+        input.x + v
+      }
+      output.v = bad(1)
+    compile_error: "input"
+
+  - name: "accessing input directly in map body is compile error"
+    input: "hello"
+    mapping: |
+      map bad() {
+        input
+      }
+      output.v = bad()
+    compile_error: "input"
+
+  # --- Cannot access output ---
+
+  - name: "accessing output in map body is compile error"
+    mapping: |
+      output.x = 10
+      map bad(v) {
+        output.x + v
+      }
+      output.v = bad(1)
+    compile_error: "output"
+
+  - name: "assigning to output in map body is compile error"
+    mapping: |
+      map bad(v) {
+        output.x = v
+        v
+      }
+      output.v = bad(1)
+    compile_error: "output"
+
+  # --- Cannot access top-level variables ---
+
+  - name: "accessing top-level variable in map body is compile error"
+    mapping: |
+      $global = 100
+      map bad(v) {
+        $global + v
+      }
+      output.v = bad(1)
+    compile_error: "undeclared"
+
+  - name: "top-level variable with same name not accessible in map"
+    mapping: |
+      $x = 99
+      map get(v) {
+        $x
+      }
+      output.v = get(1)
+    compile_error: "undeclared"
+
+  # --- Local variables inside map are fine ---
+
+  - name: "local variables declared inside map work"
+    mapping: |
+      map compute(x) {
+        $doubled = x * 2
+        $doubled + 1
+      }
+      output.v = compute(5)
+    output: {"v": 11}
+
+  - name: "multiple local variables inside map work"
+    mapping: |
+      map transform(a, b) {
+        $sum = a + b
+        $product = a * b
+        {"sum": $sum, "product": $product}
+      }
+      output = transform(3, 4)
+    output: {"sum": 7, "product": 12}
+
+  # --- Parameters are accessible ---
+
+  - name: "parameters are accessible by name"
+    mapping: |
+      map echo(msg) {
+        msg
+      }
+      output.v = echo("test")
+    output: {"v": "test"}
+
+  - name: "all parameters accessible in multi-param map"
+    mapping: |
+      map triple(a, b, c) {
+        [a, b, c]
+      }
+      output.v = triple(1, 2, 3)
+    output: {"v": [1, 2, 3]}
+
+  # --- Lambdas inside maps are also isolated ---
+
+  - name: "lambda inside map cannot access input"
+    input: {"multiplier": 10}
+    mapping: |
+      map scale(items) {
+        items.map(x -> x * input.multiplier)
+      }
+      output.v = scale([1, 2, 3])
+    compile_error: "input"
+
+  - name: "lambda inside map cannot access output"
+    mapping: |
+      output.factor = 5
+      map scale(items) {
+        items.map(x -> x * output.factor)
+      }
+      output.v = scale([1, 2, 3])
+    compile_error: "output"
+
+  - name: "lambda inside map cannot access top-level variable"
+    mapping: |
+      $factor = 10
+      map scale(items) {
+        items.map(x -> x * $factor)
+      }
+      output.v = scale([1, 2, 3])
+    compile_error: "undeclared"
+
+  - name: "lambda inside map can access map parameters"
+    mapping: |
+      map scale(items, factor) {
+        items.map(x -> x * factor)
+      }
+      output.v = scale([1, 2, 3], 10)
+    output: {"v": [10, 20, 30]}
+
+  - name: "lambda inside map can access map local variables"
+    mapping: |
+      map process(items) {
+        $prefix = "item"
+        items.map(x -> $prefix + ":" + x)
+      }
+      output.v = process(["a", "b"])
+    output: {"v": ["item:a", "item:b"]}
+
+  # --- Passing external context as parameter works ---
+
+  - name: "pass input data as parameter to map"
+    input: {"items": [1, 2, 3], "multiplier": 10}
+    mapping: |
+      map scale(items, multiplier) {
+        items.map(x -> x * multiplier)
+      }
+      output.v = scale(input.items, input.multiplier)
+    output: {"v": [10, 20, 30]}

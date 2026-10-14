@@ -1,0 +1,140 @@
+description: "Edge cases: NaN equality, comparison, arithmetic, sort ordering, unique dedup, bool error"
+
+tests:
+  # --- NaN equality ---
+
+  - name: "NaN == NaN is false"
+    mapping: |
+      root = this.n == this.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "NaN != NaN is true"
+    mapping: |
+      root = this.n != this.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: true
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "NaN == 0.0 is false"
+    mapping: |
+      root = this.n == 0.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "NaN != 0.0 is true"
+    mapping: |
+      root = this.n != 0.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: true
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  # --- NaN comparison ---
+
+  - name: "NaN < 1.0 is false"
+    mapping: |
+      root = this.n < 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "NaN > 1.0 is false"
+    mapping: |
+      root = this.n > 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "NaN <= 1.0 is false"
+    mapping: |
+      root = this.n <= 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "NaN >= 1.0 is false"
+    mapping: |
+      root = this.n >= 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "1.0 < NaN is false"
+    mapping: |
+      root = 1.0 < this.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "1.0 > NaN is false"
+    mapping: |
+      root = 1.0 > this.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: false
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  # --- NaN arithmetic ---
+
+  - name: "NaN + 1.0 is NaN"
+    mapping: |
+      root = this.n + 1.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: {_type: "float64", value: "NaN"}
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "NaN * 0.0 is NaN"
+    mapping: |
+      root = this.n * 0.0
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: {_type: "float64", value: "NaN"}
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  - name: "NaN - NaN is NaN"
+    mapping: |
+      root = this.n - this.n
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: {_type: "float64", value: "NaN"}
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  # --- NaN in sort (total ordering: NaN after all values) ---
+
+  - name: "sort ordering with NaN values"
+    mapping: |
+      root = this.arr.sort()
+    cases:
+      - name: "NaN after all finite values"
+        input: {"arr": [3.0, {_type: "float64", value: "NaN"}, 1.0, 2.0]}
+        output: [1.0, 2.0, 3.0, {_type: "float64", value: "NaN"}]
+      - name: "multiple NaN values kept at end"
+        input: {"arr": [{_type: "float64", value: "NaN"}, 2.0, {_type: "float64", value: "NaN"}, 1.0]}
+        output: [1.0, 2.0, {_type: "float64", value: "NaN"}, {_type: "float64", value: "NaN"}]
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  # --- NaN in unique (NaN treated as equal) ---
+
+  - name: "unique treats multiple NaN as equal — keeps first"
+    mapping: |
+      root = this.arr.unique()
+    input: {"arr": [{_type: "float64", value: "NaN"}, 1.0, {_type: "float64", value: "NaN"}, 2.0]}
+    output: [{_type: "float64", value: "NaN"}, 1.0, 2.0]
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  # --- NaN bool conversion ---
+
+  - name: "NaN.bool() is error"
+    mapping: |
+      root = this.n.bool()
+    input: {"n": {_type: "float64", value: "NaN"}}
+    error: "NaN"
+    skip: "V2-only: V1 has no NaN literal and no tagged numeric-type inputs."
+
+  # --- NaN type ---
+
+  - name: "NaN type is float64"
+    mapping: |
+      root = this.n.type()
+    input: {"n": {_type: "float64", value: "NaN"}}
+    output: "float64"
+    skip: "V2-only: V1 has no NaN literal, no tagged inputs, and .type() returns 'number' not 'float64'."

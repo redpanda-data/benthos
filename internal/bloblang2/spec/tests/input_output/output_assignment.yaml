@@ -1,0 +1,159 @@
+description: "Output assignment: building output incrementally, auto-creation of intermediate objects/arrays, collision errors, gap filling, sequential references"
+
+tests:
+  # --- Basic incremental building ---
+
+  - name: "assign single field to output"
+    mapping: |
+      output.name = "Alice"
+    output: {"name": "Alice"}
+
+  - name: "assign multiple fields to output"
+    mapping: |
+      output.name = "Alice"
+      output.age = 30
+      output.active = true
+    output: {"name": "Alice", "age": 30, "active": true}
+
+  - name: "output starts as empty object"
+    mapping: |
+      output.v = output
+    output: {"v": {}}
+
+  # --- Auto-creation of intermediate objects ---
+
+  - name: "auto-create nested object"
+    mapping: |
+      output.user.name = "Alice"
+    output: {"user": {"name": "Alice"}}
+
+  - name: "auto-create deeply nested object"
+    mapping: |
+      output.user.address.city = "London"
+    output: {"user": {"address": {"city": "London"}}}
+
+  - name: "auto-create very deeply nested object"
+    mapping: |
+      output.a.b.c.d.e = 42
+    output: {"a": {"b": {"c": {"d": {"e": 42}}}}}
+
+  - name: "auto-create and add sibling fields"
+    mapping: |
+      output.user.name = "Alice"
+      output.user.age = 30
+    output: {"user": {"name": "Alice", "age": 30}}
+
+  # --- Auto-creation with array index ---
+
+  - name: "auto-create array with index zero"
+    mapping: |
+      output.items[0] = "first"
+    output: {"items": ["first"]}
+
+  - name: "auto-create array with object elements"
+    mapping: |
+      output.items[0].name = "first"
+    output: {"items": [{"name": "first"}]}
+
+  - name: "auto-create array then add more elements"
+    mapping: |
+      output.items[0] = "a"
+      output.items[1] = "b"
+      output.items[2] = "c"
+    output: {"items": ["a", "b", "c"]}
+
+  # --- Dynamic index: string creates object, int creates array ---
+
+  - name: "dynamic string index creates object field"
+    mapping: |
+      $key = "name"
+      output.data[$key] = "Alice"
+    output: {"data": {"name": "Alice"}}
+
+  - name: "dynamic int index creates array element"
+    mapping: |
+      $idx = 0
+      output.data[$idx] = "first"
+    output: {"data": ["first"]}
+
+  # --- Array gap filling ---
+
+  - name: "gap filling with null"
+    mapping: |
+      output.items[2] = "x"
+    output: {"items": [null, null, "x"]}
+
+  - name: "gap filling after existing elements"
+    mapping: |
+      output.items[0] = "a"
+      output.items[3] = "d"
+    output: {"items": ["a", null, null, "d"]}
+
+  - name: "gap filling with zero-based first element then gap"
+    mapping: |
+      output.arr[0] = 10
+      output.arr[5] = 50
+    output: {"arr": [10, null, null, null, null, 50]}
+
+  # --- Sequential references to earlier output ---
+
+  - name: "reference previously assigned output field"
+    mapping: |
+      output.x = 10
+      output.y = output.x + 5
+    output: {"x": 10, "y": 15}
+
+  - name: "reference nested output field"
+    mapping: |
+      output.user.name = "Alice"
+      output.greeting = "Hello, " + output.user.name
+    output: {"user": {"name": "Alice"}, "greeting": "Hello, Alice"}
+
+  - name: "reference output array element"
+    mapping: |
+      output.items[0] = 100
+      output.items[1] = output.items[0] * 2
+    output: {"items": [100, 200]}
+
+  - name: "overwrite previously assigned field"
+    mapping: |
+      output.status = "pending"
+      output.status = "done"
+    output: {"status": "done"}
+
+  # --- Collision errors ---
+
+  - name: "collision: field access on string value"
+    mapping: |
+      output.user = "Alice"
+      output.user.name = "Alice"
+    error: "field"
+
+  - name: "collision: field access on integer value"
+    mapping: |
+      output.count = 42
+      output.count.value = 42
+    error: "field"
+
+  - name: "collision: field access on boolean value"
+    mapping: |
+      output.flag = true
+      output.flag.sub = false
+    error: "field"
+
+  - name: "collision: index access on string value"
+    mapping: |
+      output.data = "hello"
+      output.data[0] = "H"
+    error: "index"
+
+  # --- Mixed nesting ---
+
+  - name: "build complex nested structure incrementally"
+    mapping: |
+      output.users[0].name = "Alice"
+      output.users[0].age = 30
+      output.users[1].name = "Bob"
+      output.users[1].age = 25
+      output.count = 2
+    output: {"users": [{"name": "Alice", "age": 30}, {"name": "Bob", "age": 25}], "count": 2}

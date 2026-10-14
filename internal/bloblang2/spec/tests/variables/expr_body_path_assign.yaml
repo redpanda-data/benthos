@@ -1,0 +1,144 @@
+description: >
+  Path assignments inside expression bodies — variable path mutations
+  like $obj[$key] = val in if-expressions, match-expressions, lambda
+  blocks, and nested combinations. These must resolve to the existing
+  variable slot, not shadow it.
+
+tests:
+  # --- Path assignment in if-expression body ---
+
+  - name: "path assign with dynamic key in if-expression"
+    mapping: |
+      $key = "x"
+      output.v = if true {
+        $obj = {}
+        $obj[$key] = 42
+        $obj
+      } else { {} }
+    output: {"v": {"x": 42}}
+
+  - name: "path assign in else branch reads correct slot"
+    mapping: |
+      output.v = if false {
+        "never"
+      } else {
+        $result = {"base": true}
+        $result.extra = "added"
+        $result
+      }
+    output: {"v": {"base": true, "extra": "added"}}
+
+  - name: "path assign in if-expression both branches"
+    mapping: |
+      $flag = true
+      output.v = if $flag {
+        $data = {"branch": "then"}
+        $data.tag = "tagged"
+        $data
+      } else {
+        $data = {"branch": "else"}
+        $data.tag = "tagged"
+        $data
+      }
+    output: {"v": {"branch": "then", "tag": "tagged"}}
+
+  # --- Path assignment in lambda block body ---
+
+  - name: "path assign in map lambda block"
+    mapping: |
+      output.v = [1, 2, 3].map(x -> {
+        $item = {"val": x}
+        $item.doubled = x * 2
+        $item
+      })
+    output: {"v": [{"val": 1, "doubled": 2}, {"val": 2, "doubled": 4}, {"val": 3, "doubled": 6}]}
+
+  - name: "path assign with dynamic key in map lambda"
+    mapping: |
+      $keys = ["a", "b", "c"]
+      output.v = [0, 1, 2].map(i -> {
+        $obj = {}
+        $obj[$keys[i]] = i * 10
+        $obj
+      })
+    output: {"v": [{"a": 0}, {"b": 10}, {"c": 20}]}
+
+  - name: "path assign in fold accumulator"
+    mapping: |
+      output.v = ["x", "y", "z"].fold({}, (acc, key) -> {
+        $a = acc
+        $a[key] = true
+        $a
+      })
+    output: {"v": {"x": true, "y": true, "z": true}}
+
+  - name: "path assign in fold with index tracking"
+    mapping: |
+      output.v = ["a", "b", "c"].enumerate().fold({}, (acc, e) -> {
+        $a = acc
+        $a[e.value] = e.index
+        $a
+      })
+    output: {"v": {"a": 0, "b": 1, "c": 2}}
+
+  # --- Nested path assignments across lambda + if ---
+
+  - name: "path assign via statement if inside lambda"
+    mapping: |
+      output.v = [1, -2, 3, -4].map(x -> {
+        $item = {"value": x}
+        $item.sign = if x > 0 { "positive" } else { "negative" }
+        $item
+      })
+    output:
+      v:
+        - value: 1
+          sign: "positive"
+        - value: -2
+          sign: "negative"
+        - value: 3
+          sign: "positive"
+        - value: -4
+          sign: "negative"
+
+  - name: "path assign in nested lambdas"
+    mapping: |
+      output.v = [[1, 2], [3, 4]].map(row -> {
+        $result = {"items": []}
+        $result.items = row.map(x -> x * 10)
+        $result
+      })
+    output: {"v": [{"items": [10, 20]}, {"items": [30, 40]}]}
+
+  # --- Multiple path assigns in lambda block ---
+
+  - name: "multiple path assigns in lambda block accumulate"
+    mapping: |
+      output.v = [1].map(x -> {
+        $obj = {}
+        $obj.a = 1
+        $obj.b = 2
+        $obj.c = 3
+        $obj
+      })
+    output: {"v": [{"a": 1, "b": 2, "c": 3}]}
+
+  - name: "path assign to array index in lambda block"
+    mapping: |
+      output.v = [1].map(x -> {
+        $arr = [0, 0, 0]
+        $arr[0] = 10
+        $arr[1] = 20
+        $arr[2] = 30
+        $arr
+      })
+    output: {"v": [[10, 20, 30]]}
+
+  - name: "path assign then read modified field in lambda"
+    mapping: |
+      output.v = [1].map(x -> {
+        $data = {"count": 0}
+        $data.count = 5
+        $data.count + 10
+      })
+    output: {"v": [15]}

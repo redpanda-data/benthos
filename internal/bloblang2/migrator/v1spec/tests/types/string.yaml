@@ -1,0 +1,306 @@
+description: "String literals, escape sequences, raw strings, and codepoint semantics"
+
+tests:
+  # --- Basic string literals ---
+
+  - name: "empty string literal"
+    mapping: |
+      root = ""
+    output: ""
+
+  - name: "simple string literal"
+    mapping: |
+      root = "hello world"
+    output: "hello world"
+
+  - name: "string type introspection"
+    mapping: |
+      root = "hello".type()
+    output: "string"
+
+  # --- Escape sequences ---
+
+  - name: "escape newline"
+    mapping: |
+      root = "line1\nline2"
+    output: "line1\nline2"
+
+  - name: "escape tab"
+    mapping: |
+      root = "col1\tcol2"
+    output: "col1\tcol2"
+
+  - name: "escape carriage return"
+    mapping: |
+      root = "hello\rworld"
+    output: "hello\rworld"
+
+  - name: "escape double quote"
+    mapping: |
+      root = "say \"hello\""
+    output: "say \"hello\""
+
+  - name: "escape backslash"
+    mapping: |
+      root = "back\\slash"
+    output: "back\\slash"
+
+  - name: "unicode escape 4 digit BMP"
+    mapping: |
+      root = "A"
+    output: "A"
+
+  - name: "unicode escape 4 digit non-ascii"
+    mapping: |
+      root = "é"
+    output: "é"
+
+  - name: "unicode escape braced single digit"
+    mapping: |
+      root = "\u{41}"
+    # V1 strconv.Unquote does not accept \u{...} brace form
+    skip: "V1 string escape does not support \\u{...} brace form (only \\uXXXX)"
+
+  - name: "unicode escape braced emoji"
+    mapping: |
+      root = "\u{1F600}"
+    skip: "V1 string escape does not support \\u{...} brace form (only \\uXXXX)"
+
+  - name: "multiple escapes in one string"
+    mapping: |
+      root = "a\tb\nc\\d\"e"
+    output: "a\tb\nc\\d\"e"
+
+  # --- Raw strings ---
+
+  - name: "raw string basic"
+    mapping: "root = \"\"\"hello world\"\"\""
+    # V1 uses triple-double-quotes for raw strings, not backticks
+    output: "hello world"
+
+  - name: "raw string no escape processing"
+    mapping: "root = \"\"\"no\\nescape\\there\"\"\""
+    output: "no\\nescape\\there"
+
+  - name: "raw string preserves quotes"
+    mapping: "root = \"\"\"she said \"hello\"\"\"\""
+    # FIXME-v1: triple-quoted cannot contain `"""` ; this is a lexing ambiguity edge case
+    skip: "V1 triple-quoted raw strings cannot contain the closing triple-quote sequence"
+
+  - name: "raw string preserves backslashes"
+    mapping: "root = \"\"\"C:\\path\\to\\file\"\"\""
+    output: "C:\\path\\to\\file"
+
+  - name: "raw string with newlines preserved"
+    mapping: "root = \"\"\"line1\nline2\"\"\""
+    output: "line1\nline2"
+
+  # --- String length (codepoint-based in V2, byte-based in V1) ---
+
+  - name: "length of ascii string"
+    mapping: |
+      root = "hello".length()
+    output: 5
+
+  - name: "length of empty string"
+    mapping: |
+      root = "".length()
+    output: 0
+
+  - name: "length of string with non-ascii"
+    mapping: |
+      root = "café".length()
+    # V1 .length() on a string returns byte length, not codepoint count
+    output: 5
+
+  - name: "length of single codepoint emoji"
+    mapping: |
+      root = "\u{1F600}".length()
+    skip: "V1 string escape does not support \\u{...} brace form"
+
+  - name: "length of multi-codepoint emoji"
+    mapping: |
+      root = "\u{1F44B}\u{1F3FD}".length()
+    skip: "V1 string escape does not support \\u{...} brace form"
+
+  # --- String indexing (codepoint-based in V2, returns int64) ---
+
+  - name: "index first codepoint"
+    mapping: |
+      root = "hello".index(0)
+    # FIXME-v1: verify — V1 .index() on strings may not exist; strings are not arrays
+    skip: "V1 has no codepoint indexing on strings via .index() (only on arrays/bytes)"
+
+  - name: "index last codepoint positive"
+    mapping: |
+      root = "hello".index(4)
+    skip: "V1 has no codepoint indexing on strings via .index()"
+
+  - name: "index negative last codepoint"
+    mapping: |
+      root = "hello".index(-1)
+    skip: "V1 has no codepoint indexing on strings via .index()"
+
+  - name: "index negative second to last"
+    mapping: |
+      root = "hello".index(-2)
+    skip: "V1 has no codepoint indexing on strings via .index()"
+
+  - name: "index non-ascii codepoint"
+    mapping: |
+      root = "café".index(3)
+    skip: "V1 has no codepoint indexing on strings via .index()"
+
+  - name: "index emoji codepoint"
+    mapping: |
+      root = "\u{1F600}".index(0)
+    skip: "V1 has no codepoint indexing on strings; brace-form escape also unsupported"
+
+  - name: "index out of bounds positive"
+    mapping: |
+      root = "hello".index(5)
+    skip: "V1 has no codepoint indexing on strings"
+
+  - name: "index out of bounds negative"
+    mapping: |
+      root = "hello".index(-6)
+    skip: "V1 has no codepoint indexing on strings"
+
+  # --- Codepoint round-trip with .char() ---
+
+  - name: "char round trip ascii"
+    mapping: |
+      root = "hello".index(0).char()
+    skip: "V1 has no .char() method"
+
+  - name: "char round trip non-ascii"
+    mapping: |
+      root = "café".index(3).char()
+    skip: "V1 has no .char() method"
+
+  # --- String concatenation ---
+
+  - name: "string concatenation"
+    mapping: |
+      root = "hello" + " " + "world"
+    output: "hello world"
+
+  - name: "string concat with empty"
+    mapping: |
+      root = "" + "hello" + ""
+    output: "hello"
+
+  - name: "string plus number is error"
+    # V1 literal-operand `+` type checks at compile time.
+    mapping: |
+      root = "hello" + 5
+    compile_error: "cannot add"
+
+  # --- String comparison ---
+
+  - name: "string equality same"
+    mapping: |
+      root = "abc" == "abc"
+    output: true
+
+  - name: "string equality different"
+    mapping: |
+      root = "abc" == "abd"
+    output: false
+
+  - name: "string less than lexicographic"
+    mapping: |
+      root = "abc" < "abd"
+    output: true
+
+  - name: "string greater than lexicographic"
+    mapping: |
+      root = "b" > "a"
+    output: true
+
+  - name: "string equality cross type is false"
+    mapping: |
+      root = "5" == 5
+    output: false
+
+  # --- No Unicode normalization ---
+
+  - name: "no normalization precomposed vs decomposed not equal"
+    mapping: |
+      root = "é" == "é"
+    output: false
+
+  - name: "no normalization different lengths"
+    mapping: |
+      root.precomposed = "é".length()
+      root.decomposed = "é".length()
+    # V1 .length() is byte-based: "é" → 2 bytes; "é" → 3 bytes
+    output:
+      precomposed: 2
+      decomposed: 3
+
+  # --- String slicing ---
+
+  - name: "string slice basic"
+    mapping: |
+      root = "hello world".slice(0, 5)
+    output: "hello"
+
+  - name: "string slice to end"
+    mapping: |
+      root = "hello world".slice(6)
+    output: "world"
+
+  - name: "string slice negative indices"
+    mapping: |
+      root = "hello world".slice(-5, -1)
+    # FIXME-v1: verify — V1 .slice() on strings supports negative indices
+    output: "worl"
+
+  - name: "string slice clamped"
+    mapping: |
+      root = "hello".slice(0, 100)
+    # FIXME-v1: verify — V1 .slice() may or may not clamp
+    output: "hello"
+
+  - name: "string slice empty result"
+    # V1 `.slice(low, high)` with `low >= high` is a compile-time error when both are literals.
+    mapping: |
+      root = "hello".slice(3, 1)
+    compile_error: "lower slice bound"
+
+  # --- String reverse ---
+
+  - name: "string reverse ascii"
+    mapping: |
+      root = "hello".reverse()
+    # FIXME-v1: V1 may not have .reverse() on strings (list only)
+    skip: "V1 .reverse() may not be available for strings; verify method registry"
+
+  - name: "string reverse empty"
+    mapping: |
+      root = "".reverse()
+    skip: "V1 .reverse() may not be available for strings; verify method registry"
+
+  # --- String contains and index_of ---
+
+  - name: "string contains true"
+    mapping: |
+      root = "hello world".contains("world")
+    output: true
+
+  - name: "string contains false"
+    mapping: |
+      root = "hello world".contains("xyz")
+    output: false
+
+  - name: "string index_of found"
+    mapping: |
+      root = "hello world".index_of("world")
+    output: 6
+
+  - name: "string index_of not found"
+    mapping: |
+      root = "hello world".index_of("xyz")
+    # FIXME-v1: verify — V1 .index_of may return null or -1
+    output: -1

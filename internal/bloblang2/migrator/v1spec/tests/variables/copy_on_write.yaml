@@ -1,0 +1,203 @@
+description: "Copy-on-write semantics: independence from input, from output, between variables, nested mutation independence"
+
+tests:
+  # --- Independence from input ---
+
+  - name: "variable copy from input is independent"
+    skip: "V1 does not support variable path assignment ($data.name = ...); must re-bind via `let data = $data.merge(...)`"
+    input: {"user": {"name": "Alice", "age": 30}}
+    mapping: |
+      let data = this.user
+      let data = $data.merge({"name": "Bob"})
+      root.var_name = $data.name
+      root.input_name = this.user.name
+    output: {"var_name": "Bob", "input_name": "Alice"}
+
+  - name: "variable copy from input nested field is independent"
+    skip: "V1 does not support variable path assignment"
+    input: {"config": {"settings": {"theme": "dark", "lang": "en"}}}
+    mapping: |
+      let settings = this.config.settings
+      let settings = $settings.merge({"theme": "light"})
+      root.var_theme = $settings.theme
+      root.input_theme = this.config.settings.theme
+    output: {"var_theme": "light", "input_theme": "dark"}
+
+  - name: "variable copy from input array is independent"
+    skip: "V1 does not support variable path/index assignment; use .map_each with enumerated to rebuild"
+    input: {"items": [1, 2, 3]}
+    mapping: |
+      let arr = this.items
+      let arr = $arr.enumerated().map_each(e -> if e.index == 0 { 99 } else { e.value })
+      root.var_first = $arr.0
+      root.input_first = this.items.0
+    output: {"var_first": 99, "input_first": 1}
+
+  - name: "variable copy from entire input is independent"
+    skip: "V1 does not support variable path assignment"
+    input: {"a": 1, "b": 2}
+    mapping: |
+      let copy = this
+      let copy = $copy.merge({"a": 100})
+      root.var_a = $copy.a
+      root.input_a = this.a
+    output: {"var_a": 100, "input_a": 1}
+
+  # --- Independence from output ---
+
+  - name: "variable snapshot of output is independent from later output changes"
+    skip: "V1 `root` is not readable mid-mapping for snapshotting with COW semantics identical to V2; V1 reads `root` as the partial output but later path writes mutate it. Behaviour is not equivalent."
+    mapping: |
+      root.user.name = "Alice"
+      let snap = root.user
+      root.user.name = "Bob"
+      root.snap_name = $snap.name
+    output: {"user": {"name": "Bob"}, "snap_name": "Alice"}
+
+  - name: "mutating variable snapshot does not affect output"
+    skip: "V1 does not support variable path assignment"
+    mapping: |
+      root.data = {"x": 1, "y": 2}
+      let snap = root.data
+      let snap = $snap.merge({"x": 99})
+      root.snap_x = $snap.x
+      root.original_x = root.data.x
+    output: {"data": {"x": 1, "y": 2}, "snap_x": 99, "original_x": 1}
+
+  - name: "variable snapshot of output array is independent"
+    skip: "V1 does not support output index assignment like `root.items[0] = 99` with V2's COW guarantee alongside a variable snapshot"
+    mapping: |
+      root.items = [10, 20, 30]
+      let snap = root.items
+      root.items.0 = 99
+      root.snap_first = $snap.0
+    output: {"items": [99, 20, 30], "snap_first": 10}
+
+  # --- Independence between variables ---
+
+  - name: "copy between variables is independent"
+    skip: "V1 does not support variable path assignment"
+    mapping: |
+      let a = {"x": 1}
+      let b = $a
+      let b = $b.merge({"x": 2})
+      root.a = $a.x
+      root.b = $b.x
+    output: {"a": 1, "b": 2}
+
+  - name: "copy between variables reverse mutation"
+    skip: "V1 does not support variable path assignment"
+    mapping: |
+      let a = {"x": 1}
+      let b = $a
+      let a = $a.merge({"x": 99})
+      root.a = $a.x
+      root.b = $b.x
+    output: {"a": 99, "b": 1}
+
+  - name: "multiple copies from same source are independent"
+    skip: "V1 does not support variable path assignment"
+    mapping: |
+      let source = {"val": 0}
+      let copy1 = $source
+      let copy2 = $source
+      let copy1 = $copy1.merge({"val": 1})
+      let copy2 = $copy2.merge({"val": 2})
+      root.source = $source.val
+      root.c1 = $copy1.val
+      root.c2 = $copy2.val
+    output: {"source": 0, "c1": 1, "c2": 2}
+
+  - name: "chain of copies are all independent"
+    skip: "V1 does not support variable path assignment"
+    mapping: |
+      let a = {"v": "a"}
+      let b = $a
+      let b = $b.merge({"v": "b"})
+      let c = $b
+      let c = $c.merge({"v": "c"})
+      root.a = $a.v
+      root.b = $b.v
+      root.c = $c.v
+    output: {"a": "a", "b": "b", "c": "c"}
+
+  - name: "array copy between variables is independent"
+    skip: "V1 does not support variable index assignment"
+    mapping: |
+      let a = [1, 2, 3]
+      let b = $a
+      let b = $b.enumerated().map_each(e -> if e.index == 0 { 99 } else { e.value })
+      root.a = $a
+      root.b = $b
+    output: {"a": [1, 2, 3], "b": [99, 2, 3]}
+
+  # --- Nested mutation independence ---
+
+  - name: "nested object mutation independent from input"
+    skip: "V1 does not support nested variable path assignment"
+    input: {"record": {"address": {"city": "London", "zip": "SW1"}}}
+    mapping: |
+      let rec = this.record
+      let rec = $rec.merge({"address": $rec.address.merge({"city": "Paris"})})
+      root.var_city = $rec.address.city
+      root.input_city = this.record.address.city
+    output: {"var_city": "Paris", "input_city": "London"}
+
+  - name: "nested array mutation independent between variables"
+    skip: "V1 does not support nested variable path/index assignment"
+    mapping: |
+      let a = {"items": [1, 2, 3]}
+      let b = $a
+      let b = $b.merge({"items": $b.items.enumerated().map_each(e -> if e.index == 0 { 99 } else { e.value })})
+      root.a_first = $a.items.0
+      root.b_first = $b.items.0
+    output: {"a_first": 1, "b_first": 99}
+
+  - name: "deeply nested mutation independent between variables"
+    skip: "V1 does not support deeply nested variable path assignment"
+    mapping: |
+      let a = {"level1": {"level2": {"level3": "original"}}}
+      let b = $a
+      let b = $b.merge({"level1": $b.level1.merge({"level2": $b.level1.level2.merge({"level3": "modified"})})})
+      root.a_val = $a.level1.level2.level3
+      root.b_val = $b.level1.level2.level3
+    output: {"a_val": "original", "b_val": "modified"}
+
+  - name: "nested array in object mutation independent from output"
+    skip: "V1 does not support bracket-index assignment on output; path form `root.data.tags.0` can work but the V2 semantics of variable snapshot COW around output mutation does not translate cleanly"
+    mapping: |
+      root.data = {"tags": ["a", "b", "c"]}
+      let snap = root.data
+      root.data.tags.0 = "z"
+      root.snap_tag = $snap.tags.0
+    output: {"data": {"tags": ["z", "b", "c"]}, "snap_tag": "a"}
+
+  - name: "adding nested field to copy does not affect source"
+    skip: "V1 does not support nested variable path assignment"
+    mapping: |
+      let a = {"user": {"name": "Alice"}}
+      let b = $a
+      let b = $b.merge({"user": $b.user.merge({"email": "alice@example.com"})})
+      root.a_email = $a.user.email
+      root.b_email = $b.user.email
+    output: {"a_email": null, "b_email": "alice@example.com"}
+
+  - name: "deleting nested field in copy does not affect source"
+    skip: "V1 does not support variable path assignment (including deleted())"
+    mapping: |
+      let a = {"user": {"name": "Alice", "age": 30}}
+      let b = $a
+      let b = $b.merge({"user": $b.user.without("age")})
+      root.a = $a.user
+      root.b = $b.user
+    output: {"a": {"name": "Alice", "age": 30}, "b": {"name": "Alice"}}
+
+  # --- Independence with whole-document copies ---
+
+  - name: "output = input then mutate output leaves input unchanged"
+    input: {"name": "Alice", "score": 100}
+    mapping: |
+      root = this
+      root.name = "Bob"
+      root.original_name = this.name
+    output: {"name": "Bob", "score": 100, "original_name": "Alice"}

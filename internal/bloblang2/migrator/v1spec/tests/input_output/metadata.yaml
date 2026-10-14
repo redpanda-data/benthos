@@ -1,0 +1,215 @@
+description: "Metadata: read/write/delete metadata keys, clear all, copy from input, nested paths, type restrictions, input metadata access"
+
+tests:
+  # --- Write metadata ---
+
+  - name: "write single metadata key"
+    input: {}
+    mapping: |
+      meta source = "kafka"
+    output: {}
+    output_metadata: {"source": "kafka"}
+
+  - name: "write multiple metadata keys"
+    input: {}
+    mapping: |
+      meta source = "kafka"
+      meta topic = "events"
+      meta partition = 3
+    output: {}
+    output_metadata: {"source": "kafka", "topic": "events", "partition": 3}
+
+  - name: "metadata value can be any type"
+    input: {}
+    mapping: |
+      meta str = "hello"
+      meta num = 42
+      meta flag = true
+      meta arr = [1, 2, 3]
+      meta obj = {"nested": "value"}
+      meta nothing = null
+    output: {}
+    output_metadata: {"str": "hello", "num": 42, "flag": true, "arr": [1, 2, 3], "obj": {"nested": "value"}, "nothing": null}
+
+  - name: "overwrite metadata key"
+    input: {}
+    mapping: |
+      meta key = "first"
+      meta key = "second"
+    output: {}
+    output_metadata: {"key": "second"}
+
+  # --- Nested metadata paths with auto-creation ---
+
+  - name: "nested metadata path auto-creates intermediate objects"
+    # V1 `meta <key>` targets a single key (flat); it does not support dotted
+    # auto-creation. Express via an object value instead.
+    input: {}
+    mapping: |
+      meta routing = {"region": "us-west"}
+    output: {}
+    output_metadata: {"routing": {"region": "us-west"}}
+
+  - name: "deeply nested metadata path"
+    input: {}
+    mapping: |
+      meta a = {"b": {"c": "deep"}}
+    output: {}
+    output_metadata: {"a": {"b": {"c": "deep"}}}
+
+  - name: "sibling nested metadata paths"
+    # V1 cannot write sub-keys of a meta value piecewise; the whole object
+    # must be assigned in one statement.
+    input: {}
+    mapping: |
+      meta routing = {"region": "us-west", "zone": "a"}
+    output: {}
+    output_metadata: {"routing": {"region": "us-west", "zone": "a"}}
+
+  # --- Delete metadata key ---
+
+  - name: "delete metadata key with deleted()"
+    input: {}
+    mapping: |
+      meta keep = "yes"
+      meta remove = "no"
+      meta remove = deleted()
+    output: {}
+    output_metadata: {"keep": "yes"}
+
+  - name: "delete non-existent metadata key is no-op"
+    input: {}
+    mapping: |
+      meta key = "value"
+      meta missing = deleted()
+    output: {}
+    output_metadata: {"key": "value"}
+
+  # --- Clear all metadata ---
+
+  - name: "clear all metadata with empty object"
+    # V1: `meta = {}` replaces the whole metadata object.
+    input: {}
+    mapping: |
+      meta a = 1
+      meta b = 2
+      meta = {}
+    output: {}
+    output_metadata: {}
+
+  - name: "clear then set new metadata"
+    input: {}
+    mapping: |
+      meta old = "stale"
+      meta = {}
+      meta fresh = "new"
+    output: {}
+    output_metadata: {"fresh": "new"}
+
+  # --- Copy all metadata from input ---
+
+  - name: "copy all metadata from input"
+    input: {}
+    input_metadata: {"source": "kafka", "topic": "events"}
+    mapping: |
+      meta = @
+    output: {}
+    output_metadata: {"source": "kafka", "topic": "events"}
+
+  - name: "copy metadata from input then add more"
+    input: {}
+    input_metadata: {"source": "kafka"}
+    mapping: |
+      meta = @
+      meta extra = "added"
+    output: {}
+    output_metadata: {"source": "kafka", "extra": "added"}
+
+  - name: "copy metadata from input then overwrite key"
+    input: {}
+    input_metadata: {"source": "kafka"}
+    mapping: |
+      meta = @
+      meta source = "http"
+    output: {}
+    output_metadata: {"source": "http"}
+
+  - name: "copy metadata from input is COW"
+    # V1 does not implement COW between `@` (input metadata snapshot) and
+    # `meta` (output metadata). `@` reads from the *same* underlying metadata
+    # map that `meta` writes to, so after `meta key = "modified"` the read of
+    # `@key` reflects the mutation.
+    input: {}
+    input_metadata: {"key": "original"}
+    mapping: |
+      meta = @
+      meta key = "modified"
+      root.input_meta = @key
+    output: {"input_meta": "modified"}
+    output_metadata: {"key": "modified"}
+
+  # --- Type restrictions ---
+
+  - name: "output@ = deleted() is error"
+    # V1: `meta = deleted()` clears all metadata; it is NOT an error.
+    input: {}
+    mapping: |
+      meta = deleted()
+    output: {}
+    output_metadata: {}
+
+  - name: "output@ = string is error"
+    # V1: setting root meta to a non-object type errors with
+    # "setting root meta object requires object value".
+    mapping: |
+      meta = "not an object"
+    error: "object value"
+
+  - name: "output@ = integer is error"
+    mapping: |
+      meta = 42
+    error: "object value"
+
+  - name: "output@ = array is error"
+    mapping: |
+      meta = [1, 2, 3]
+    error: "object value"
+
+  - name: "output@ = boolean is error"
+    mapping: |
+      meta = true
+    error: "object value"
+
+  # --- Read input metadata ---
+
+  - name: "read input metadata key"
+    input: {}
+    input_metadata: {"source": "kafka"}
+    mapping: |
+      root.v = @source
+    output: {"v": "kafka"}
+    output_metadata: {"source": "kafka"}
+
+  - name: "read all input metadata"
+    input: {}
+    input_metadata: {"a": 1, "b": 2}
+    mapping: |
+      root.v = @
+    output: {"v": {"a": 1, "b": 2}}
+    output_metadata: {"a": 1, "b": 2}
+
+  - name: "undefined input metadata key returns null"
+    input: {}
+    input_metadata: {}
+    mapping: |
+      root.v = @missing
+    output: {"v": null}
+    output_metadata: {}
+
+  - name: "read nested input metadata value"
+    input: {}
+    input_metadata: {"config": {"timeout": 30}}
+    mapping: |
+      root.v = @config.timeout
+    output: {"v": 30}
+    output_metadata: {"config": {"timeout": 30}}

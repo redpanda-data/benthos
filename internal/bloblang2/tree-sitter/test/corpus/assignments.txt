@@ -1,0 +1,126 @@
+==================
+Simple output assignment
+==================
+
+output = input
+
+---
+
+(source_file
+  (assignment
+    (assign_target)
+    (input)))
+
+==================
+Output path assignment
+==================
+
+output.user.name = input.name
+
+---
+
+(source_file
+  (assignment
+    (assign_target
+      (target_path_segment
+        (identifier))
+      (target_path_segment
+        (identifier)))
+    (field_access
+      receiver: (input)
+      field: (identifier))))
+
+==================
+Output metadata assignment
+==================
+
+output@ = input
+
+---
+
+(source_file
+  (assignment
+    (assign_target
+      (metadata_access))
+    (input)))
+
+==================
+Output metadata path assignment
+==================
+
+output@.key = "value"
+
+---
+
+(source_file
+  (assignment
+    (assign_target
+      (metadata_access)
+      (target_path_segment
+        (identifier)))
+    (string
+      (string_content))))
+
+==================
+Variable assignment
+==================
+
+$temp = input.value
+
+---
+
+(source_file
+  (assignment
+    (assign_target
+      (variable))
+    (field_access
+      receiver: (input)
+      field: (identifier))))
+
+==================
+Variable path assignment
+==================
+
+$data.items[0].name = "test"
+
+---
+
+(source_file
+  (assignment
+    (assign_target
+      (variable)
+      (target_path_segment
+        (identifier))
+      (target_path_segment
+        (integer))
+      (target_path_segment
+        (identifier)))
+    (string
+      (string_content))))
+
+==================
+Multiple assignments
+==================
+
+output.a = 1
+output.b = 2
+output.c = 3
+
+---
+
+(source_file
+  (assignment
+    (assign_target
+      (target_path_segment
+        (identifier)))
+    (integer))
+  (assignment
+    (assign_target
+      (target_path_segment
+        (identifier)))
+    (integer))
+  (assignment
+    (assign_target
+      (target_path_segment
+        (identifier)))
+    (integer)))

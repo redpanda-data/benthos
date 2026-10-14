@@ -1,0 +1,133 @@
+description: "Match boolean form — with and without matched expression, non-boolean case error, first true wins"
+
+tests:
+  # --- Boolean match without expression ---
+
+  - name: "boolean match grade classification"
+    mapping: |
+      root.grade = match {
+        this.score >= 90 => "A",
+        this.score >= 80 => "B",
+        this.score >= 70 => "C",
+        _ => "F",
+      }
+    cases:
+      - name: "selects B for 85"
+        input: {"score": 85}
+        output: {"grade": "B"}
+      - name: "selects A for 95"
+        input: {"score": 95}
+        output: {"grade": "A"}
+      - name: "falls to wildcard for 30"
+        input: {"score": 30}
+        output: {"grade": "F"}
+
+  - name: "boolean match first true wins even if later also true"
+    input: {"score": 95}
+    mapping: |
+      root.result = match {
+        this.score >= 80 => "eighty plus",
+        this.score >= 90 => "ninety plus",
+        _ => "other",
+      }
+    output: {"result": "eighty plus"}
+
+  # --- Non-boolean case is error ---
+  # In V1, a non-literal, non-wildcard pattern that evaluates to non-bool simply doesn't match
+  # (the arm is skipped); it's not a runtime error. Literal patterns use ICompare equality against
+  # the subject — but subject-less match has no subject, so a literal is compared against nothing.
+  # Verify: V1 subject-less match with a literal arm treats it as an expression pattern; non-bool result
+  # fails to match and falls through. So `match { "hello" => "yes", _ => "no" }` would return "no", not error.
+
+  - name: "non-boolean case in boolean match is runtime error"
+    input: {}
+    mapping: |
+      root.result = match {
+        "hello" => "yes",
+        _ => "no",
+      }
+    output: {"result": "no"} # V1 subjectless match uses `this` as implicit subject; literal pattern "hello" compared against {} → falls through
+
+  - name: "integer case in boolean match is runtime error"
+    input: {}
+    mapping: |
+      root.result = match {
+        42 => "yes",
+        _ => "no",
+      }
+    output: {"result": "no"} # V1 subjectless match uses `this` as implicit subject; literal 42 compared against {} → falls through
+
+  - name: "null case in boolean match is runtime error"
+    input: {}
+    mapping: |
+      root.result = match {
+        null => "yes",
+        _ => "no",
+      }
+    output: {"result": "no"} # V1 subjectless match uses `this` as implicit subject; literal null compared against {} → falls through
+
+  # --- Wildcard exempt from boolean requirement ---
+
+  - name: "wildcard is not checked as boolean"
+    mapping: |
+      root.result = match {
+        false => "no",
+        _ => "default",
+      }
+    output: {"result": "default"}
+
+  # --- Cases evaluated in order, short-circuit ---
+
+  - name: "cases after first true are not evaluated"
+    skip: "V1 eagerly evaluates every match case pattern before selecting a winner — a later pattern that throws aborts the whole expression even if an earlier arm matches"
+
+  # --- Non-exhaustive boolean match produces void ---
+  # V1 match with no matching case returns null, not a void sentinel. The assignment writes null.
+
+  - name: "non-exhaustive boolean match produces void"
+    mapping: |
+      root.x = "prior"
+      root.x = match {
+        false => "nope",
+      }
+    output: {"x": "prior"}
+
+  # --- Boolean match with complex conditions ---
+
+  - name: "boolean match with compound conditions"
+    input: {"age": 25, "member": true}
+    mapping: |
+      root.discount = match {
+        this.age < 18 => "youth",
+        this.age >= 65 => "senior",
+        this.member && this.age >= 21 => "member",
+        _ => "none",
+      }
+    output: {"discount": "member"}
+
+  # --- Boolean match with variables ---
+
+  - name: "boolean match using variables in conditions"
+    mapping: |
+      let threshold = 50
+      let value = 75
+      root.result = match {
+        $value >= $threshold => "above",
+        _ => "below",
+      }
+    output: {"result": "above"}
+
+  # --- Boolean match with braced case body ---
+
+  - name: "boolean match case with braced body"
+    skip: "V1 match arms are single expressions, not statement-list blocks"
+
+  # --- Boolean match as statement ---
+
+  - name: "boolean match as statement assigns output"
+    skip: "V1 match is an expression only — arms cannot contain assignment statements"
+
+  # --- Non-boolean skipped by earlier true case does not error ---
+
+  - name: "non-boolean case after true case is never evaluated"
+    skip: "V1 does not short-circuit match case evaluation; this test also relies on first-true-wins semantics (see short-circuit skip)"

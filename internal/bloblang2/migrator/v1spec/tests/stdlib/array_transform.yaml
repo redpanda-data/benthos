@@ -1,0 +1,273 @@
+description: "Array transform methods — filter, map, sort, sort_by, flatten, unique, enumerate"
+
+tests:
+  # --- filter ---
+
+  - name: "filter keeps matching elements"
+    mapping: |
+      root.result = [1, 2, 3, 4, 5].filter(x -> x > 3)
+    output: {"result": [4, 5]}
+
+  - name: "filter with no matches returns empty array"
+    mapping: |
+      root.result = [1, 2, 3].filter(x -> x > 100)
+    output: {"result": []}
+
+  - name: "filter on empty array returns empty array"
+    mapping: |
+      root.result = [].filter(x -> x > 0)
+    output: {"result": []}
+
+  - name: "filter keeps all when all match"
+    mapping: |
+      root.result = [10, 20, 30].filter(x -> x > 0)
+    output: {"result": [10, 20, 30]}
+
+  - name: "filter preserves original element types"
+    mapping: |
+      root.result = ["apple", "banana", "avocado"].filter(s -> s.has_prefix("a"))
+    output: {"result": ["apple", "avocado"]}
+
+  - name: "filter non-bool return is error"
+    mapping: |
+      root.result = [1, 2, 3].filter(x -> x * 2)
+    output: {"result": []}
+
+  - name: "filter void return is error"
+    skip: "V1 has no 'void' concept; if-without-else returns null, which is non-true so filter excludes"
+
+  - name: "filter does not modify original array"
+    mapping: |
+      let arr = [1, 2, 3, 4]
+      let filtered = $arr.filter(x -> x > 2)
+      root.original = $arr
+      root.filtered = $filtered
+    output: {"original": [1, 2, 3, 4], "filtered": [3, 4]}
+
+  # --- map (V2's map on arrays = V1's map_each) ---
+
+  - name: "map doubles each element"
+    mapping: |
+      root.result = [1, 2, 3].map_each(x -> x * 2)
+    output: {"result": [2, 4, 6]}
+
+  - name: "map on empty array returns empty array"
+    mapping: |
+      root.result = [].map_each(x -> x + 1)
+    output: {"result": []}
+
+  - name: "map can change element types"
+    mapping: |
+      root.result = [1, 2, 3].map_each(x -> x.string())
+    output: {"result": ["1", "2", "3"]}
+
+  - name: "map deleted omits element"
+    mapping: |
+      root.result = [1, 2, 3, 4].map_each(x -> if x % 2 == 0 { x * 10 } else { deleted() })
+    output: {"result": [20, 40]}
+
+  - name: "map void return is error"
+    skip: "V1 has no 'void' concept; if-without-else returns null"
+
+  - name: "map does not modify original array"
+    mapping: |
+      let arr = [1, 2, 3]
+      let mapped = $arr.map_each(x -> x + 10)
+      root.original = $arr
+      root.mapped = $mapped
+    output: {"original": [1, 2, 3], "mapped": [11, 12, 13]}
+
+  - name: "map with block body"
+    skip: "V1 lambdas do not support block-with-let syntax"
+
+  # --- sort ---
+
+  - name: "sort integers ascending"
+    mapping: |
+      root.result = [3, 1, 4, 1, 5].sort()
+    output: {"result": [1, 1, 3, 4, 5]}
+
+  - name: "sort empty array"
+    mapping: |
+      root.result = [].sort()
+    output: {"result": []}
+
+  - name: "sort single element"
+    mapping: |
+      root.result = [42].sort()
+    output: {"result": [42]}
+
+  - name: "sort strings lexicographic"
+    mapping: |
+      root.result = ["banana", "apple", "cherry"].sort()
+    output: {"result": ["apple", "banana", "cherry"]}
+
+  - name: "sort floats ascending"
+    mapping: |
+      root.result = [3.14, 1.0, 2.71].sort()
+    output: {"result": [1.0, 2.71, 3.14]}
+
+  - name: "sort numeric promotion int and float"
+    mapping: |
+      root.result = [3, 1.5, 2].sort()
+    output: {"result": [1.5, 2, 3]}
+
+  - name: "sort is stable"
+    mapping: |
+      let items = [{"k": "a", "v": 2}, {"k": "b", "v": 1}, {"k": "c", "v": 2}]
+      root.result = $items.sort_by(x -> x.v).map_each(x -> x.k)
+    output: {"result": ["b", "a", "c"]}
+
+  - name: "sort cross-family is error"
+    mapping: |
+      root.result = [1, "two", 3].sort()
+    error: "sort"
+
+  - name: "sort booleans is error"
+    mapping: |
+      root.result = [true, false, true].sort()
+    error: "sort"
+
+  - name: "sort nulls is error"
+    mapping: |
+      root.result = [null, null].sort()
+    error: "sort"
+
+  - name: "sort single boolean is error"
+    mapping: |
+      root.result = [true].sort()
+    output: {"result": [true]}
+
+  - name: "sort single null is error"
+    mapping: |
+      root.result = [null].sort()
+    output: {"result": [null]}
+
+  - name: "sort single object is error"
+    mapping: |
+      root.result = [{"a": 1}].sort()
+    output: {"result": [{"a": 1}]}
+
+  - name: "sort int64 above 2^53 mixed with float is error"
+    skip: "V1 sort does not check exact integer representation"
+
+  - name: "sort NaN sorts after all values"
+    skip: "V2-only _type NaN literal shorthand; V1 has no NaN literal"
+
+  # --- sort_by ---
+
+  - name: "sort_by with key function"
+    mapping: |
+      let items = [{"name": "Charlie"}, {"name": "Alice"}, {"name": "Bob"}]
+      root.result = $items.sort_by(x -> x.name)
+    output: {"result": [{"name": "Alice"}, {"name": "Bob"}, {"name": "Charlie"}]}
+
+  - name: "sort_by numeric key"
+    mapping: |
+      let items = [{"score": 80}, {"score": 95}, {"score": 70}]
+      root.result = $items.sort_by(x -> x.score)
+    output: {"result": [{"score": 70}, {"score": 80}, {"score": 95}]}
+
+  - name: "sort_by empty array"
+    mapping: |
+      root.result = [].sort_by(x -> x)
+    output: {"result": []}
+
+  - name: "sort_by cross-family keys is error"
+    mapping: |
+      let items = [{"k": 1}, {"k": "two"}]
+      root.result = $items.sort_by(x -> x.k)
+    error: "sort"
+
+  # --- flatten ---
+
+  - name: "flatten nested arrays one level"
+    mapping: |
+      root.result = [[1, 2], [3, 4], [5]].flatten()
+    output: {"result": [1, 2, 3, 4, 5]}
+
+  - name: "flatten only one level deep"
+    mapping: |
+      root.result = [[[1, 2]], [[3]]].flatten()
+    output: {"result": [[1, 2], [3]]}
+
+  - name: "flatten non-arrays kept as-is"
+    mapping: |
+      root.result = [1, [2, 3], "hello", [4]].flatten()
+    output: {"result": [1, 2, 3, "hello", 4]}
+
+  - name: "flatten empty inner arrays spliced as zero elements"
+    mapping: |
+      root.result = [1, [], 2, [], 3].flatten()
+    output: {"result": [1, 2, 3]}
+
+  - name: "flatten empty array"
+    mapping: |
+      root.result = [].flatten()
+    output: {"result": []}
+
+  - name: "flatten array of empty arrays"
+    mapping: |
+      root.result = [[], [], []].flatten()
+    output: {"result": []}
+
+  - name: "flatten mixed types with nested arrays"
+    mapping: |
+      root.result = [null, [true, false], "abc"].flatten()
+    output: {"result": [null, true, false, "abc"]}
+
+  # --- unique ---
+
+  - name: "unique removes duplicates"
+    mapping: |
+      root.result = [1, 2, 2, 3, 1, 3].unique()
+    output: {"result": [1, 2, 3]}
+
+  - name: "unique keeps first occurrence"
+    mapping: |
+      root.result = [3, 1, 2, 1, 3].unique()
+    output: {"result": [3, 1, 2]}
+
+  - name: "unique on empty array"
+    mapping: |
+      root.result = [].unique()
+    output: {"result": []}
+
+  - name: "unique strings"
+    mapping: |
+      root.result = ["a", "b", "a", "c", "b"].unique()
+    output: {"result": ["a", "b", "c"]}
+
+  - name: "unique with key function"
+    mapping: |
+      let items = [{"id": 1, "v": "a"}, {"id": 2, "v": "b"}, {"id": 1, "v": "c"}]
+      root.result = $items.unique(x -> x.id)
+    output: {"result": [{"id": 1, "v": "a"}, {"id": 2, "v": "b"}]}
+
+  - name: "unique NaN values considered equal"
+    skip: "V2-only _type NaN literal shorthand; V1 has no NaN literal"
+
+  - name: "unique mixed types preserved"
+    skip: "V1 unique only accepts string/number arrays (bool/null elements error)"
+
+  # --- enumerate (V1: enumerated) ---
+
+  - name: "enumerate basic"
+    mapping: |
+      root.result = ["a", "b", "c"].enumerated()
+    output: {"result": [{"index": 0, "value": "a"}, {"index": 1, "value": "b"}, {"index": 2, "value": "c"}]}
+
+  - name: "enumerate empty array"
+    mapping: |
+      root.result = [].enumerated()
+    output: {"result": []}
+
+  - name: "enumerate single element"
+    mapping: |
+      root.result = [42].enumerated()
+    output: {"result": [{"index": 0, "value": 42}]}
+
+  - name: "enumerate preserves element types"
+    mapping: |
+      root.result = [true, null, 3.14].enumerated()
+    output: {"result": [{"index": 0, "value": true}, {"index": 1, "value": null}, {"index": 2, "value": 3.14}]}

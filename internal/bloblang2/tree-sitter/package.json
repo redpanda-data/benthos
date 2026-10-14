@@ -1,0 +1,13 @@
+{
+  "name": "tree-sitter-bloblang2",
+  "version": "0.1.0",
+  "main": "bindings/node",
+  "devDependencies": {
+    "tree-sitter-cli": "^0.24.0"
+  },
+  "scripts": {
+    "generate": "tree-sitter generate",
+    "test": "tree-sitter test",
+    "build-wasm": "tree-sitter build --wasm -o tree-sitter-bloblang2.wasm"
+  }
+}

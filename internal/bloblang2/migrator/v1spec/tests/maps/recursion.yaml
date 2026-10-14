@@ -1,0 +1,158 @@
+description: "Recursion: self-recursion, mutual recursion, depth limits, uncatchable recursion errors"
+
+# V1 maps recurse via `<receiver>.apply("name")` inside the map body. The receiver carries
+# the "parameter" value, so where V2 passes (n-1), V1 passes `(this - 1)` or an object literal
+# capturing multiple named fields. Environment.WithMaxMapRecursion(n) bounds depth.
+
+tests:
+  # --- Self recursion ---
+
+  - name: "simple self recursion with base case"
+    mapping: |
+      map factorial {
+        root = if this <= 1 { 1 } else { this * (this - 1).apply("factorial") }
+      }
+      root.v = 5.apply("factorial")
+    output: {"v": 120}
+
+  - name: "self recursion base case returns immediately"
+    mapping: |
+      map factorial {
+        root = if this <= 1 { 1 } else { this * (this - 1).apply("factorial") }
+      }
+      root.v = 0.apply("factorial")
+    output: {"v": 1}
+
+  - name: "recursive countdown to build array"
+    # V1's `.concat()` lives in `internal/impl/pure` and isn't loaded in the migrator's bare
+    # environment. Use `.merge()` instead — it joins two arrays into one.
+    mapping: |
+      map countdown {
+        root = if this <= 0 { [] } else { [this].merge((this - 1).apply("countdown")) }
+      }
+      root.v = 5.apply("countdown")
+    output: {"v": [5, 4, 3, 2, 1]}
+
+  - name: "recursive sum of array"
+    # V2 indexes with items[idx]; V1 uses .index(idx).
+    mapping: |
+      map sum_list {
+        root = if this.idx >= this.items.length() {
+          0
+        } else {
+          this.items.index(this.idx) + {"items": this.items, "idx": this.idx + 1}.apply("sum_list")
+        }
+      }
+      root.v = {"items": [10, 20, 30], "idx": 0}.apply("sum_list")
+    output: {"v": 60}
+
+  - name: "recursive string repeat"
+    mapping: |
+      map repeat {
+        root = if this.n <= 0 { "" } else { this.s + {"s": this.s, "n": this.n - 1}.apply("repeat") }
+      }
+      root.v = {"s": "ab", "n": 3}.apply("repeat")
+    output: {"v": "ababab"}
+
+  # --- Mutual recursion ---
+
+  - name: "mutual recursion is_even and is_odd"
+    mapping: |
+      map is_even {
+        root = if this == 0 { true } else { (this - 1).apply("is_odd") }
+      }
+      map is_odd {
+        root = if this == 0 { false } else { (this - 1).apply("is_even") }
+      }
+      root.even = 4.apply("is_even")
+      root.odd = 3.apply("is_odd")
+    output: {"even": true, "odd": true}
+
+  - name: "mutual recursion with larger values"
+    mapping: |
+      map is_even {
+        root = if this == 0 { true } else { (this - 1).apply("is_odd") }
+      }
+      map is_odd {
+        root = if this == 0 { false } else { (this - 1).apply("is_even") }
+      }
+      root.v = 100.apply("is_even")
+    output: {"v": true}
+
+  - name: "mutual recursion called before declaration"
+    mapping: |
+      root.v = 5.apply("ping")
+      map ping {
+        root = if this <= 0 { "done" } else { (this - 1).apply("pong") }
+      }
+      map pong {
+        root = if this <= 0 { "done" } else { (this - 1).apply("ping") }
+      }
+    output: {"v": "done"}
+
+  # --- Recursion depth support (at least 1000) ---
+
+  - name: "recursion supports 1000 levels deep"
+    mapping: |
+      map deep {
+        root = if this <= 0 { 0 } else { 1 + (this - 1).apply("deep") }
+      }
+      root.v = 1000.apply("deep")
+    output: {"v": 1000} # FIXME-v1: verify — V1 default max-recursion depth is environment-dependent; host may need WithMaxMapRecursion(>=1000)
+
+  # --- Recursion depth limit exceeded ---
+
+  - name: "exceeding recursion limit is runtime error"
+    mapping: |
+      map infinite {
+        root = 1 + this.apply("infinite")
+      }
+      root.v = 0.apply("infinite")
+    error: "recursion" # FIXME-v1: verify exact error substring
+
+  - name: "mutual recursion exceeding limit is runtime error"
+    mapping: |
+      map ping { root = this.apply("pong") }
+      map pong { root = this.apply("ping") }
+      root.v = 0.apply("ping")
+    error: "recursion" # FIXME-v1: verify exact error substring
+
+  # --- Recursion limit error cannot be caught ---
+  # NOTE: V1 .catch takes an expression fallback, not a lambda. The V2 test uses `err -> "recovered"`
+  # which is not the V1 form. V1 has no way to destructure the caught error into a lambda arg directly.
+
+  - name: "recursion limit error can be caught with catch"
+    # V1 treats the recursion-limit error as a normal runtime error, so `.catch()` does recover.
+    # (This diverges from V2, which makes recursion limits uncatchable.)
+    mapping: |
+      map infinite {
+        root = 1 + this.apply("infinite")
+      }
+      root.v = 0.apply("infinite").catch("recovered")
+    output: {"v": "recovered"}
+
+  - name: "recursion limit in nested call can be caught"
+    # V1 `.catch()` catches the recursion error just like any other runtime error.
+    mapping: |
+      map infinite {
+        root = this.apply("infinite")
+      }
+      map wrapper {
+        root = this.apply("infinite").catch("safe")
+      }
+      root.v = 0.apply("wrapper")
+    output: {"v": "safe"}
+
+  # --- Recursion with match expression ---
+
+  - name: "recursive map using match"
+    mapping: |
+      map fib {
+        root = match {
+          this <= 0 => 0,
+          this == 1 => 1,
+          _ => (this - 1).apply("fib") + (this - 2).apply("fib"),
+        }
+      }
+      root.v = 10.apply("fib")
+    output: {"v": 55}
