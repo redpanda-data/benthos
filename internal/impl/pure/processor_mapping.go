@@ -33,10 +33,12 @@ Note: This processor is equivalent to the xref:components:processors/bloblang.ad
 
 Mapping operates by creating an entirely new object during assignments, this has the advantage of treating the original referenced document as immutable and therefore queryable at any stage of your mapping. For example, with the following mapping:
 
-`+"```coffeescript"+`
+`+"```bloblang"+`
 root.id = this.id
 root.invitees = this.invitees.filter(i -> i.mood >= 0.5)
 root.rejected = this.invitees.filter(i -> i.mood < 0.5)
+
+# In: {"id":"party-2024","invitees":[{"name":"Alice","mood":0.8},{"name":"Bob","mood":0.3},{"name":"Carol","mood":0.9}]}
 `+"```"+`
 
 Notice that we mutate the value of `+"`invitees`"+` in the resulting document by filtering out objects with a lower mood. However, even after doing so we're still able to reference the unchanged original contents of this value from the input document in order to populate a second field. Within this mapping we also have the flexibility to reference the mutable mapped document by using the keyword `+"`root` (i.e. `root.invitees`)"+` on the right-hand side instead.
