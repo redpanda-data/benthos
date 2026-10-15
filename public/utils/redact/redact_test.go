@@ -23,51 +23,72 @@ const secret = "S3cretPass"
 // variable so that linters do not reject the deliberately invalid URL.
 var badHostURL = "amqp://admin:" + secret + "@bad host"
 
-func TestURL(t *testing.T) {
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"no credentials", "amqp://127.0.0.1:5672/", "amqp://127.0.0.1:5672/"},
-		{"username only", "amqp://guest@127.0.0.1:5672/", "amqp://guest@127.0.0.1:5672/"},
-		{"userinfo password", "amqp://guest:" + secret + "@127.0.0.1:5672/", "amqp://guest:xxxxx@127.0.0.1:5672/"},
-		{"empty password", "redis://:" + secret + "@localhost:6379", "redis://:xxxxx@localhost:6379"},
-		{"query password", "tcp://host:9000?username=u&password=" + secret + "&database=db", "tcp://host:9000?username=xxxxx&password=xxxxx&database=xxxxx"},
-		{"query token", "https://host/path?access_token=" + secret, "https://host/path?access_token=xxxxx"},
-		{"sas signature", "https://acct.blob.core.windows.net/c?sv=2020&sig=" + secret, "https://acct.blob.core.windows.net/c?sv=xxxxx&sig=xxxxx"},
-		{"influxdb password parameter", "http://host:8086/write?db=x&u=user&p=" + secret, "http://host:8086/write?db=xxxxx&u=xxxxx&p=xxxxx"},
-		{"every query value redacted in order", "https://host/path?b=2&a=1", "https://host/path?b=xxxxx&a=xxxxx"},
-		{"unknown credential key", "https://host/path?pw=" + secret, "https://host/path?pw=xxxxx"},
-		{"bare query token", "https://host/hook?" + secret, "https://host/hook?xxxxx"},
-		{"fragment", "https://host/cb#access_token=" + secret, "https://host/cb#xxxxx"},
-		{"unparseable with query", "amqp://u@bad host:5672?pw=" + secret, "amqp://xxxxx"},
-		{"libpq question mark in value", "host=h password='a?" + secret + "' dbname=db", "host=xxxxx password=xxxxx dbname=xxxxx"},
-		{"ado question mark in value", "Server=h;Password=ab?" + secret + ";Database=d", "Server=xxxxx;Password=xxxxx;Database=xxxxx"},
-		{"odbc brace quoted value", "Server=h;Password={SEC;" + secret + "}};x};Database=d", "Server=xxxxx;Password=xxxxx;Database=xxxxx"},
-		{"mysql query value with at sign", "user:" + secret + "@tcp(db:3306)/app?tls=@" + secret, "user:xxxxx@xxxxx"},
-		{"mysql password with space", "user:SEC " + secret + "@tcp(h:3306)/db", "user:xxxxx@tcp(h:3306)/db"},
-		{"bad host", "amqp://admin:" + secret + "@bad host:5672", "amqp://xxxxx"},
-		{"control character", "mongodb://admin:" + secret + "@host:27017/db\x7f", "mongodb://xxxxx"},
-		{"password containing at sign", "amqp://admin:p@ss" + secret + "@host:5672", "amqp://admin:xxxxx@host:5672"},
-		{"mysql dsn", "root:" + secret + "@tcp(localhost:3306)/db?parseTime=true", "root:xxxxx@tcp(localhost:3306)/db?parseTime=xxxxx"},
-		{"libpq keyword dsn", "host=localhost user=u password=" + secret + " dbname=db", "host=xxxxx user=xxxxx password=xxxxx dbname=xxxxx"},
-		{"libpq spaces around equals", "host = h password = " + secret, "host = xxxxx password = xxxxx"},
-		{"libpq quoted password", "host=localhost password='" + secret + " x' dbname=db", "host=xxxxx password=xxxxx dbname=xxxxx"},
-		{"ado connection string", "Server=h;User Id=u;Password=" + secret + ";Database=db", "Server=xxxxx;User Id=xxxxx;Password=xxxxx;Database=xxxxx"},
-		{"url list", "amqp://u:" + secret + "@h1:5672,amqp://u:" + secret + "2@h2:5672", "amqp://u:xxxxx@h1:5672,amqp://u:xxxxx@h2:5672"},
-		{"url list with spaces", "nats://u:" + secret + "@h1:4222, nats://u:" + secret + "2@h2:4222", "nats://u:xxxxx@h1:4222, nats://u:xxxxx@h2:4222"},
-		{"comma in a single url", "https://h/p?ids=1,2", "https://h/p?ids=xxxxx"},
-		{"leading whitespace url", "  postgres://u:" + secret + "@h/db", "  postgres://u:xxxxx@h/db"},
-		{"leading whitespace mysql dsn", " root:" + secret + "@tcp(h:3306)/db", " root:xxxxx@tcp(h:3306)/db"},
-		{"host port only", "localhost:9092", "localhost:9092"},
-		{"empty", "", ""},
-	}
-	for _, test := range tests {
+// scenarios are the redaction rules that String, URL and Error share. Each
+// scenario runs through every function that accepts its input, so that a rule
+// tested for one function is also tested for the others.
+var scenarios = []struct {
+	name string
+	in   string
+	want string
+}{
+	{"no credentials", "amqp://127.0.0.1:5672/", "amqp://127.0.0.1:5672/"},
+	{"username only", "amqp://guest@127.0.0.1:5672/", "amqp://guest@127.0.0.1:5672/"},
+	{"userinfo password", "amqp://guest:" + secret + "@127.0.0.1:5672/", "amqp://guest:xxxxx@127.0.0.1:5672/"},
+	{"empty password", "redis://:" + secret + "@localhost:6379", "redis://:xxxxx@localhost:6379"},
+	{"query password", "tcp://host:9000?username=u&password=" + secret + "&database=db", "tcp://host:9000?username=xxxxx&password=xxxxx&database=xxxxx"},
+	{"query token", "https://host/path?access_token=" + secret, "https://host/path?access_token=xxxxx"},
+	{"sas signature", "https://acct.blob.core.windows.net/c?sv=2020&sig=" + secret, "https://acct.blob.core.windows.net/c?sv=xxxxx&sig=xxxxx"},
+	{"influxdb password parameter", "http://host:8086/write?db=x&u=user&p=" + secret, "http://host:8086/write?db=xxxxx&u=xxxxx&p=xxxxx"},
+	{"every query value redacted in order", "https://host/path?b=2&a=1", "https://host/path?b=xxxxx&a=xxxxx"},
+	{"unknown credential key", "https://host/path?pw=" + secret, "https://host/path?pw=xxxxx"},
+	{"bare query token", "https://host/hook?" + secret, "https://host/hook?xxxxx"},
+	{"fragment", "https://host/cb#access_token=" + secret, "https://host/cb#xxxxx"},
+	{"unparseable with query", "amqp://u@bad host:5672?pw=" + secret, "amqp://xxxxx"},
+	{"libpq question mark in value", "host=h password='a?" + secret + "' dbname=db", "host=xxxxx password=xxxxx dbname=xxxxx"},
+	{"ado question mark in value", "Server=h;Password=ab?" + secret + ";Database=d", "Server=xxxxx;Password=xxxxx;Database=xxxxx"},
+	{"odbc brace quoted value", "Server=h;Password={SEC;" + secret + "}};x};Database=d", "Server=xxxxx;Password=xxxxx;Database=xxxxx"},
+	{"mysql query value with at sign", "user:" + secret + "@tcp(db:3306)/app?tls=@" + secret, "user:xxxxx@xxxxx"},
+	{"mysql password with space", "user:SEC " + secret + "@tcp(h:3306)/db", "user:xxxxx@tcp(h:3306)/db"},
+	{"bad host", "amqp://admin:" + secret + "@bad host:5672", "amqp://xxxxx"},
+	{"control character", "mongodb://admin:" + secret + "@host:27017/db\x7f", "mongodb://xxxxx"},
+	{"password containing at sign", "amqp://admin:p@ss" + secret + "@host:5672", "amqp://admin:xxxxx@host:5672"},
+	{"mysql dsn", "root:" + secret + "@tcp(localhost:3306)/db?parseTime=true", "root:xxxxx@tcp(localhost:3306)/db?parseTime=xxxxx"},
+	{"libpq keyword dsn", "host=localhost user=u password=" + secret + " dbname=db", "host=xxxxx user=xxxxx password=xxxxx dbname=xxxxx"},
+	{"libpq spaces around equals", "host = h password = " + secret, "host = xxxxx password = xxxxx"},
+	{"libpq quoted password", "host=localhost password='" + secret + " x' dbname=db", "host=xxxxx password=xxxxx dbname=xxxxx"},
+	{"ado connection string", "Server=h;User Id=u;Password=" + secret + ";Database=db", "Server=xxxxx;User Id=xxxxx;Password=xxxxx;Database=xxxxx"},
+	{"url list", "amqp://u:" + secret + "@h1:5672,amqp://u:" + secret + "2@h2:5672", "amqp://u:xxxxx@h1:5672,amqp://u:xxxxx@h2:5672"},
+	{"url list with spaces", "nats://u:" + secret + "@h1:4222, nats://u:" + secret + "2@h2:4222", "nats://u:xxxxx@h1:4222, nats://u:xxxxx@h2:4222"},
+	{"comma in a single url", "https://h/p?ids=1,2", "https://h/p?ids=xxxxx"},
+	{"leading whitespace url", "  postgres://u:" + secret + "@h/db", "  postgres://u:xxxxx@h/db"},
+	{"leading whitespace mysql dsn", " root:" + secret + "@tcp(h:3306)/db", " root:xxxxx@tcp(h:3306)/db"},
+	{"host port only", "localhost:9092", "localhost:9092"},
+	{"empty", "", ""},
+}
+
+func TestRedactScenarios(t *testing.T) {
+	for _, test := range scenarios {
 		t.Run(test.name, func(t *testing.T) {
 			got := String(test.in)
-			assert.Equal(t, test.want, got)
-			assert.NotContains(t, got, secret)
+			assert.Equal(t, test.want, got, "String")
+			assert.NotContains(t, got, secret, "String")
+
+			msg := "dial " + test.in + ": refused"
+			assert.Equal(t, "dial "+test.want+": refused", Error(errors.New(msg), Conns(test.in)).Error(), "Error with Conns")
+
+			if !schemeRe.MatchString(test.in) {
+				return // Error finds a DSN only when Conns names it.
+			}
+			// Without Conns, a URL in the message ends at whitespace, so a host
+			// with a space gives other output, and its query is kept, a
+			// documented limit.
+			if !(strings.Contains(test.in, " ") && strings.Contains(test.in, "?")) {
+				assert.NotContains(t, Error(errors.New(msg)).Error(), secret, "Error without Conns")
+			}
+			// URL takes a single URL, not a list.
+			if u, err := url.Parse(test.in); err == nil && !strings.Contains(test.in, ",") {
+				assert.Equal(t, test.want, URL(u), "URL")
+			}
 		})
 	}
 }
@@ -499,12 +520,6 @@ func TestErrorUnknownParseProblem(t *testing.T) {
 	// A later Go release might add a parse error that quotes the input.
 	err := Error(&url.Error{Op: "parse", URL: "postgres://u:" + secret + "@h/db", Err: errors.New("new problem near " + secret)})
 	assert.Equal(t, `parse "postgres://xxxxx": invalid URL`, err.Error())
-}
-
-func TestURLFragment(t *testing.T) {
-	u, err := url.Parse("https://host/cb#access_token=" + secret)
-	require.NoError(t, err)
-	assert.Equal(t, "https://host/cb#xxxxx", URL(u))
 }
 
 func TestStringKeywordValues(t *testing.T) {
