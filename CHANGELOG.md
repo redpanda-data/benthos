@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 4.83.0 - 2026-10-15
+
 ### Added
 
 - Go API: New `public/utils/redact` package for removing credentials from connection strings and errors. (@Jeffail)
