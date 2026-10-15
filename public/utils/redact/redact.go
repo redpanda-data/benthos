@@ -9,6 +9,8 @@
 // Known limits: an unencoded password that url.Parse splits in the wrong place
 // without failing, such as "postgres://u:1234/abc@host/db", is partly kept, as
 // are credentials in a URL path. Such configurations cannot connect anyway.
+// A URL found in an error message ends at whitespace, so the query of a URL
+// with a space in its host is kept unless the URL is named with Conns.
 package redact
 
 import (
@@ -671,6 +673,12 @@ func trimTrailingPunctuation(m string) string {
 }
 
 func redactURLInText(m string) string {
+	if parts, ok := splitURLList(m); ok {
+		for i, p := range parts {
+			parts[i] = redactURLInText(p)
+		}
+		return strings.Join(parts, ",")
+	}
 	u, err := url.Parse(m)
 	if err != nil || u.Opaque != "" {
 		return schemeOnly(m)

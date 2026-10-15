@@ -5,6 +5,7 @@ package redact
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -320,7 +321,7 @@ func FuzzStringAndError(f *testing.F) {
 				out = strings.ReplaceAll(out, Marker, "\x01")
 				for _, cred := range []string{password, value} {
 					if strings.Contains(out, cred) && !strings.Contains(fixed, cred) &&
-						!strings.Contains("parse invalid URL escape port after host character in name connect dial refused", cred) {
+						!strings.Contains("connect: parse net/url: invalid userinfo invalid URL escape port after host character in name dial refused", cred) {
 						t.Fatalf("%s kept %q\nin:  %q\nout: %q", where, cred, s, out)
 					}
 				}
@@ -462,4 +463,56 @@ func TestStringKeepsOriginalText(t *testing.T) {
 	assert.Equal(t, `http://h/${! meta("x") }?id=xxxxx`, String(`http://h/${! meta("x") }?id=${! this.id }`))
 	assert.Equal(t, "http://u:xxxxx@h/a%2Fb?q=xxxxx#xxxxx", String("http://u:"+secret+"@h/a%2Fb?q=1#frag"))
 	assert.Equal(t, "http://h/p?", String("http://h/p?"))
+}
+
+func TestErrorKeepsURLErrorDetail(t *testing.T) {
+	err := Error(&url.Error{Op: "Get", URL: "https://u:" + secret + "@h:8081/subjects?db=prod#frag", Err: io.EOF})
+	assert.Equal(t, `Get "https://u:xxxxx@h:8081/subjects?db=xxxxx#xxxxx": EOF`, err.Error())
+}
+
+func TestErrorNestedURLErrors(t *testing.T) {
+	inner := &url.Error{Op: "Get", URL: "http://u:" + secret + "@h2/p", Err: errSentinel}
+	err := Error(&url.Error{Op: "Get", URL: "http://h1/p", Err: inner})
+
+	assert.NotContains(t, err.Error(), secret)
+	assert.ErrorIs(t, err, errSentinel)
+	outer, ok := err.(*url.Error)
+	require.True(t, ok, "%T", err)
+	got, ok := outer.Err.(*url.Error)
+	require.True(t, ok, "inner error must stay a *url.Error, got %T", outer.Err)
+	assert.Equal(t, "http://u:xxxxx@h2/p", got.URL)
+}
+
+func TestErrorURLErrorWithLeakyInnerError(t *testing.T) {
+	inner := errors.Join(errors.New("dial postgres://u:"+secret+"@h/db: refused"), errSentinel)
+	err := Error(&url.Error{Op: "Get", URL: "http://h/p", Err: inner})
+
+	assert.NotContains(t, err.Error(), secret)
+	assert.ErrorIs(t, err, errSentinel)
+	uErr, ok := err.(*url.Error)
+	require.True(t, ok, "%T", err)
+	var ne net.Error
+	assert.NotErrorAs(t, uErr.Err, &ne, "an inner error without Timeout must not become a net.Error")
+}
+
+func TestErrorUnknownParseProblem(t *testing.T) {
+	// A later Go release might add a parse error that quotes the input.
+	err := Error(&url.Error{Op: "parse", URL: "postgres://u:" + secret + "@h/db", Err: errors.New("new problem near " + secret)})
+	assert.Equal(t, `parse "postgres://xxxxx": invalid URL`, err.Error())
+}
+
+func TestURLFragment(t *testing.T) {
+	u, err := url.Parse("https://host/cb#access_token=" + secret)
+	require.NoError(t, err)
+	assert.Equal(t, "https://host/cb#xxxxx", URL(u))
+}
+
+func TestStringKeywordValues(t *testing.T) {
+	// An unquoted password with a space leaves a token without a key.
+	assert.Equal(t, "host=xxxxx password=xxxxx xxxxx dbname=xxxxx", String("host=h password=Abcd "+secret+" dbname=d"))
+}
+
+func TestErrorURLListInText(t *testing.T) {
+	err := Error(errors.New("dial amqp://u:" + secret + "@h1:5672,amqp://u:" + secret + "2@h2:5672: refused"))
+	assert.Equal(t, "dial amqp://u:xxxxx@h1:5672,amqp://u:xxxxx@h2:5672: refused", err.Error())
 }

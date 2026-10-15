@@ -52,18 +52,26 @@ func NewURLListField(name string) *ConfigField {
 	return &ConfigField{field: tf}
 }
 
-func urlsFromStr(str string) (urls []*url.URL, err error) {
+func urlsFromStr(str string) ([]*url.URL, error) {
+	var parts []string
 	for s := range strings.SplitSeq(str, ",") {
-		if s = strings.TrimSpace(s); s == "" {
-			continue
+		if s = strings.TrimSpace(s); s != "" {
+			parts = append(parts, s)
 		}
-		var u *url.URL
-		if u, err = redact.ParseURL(s); err != nil {
-			return
+	}
+	urls := make([]*url.URL, 0, len(parts))
+	for i, s := range parts {
+		u, err := redact.ParseURL(s)
+		if err != nil {
+			// The error keeps only the scheme, so name the URL that failed.
+			if len(parts) > 1 {
+				err = fmt.Errorf("url %d of %d: %w", i+1, len(parts), err)
+			}
+			return nil, err
 		}
 		urls = append(urls, u)
 	}
-	return
+	return urls, nil
 }
 
 // FieldURLList accesses a field from a parsed config that was defined with

@@ -103,4 +103,5 @@ b: [ 'http://u:`+pass+`1@good:8080,http://u:`+pass+`2@bad host:8080' ]
 	_, err = conf.FieldURLList("b")
 	require.Error(t, err)
 	assert.NotContains(t, err.Error(), pass)
+	assert.Contains(t, err.Error(), "failed to parse url field 'b.0': url 2 of 2: parse \"http://xxxxx\"")
 }
