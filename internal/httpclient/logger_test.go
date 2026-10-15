@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package httpclient
 
@@ -38,6 +38,25 @@ func TestToSimpleMap(t *testing.T) {
 		})
 		require.EqualValues(t, map[string]string{
 			"Content Type": "application/json charset=utf-8",
+		}, m)
+	})
+
+	t.Run("credential headers", func(t *testing.T) {
+		m := toSimpleMap(http.Header{
+			"Authorization":       []string{"Basic dXNlcjpTM2NyZXRQYXNz"},
+			"proxy-authorization": []string{"Basic abc"},
+			"Cookie":              []string{"session=S3cret"},
+			"Set-Cookie":          []string{"session=S3cret"},
+			"X-Api-Key":           []string{"S3cret"},
+			"Content-Type":        []string{"text/plain"},
+		})
+		require.EqualValues(t, map[string]string{
+			"Authorization":       "xxxxx",
+			"proxy-authorization": "xxxxx",
+			"Cookie":              "xxxxx",
+			"Set-Cookie":          "xxxxx",
+			"X-Api-Key":           "xxxxx",
+			"Content-Type":        "text/plain",
 		}, m)
 	})
 }

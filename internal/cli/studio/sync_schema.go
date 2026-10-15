@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package studio
 
@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"path"
 
 	"github.com/urfave/cli/v2"
 
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/config/schema"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 func syncSchemaCommand(cliOpts *common.CLIOpts) *cli.Command {
@@ -53,7 +53,7 @@ page within the studio application.`[1:],
 			sessionID := c.String("session")
 			tokenID := c.String("token")
 
-			u, err := url.Parse(endpoint)
+			u, err := redact.ParseURL(endpoint)
 			if err != nil {
 				return fmt.Errorf("failed to parse endpoint: %w", err)
 			}
@@ -73,7 +73,7 @@ page within the studio application.`[1:],
 
 			res, err := http.Post(u.String(), "application/json", bytes.NewReader(schemaBytes))
 			if err != nil {
-				return fmt.Errorf("sync request failed: %w", err)
+				return fmt.Errorf("sync request failed: %w", redact.Error(err, redact.Values(tokenID)))
 			}
 
 			defer res.Body.Close()

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Go API: New `public/utils/redact` package for removing credentials from connection strings and errors. (@Jeffail)
+
+### Fixed
+
+- Credentials in URLs are no longer included in errors, logs, spans or request dumps, which also hide credential headers such as `Authorization`. This covers the HTTP components, `websocket`, the `parse_url` method, URL config fields and the `studio` CLI. (@Jeffail)
+- HTTP components: A retry whose request fails to be created is now backed off instead of spinning. (@Jeffail)
+
 ## 4.82.0 - 2026-10-09
 
 ### Added
