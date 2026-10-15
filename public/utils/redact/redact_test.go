@@ -82,7 +82,7 @@ func TestRedactScenarios(t *testing.T) {
 			// Without Conns, a URL in the message ends at whitespace, so a host
 			// with a space gives other output, and its query is kept, a
 			// documented limit.
-			if !(strings.Contains(test.in, " ") && strings.Contains(test.in, "?")) {
+			if !strings.Contains(test.in, " ") || !strings.Contains(test.in, "?") {
 				assert.NotContains(t, Error(errors.New(msg)).Error(), secret, "Error without Conns")
 			}
 			// URL takes a single URL, not a list.
