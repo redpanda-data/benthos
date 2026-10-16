@@ -437,3 +437,23 @@ func TestDictResettableReaderRejectsNonResetter(t *testing.T) {
 	_, err := newDictResettableReader(io.NopCloser(bytes.NewReader(nil)))
 	require.Error(t, err)
 }
+
+func TestPooledEmptyPayloadParity(t *testing.T) {
+	for _, algName := range pooledAlgorithms {
+		cfn, err := strToCompressFunc(algName)
+		require.NoError(t, err)
+		dfn, err := strToDecompressFunc(algName)
+		require.NoError(t, err)
+
+		for range 3 {
+			compressed, err := cfn(6, []byte{})
+			require.NoError(t, err)
+			assert.Equal(t, unpooledCompress(t, algName, 6, []byte{}), compressed, algName)
+
+			out, err := dfn(compressed)
+			require.NoError(t, err)
+			assert.NotNil(t, out, "%v: io.ReadAll returned a non-nil empty slice before pooling", algName)
+			assert.Empty(t, out, algName)
+		}
+	}
+}
