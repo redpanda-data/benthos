@@ -156,15 +156,15 @@ func TestPooledCompressLargeMessage(t *testing.T) {
 	assert.Equal(t, small, unpooledDecompress(t, "gzip", out))
 }
 
-func TestPooledCompressorTrimBuffer(t *testing.T) {
-	pc := &pooledCompressor{}
-	pc.buf.Grow(1024)
-	pc.trimBuffer()
-	assert.GreaterOrEqual(t, pc.buf.Cap(), 1024, "small buffers are kept")
+func TestTrimPooledBuffer(t *testing.T) {
+	var buf bytes.Buffer
+	buf.Grow(1024)
+	trimPooledBuffer(&buf)
+	assert.GreaterOrEqual(t, buf.Cap(), 1024, "small buffers are kept")
 
-	pc.buf.Grow(maxPooledBufferSize + 1)
-	pc.trimBuffer()
-	assert.Equal(t, 0, pc.buf.Cap(), "oversized buffers are dropped")
+	buf.Grow(maxPooledBufferSize + 1)
+	trimPooledBuffer(&buf)
+	assert.Equal(t, 0, buf.Cap(), "oversized buffers are dropped")
 }
 
 func TestLevelPools(t *testing.T) {
@@ -260,4 +260,180 @@ func TestPooledCompressErrorDoesNotPoisonPool(t *testing.T) {
 
 	assert.Zero(t, reusedFail.Load(), "a writer that failed was returned to the pool")
 	assert.Less(t, constructed.Load(), int64(16*200), "writers were never reused, the test proves nothing")
+}
+
+func TestPooledDecompressConcurrentRoundTrip(t *testing.T) {
+	base := benchJSONBody(t)
+	for _, algName := range pooledAlgorithms {
+		t.Run(algName, func(t *testing.T) {
+			dfn, err := strToDecompressFunc(algName)
+			require.NoError(t, err)
+
+			type job struct{ want, compressed []byte }
+			var jobs []job
+			for g := range 8 {
+				input := append(bytes.Clone(base), fmt.Sprintf(`{"goroutine":%d}`, g)...)
+				for _, level := range []int{1, 5, 9} {
+					jobs = append(jobs, job{input, unpooledCompress(t, algName, level, input)})
+				}
+			}
+
+			var wg sync.WaitGroup
+			for _, j := range jobs {
+				wg.Go(func() {
+					for range 50 {
+						got, err := dfn(j.compressed)
+						if !assert.NoError(t, err) || !assert.Equal(t, j.want, got) {
+							return
+						}
+					}
+				})
+			}
+			wg.Wait()
+		})
+	}
+}
+
+func TestPooledDecompressOutputDoesNotAlias(t *testing.T) {
+	dfn, err := strToDecompressFunc("gzip")
+	require.NoError(t, err)
+
+	firstIn := []byte("first payload first payload first payload")
+	first, err := dfn(unpooledCompress(t, "gzip", 6, firstIn))
+	require.NoError(t, err)
+
+	second := unpooledCompress(t, "gzip", 6, []byte("a different second payload that would overwrite a shared buffer"))
+	for range 10 {
+		_, err = dfn(second)
+		require.NoError(t, err)
+	}
+	assert.Equal(t, firstIn, first)
+}
+
+func TestPooledDecompressLargeMessage(t *testing.T) {
+	dfn, err := strToDecompressFunc("gzip")
+	require.NoError(t, err)
+
+	large := make([]byte, 4*maxPooledBufferSize)
+	_, _ = rand.Read(large)
+	compressed := unpooledCompress(t, "gzip", 1, large)
+	for range 3 {
+		out, err := dfn(compressed)
+		require.NoError(t, err)
+		assert.Equal(t, large, out)
+	}
+}
+
+func TestPooledDecompressGzipMultistream(t *testing.T) {
+	dfn, err := strToDecompressFunc("gzip")
+	require.NoError(t, err)
+
+	stream := append(unpooledCompress(t, "gzip", 6, []byte("hello ")), unpooledCompress(t, "gzip", 6, []byte("world"))...)
+	for range 3 {
+		out, err := dfn(stream)
+		require.NoError(t, err)
+		assert.Equal(t, "hello world", string(out))
+	}
+}
+
+func TestPooledDecompressCorruptInputDoesNotPoisonPool(t *testing.T) {
+	good := benchJSONBody(t)
+	for _, algName := range pooledAlgorithms {
+		t.Run(algName, func(t *testing.T) {
+			dfn, err := strToDecompressFunc(algName)
+			require.NoError(t, err)
+
+			valid := unpooledCompress(t, algName, 6, good)
+			truncated := valid[:len(valid)/2]
+			garbage := []byte("this is not a compressed stream at all")
+
+			var wg sync.WaitGroup
+			for g := range 16 {
+				wg.Go(func() {
+					for i := range 200 {
+						switch (g + i) % 4 {
+						case 0:
+							_, err := dfn(truncated)
+							assert.Error(t, err)
+						case 1:
+							_, err := dfn(garbage)
+							assert.Error(t, err)
+						default:
+							out, err := dfn(valid)
+							if !assert.NoError(t, err) || !assert.Equal(t, good, out) {
+								return
+							}
+						}
+					}
+				})
+			}
+			wg.Wait()
+		})
+	}
+}
+
+// faultyReader wraps a real gzip reader and records reuse after a failure.
+type faultyReader struct {
+	*gzip.Reader
+	poisoned   bool
+	reusedFail *atomic.Int64
+}
+
+func (f *faultyReader) Reset(r io.Reader) error {
+	if f.poisoned {
+		f.reusedFail.Add(1)
+	}
+	err := f.Reader.Reset(r)
+	f.poisoned = err != nil
+	return err
+}
+
+func (f *faultyReader) Read(b []byte) (int, error) {
+	n, err := f.Reader.Read(b)
+	if err != nil && err != io.EOF {
+		f.poisoned = true
+	}
+	return n, err
+}
+
+func TestPooledDecompressErrorDoesNotReuseReader(t *testing.T) {
+	var reusedFail, constructed atomic.Int64
+	dfn := newPooledDecompressFunc(func(r io.Reader) (ResettableReader, error) {
+		constructed.Add(1)
+		gr, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, err
+		}
+		return &faultyReader{Reader: gr, reusedFail: &reusedFail}, nil
+	})
+
+	good := benchJSONBody(t)
+	valid := unpooledCompress(t, "gzip", 6, good)
+	truncated := valid[:len(valid)/2]
+
+	var wg sync.WaitGroup
+	for g := range 16 {
+		wg.Go(func() {
+			for i := range 200 {
+				if (g+i)%3 == 0 {
+					_, err := dfn(truncated)
+					assert.Error(t, err)
+					continue
+				}
+				out, err := dfn(valid)
+				if !assert.NoError(t, err) || !assert.Equal(t, good, out) {
+					return
+				}
+			}
+		})
+	}
+	wg.Wait()
+
+	assert.Zero(t, reusedFail.Load(), "a reader that failed was returned to the pool")
+	assert.Less(t, constructed.Load(), int64(16*200), "readers were never reused, the test proves nothing")
+}
+
+func TestDictResettableReaderRejectsNonResetter(t *testing.T) {
+	_, err := newDictResettableReader(io.NopCloser(bytes.NewReader(nil)))
+	require.Error(t, err)
 }

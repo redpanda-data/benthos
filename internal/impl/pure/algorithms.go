@@ -32,6 +32,10 @@ type (
 	// can be reused for subsequent payloads via Reset. Reset must restore the
 	// writer to its freshly constructed state at the same level.
 	ResettableCompressWriter func(level int, w io.Writer) (ResettableWriter, error)
+
+	// ResettableDecompressReader constructs a decompressor that can be reused
+	// for subsequent payloads via Reset.
+	ResettableDecompressReader func(r io.Reader) (ResettableReader, error)
 )
 
 // ResettableWriter is a compressing writer that can be rebound to a new sink
@@ -39,6 +43,13 @@ type (
 type ResettableWriter interface {
 	io.WriteCloser
 	Reset(w io.Writer)
+}
+
+// ResettableReader is a decompressing reader that can be rebound to a new
+// source and reused, such as *gzip.Reader.
+type ResettableReader interface {
+	io.ReadCloser
+	Reset(r io.Reader) error
 }
 
 // KnownCompressionAlgorithm is a unified interface for various compression algorithms.
@@ -52,6 +63,11 @@ type KnownCompressionAlgorithm struct {
 	// the synthesised CompressFunc reuses pooled writers (one pool per level)
 	// instead of constructing a writer per call.
 	ResettableCompressWriter ResettableCompressWriter
+
+	// ResettableDecompressReader is optional. When set and DecompressFunc is
+	// not, the synthesised DecompressFunc reuses pooled readers instead of
+	// constructing a reader per call.
+	ResettableDecompressReader ResettableDecompressReader
 }
 
 var knownCompressionAlgorithms = map[string]KnownCompressionAlgorithm{}
@@ -79,6 +95,10 @@ func AddKnownCompressionAlgorithm(name string, a KnownCompressionAlgorithm) stru
 			}
 			return buf.Bytes(), err
 		}
+	}
+
+	if a.DecompressFunc == nil && a.ResettableDecompressReader != nil {
+		a.DecompressFunc = newPooledDecompressFunc(a.ResettableDecompressReader)
 	}
 
 	if a.DecompressFunc == nil && a.DecompressReader != nil {
@@ -230,6 +250,9 @@ var _ = AddKnownCompressionAlgorithm("gzip", KnownCompressionAlgorithm{
 	ResettableCompressWriter: func(level int, w io.Writer) (ResettableWriter, error) {
 		return gzip.NewWriterLevel(w, level)
 	},
+	ResettableDecompressReader: func(r io.Reader) (ResettableReader, error) {
+		return gzip.NewReader(r)
+	},
 	CompressWriter: func(level int, w io.Writer) (io.Writer, error) {
 		aw, err := gzip.NewWriterLevel(w, level)
 		if err != nil {
@@ -267,6 +290,13 @@ var _ = AddKnownCompressionAlgorithm("zlib", KnownCompressionAlgorithm{
 	ResettableCompressWriter: func(level int, w io.Writer) (ResettableWriter, error) {
 		return zlib.NewWriterLevel(w, level)
 	},
+	ResettableDecompressReader: func(r io.Reader) (ResettableReader, error) {
+		ar, err := zlib.NewReader(r)
+		if err != nil {
+			return nil, err
+		}
+		return newDictResettableReader(ar)
+	},
 	CompressWriter: func(level int, w io.Writer) (io.Writer, error) {
 		aw, err := zlib.NewWriterLevel(w, level)
 		if err != nil {
@@ -286,6 +316,9 @@ var _ = AddKnownCompressionAlgorithm("zlib", KnownCompressionAlgorithm{
 var _ = AddKnownCompressionAlgorithm("flate", KnownCompressionAlgorithm{
 	ResettableCompressWriter: func(level int, w io.Writer) (ResettableWriter, error) {
 		return flate.NewWriter(w, level)
+	},
+	ResettableDecompressReader: func(r io.Reader) (ResettableReader, error) {
+		return newDictResettableReader(flate.NewReader(r))
 	},
 	CompressWriter: func(level int, w io.Writer) (io.Writer, error) {
 		aw, err := flate.NewWriter(w, level)
