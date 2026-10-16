@@ -172,7 +172,9 @@ func hsiSpec() *service.ConfigSpec {
 		Categories("Network").
 		Summary(`Receive messages POSTed over HTTP(S). HTTP 2.0 is supported when using TLS, which is enabled when key and cert files are specified.`).
 		Description(`
+ifndef::env-cloud[]
 If the `+"`address`"+` config field is left blank the xref:components:http/about.adoc[service-wide HTTP server] will be used.
+endif::[]
 
 The field `+"`rate_limit`"+` allows you to specify an optional `+"xref:components:rate_limits/about.adoc[`rate_limit` resource]"+`, which will be applied to each HTTP request made and each websocket payload received.
 
