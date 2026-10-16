@@ -42,6 +42,7 @@ func router(m *manager.Type) *mux.Router {
 	router.HandleFunc("/streams/{id}", m.HandleStreamCRUD)
 	router.HandleFunc("/streams/{id}/stats", m.HandleStreamStats)
 	router.HandleFunc("/resources/{type}/{id}", m.HandleResourceCRUD)
+	router.HandleFunc("/{id}/ready", m.HandleStreamReadyByID)
 	return router
 }
 
@@ -152,6 +153,33 @@ func TestTypeAPIDisabled(t *testing.T) {
 	assert.Contains(t, r.endpoints, "/ready")
 }
 
+func TestStreamReadyEndpointDoesNotGrowWithStreamChurn(t *testing.T) {
+	r := &endpointReg{endpoints: map[string]http.HandlerFunc{}}
+	rMgr, err := bmanager.New(bmanager.NewResourceConfig(), bmanager.OptSetAPIReg(r))
+	require.NoError(t, err)
+
+	_ = manager.New(rMgr)
+	initialEndpoints := len(r.endpoints)
+	streamCRUD := r.endpoints["/streams/{id}"]
+	require.NotNil(t, streamCRUD)
+
+	for i := 0; i < 25; i++ {
+		id := fmt.Sprintf("churn-%d", i)
+		request := mux.SetURLVars(genRequest("POST", "/streams/"+id, harmlessConf()), map[string]string{"id": id})
+		response := httptest.NewRecorder()
+		streamCRUD(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+
+		request = mux.SetURLVars(genRequest("DELETE", "/streams/"+id, nil), map[string]string{"id": id})
+		response = httptest.NewRecorder()
+		streamCRUD(response, request)
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	}
+
+	assert.Len(t, r.endpoints, initialEndpoints)
+	assert.Contains(t, r.endpoints, "/{id}/ready")
+}
+
 func TestTypeAPIBadMethods(t *testing.T) {
 	mgr := manager.New(mock.NewManager())
 
@@ -220,6 +248,11 @@ func TestTypeAPIBasicOperations(t *testing.T) {
 		r.ServeHTTP(response, request)
 		return response.Code == http.StatusOK
 	}, time.Second*10, time.Millisecond*50)
+
+	request = genRequest("GET", "/foo/ready", nil)
+	response = httptest.NewRecorder()
+	r.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusOK, response.Code)
 
 	request = genRequest("GET", "/streams/bar", nil)
 	response = httptest.NewRecorder()
