@@ -10,7 +10,10 @@
 // without failing, such as "postgres://u:1234/abc@host/db", is partly kept, as
 // are credentials in a URL path. Such configurations cannot connect anyway.
 // A URL found in an error message ends at whitespace, so the query of a URL
-// with a space in its host is kept unless the URL is named with Conns.
+// with a space in its host is kept unless the URL is named with Conns. A
+// password named with Conns is removed from an error only where it appears as
+// a whole value, so one within other text is kept, and one that equals another
+// value in the message, such as the user name, is removed there too.
 package redact
 
 import (
@@ -371,10 +374,6 @@ func (o *options) safeURLError(e *url.Error) *url.Error {
 	return &url.Error{Op: e.Op, URL: o.replaceValues(String(e.URL)), Err: inner}
 }
 
-// minSecretLen is the shortest password that Error removes wherever it
-// appears, as shorter values would corrupt unrelated text.
-const minSecretLen = 4
-
 // Option configures Error.
 type Option func(*options)
 
@@ -384,9 +383,10 @@ type options struct {
 }
 
 // Conns names connection strings that the error might include. They are
-// redacted as by String, and a password of 4 or more characters is removed
-// wherever it appears. Other values are removed where they appear as a value,
-// after "=" or ":" or in quotes, but not in prose, where they might be a host.
+// redacted as by String, and their passwords and other values are removed
+// where they appear as a value, after "=" or ":" or in quotes. They are kept
+// within other text, as removing them there would show the text around them,
+// which can reveal a password that is part of a host name or another word.
 func Conns(conns ...string) Option {
 	return func(o *options) {
 		o.conns = append(o.conns, conns...)
@@ -394,7 +394,9 @@ func Conns(conns ...string) Option {
 }
 
 // Values names credentials that the error might include in any form, such
-// as a token in a URL path. They are removed raw, quoted or percent-encoded.
+// as a token in a URL path. They are removed raw, quoted or percent-encoded,
+// wherever they appear, so they should be values that cannot be part of other
+// text, such as generated tokens.
 func Values(values ...string) Option {
 	return func(o *options) {
 		for _, v := range values {
@@ -491,7 +493,7 @@ func (o *options) redactErr(err error) (error, bool) {
 			conns = append(conns, strings.Split(c, ",")...)
 		}
 	}
-	var standalone, keyed []string
+	var values []string
 	for _, c := range conns {
 		if c == "" {
 			continue
@@ -502,18 +504,13 @@ func (o *options) redactErr(err error) (error, bool) {
 		if qc := q[1 : len(q)-1]; qc != c {
 			redacted = strings.ReplaceAll(redacted, qc, rq[1:len(rq)-1])
 		}
-		for _, cred := range credentials(c) {
-			if cred.standalone && len(cred.value) >= minSecretLen {
-				standalone = append(standalone, cred.value)
-			} else if cred.value != "" {
-				keyed = append(keyed, cred.value)
+		for _, v := range credentials(c) {
+			if v != "" {
+				values = append(values, v)
 			}
 		}
 	}
-	for _, v := range standalone {
-		redacted = strings.ReplaceAll(redacted, v, Marker)
-	}
-	redacted = removeKeyedValues(redacted, keyed)
+	redacted = removeKeyedValues(redacted, values)
 	redacted = o.replaceValues(redacted)
 
 	// Libraries might include their own rewrite of a connection string, such
@@ -552,7 +549,7 @@ func removeKeyedValues(msg string, values []string) string {
 		}
 		for _, v := range values {
 			end := start + len(v)
-			if strings.HasPrefix(msg[start:], v) && (end == len(msg) || !isValueByte(msg[end])) {
+			if strings.HasPrefix(msg[start:], v) && valueEnds(msg, end) {
 				b.WriteString(msg[last:start])
 				b.WriteString(Marker)
 				last = end
@@ -585,6 +582,15 @@ func valueStart(msg string, i int) int {
 		return j
 	}
 	return -1
+}
+
+// valueEnds reports whether a value can end at msg[end], which it can before
+// a byte that is not part of a value, or before dots that end a sentence.
+func valueEnds(msg string, end int) bool {
+	for end < len(msg) && msg[end] == '.' {
+		end++
+	}
+	return end == len(msg) || !isValueByte(msg[end])
 }
 
 func isValueByte(c byte) bool {
@@ -689,36 +695,29 @@ func redactURLInText(m string) string {
 	return URL(u)
 }
 
-type credential struct {
-	value string
-	// standalone credentials are removed wherever they appear, others only
-	// where they appear as a value.
-	standalone bool
-}
-
 // credentials returns the values in s that might be credentials: the
 // userinfo password and every query or keyword value.
-func credentials(s string) []credential {
-	var out []credential
-	add := func(v string, standalone bool, unescape func(string) (string, error)) {
-		out = append(out, credential{v, standalone})
+func credentials(s string) []string {
+	var out []string
+	add := func(v string, unescape func(string) (string, error)) {
+		out = append(out, v)
 		if uv, err := unescape(v); err == nil && uv != v {
-			out = append(out, credential{uv, standalone})
+			out = append(out, uv)
 		}
 	}
 	if isKeywordDSN(s) {
 		keywordValues(s, func(start, end int) {
-			add(strings.Trim(s[start:end], `'"{}`), false, url.QueryUnescape)
+			add(strings.Trim(s[start:end], `'"{}`), url.QueryUnescape)
 		})
 		return out
 	}
 	if m := userinfoCredRe(s).FindStringSubmatch(s); m != nil {
-		add(m[2], true, url.PathUnescape)
+		add(m[2], url.PathUnescape)
 	}
 	if _, query, ok := strings.Cut(s, "?"); ok {
 		for pair := range strings.SplitSeq(query, "&") {
 			if _, v, hasValue := strings.Cut(pair, "="); hasValue {
-				add(v, false, url.QueryUnescape)
+				add(v, url.QueryUnescape)
 			}
 		}
 	}

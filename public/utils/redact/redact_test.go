@@ -274,6 +274,10 @@ func BenchmarkURLValue(b *testing.B) {
 // minFuzzValueLen keeps fuzzed values from occurring by chance in fixed text.
 const minFuzzValueLen = 8
 
+// minFuzzPasswordLen skips passwords short enough to be found in the fixed
+// text of the templates and errors.
+const minFuzzPasswordLen = 4
+
 // FuzzStringAndError checks that credentials in common connection strings
 // never survive String or Error, skipping inputs that hit documented limits.
 
@@ -300,7 +304,7 @@ func FuzzStringAndError(f *testing.F) {
 		{format: "Server=db;User Id=u;Password=%s;Database=%s", keywords: true},
 	}
 	f.Fuzz(func(t *testing.T, password, value string) {
-		if len(password) < minSecretLen || len(value) < minFuzzValueLen ||
+		if len(password) < minFuzzPasswordLen || len(value) < minFuzzValueLen ||
 			strings.ContainsAny(password+value, "\n\r\x01") || strings.Contains(value, "&") {
 			return
 		}
@@ -445,8 +449,25 @@ func TestErrorConnsValuesInOtherContexts(t *testing.T) {
 }
 
 func TestErrorDecodedUserinfoPassword(t *testing.T) {
-	err := Error(errors.New("auth failed for password a+b!cd"), Conns("postgres://u:a+b%21cd@h/db"))
-	assert.NotContains(t, err.Error(), "a+b!cd")
+	err := Error(errors.New("auth failed for password=a+b!cd"), Conns("postgres://u:a+b%21cd@h/db"))
+	assert.Equal(t, "auth failed for password=xxxxx", err.Error())
+}
+
+func TestErrorPasswordAtSentenceEnd(t *testing.T) {
+	conn := "postgres://u:" + secret + "@h/db"
+	assert.Equal(t, "auth: xxxxx.", Error(errors.New("auth: "+secret+"."), Conns(conn)).Error())
+	assert.Equal(t, "auth: xxxxx... retrying", Error(errors.New("auth: "+secret+"... retrying"), Conns(conn)).Error())
+	assert.Equal(t, "auth: "+secret+".example.com", Error(errors.New("auth: "+secret+".example.com"), Conns("postgres://u:"+secret+"@db/x")).Error())
+}
+
+func TestErrorKeepsPasswordWithinOtherText(t *testing.T) {
+	for _, tc := range []struct{ conn, msg string }{
+		{"postgres://app:oogle.c@db/app", "dial tcp: lookup www.google.com: no such host"},
+		{"postgres://app:thentic@db/app", "pq: password authentication failed"},
+		{"postgres://app:refused@db/app", "dial tcp db:5432: connect: connection refused"},
+	} {
+		assert.Equal(t, tc.msg, Error(errors.New(tc.msg), Conns(tc.conn)).Error(), tc.conn)
+	}
 }
 
 func TestErrorShortUserinfoPasswordAsValue(t *testing.T) {
