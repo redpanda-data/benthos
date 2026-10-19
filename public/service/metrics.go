@@ -220,6 +220,12 @@ type MetricsExporterGauge interface {
 	// SetFloat64(value float64)
 }
 
+// MetricsExporterStatDeleter is optionally implemented by metrics exporter
+// stats that support removing their series from the exporter.
+type MetricsExporterStatDeleter interface {
+	Delete()
+}
+
 // MetricsExporterSeriesDeleter is an optional interface for MetricsExporter
 // implementations that support deleting all metric series matching a set of
 // label values.
@@ -289,6 +295,12 @@ func (a *airGapGauge) Set(value int64) {
 	a.airGapped.Set(value)
 }
 
+func (a *airGapGauge) Delete() {
+	if d, ok := a.airGapped.(MetricsExporterStatDeleter); ok {
+		d.Delete()
+	}
+}
+
 type airGapCounter struct {
 	airGapped MetricsExporterCounter
 }
@@ -307,12 +319,24 @@ func (a *airGapCounter) IncrFloat64(count float64) {
 	}
 }
 
+func (a *airGapCounter) Delete() {
+	if d, ok := a.airGapped.(MetricsExporterStatDeleter); ok {
+		d.Delete()
+	}
+}
+
 type airGapTiming struct {
 	airGapped MetricsExporterTimer
 }
 
 func (a *airGapTiming) Timing(val int64) {
 	a.airGapped.Timing(val)
+}
+
+func (a *airGapTiming) Delete() {
+	if d, ok := a.airGapped.(MetricsExporterStatDeleter); ok {
+		d.Delete()
+	}
 }
 
 type airGapCounterVec struct {
