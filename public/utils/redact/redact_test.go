@@ -293,13 +293,15 @@ func FuzzStringAndError(f *testing.F) {
 		f.Add(seed[0], seed[1])
 	}
 	templates := []struct {
-		format   string
-		host     string
-		keywords bool
+		format    string
+		host      string
+		keywords  bool
+		tokenUser bool
 	}{
 		{format: "postgres://user:%s@db.example.com:5432/app?sslmode=%s", host: "db.example.com"},
 		{format: "amqp://user:%s@bad host:5672/?token=%s", host: "bad host"},
 		{format: "user:%s@tcp(db:3306)/app?tls=%s"},
+		{format: "https://%s@git.example.com/org/repo.git?ref=%s", host: "git.example.com", tokenUser: true},
 		{format: "host=db user=u password=%s sslmode=%s", keywords: true},
 		{format: "Server=db;User Id=u;Password=%s;Database=%s", keywords: true},
 	}
@@ -311,6 +313,9 @@ func FuzzStringAndError(f *testing.F) {
 		for _, tmpl := range templates {
 			if tmpl.keywords && strings.ContainsAny(password+value, " \t;'\"{}=") {
 				continue // such values must be quoted in keyword/value strings
+			}
+			if tmpl.tokenUser && strings.Contains(password, ":") {
+				continue // splits into a username and a password
 			}
 			s := fmt.Sprintf(tmpl.format, password, value)
 			if tmpl.host != "" {
@@ -536,4 +541,32 @@ func TestStringKeywordValues(t *testing.T) {
 func TestErrorURLListInText(t *testing.T) {
 	err := Error(errors.New("dial amqp://u:" + secret + "@h1:5672,amqp://u:" + secret + "2@h2:5672: refused"))
 	assert.Equal(t, "dial amqp://u:xxxxx@h1:5672,amqp://u:xxxxx@h2:5672: refused", err.Error())
+}
+
+func TestStringTokenUsername(t *testing.T) {
+	for in, want := range map[string]string{
+		"https://" + secret + "@github.com/org/repo.git": "https://xxxxx@github.com/org/repo.git",
+		"HTTP://" + secret + "@h/p?q=1":                  "HTTP://xxxxx@h/p?q=xxxxx",
+		"https://a@b" + secret + "@h/p":                  "https://xxxxx@h/p",
+		"https://u:" + secret + "@h/p":                   "https://u:xxxxx@h/p",
+		"ssh://git@github.com/org/repo.git":              "ssh://git@github.com/org/repo.git",
+		"amqp://guest@h:5672/":                           "amqp://guest@h:5672/",
+		"https://@h/p":                                   "https://@h/p",
+	} {
+		assert.Equal(t, want, String(in), in)
+	}
+
+	u, err := url.Parse("https://" + secret + "@github.com/org/repo.git")
+	require.NoError(t, err)
+	assert.Equal(t, "https://xxxxx@github.com/org/repo.git", URL(u))
+}
+
+func TestErrorTokenUsername(t *testing.T) {
+	conn := "https://" + secret + "@127.0.0.1:1/org/repo.git"
+	msg := `Get "` + conn + `/info/refs?service=git-upload-pack": dial tcp 127.0.0.1:1: connect: connection refused`
+	want := `Get "https://xxxxx@127.0.0.1:1/org/repo.git/info/refs?service=xxxxx": dial tcp 127.0.0.1:1: connect: connection refused`
+
+	assert.Equal(t, want, Error(errors.New(msg), Conns(conn)).Error())
+	assert.Equal(t, want, Error(errors.New(msg)).Error())
+	assert.Equal(t, `token "xxxxx" rejected`, Error(errors.New(`token "`+secret+`" rejected`), Conns(conn)).Error())
 }

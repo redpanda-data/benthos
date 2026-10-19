@@ -13,7 +13,10 @@
 // with a space in its host is kept unless the URL is named with Conns. A
 // password named with Conns is removed from an error only where it appears as
 // a whole value, so one within other text is kept, and one that equals another
-// value in the message, such as the user name, is removed there too.
+// value in the message, such as the user name, is removed there too. A token
+// sent as the username is only redacted for http(s) URLs without a password,
+// so one with a placeholder password, as in https://<token>:x-oauth-basic@h,
+// is kept.
 package redact
 
 import (
@@ -32,9 +35,10 @@ const Marker = "xxxxx"
 
 // String returns the connection string s with its credentials replaced by
 // Marker. It accepts URLs, URL lists, scheme-less DSNs such as MySQL's, and
-// keyword/value strings such as libpq's or ADO.NET's. The userinfo password
-// and every query, fragment and keyword value are redacted, and a URL that
-// cannot be parsed keeps only its scheme.
+// keyword/value strings such as libpq's or ADO.NET's. The userinfo password,
+// the username of an http(s) URL without a password, and every query, fragment
+// and keyword value are redacted, and a URL that cannot be parsed keeps only
+// its scheme.
 func String(s string) string {
 	if t := trimLeftSpace(s); len(t) != len(s) {
 		return s[:len(s)-len(t)] + String(t)
@@ -60,15 +64,17 @@ func String(s string) string {
 func redactRawURL(s string, u *url.URL) string {
 	rest, fragment, hasFragment := strings.Cut(s, "#")
 	rest, query, hasQuery := strings.Cut(rest, "?")
-	if _, hasPwd := u.User.Password(); hasPwd {
+	if _, hasPwd := u.User.Password(); hasPwd || isTokenUser(u) {
 		start := strings.Index(rest, "://") + 3
 		end := len(rest)
 		if i := strings.IndexByte(rest[start:], '/'); i >= 0 {
 			end = start + i
 		}
 		at := start + strings.LastIndexByte(rest[start:end], '@')
-		colon := start + strings.IndexByte(rest[start:at], ':')
-		rest = rest[:colon+1] + Marker + rest[at:]
+		if hasPwd {
+			start += strings.IndexByte(rest[start:at], ':') + 1
+		}
+		rest = rest[:start] + Marker + rest[at:]
 	}
 	var b strings.Builder
 	b.WriteString(rest)
@@ -113,8 +119,9 @@ func schemeOnly(s string) string {
 	return Marker
 }
 
-// URL returns the string form of u with the userinfo password, every query
-// parameter value and the fragment replaced by Marker. u is not modified.
+// URL returns the string form of u with the userinfo password, the username of
+// an http(s) URL without a password, every query parameter value and the
+// fragment replaced by Marker. u is not modified.
 func URL(u *url.URL) string {
 	if u == nil {
 		return ""
@@ -122,6 +129,8 @@ func URL(u *url.URL) string {
 	c := *u
 	if _, hasPwd := c.User.Password(); hasPwd {
 		c.User = url.UserPassword(c.User.Username(), Marker)
+	} else if isTokenUser(&c) {
+		c.User = url.User(Marker)
 	}
 	if c.RawQuery != "" {
 		c.RawQuery = redactQuery(c.RawQuery)
@@ -130,6 +139,19 @@ func URL(u *url.URL) string {
 		c.Fragment, c.RawFragment = Marker, ""
 	}
 	return c.String()
+}
+
+// isTokenUser reports whether u is an http(s) URL with a username and no
+// password, as such a username is usually a token, as in
+// https://<token>@github.com/org/repo.
+func isTokenUser(u *url.URL) bool {
+	if u.User == nil || u.User.Username() == "" {
+		return false
+	}
+	if _, hasPwd := u.User.Password(); hasPwd {
+		return false
+	}
+	return strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")
 }
 
 // redactQuery replaces the value of every parameter in rawQuery, and every
@@ -164,6 +186,10 @@ var (
 	// "scheme://user:password@" and "user:password@", up to the last "@".
 	urlUserinfoRe  = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9+.\-]*://[^:@/?#\s]*:)(.*)@`)
 	bareUserinfoRe = regexp.MustCompile(`^([^:@/?#\s]*:)(.*)@`)
+
+	// urlTokenUserRe captures the username of "scheme://user@", up to the
+	// last "@" of the authority.
+	urlTokenUserRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.\-]*://([^:/?#\s]*)@`)
 
 	// keywordDSNRe matches the start of a keyword/value string, such as
 	// "host=h password=p" or "Server=h;Password=p".
@@ -696,7 +722,8 @@ func redactURLInText(m string) string {
 }
 
 // credentials returns the values in s that might be credentials: the
-// userinfo password and every query or keyword value.
+// userinfo password, the username of an http(s) URL without a password, and
+// every query or keyword value.
 func credentials(s string) []string {
 	var out []string
 	add := func(v string, unescape func(string) (string, error)) {
@@ -713,6 +740,10 @@ func credentials(s string) []string {
 	}
 	if m := userinfoCredRe(s).FindStringSubmatch(s); m != nil {
 		add(m[2], url.PathUnescape)
+	} else if m := urlTokenUserRe.FindStringSubmatch(s); m != nil {
+		if u, err := url.Parse(s); err == nil && isTokenUser(u) {
+			add(m[1], url.PathUnescape)
+		}
 	}
 	if _, query, ok := strings.Cut(s, "?"); ok {
 		for pair := range strings.SplitSeq(query, "&") {
