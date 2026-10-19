@@ -8,15 +8,17 @@
 //
 // Known limits: an unencoded password that url.Parse splits in the wrong place
 // without failing, such as "postgres://u:1234/abc@host/db", is partly kept, as
-// are credentials in a URL path. Such configurations cannot connect anyway.
+// is one that reads as a URL list, such as "postgres://u:a,b://c@host/db", and
+// credentials in a URL path. Such configurations cannot connect anyway.
 // A URL found in an error message ends at whitespace, so the query of a URL
 // with a space in its host is kept unless the URL is named with Conns. A
 // password named with Conns is removed from an error only where it appears as
-// a whole value, so one within other text is kept, and one that equals another
-// value in the message, such as the user name, is removed there too. A token
-// sent as the username is only redacted for http(s) URLs without a password,
-// so one with a placeholder password, as in https://<token>:x-oauth-basic@h,
-// is kept.
+// a whole word, or as a whole value if it is shorter than 4 characters, so one
+// within other text is kept. One that equals another word in the message,
+// such as the user name or a word of the error itself, is removed there too,
+// which shows that they are equal. A token sent as the username is only
+// redacted for http(s) URLs without a password or with an empty one, so one
+// with a placeholder password, as in https://<token>:x-oauth-basic@h, is kept.
 package redact
 
 import (
@@ -64,14 +66,15 @@ func String(s string) string {
 func redactRawURL(s string, u *url.URL) string {
 	rest, fragment, hasFragment := strings.Cut(s, "#")
 	rest, query, hasQuery := strings.Cut(rest, "?")
-	if _, hasPwd := u.User.Password(); hasPwd || isTokenUser(u) {
+	tokenUser := isTokenUser(u)
+	if _, hasPwd := u.User.Password(); hasPwd || tokenUser {
 		start := strings.Index(rest, "://") + 3
 		end := len(rest)
 		if i := strings.IndexByte(rest[start:], '/'); i >= 0 {
 			end = start + i
 		}
 		at := start + strings.LastIndexByte(rest[start:end], '@')
-		if hasPwd {
+		if !tokenUser {
 			start += strings.IndexByte(rest[start:at], ':') + 1
 		}
 		rest = rest[:start] + Marker + rest[at:]
@@ -127,10 +130,10 @@ func URL(u *url.URL) string {
 		return ""
 	}
 	c := *u
-	if _, hasPwd := c.User.Password(); hasPwd {
-		c.User = url.UserPassword(c.User.Username(), Marker)
-	} else if isTokenUser(&c) {
+	if isTokenUser(&c) {
 		c.User = url.User(Marker)
+	} else if _, hasPwd := c.User.Password(); hasPwd {
+		c.User = url.UserPassword(c.User.Username(), Marker)
 	}
 	if c.RawQuery != "" {
 		c.RawQuery = redactQuery(c.RawQuery)
@@ -142,13 +145,13 @@ func URL(u *url.URL) string {
 }
 
 // isTokenUser reports whether u is an http(s) URL with a username and no
-// password, as such a username is usually a token, as in
+// password, or an empty one, as such a username is usually a token, as in
 // https://<token>@github.com/org/repo.
 func isTokenUser(u *url.URL) bool {
 	if u.User == nil || u.User.Username() == "" {
 		return false
 	}
-	if _, hasPwd := u.User.Password(); hasPwd {
+	if pwd, _ := u.User.Password(); pwd != "" {
 		return false
 	}
 	return strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")
@@ -187,9 +190,9 @@ var (
 	urlUserinfoRe  = regexp.MustCompile(`^([A-Za-z][A-Za-z0-9+.\-]*://[^:@/?#\s]*:)(.*)@`)
 	bareUserinfoRe = regexp.MustCompile(`^([^:@/?#\s]*:)(.*)@`)
 
-	// urlTokenUserRe captures the username of "scheme://user@", up to the
-	// last "@" of the authority.
-	urlTokenUserRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.\-]*://([^:/?#\s]*)@`)
+	// urlTokenUserRe captures the username of "scheme://user@" or
+	// "scheme://user:@", up to the last "@" of the authority.
+	urlTokenUserRe = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9+.\-]*://([^:/?#\s]*):?@`)
 
 	// keywordDSNRe matches the start of a keyword/value string, such as
 	// "host=h password=p" or "Server=h;Password=p".
@@ -400,6 +403,14 @@ func (o *options) safeURLError(e *url.Error) *url.Error {
 	return &url.Error{Op: e.Op, URL: o.replaceValues(String(e.URL)), Err: inner}
 }
 
+// minPasswordWordLen and minTokenWordLen are the shortest password and token
+// username that Error removes wherever they appear as a whole word, as
+// shorter ones are likely to be ordinary words or names.
+const (
+	minPasswordWordLen = 4
+	minTokenWordLen    = 16
+)
+
 // Option configures Error.
 type Option func(*options)
 
@@ -409,10 +420,12 @@ type options struct {
 }
 
 // Conns names connection strings that the error might include. They are
-// redacted as by String, and their passwords and other values are removed
-// where they appear as a value, after "=" or ":" or in quotes. They are kept
-// within other text, as removing them there would show the text around them,
-// which can reveal a password that is part of a host name or another word.
+// redacted as by String. A password of 4 or more characters, or a token of 16
+// or more sent as the username, is removed wherever it appears as a whole
+// word, which shows where they equal another word. Other values are removed
+// where they appear as a value, after "=" or ":" or in quotes, but not in
+// prose, where they might be a host. None are removed from within other text,
+// as the text around them could reveal them.
 func Conns(conns ...string) Option {
 	return func(o *options) {
 		o.conns = append(o.conns, conns...)
@@ -519,7 +532,7 @@ func (o *options) redactErr(err error) (error, bool) {
 			conns = append(conns, strings.Split(c, ",")...)
 		}
 	}
-	var values []string
+	var words, values []string
 	for _, c := range conns {
 		if c == "" {
 			continue
@@ -530,13 +543,21 @@ func (o *options) redactErr(err error) (error, bool) {
 		if qc := q[1 : len(q)-1]; qc != c {
 			redacted = strings.ReplaceAll(redacted, qc, rq[1:len(rq)-1])
 		}
-		for _, v := range credentials(c) {
-			if v != "" {
-				values = append(values, v)
+		for _, cred := range credentials(c) {
+			if cred.value == "" {
+				continue
+			}
+			if cred.minWordLen > 0 && len(cred.value) >= cred.minWordLen {
+				words = append(words, cred.value)
+			} else {
+				values = append(values, cred.value)
 			}
 		}
 	}
-	redacted = removeKeyedValues(redacted, values)
+	// Words go through removeKeyedValues too, so that a value is not cut
+	// short where a shorter word is its prefix.
+	redacted = removeKeyedValues(redacted, append(values, words...))
+	redacted = removeWords(redacted, words)
 	redacted = o.replaceValues(redacted)
 
 	// Libraries might include their own rewrite of a connection string, such
@@ -553,6 +574,42 @@ func (o *options) redactErr(err error) (error, bool) {
 		}
 	}
 	return &redactedError{msg: redacted, err: err, opts: o}, true
+}
+
+// removeWords removes words from msg wherever they appear as a whole word,
+// that is not next to a byte that could be part of the same value.
+func removeWords(msg string, words []string) string {
+	if len(words) == 0 {
+		return msg
+	}
+	words = slices.Clone(words)
+	// Longer words first, so that a word is not cut short by one of its
+	// prefixes.
+	slices.SortFunc(words, func(a, b string) int { return len(b) - len(a) })
+	for _, w := range words {
+		var b strings.Builder
+		last := 0
+		for i := 0; ; {
+			j := strings.Index(msg[i:], w)
+			if j < 0 {
+				break
+			}
+			start, end := i+j, i+j+len(w)
+			if (start == 0 || !isValueByte(msg[start-1])) && valueEnds(msg, end) {
+				b.WriteString(msg[last:start])
+				b.WriteString(Marker)
+				last = end
+				i = end
+			} else {
+				i = start + 1
+			}
+		}
+		if last > 0 {
+			b.WriteString(msg[last:])
+			msg = b.String()
+		}
+	}
+	return msg
 }
 
 // removeKeyedValues removes values from msg where they appear as a value,
@@ -619,8 +676,10 @@ func valueEnds(msg string, end int) bool {
 	return end == len(msg) || !isValueByte(msg[end])
 }
 
+// isValueByte reports whether c can be part of a value. Bytes of non-ASCII
+// characters can, as they might be letters.
 func isValueByte(c byte) bool {
-	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.IndexByte("_.~%-", c) >= 0
+	return c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c >= 0x80 || strings.IndexByte("_.~%-", c) >= 0
 }
 
 // walkChain calls fn with err and every error in its chain.
@@ -722,37 +781,44 @@ func redactURLInText(m string) string {
 }
 
 // credentials returns the values in s that might be credentials: the
-// userinfo password, the username of an http(s) URL without a password, and
-// every query or keyword value.
-func credentials(s string) []string {
-	var out []string
-	add := func(v string, unescape func(string) (string, error)) {
-		out = append(out, v)
+// userinfo password, the username of an http(s) URL without a password or
+// with an empty one, and every query or keyword value.
+func credentials(s string) []credential {
+	var out []credential
+	add := func(v string, minWordLen int, unescape func(string) (string, error)) {
+		out = append(out, credential{v, minWordLen})
 		if uv, err := unescape(v); err == nil && uv != v {
-			out = append(out, uv)
+			out = append(out, credential{uv, minWordLen})
 		}
 	}
 	if isKeywordDSN(s) {
 		keywordValues(s, func(start, end int) {
-			add(strings.Trim(s[start:end], `'"{}`), url.QueryUnescape)
+			add(strings.Trim(s[start:end], `'"{}`), 0, url.QueryUnescape)
 		})
 		return out
 	}
-	if m := userinfoCredRe(s).FindStringSubmatch(s); m != nil {
-		add(m[2], url.PathUnescape)
-	} else if m := urlTokenUserRe.FindStringSubmatch(s); m != nil {
-		if u, err := url.Parse(s); err == nil && isTokenUser(u) {
-			add(m[1], url.PathUnescape)
+	if u, err := url.Parse(s); err == nil && isTokenUser(u) {
+		if m := urlTokenUserRe.FindStringSubmatch(s); m != nil {
+			add(m[1], minTokenWordLen, url.PathUnescape)
 		}
+	} else if m := userinfoCredRe(s).FindStringSubmatch(s); m != nil {
+		add(m[2], minPasswordWordLen, url.PathUnescape)
 	}
 	if _, query, ok := strings.Cut(s, "?"); ok {
 		for pair := range strings.SplitSeq(query, "&") {
 			if _, v, hasValue := strings.Cut(pair, "="); hasValue {
-				add(v, url.QueryUnescape)
+				add(v, 0, url.QueryUnescape)
 			}
 		}
 	}
 	return out
+}
+
+type credential struct {
+	value string
+	// minWordLen is the shortest value that is removed wherever it appears as
+	// a whole word, or 0 if it is only removed where it appears as a value.
+	minWordLen int
 }
 
 // redactedError does not unwrap to the original error, so that its message

@@ -317,6 +317,9 @@ func FuzzStringAndError(f *testing.F) {
 			if tmpl.tokenUser && strings.Contains(password, ":") {
 				continue // splits into a username and a password
 			}
+			if strings.Contains(password, "://") {
+				continue // reads as a URL list, a documented limit
+			}
 			s := fmt.Sprintf(tmpl.format, password, value)
 			if tmpl.host != "" {
 				if u, err := url.Parse(s); err == nil && u.Hostname() != tmpl.host {
@@ -454,8 +457,23 @@ func TestErrorConnsValuesInOtherContexts(t *testing.T) {
 }
 
 func TestErrorDecodedUserinfoPassword(t *testing.T) {
-	err := Error(errors.New("auth failed for password=a+b!cd"), Conns("postgres://u:a+b%21cd@h/db"))
-	assert.Equal(t, "auth failed for password=xxxxx", err.Error())
+	conn := "postgres://u:a+b%21cd@h/db"
+	assert.Equal(t, "auth failed for password xxxxx", Error(errors.New("auth failed for password a+b!cd"), Conns(conn)).Error())
+	assert.Equal(t, "auth failed for password=xxxxx", Error(errors.New("auth failed for password=a+b!cd"), Conns(conn)).Error())
+}
+
+func TestErrorPasswordAsWord(t *testing.T) {
+	conn := "postgres://u:" + secret + "@h/db"
+	for _, msg := range []string{
+		"bad (%s)", "bad [%s]", "bad <%s>", "bad `%s`", "password %s rejected", "path /%s/x", "%s",
+	} {
+		in := fmt.Sprintf(msg, secret)
+		assert.Equal(t, fmt.Sprintf(msg, Marker), Error(errors.New(in), Conns(conn)).Error(), in)
+	}
+	for _, msg := range []string{"db.%s", "%s_x", "x-%s", "%s.example.com", "Mü%s"} {
+		in := fmt.Sprintf(msg, secret)
+		assert.Equal(t, in, Error(errors.New(in), Conns(conn)).Error(), in)
+	}
 }
 
 func TestErrorPasswordAtSentenceEnd(t *testing.T) {
@@ -465,11 +483,30 @@ func TestErrorPasswordAtSentenceEnd(t *testing.T) {
 	assert.Equal(t, "auth: "+secret+".example.com", Error(errors.New("auth: "+secret+".example.com"), Conns("postgres://u:"+secret+"@db/x")).Error())
 }
 
+func TestErrorPasswordWordEdgeCases(t *testing.T) {
+	// A password shorter than 4 characters is only removed as a value.
+	assert.Equal(t, "bad abc, pw=xxxxx", Error(errors.New("bad abc, pw=abc"), Conns("postgres://u:abc@h/db")).Error())
+
+	// A password that prefixes a longer value does not cut it short.
+	conn := "postgres://u:" + secret + "@h/db?token=" + secret + "!more"
+	assert.Equal(t, "bad token=xxxxx", Error(errors.New("bad token="+secret+"!more"), Conns(conn)).Error())
+
+	// A password that starts with "@" is still found.
+	assert.Equal(t, "bad pw=xxxxx", Error(errors.New("bad pw=@pwpw"), Conns("postgres://u:@pwpw@h/db")).Error())
+
+	// A password that equals a word of the error is removed there, as a
+	// known limit.
+	assert.Equal(t, "connect: connection xxxxx", Error(errors.New("connect: connection refused"), Conns("postgres://u:refused@h/db")).Error())
+
+	assert.Equal(t, "auth: xxxxx. retrying", Error(errors.New("auth: "+secret+". retrying"), Conns("postgres://u:"+secret+"@h/db")).Error())
+}
+
 func TestErrorKeepsPasswordWithinOtherText(t *testing.T) {
 	for _, tc := range []struct{ conn, msg string }{
 		{"postgres://app:oogle.c@db/app", "dial tcp: lookup www.google.com: no such host"},
 		{"postgres://app:thentic@db/app", "pq: password authentication failed"},
-		{"postgres://app:refused@db/app", "dial tcp db:5432: connect: connection refused"},
+		{"postgres://app:efuse@db/app", "dial tcp db:5432: connect: connection refused"},
+		{"postgres://app:example@db/app", "lookup db.example.com: no such host"},
 	} {
 		assert.Equal(t, tc.msg, Error(errors.New(tc.msg), Conns(tc.conn)).Error(), tc.conn)
 	}
@@ -549,6 +586,7 @@ func TestStringTokenUsername(t *testing.T) {
 		"HTTP://" + secret + "@h/p?q=1":                  "HTTP://xxxxx@h/p?q=xxxxx",
 		"https://a@b" + secret + "@h/p":                  "https://xxxxx@h/p",
 		"https://u:" + secret + "@h/p":                   "https://u:xxxxx@h/p",
+		"https://" + secret + ":@h/p":                    "https://xxxxx@h/p",
 		"ssh://git@github.com/org/repo.git":              "ssh://git@github.com/org/repo.git",
 		"amqp://guest@h:5672/":                           "amqp://guest@h:5672/",
 		"https://@h/p":                                   "https://@h/p",
@@ -569,4 +607,14 @@ func TestErrorTokenUsername(t *testing.T) {
 	assert.Equal(t, want, Error(errors.New(msg), Conns(conn)).Error())
 	assert.Equal(t, want, Error(errors.New(msg)).Error())
 	assert.Equal(t, `token "xxxxx" rejected`, Error(errors.New(`token "`+secret+`" rejected`), Conns(conn)).Error())
+
+	token := "ghp_" + secret + "0123456789"
+	conn = "https://" + token + "@github.com/org/repo.git"
+	assert.Equal(t, "auth for xxxxx failed", Error(errors.New("auth for "+token+" failed"), Conns(conn)).Error())
+	assert.Equal(t, "https://xxxxx@github.com/org/repo.git", Error(errors.New(conn), Conns("https://"+token+":@github.com/org/repo.git")).Error())
+
+	// Shorter usernames are likely names rather than tokens, and are only
+	// removed where they appear as a value.
+	conn = "https://deploy@h/org/repo.git"
+	assert.Equal(t, `deploy key for "xxxxx" rejected`, Error(errors.New(`deploy key for "deploy" rejected`), Conns(conn)).Error())
 }
