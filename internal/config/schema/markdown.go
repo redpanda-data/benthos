@@ -93,9 +93,14 @@ func (r *renderer) component(c *docs.ComponentSpec, page string) {
 	c.Summary = r.render(c.Summary, page, where+" summary")
 	c.Description = r.render(c.Description, page, where+" description")
 	c.Footnotes = r.render(c.Footnotes, page, where+" footnotes")
-	for i := range c.Examples {
-		c.Examples[i].Summary = r.render(c.Examples[i].Summary, page, where+" example "+c.Examples[i].Title)
+	// The Examples slice shares its backing array with the spec in the
+	// environment's registry, so render into a copy.
+	examples := make([]docs.AnnotatedExample, len(c.Examples))
+	for i, e := range c.Examples {
+		e.Summary = r.render(e.Summary, page, where+" example "+e.Title)
+		examples[i] = e
 	}
+	c.Examples = examples
 	c.Config = r.field(c.Config, page, where)
 }
 
