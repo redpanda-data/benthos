@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package service
 
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/redpanda-data/benthos/v4/internal/docs"
+	"github.com/redpanda-data/benthos/v4/public/utils/redact"
 )
 
 // NewURLField defines a new config field that describes a string that should
@@ -34,7 +35,7 @@ func (p *ParsedConfig) FieldURL(path ...string) (*url.URL, error) {
 		return nil, fmt.Errorf("expected field '%v' to be a string, got %T", strings.Join(path, "."), v)
 	}
 
-	u, err := url.Parse(str)
+	u, err := redact.ParseURL(str)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse url field '%v': %v", strings.Join(path, "."), err)
 	}
@@ -51,18 +52,26 @@ func NewURLListField(name string) *ConfigField {
 	return &ConfigField{field: tf}
 }
 
-func urlsFromStr(str string) (urls []*url.URL, err error) {
+func urlsFromStr(str string) ([]*url.URL, error) {
+	var parts []string
 	for s := range strings.SplitSeq(str, ",") {
-		if s = strings.TrimSpace(s); s == "" {
-			continue
+		if s = strings.TrimSpace(s); s != "" {
+			parts = append(parts, s)
 		}
-		var u *url.URL
-		if u, err = url.Parse(s); err != nil {
-			return
+	}
+	urls := make([]*url.URL, 0, len(parts))
+	for i, s := range parts {
+		u, err := redact.ParseURL(s)
+		if err != nil {
+			// The error keeps only the scheme, so name the URL that failed.
+			if len(parts) > 1 {
+				err = fmt.Errorf("url %d of %d: %w", i+1, len(parts), err)
+			}
+			return nil, err
 		}
 		urls = append(urls, u)
 	}
-	return
+	return urls, nil
 }
 
 // FieldURLList accesses a field from a parsed config that was defined with
