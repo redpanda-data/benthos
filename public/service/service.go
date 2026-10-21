@@ -152,6 +152,18 @@ func CLIOptSetDocsComponentURLs(urls map[string]string) CLIOptFunc {
 	}
 }
 
+// CLIOptSetDocsHasComponent sets the rule for whether this distribution
+// ships the Connect component at components/<typeDir>/<name>, for doc
+// strings rendered as Markdown. An xref to a component it does not ship
+// renders as text. Without it, any component target missing from the schema
+// counts as absent, which also unlinks docs pages under components/ that are
+// not components, such as a migration guide.
+func CLIOptSetDocsHasComponent(fn func(typeDir, name string) bool) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		c.opts.DocsHasComponent = fn
+	}
+}
+
 // CLIOptSetShowRunCommand determines whether a `run` subcommand should appear
 // in CLI help and autocomplete.
 //

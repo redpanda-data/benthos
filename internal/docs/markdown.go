@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode"
 )
 
 // KnownDocsAttributes is the vocabulary of AsciiDoc attributes that doc
@@ -67,7 +68,13 @@ var (
 	mdOlistRx      = regexp.MustCompile(`^(\.{1,5}) (.+)$`)
 	mdUlistRx      = regexp.MustCompile(`^(\*{1,5}) (.+)$`)
 	mdCellSpecRx   = regexp.MustCompile(`(^|\s)(?:\d+(?:\.\d+)?\+|\.\d+\+)?(?:\d+\*)?[<^>]?(?:\.[<^>])?[adehlmsv]?\|`)
-	mdAttrRefRx    = regexp.MustCompile(`\{(nbsp|sp|empty|blank|plus|vbar|zwsp|startsb|endsb)\}`)
+	mdAttrRefRx    = regexp.MustCompile(`(^|[^\\])\{(nbsp|sp|empty|blank|plus|vbar|zwsp|startsb|endsb)\}`)
+	mdAttrEscRx    = regexp.MustCompile(`\\\{([A-Za-z0-9_][A-Za-z0-9_-]*)\}`)
+	mdItalicURx    = regexp.MustCompile(`__([^_\n](?:[^\n]*?[^_\n])?)__`)
+	mdHTMLLikeRx   = regexp.MustCompile(`<([A-Za-z/!?])`)
+	mdAutolinkRx   = regexp.MustCompile(`^<(?:https?|mailto|ftp):`)
+	mdBlockIDRx    = regexp.MustCompile(`^\[\[[A-Za-z_][^\]]*\]\]$`)
+	mdFenceRx      = regexp.MustCompile("^(```|-{4,}|\\.{4,})")
 	mdBlankRunRx   = regexp.MustCompile(`\n{3,}`)
 	mdPlaceholder  = "\x00"
 )
@@ -86,19 +93,35 @@ var mdAttrRefs = map[string]string{
 func LintConditionals(s string) []string {
 	var problems []string
 	lines := strings.Split(s, "\n")
-	depth := 0
+	type open struct{ directive, attrs string }
+	var stack []open
+	fence := ""
 	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
+		trimmed := strings.TrimFunc(line, unicode.IsSpace)
+		if fence != "" {
+			if strings.TrimRight(line, " \t\r") == fence || (fence == "```" && strings.HasPrefix(trimmed, "```") && trimmed == "```") {
+				fence = ""
+			}
+		} else if m := mdFenceRx.FindString(trimmed); m != "" && (m == "```" || trimmed == m) {
+			// A ``` fence may carry a language; ---- and .... delimit only on
+			// their own and close on the same delimiter.
+			fence = m
+			continue
+		}
 		isDirective := strings.HasPrefix(trimmed, "ifdef::") || strings.HasPrefix(trimmed, "ifndef::") ||
 			strings.HasPrefix(trimmed, "endif::") || strings.HasPrefix(trimmed, "ifeval::")
 		if !isDirective {
 			continue
 		}
-		if strings.TrimLeft(line, " \t") != line {
+		if fence != "" {
+			problems = append(problems, fmt.Sprintf("line %d: %q is inside a code block; Asciidoctor still runs it there, so move the conditional outside the block", i+1, trimmed))
+			continue
+		}
+		if strings.TrimLeftFunc(line, unicode.IsSpace) != line {
 			problems = append(problems, fmt.Sprintf("line %d: %q must start at column 0 to be a directive", i+1, trimmed))
 			continue
 		}
-		if strings.TrimRight(line, " \t\r") != line {
+		if strings.TrimRightFunc(line, unicode.IsSpace) != line {
 			problems = append(problems, fmt.Sprintf("line %d: remove the whitespace after %q; a line that does not end in ] is not a directive to the Markdown renderer", i+1, trimmed))
 			continue
 		}
@@ -110,13 +133,21 @@ func LintConditionals(s string) []string {
 			if m[3] != "" {
 				problems = append(problems, fmt.Sprintf("line %d: use the block form (%s::%s[] on its own line, the paragraph, then endif::[]), not %s::%s[text]", i+1, m[1], m[2], m[1], m[2]))
 			}
+			if strings.Contains(m[2], ",") && strings.Contains(m[2], "+") {
+				problems = append(problems, fmt.Sprintf("line %d: %q mixes , and +; renderers disagree on how to read that, so test one attribute or use one separator", i+1, m[2]))
+			}
 			for _, a := range strings.FieldsFunc(m[2], func(r rune) bool { return r == ',' || r == '+' }) {
 				if _, ok := KnownDocsAttributes[a]; !ok {
 					problems = append(problems, fmt.Sprintf("line %d: unknown attribute %q; known attributes: %s", i+1, a, strings.Join(knownDocsAttributeNames(), ", ")))
 				}
 			}
 			if m[3] == "" {
-				depth++
+				for _, o := range stack {
+					if o.attrs == m[2] && o.directive != m[1] {
+						problems = append(problems, fmt.Sprintf("line %d: %s is inside %s::%s[], so its text renders for no reader", i+1, trimmed, o.directive, o.attrs))
+					}
+				}
+				stack = append(stack, open{m[1], m[2]})
 				if i > 0 && strings.TrimSpace(lines[i-1]) != "" {
 					problems = append(problems, fmt.Sprintf("line %d: put a blank line before %s so the paragraph before it stays separate", i+1, trimmed))
 				}
@@ -124,10 +155,14 @@ func LintConditionals(s string) []string {
 			continue
 		}
 		if mdEndifRx.MatchString(trimmed) {
-			if depth == 0 {
+			if len(stack) == 0 {
 				problems = append(problems, fmt.Sprintf("line %d: endif without a matching ifdef or ifndef", i+1))
 			} else {
-				depth--
+				top := stack[len(stack)-1]
+				if name := strings.TrimSuffix(strings.TrimPrefix(trimmed, "endif::"), "[]"); name != "" && name != top.attrs {
+					problems = append(problems, fmt.Sprintf("line %d: %s does not match the open %s::%s[]; Asciidoctor keeps that block open, so use endif::[]", i+1, trimmed, top.directive, top.attrs))
+				}
+				stack = stack[:len(stack)-1]
 			}
 			if i+1 < len(lines) && strings.TrimSpace(lines[i+1]) != "" {
 				problems = append(problems, fmt.Sprintf("line %d: put a blank line after %s so the paragraph after it stays separate", i+1, trimmed))
@@ -136,8 +171,8 @@ func LintConditionals(s string) []string {
 		}
 		problems = append(problems, fmt.Sprintf("line %d: malformed directive %q", i+1, trimmed))
 	}
-	if depth > 0 {
-		problems = append(problems, fmt.Sprintf("%d ifdef or ifndef block(s) never closed with endif::[]; every renderer would drop the rest of the text", depth))
+	if len(stack) > 0 {
+		problems = append(problems, fmt.Sprintf("%d ifdef or ifndef block(s) never closed with endif::[]; every renderer would drop the rest of the text", len(stack)))
 	}
 	return problems
 }
@@ -304,6 +339,10 @@ func AsciidocToMarkdown(src, page string, opts MarkdownOptions) string {
 			tableHeader = true
 			pendingTable = ""
 			continue
+		case mdBlockIDRx.MatchString(trimmed):
+			// A [[id]] block anchor names the next block; Markdown has no
+			// equivalent, so drop it.
+			continue
 		case mdSourceRx.MatchString(trimmed):
 			pendingLang = mdSourceRx.FindStringSubmatch(trimmed)[1]
 			continue
@@ -405,11 +444,17 @@ func inline(s, page string, opts MarkdownOptions) string {
 		return mdPlaceholder
 	})
 	parts := strings.Split(s, "`")
-	for i := 0; i < len(parts); i += 2 {
-		parts[i] = mdPassSingleRx.ReplaceAllString(parts[i], "$1$2$3")
+	for i := range parts {
+		if i%2 == 0 {
+			parts[i] = mdPassSingleRx.ReplaceAllString(parts[i], "$1$2$3")
+		} else if len(parts[i]) > 2 && parts[i][0] == '+' && parts[i][len(parts[i])-1] == '+' {
+			// `+literal+` is a literal code span; Asciidoctor drops the plus signs.
+			parts[i] = parts[i][1 : len(parts[i])-1]
+		}
 	}
 	s = strings.Join(parts, "`")
 	s = boldOutsideCode(s)
+	s = outsideCode(s, func(p string) string { return mdItalicURx.ReplaceAllString(p, "*$1*") })
 	// Links whose text is code, such as xref:x.adoc[`x` input], span
 	// backticks, so resolve them across the whole string.
 	s = mdXrefRx.ReplaceAllStringFunc(s, func(x string) string {
@@ -432,15 +477,45 @@ func inline(s, page string, opts MarkdownOptions) string {
 		}
 		return link(text, url, m[1])
 	})
-	// AsciiDoc needs $\{ and \{ to show a brace, in code spans too.
-	s = strings.ReplaceAll(s, `\{`, "{")
 	s = mdAttrRefRx.ReplaceAllStringFunc(s, func(x string) string {
-		return mdAttrRefs[x[1:len(x)-1]]
+		m := mdAttrRefRx.FindStringSubmatch(x)
+		return m[1] + mdAttrRefs[m[2]]
 	})
+	// \{name} escapes an attribute reference, in code spans too, and
+	// Asciidoctor drops the backslash only there: \{} and $\{!x} keep it.
+	s = mdAttrEscRx.ReplaceAllString(s, "{$1}")
+	// Markdown renderers read <name> in prose as an HTML tag and hide it,
+	// where the docs site shows the text, so escape it.
+	s = outsideCode(s, escapeTags)
 	for _, lit := range literals {
 		s = strings.Replace(s, mdPlaceholder, lit, 1)
 	}
 	return s
+}
+
+// outsideCode applies fn to the text outside backtick code spans.
+func outsideCode(s string, fn func(string) string) string {
+	parts := strings.Split(s, "`")
+	for i := 0; i < len(parts); i += 2 {
+		parts[i] = fn(parts[i])
+	}
+	return strings.Join(parts, "`")
+}
+
+// escapeTags escapes a < that would open an HTML tag, but not a URL
+// autolink such as <https://...>.
+func escapeTags(s string) string {
+	var b strings.Builder
+	last := 0
+	for _, m := range mdHTMLLikeRx.FindAllStringIndex(s, -1) {
+		if mdAutolinkRx.MatchString(s[m[0]:]) {
+			continue
+		}
+		b.WriteString(s[last:m[0]] + `\`)
+		last = m[0]
+	}
+	b.WriteString(s[last:])
+	return b.String()
 }
 
 // boldOutsideCode converts *bold* to **bold**. Bold may span a code span, as

@@ -47,6 +47,11 @@ type CLIOpts struct {
 	// base URLs, for doc strings rendered as Markdown.
 	DocsComponentURLs map[string]string
 
+	// DocsHasComponent reports whether this distribution ships the component
+	// at components/<typeDir>/<name>, for doc strings rendered as Markdown.
+	// Nil means any component target missing from the schema is absent.
+	DocsHasComponent func(typeDir, name string) bool
+
 	ConfigSearchPaths []string
 
 	Environment      *bundle.Environment

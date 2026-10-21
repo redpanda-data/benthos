@@ -95,16 +95,21 @@ func (r *renderer) component(c *docs.ComponentSpec, page string) {
 	c.Footnotes = r.render(c.Footnotes, page, where+" footnotes")
 	// The Examples slice shares its backing array with the spec in the
 	// environment's registry, so render into a copy.
-	examples := make([]docs.AnnotatedExample, len(c.Examples))
-	for i, e := range c.Examples {
-		e.Summary = r.render(e.Summary, page, where+" example "+e.Title)
-		examples[i] = e
+	if c.Examples != nil {
+		examples := make([]docs.AnnotatedExample, len(c.Examples))
+		for i, e := range c.Examples {
+			e.Summary = r.render(e.Summary, page, where+" example "+e.Title)
+			examples[i] = e
+		}
+		c.Examples = examples
 	}
-	c.Examples = examples
 	c.Config = r.field(c.Config, page, where)
 }
 
 func (r *renderer) params(p query.Params, page, where string) query.Params {
+	if p.Definitions == nil {
+		return p
+	}
 	defs := make([]query.ParamDefinition, len(p.Definitions))
 	for i, d := range p.Definitions {
 		d.Description = r.render(d.Description, page, where+" param "+d.Name)
@@ -115,6 +120,10 @@ func (r *renderer) params(p query.Params, page, where string) query.Params {
 }
 
 func (r *renderer) examples(ex []query.ExampleSpec, page, where string) []query.ExampleSpec {
+	// Keep nil as nil so the JSON shape matches the asciidoc output.
+	if ex == nil {
+		return nil
+	}
 	out := make([]query.ExampleSpec, len(ex))
 	for i, e := range ex {
 		e.Summary = r.render(e.Summary, page, where+" example")
@@ -124,6 +133,9 @@ func (r *renderer) examples(ex []query.ExampleSpec, page, where string) []query.
 }
 
 func (r *renderer) fields(fs docs.FieldSpecs, page, where string) docs.FieldSpecs {
+	if fs == nil {
+		return nil
+	}
 	out := make(docs.FieldSpecs, len(fs))
 	for i, f := range fs {
 		out[i] = r.field(f, page, where)

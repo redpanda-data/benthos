@@ -85,9 +85,6 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) error {
 	}
 
 	schema := schema.New(opts.Version, opts.DateBuilt, opts.Environment, opts.BloblEnvironment)
-	if status := c.String("status"); status != "" {
-		schema.ReduceToStatus(status)
-	}
 	schema.Config = opts.MainConfigSpecCtor()
 	switch c.String("docs-format") {
 	case "asciidoc", "":
@@ -102,11 +99,17 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) error {
 			BaseURL:       opts.DocumentationURL,
 			Attributes:    attrs,
 			ComponentURLs: opts.DocsComponentURLs,
+			HasComponent:  opts.DocsHasComponent,
 		}); len(problems) > 0 {
 			return errors.New("doc strings have malformed conditionals:\n  " + strings.Join(problems, "\n  "))
 		}
 	default:
 		return fmt.Errorf("unknown docs format %q, options are asciidoc or markdown", c.String("docs-format"))
+	}
+	// Filter by status after rendering, so links to components of another
+	// status that this binary still ships stay links.
+	if status := c.String("status"); status != "" {
+		schema.ReduceToStatus(status)
 	}
 
 	switch c.String("format") {

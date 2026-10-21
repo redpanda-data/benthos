@@ -28,6 +28,31 @@ func TestAsciidocToMarkdown(t *testing.T) {
 			out:  "See [TLS](https://docs.redpanda.com/connect/components/inputs/kafka/#tls) and [interpolation](https://docs.redpanda.com/connect/configuration/interpolation/).",
 		},
 		{
+			name: "a bare <placeholder> in prose is escaped so Markdown renderers show it",
+			in:   "GRANT SET CONTAINER TO <user> and `<user>` and <https://x.example/a> and a<b.",
+			out:  "GRANT SET CONTAINER TO \\<user> and `<user>` and <https://x.example/a> and a\\<b.",
+		},
+		{
+			name: "a +literal+ code span drops its plus signs",
+			in:   "so `+logs_.*+` matches, and `a+b+c` stays.",
+			out:  "so `logs_.*` matches, and `a+b+c` stays.",
+		},
+		{
+			name: "a [[id]] block anchor is dropped",
+			in:   "Text.\n\n[[merge-strategies]]\n=== Merge strategies\n\nMore.",
+			out:  "Text.\n\n### Merge strategies\n\nMore.",
+		},
+		{
+			name: "unconstrained __italic__ stays italic",
+			in:   "will __allow out-of-order delivery__ since, but `__x__` is code.",
+			out:  "will *allow out-of-order delivery* since, but `__x__` is code.",
+		},
+		{
+			name: "only an escaped attribute reference loses its backslash",
+			in:   "pattern `%\\{WORD:first}`, interface \\{} is nil, $\\{!count}, \\{empty} and {empty}x.",
+			out:  "pattern `%\\{WORD:first}`, interface \\{} is nil, $\\{!count}, {empty} and x.",
+		},
+		{
 			name: "xref with code in its text",
 			in:   "Use the xref:components:outputs/redpanda.adoc[`redpanda` output] instead.",
 			out:  "Use the [`redpanda` output](https://docs.redpanda.com/connect/components/outputs/redpanda/) instead.",
@@ -183,6 +208,15 @@ func TestLintConditionals(t *testing.T) {
 		{name: "glued to the paragraphs around it", in: "A.\nifndef::env-cloud[]\nB.\nendif::[]\nC.", problems: 2, contains: "blank line"},
 		{name: "ifeval", in: "ifeval::[1 == 1]\nB.\nendif::[]", problems: 2, contains: "ifeval"},
 		{name: "trailing whitespace after a directive", in: "A.\n\nifdef::env-cloud[]   \nB.\nendif::[]", problems: 2, contains: "remove the whitespace"},
+		{name: "a directive inside a fenced code block", in: "A.\n\n```yaml\nifdef::env-cloud[]\nx: 1\nendif::[]\n```\n\nB.", problems: 2, contains: "inside a code block"},
+		{name: "a directive inside a ---- listing", in: "A.\n\n----\nifdef::env-cloud[]\n----\n\nB.", problems: 1, contains: "inside a code block"},
+		{name: "a directive after a closed fence is fine", in: "```\nx\n```\n\nifdef::env-cloud[]\nB.\nendif::[]"},
+		{name: "opposite nesting renders for no reader", in: "ifdef::env-cloud[]\nA.\n\nifndef::env-cloud[]\nB.\nendif::[]\n\nendif::[]", problems: 1, contains: "renders for no reader"},
+		{name: "non-ASCII whitespace after a directive", in: "A.\n\nifdef::env-cloud[]\u00a0\nB.\nendif::[]", problems: 2, contains: "remove the whitespace"},
+		{name: "vertical tab before a directive", in: "A.\n\n\vifdef::env-cloud[]\nB.\nendif::[]", problems: 2, contains: "column 0"},
+		{name: "a named endif that does not match", in: "ifdef::env-cloud[]\nB.\nendif::foo[]", problems: 1, contains: "does not match"},
+		{name: "a matching named endif is fine", in: "ifdef::env-cloud[]\nB.\nendif::env-cloud[]"},
+		{name: "mixed , and + in one list", in: "ifndef::env-cloud,env-cloud+env-cloud[]\nB.\nendif::[]", problems: 1, contains: "mixes , and +"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			got := docs.LintConditionals(test.in)

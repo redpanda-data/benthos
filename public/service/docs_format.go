@@ -56,6 +56,14 @@ type DocsMarkdownOptions struct {
 	// component-qualified xrefs, such as streaming in
 	// xref:streaming:manage:x.adoc[], to their base URLs.
 	ComponentURLs map[string]string
+
+	// HasComponent reports whether this distribution ships the component at
+	// components/<typeDir>/<name>, such as inputs/kafka. An xref to one it
+	// does not ship renders as text. When nil, any target under components/
+	// that is not in this schema counts as missing, so a distribution with
+	// docs pages there that are not components, such as a migration guide,
+	// should set it.
+	HasComponent func(typeDir, name string) bool
 }
 
 // MarshalJSONV0Markdown is MarshalJSONV0 with every doc string rendered from
@@ -67,6 +75,10 @@ type DocsMarkdownOptions struct {
 // naming each one, because a renderer would otherwise drop text silently.
 func (s *ConfigSchema) MarshalJSONV0Markdown(opts DocsMarkdownOptions) ([]byte, error) {
 	full := s.fullSchema()
+	if full.DocsFormat == "markdown" {
+		// Read back from Markdown output: already rendered.
+		return json.Marshal(full)
+	}
 	attrs := map[string]bool{}
 	for _, a := range s.docsAttributes {
 		attrs[a] = true
@@ -75,6 +87,7 @@ func (s *ConfigSchema) MarshalJSONV0Markdown(opts DocsMarkdownOptions) ([]byte, 
 		BaseURL:       opts.DocumentationURL,
 		Attributes:    attrs,
 		ComponentURLs: opts.ComponentURLs,
+		HasComponent:  opts.HasComponent,
 	})
 	if len(problems) > 0 {
 		return nil, errors.New("doc strings have malformed conditionals:\n  " + strings.Join(problems, "\n  "))
@@ -91,4 +104,11 @@ func (s *ConfigSchema) MarshalJSONV0Markdown(opts DocsMarkdownOptions) ([]byte, 
 // dropping text for readers.
 func LintDocsConditionals(s string) []string {
 	return docs.LintConditionals(s)
+}
+
+func (s *ConfigSchema) docsFormatOrDefault() string {
+	if s.docsFormat == "" {
+		return "asciidoc"
+	}
+	return s.docsFormat
 }

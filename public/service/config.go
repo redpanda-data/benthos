@@ -444,10 +444,13 @@ func (c *ConfigSpec) Summary(summary string) *ConfigSpec {
 //	It is possible to connect multiple inputs to the same ID.
 //
 // Use ifdef::env-cloud[] for text that applies only in Cloud. env-cloud is
-// the only attribute (DocsAttributeCloud); the single-line form
-// ifndef::env-cloud[text] and conditionals inside a Summary or a code block
-// are rejected by LintDocsConditionals, which the schema tests run, because
-// a malformed conditional makes a renderer drop text without any error.
+// the only attribute (DocsAttributeCloud). LintDocsConditionals, which the
+// schema tests run, rejects the single-line form ifndef::env-cloud[text], a
+// conditional inside a code block, an ifdef and ifndef of the same attribute
+// nested in each other, a named endif that does not match, and whitespace
+// around a directive, because a malformed conditional makes a renderer drop
+// text without any error. A conditional in a Summary is rejected when the
+// schema renders as Markdown, since summaries show as one line.
 func (c *ConfigSpec) Description(description string) *ConfigSpec {
 	c.component.Description = description
 	return c

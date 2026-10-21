@@ -31,6 +31,9 @@ type ConfigSchema struct {
 	env                *Environment
 	version, dateBuilt string
 	docsAttributes     []string
+	// docsFormat is the format of the doc strings, "markdown" for a schema
+	// read from MarshalJSONV0Markdown output; empty means asciidoc.
+	docsFormat string
 }
 
 // FullConfigSchema returns a config schema containing all the standard config
@@ -182,10 +185,11 @@ func ConfigSchemaFromJSONV0(jBytes []byte) (*ConfigSchema, error) {
 		return nil, err
 	}
 	return &ConfigSchema{
-		version:   tmpSchema.Version,
-		dateBuilt: tmpSchema.Date,
-		fields:    tmpSchema.Config,
-		env:       emptyEnvironment,
+		version:    tmpSchema.Version,
+		dateBuilt:  tmpSchema.Date,
+		fields:     tmpSchema.Config,
+		env:        emptyEnvironment,
+		docsFormat: tmpSchema.DocsFormat,
 	}, nil
 }
 
@@ -212,7 +216,7 @@ func (s *ConfigSchema) fullSchema() schema.Full {
 	iSchema := schema.Full{
 		Version:           s.version,
 		Date:              s.dateBuilt,
-		DocsFormat:        "asciidoc",
+		DocsFormat:        s.docsFormatOrDefault(),
 		Config:            s.fields,
 		Buffers:           s.env.internal.BufferDocs(),
 		Caches:            s.env.internal.CacheDocs(),
@@ -272,6 +276,7 @@ func (s *ConfigSchema) Fields(fs ...*ConfigField) *ConfigSchema {
 type rawMessageSchema struct {
 	Version           string            `json:"version"`
 	Date              string            `json:"date"`
+	DocsFormat        string            `json:"docs_format"`
 	Config            docs.FieldSpecs   `json:"config,omitempty"`
 	Buffers           []json.RawMessage `json:"buffers,omitempty"`
 	Caches            []json.RawMessage `json:"caches,omitempty"`
