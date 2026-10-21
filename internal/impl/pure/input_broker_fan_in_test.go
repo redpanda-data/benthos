@@ -69,7 +69,8 @@ func TestBasicFanIn(t *testing.T) {
 				require.NoError(t, ts.Ack(ctx, nil))
 			}()
 			select {
-			case <-resChan:
+			case err := <-resChan:
+				require.NoError(t, err)
 			case <-time.After(time.Second * 5):
 				t.Errorf("Timed out waiting for response to input: %v, %v", i, j)
 				return
@@ -266,7 +267,8 @@ func BenchmarkBasicFanIn(b *testing.B) {
 			}
 			require.NoError(b, ts.Ack(ctx, nil))
 			select {
-			case <-resChan:
+			case err := <-resChan:
+				require.NoError(b, err)
 			case <-time.After(time.Second * 5):
 				b.Errorf("Timed out waiting for response to input: %v, %v", i, j)
 				return
