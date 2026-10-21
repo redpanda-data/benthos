@@ -45,7 +45,12 @@ func TestAsciidocToMarkdown(t *testing.T) {
 		{
 			name: "unconstrained __italic__ stays italic",
 			in:   "will __allow out-of-order delivery__ since, but `__x__` is code.",
-			out:  "will *allow out-of-order delivery* since, but `__x__` is code.",
+			out:  "will _allow out-of-order delivery_ since, but `__x__` is code.",
+		},
+		{
+			name: "unconstrained __italic__ inside a word keeps asterisks",
+			in:   "a foo__bar__baz word",
+			out:  "a foo*bar*baz word",
 		},
 		{
 			name: "only an escaped attribute reference loses its backslash",

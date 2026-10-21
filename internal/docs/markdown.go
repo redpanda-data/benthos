@@ -454,7 +454,19 @@ func inline(s, page string, opts MarkdownOptions) string {
 	}
 	s = strings.Join(parts, "`")
 	s = boldOutsideCode(s)
-	s = outsideCode(s, func(p string) string { return mdItalicURx.ReplaceAllString(p, "*$1*") })
+	// Use underscores, so that a single-asterisk run in the output only ever
+	// means unconverted AsciiDoc bold. Inside a word, where CommonMark does
+	// not treat underscores as emphasis, keep asterisks.
+	s = outsideCode(s, func(p string) string {
+		return mdItalicURx.ReplaceAllStringFunc(p, func(m string) string {
+			i := strings.Index(p, m)
+			inner := m[2 : len(m)-2]
+			if (i > 0 && isWordByte(p[i-1])) || (i+len(m) < len(p) && isWordByte(p[i+len(m)])) {
+				return "*" + inner + "*"
+			}
+			return "_" + inner + "_"
+		})
+	})
 	// Links whose text is code, such as xref:x.adoc[`x` input], span
 	// backticks, so resolve them across the whole string.
 	s = mdXrefRx.ReplaceAllStringFunc(s, func(x string) string {
@@ -618,4 +630,8 @@ func xrefURL(target, page string, opts MarkdownOptions) string {
 		url += path + "/"
 	}
 	return url + frag
+}
+
+func isWordByte(b byte) bool {
+	return b == '_' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z'
 }
