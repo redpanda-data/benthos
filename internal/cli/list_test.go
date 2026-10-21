@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	icli "github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	icli "github.com/redpanda-data/benthos/v4/internal/cli"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
