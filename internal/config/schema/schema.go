@@ -146,58 +146,93 @@ func (f *Full) Flattened() map[string][]string {
 // Scrub walks the schema and removes all descriptions and other long-form
 // documentation, reducing the overall size.
 func (f *Full) Scrub() {
-	scrubFieldSpecs(f.Config)
-	scrubComponentSpecs(f.Buffers)
-	scrubComponentSpecs(f.Caches)
-	scrubComponentSpecs(f.Inputs)
-	scrubComponentSpecs(f.Outputs)
-	scrubComponentSpecs(f.Processors)
-	scrubComponentSpecs(f.RateLimits)
-	scrubComponentSpecs(f.Metrics)
-	scrubComponentSpecs(f.Tracers)
-	scrubComponentSpecs(f.Scanners)
+	// Every slice here can share its backing array with the environment's
+	// registry, or with the distribution's config spec, so scrub into copies.
+	// Writing through them would blank the docs of every later schema built
+	// from the same environment.
+	f.Config = scrubFieldSpecs(f.Config)
+	f.Buffers = scrubComponentSpecs(f.Buffers)
+	f.Caches = scrubComponentSpecs(f.Caches)
+	f.Inputs = scrubComponentSpecs(f.Inputs)
+	f.Outputs = scrubComponentSpecs(f.Outputs)
+	f.Processors = scrubComponentSpecs(f.Processors)
+	f.RateLimits = scrubComponentSpecs(f.RateLimits)
+	f.Metrics = scrubComponentSpecs(f.Metrics)
+	f.Tracers = scrubComponentSpecs(f.Tracers)
+	f.Scanners = scrubComponentSpecs(f.Scanners)
 
-	for i := range f.BloblangFunctions {
-		f.BloblangFunctions[i].Description = ""
-		f.BloblangFunctions[i].Examples = nil
-		scrubParams(f.BloblangFunctions[i].Params.Definitions)
-	}
-	for i := range f.BloblangMethods {
-		f.BloblangMethods[i].Description = ""
-		f.BloblangMethods[i].Examples = nil
-		f.BloblangMethods[i].Categories = nil
-		scrubParams(f.BloblangMethods[i].Params.Definitions)
-	}
-}
-
-func scrubParams(p []query.ParamDefinition) {
-	for i := range p {
-		p[i].Description = ""
-	}
-}
-
-func scrubFieldSpecs(fs []docs.FieldSpec) {
-	for i := range fs {
-		fs[i].Description = ""
-		fs[i].Examples = nil
-		for j := range fs[i].AnnotatedOptions {
-			fs[i].AnnotatedOptions[j][1] = ""
+	if f.BloblangFunctions != nil {
+		fns := make([]query.FunctionSpec, len(f.BloblangFunctions))
+		for i, fn := range f.BloblangFunctions {
+			fn.Description = ""
+			fn.Examples = nil
+			fn.Params.Definitions = scrubParams(fn.Params.Definitions)
+			fns[i] = fn
 		}
-		scrubFieldSpecs(fs[i].Children)
+		f.BloblangFunctions = fns
+	}
+	if f.BloblangMethods != nil {
+		methods := make([]query.MethodSpec, len(f.BloblangMethods))
+		for i, m := range f.BloblangMethods {
+			m.Description = ""
+			m.Examples = nil
+			m.Categories = nil
+			m.Params.Definitions = scrubParams(m.Params.Definitions)
+			methods[i] = m
+		}
+		f.BloblangMethods = methods
 	}
 }
 
-func scrubFieldSpec(fs *docs.FieldSpec) {
-	fs.Description = ""
-	scrubFieldSpecs(fs.Children)
+func scrubParams(p []query.ParamDefinition) []query.ParamDefinition {
+	if p == nil {
+		return nil
+	}
+	out := make([]query.ParamDefinition, len(p))
+	for i, d := range p {
+		d.Description = ""
+		out[i] = d
+	}
+	return out
 }
 
-func scrubComponentSpecs(cs []docs.ComponentSpec) {
-	for i := range cs {
-		cs[i].Description = ""
-		cs[i].Summary = ""
-		cs[i].Footnotes = ""
-		cs[i].Examples = nil
-		scrubFieldSpec(&cs[i].Config)
+func scrubFieldSpecs(fs []docs.FieldSpec) []docs.FieldSpec {
+	if fs == nil {
+		return nil
 	}
+	out := make([]docs.FieldSpec, len(fs))
+	for i, f := range fs {
+		out[i] = scrubFieldSpec(f)
+	}
+	return out
+}
+
+func scrubFieldSpec(f docs.FieldSpec) docs.FieldSpec {
+	f.Description = ""
+	f.Examples = nil
+	if f.AnnotatedOptions != nil {
+		opts := make([][2]string, len(f.AnnotatedOptions))
+		for j, o := range f.AnnotatedOptions {
+			opts[j] = [2]string{o[0], ""}
+		}
+		f.AnnotatedOptions = opts
+	}
+	f.Children = scrubFieldSpecs(f.Children)
+	return f
+}
+
+func scrubComponentSpecs(cs []docs.ComponentSpec) []docs.ComponentSpec {
+	if cs == nil {
+		return nil
+	}
+	out := make([]docs.ComponentSpec, len(cs))
+	for i, c := range cs {
+		c.Description = ""
+		c.Summary = ""
+		c.Footnotes = ""
+		c.Examples = nil
+		c.Config = scrubFieldSpec(c.Config)
+		out[i] = c
+	}
+	return out
 }
