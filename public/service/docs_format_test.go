@@ -3,6 +3,7 @@
 package service_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -74,4 +75,73 @@ func TestMarshalJSONV0MarkdownHasComponent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(md), "[the migration guide](https://docs.example.com/connect/components/outputs/bigquery_cdc_migration/)")
 	assert.Contains(t, string(md), "and gone.")
+}
+
+// The attributes a distribution declares with SetDocsAttributes decide which
+// env-cloud blocks its Markdown output keeps, so a Cloud binary shows the same
+// text as the Cloud docs site. No CLI flag or option takes part.
+func TestMarshalJSONV0MarkdownResolvesDocsAttributes(t *testing.T) {
+	env := service.NewEmptyEnvironment()
+	spec := service.NewConfigSpec().Description(`Sends data.
+
+ifndef::env-cloud[]
+Self-managed only.
+endif::[]
+
+ifdef::env-cloud[]
+Cloud only.
+endif::[]`)
+	require.NoError(t, env.RegisterInput("foo", spec,
+		func(*service.ParsedConfig, *service.Resources) (service.Input, error) { return nil, nil }))
+
+	description := func(attrs ...string) string {
+		out, err := env.FullConfigSchema("", "").SetDocsAttributes(attrs...).
+			MarshalJSONV0Markdown(service.DocsMarkdownOptions{})
+		require.NoError(t, err)
+		var doc struct {
+			Inputs []struct {
+				Description string `json:"description"`
+			} `json:"inputs"`
+		}
+		require.NoError(t, json.Unmarshal(out, &doc))
+		return doc.Inputs[0].Description
+	}
+
+	selfManaged := description()
+	assert.Contains(t, selfManaged, "Self-managed only.")
+	assert.NotContains(t, selfManaged, "Cloud only.")
+
+	cloud := description(service.DocsAttributeCloud)
+	assert.Contains(t, cloud, "Cloud only.")
+	assert.NotContains(t, cloud, "Self-managed only.")
+}
+
+// A malformed conditional does not fail the render: the schema can hold
+// strings registered at run time that no build linted. The other components
+// still render, and LintDocsConditionals is how a distribution checks the
+// strings it compiles in.
+func TestMarshalJSONV0MarkdownRendersPastMalformedConditional(t *testing.T) {
+	env := service.NewEmptyEnvironment()
+	bad := "Reads data.\n\n ifdef::env-cloud[]\nCloud only.\nendif::[]"
+	require.NotEmpty(t, service.LintDocsConditionals(bad))
+	for name, desc := range map[string]string{"bad": bad, "good": "Uses *bold*."} {
+		require.NoError(t, env.RegisterInput(name, service.NewConfigSpec().Description(desc),
+			func(*service.ParsedConfig, *service.Resources) (service.Input, error) { return nil, nil }))
+	}
+
+	out, err := env.FullConfigSchema("", "").MarshalJSONV0Markdown(service.DocsMarkdownOptions{})
+	require.NoError(t, err)
+	var doc struct {
+		Inputs []struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		} `json:"inputs"`
+	}
+	require.NoError(t, json.Unmarshal(out, &doc))
+	got := map[string]string{}
+	for _, in := range doc.Inputs {
+		got[in.Name] = in.Description
+	}
+	assert.Equal(t, "Uses **bold**.", got["good"])
+	assert.Contains(t, got["bad"], "Reads data.")
 }

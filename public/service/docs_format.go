@@ -4,8 +4,6 @@ package service
 
 import (
 	"encoding/json"
-	"errors"
-	"strings"
 
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 )
@@ -71,8 +69,11 @@ type DocsMarkdownOptions struct {
 // anchors become absolute links, links to components this schema lacks
 // become text, and ifdef and ifndef conditionals are resolved for the
 // attributes set with SetDocsAttributes. The document's docs_format field
-// says "markdown". It fails when a doc string has a malformed conditional,
-// naming each one, because a renderer would otherwise drop text silently.
+// says "markdown". A doc string with a malformed conditional is still
+// rendered, as well as the renderer can, and does not fail the call: the
+// schema can include strings registered at run time, such as from templates
+// or plugins, that no build checked. Check the strings a distribution
+// compiles in with LintDocsConditionals in its tests.
 func (s *ConfigSchema) MarshalJSONV0Markdown(opts DocsMarkdownOptions) ([]byte, error) {
 	full := s.fullSchema()
 	if full.DocsFormat == "markdown" {
@@ -83,15 +84,12 @@ func (s *ConfigSchema) MarshalJSONV0Markdown(opts DocsMarkdownOptions) ([]byte, 
 	for _, a := range s.docsAttributes {
 		attrs[a] = true
 	}
-	problems := full.RenderMarkdown(docs.MarkdownOptions{
+	_ = full.RenderMarkdown(docs.MarkdownOptions{
 		BaseURL:       opts.DocumentationURL,
 		Attributes:    attrs,
 		ComponentURLs: opts.ComponentURLs,
 		HasComponent:  opts.HasComponent,
 	})
-	if len(problems) > 0 {
-		return nil, errors.New("doc strings have malformed conditionals:\n  " + strings.Join(problems, "\n  "))
-	}
 	return json.Marshal(full)
 }
 

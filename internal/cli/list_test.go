@@ -14,7 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	icli "github.com/redpanda-data/benthos/v4/internal/cli"
+	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/cli/common"
+	"github.com/redpanda-data/benthos/v4/internal/component/input"
+	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/public/service"
 
 	_ "github.com/redpanda-data/benthos/v4/public/components/io"
@@ -317,6 +320,33 @@ func TestListJSONFullConditionalsAreWellFormed(t *testing.T) {
 
 func TestListJSONFullMarkdownRejectsMalformedConditionals(t *testing.T) {
 	assert.Contains(t, service.LintDocsConditionals("ifndef::env-cloud[]\ntext")[0], "never closed")
+}
+
+// Doc strings registered at run time, such as from -t templates or plugins,
+// are never linted in CI, so a malformed conditional in one is a warning on
+// stderr and the rest of the schema still renders.
+func TestListJSONFullMarkdownWarnsOnRuntimeMalformedConditional(t *testing.T) {
+	env := bundle.GlobalEnvironment.Clone()
+	require.NoError(t, env.InputAdd(func(input.Config, bundle.NewManagement) (input.Streamed, error) {
+		return nil, nil
+	}, docs.ComponentSpec{
+		Name:        "zz_runtime_plugin",
+		Type:        docs.TypeInput,
+		Description: "Reads data.\n\n ifdef::env-cloud[]\nCloud only.\nendif::[]",
+	}))
+
+	var stdout, stderr bytes.Buffer
+	opts := common.NewCLIOpts("1.2.3", "now")
+	opts.Environment = env
+	opts.Stdout = &stdout
+	opts.Stderr = &stderr
+	require.NoError(t, icli.App(opts).Run([]string{"benthos", "list", "--format", "json-full", "--docs-format", "markdown", "inputs"}))
+
+	assert.Contains(t, stderr.String(), "malformed conditionals")
+	assert.Contains(t, stderr.String(), "zz_runtime_plugin")
+	var doc map[string]any
+	require.NoError(t, json.Unmarshal(stdout.Bytes(), &doc), "stdout stays valid JSON")
+	assert.Equal(t, "markdown", doc["docs_format"])
 }
 
 func TestListJSONFullMarkdownResolvesLinksAndConditionals(t *testing.T) {

@@ -4,7 +4,6 @@ package cli
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 
@@ -95,13 +94,17 @@ func listComponents(c *cli.Context, opts *common.CLIOpts) error {
 				attrs[a] = true
 			}
 		}
+		// A malformed conditional is a warning here, not a failure. Compiled-in
+		// doc strings are linted in CI, but list also renders strings
+		// registered at run time, such as -t templates and plugins, and one bad
+		// conditional in those should not withhold the whole schema.
 		if problems := schema.RenderMarkdown(docs.MarkdownOptions{
 			BaseURL:       opts.DocumentationURL,
 			Attributes:    attrs,
 			ComponentURLs: opts.DocsComponentURLs,
 			HasComponent:  opts.DocsHasComponent,
 		}); len(problems) > 0 {
-			return errors.New("doc strings have malformed conditionals:\n  " + strings.Join(problems, "\n  "))
+			fmt.Fprintln(opts.Stderr, "Warning: doc strings have malformed conditionals, so their Markdown may be missing text:\n  "+strings.Join(problems, "\n  "))
 		}
 	default:
 		return fmt.Errorf("unknown docs format %q, options are asciidoc or markdown", c.String("docs-format"))

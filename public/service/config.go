@@ -449,8 +449,8 @@ func (c *ConfigSpec) Summary(summary string) *ConfigSpec {
 // conditional inside a code block, an ifdef and ifndef of the same attribute
 // nested in each other, a named endif that does not match, and whitespace
 // around a directive, because a malformed conditional makes a renderer drop
-// text without any error. A conditional in a Summary is rejected when the
-// schema renders as Markdown, since summaries show as one line.
+// text without any error. The schema tests also reject a conditional in a
+// Summary, since summaries show as one line.
 func (c *ConfigSpec) Description(description string) *ConfigSpec {
 	c.component.Description = description
 	return c
