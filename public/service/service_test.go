@@ -98,6 +98,8 @@ func TestRunCLICustomFlags(t *testing.T) {
 	tmpDir := t.TempDir()
 	confPath := filepath.Join(tmpDir, "foo.yaml")
 
+	// The test subcommand fails when the config has no tests, and a test needs the pipeline key and an output
+	// condition. So the config has a pipeline with no processors and one passthrough test.
 	require.NoError(t, os.WriteFile(confPath, []byte(`
 input:
   label: inputa
@@ -106,25 +108,61 @@ input:
     mapping: 'root.id = "foobar"'
     interval: "1ms"
 
+pipeline:
+  processors: []
+
 output:
   label: outputa
   drop: {}
+
+tests:
+  - name: passthrough
+    input_batch:
+      - content: foo
+    output_batches:
+      - - content_equals: foo
 `), 0o644))
 
-	var flagExtracted string
-	service.RunCLI(t.Context(),
-		service.CLIOptSetArgs("meow", "run", "--meow", "foobar", confPath),
-		service.CLIOptCustomRunFlags([]cli.Flag{
-			&cli.StringFlag{
-				Name:  "meow",
-				Value: "",
-			},
-		}, func(c *cli.Context) error {
-			flagExtracted = c.String("meow")
-			return nil
-		}))
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "run",
+			args: []string{"meow", "run", "--meow", "foobar", confPath},
+			want: []string{"foobar"},
+		},
+		{
+			name: "lint",
+			args: []string{"meow", "lint", "--meow", "foobar", confPath},
+			want: []string{"foobar"},
+		},
+		{
+			name: "test",
+			args: []string{"meow", "test", "--meow", "foobar", confPath},
+			want: []string{"foobar"},
+		},
+	}
 
-	assert.Equal(t, "foobar", flagExtracted)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var flagExtracted []string
+			code, err := service.RunCLIToCode(t.Context(),
+				service.CLIOptSetArgs(test.args...),
+				service.CLIOptCustomRunFlags([]cli.Flag{
+					&cli.StringSliceFlag{
+						Name: "meow",
+					},
+				}, func(c *cli.Context) error {
+					flagExtracted = c.StringSlice("meow")
+					return nil
+				}))
+			require.NoError(t, err)
+			require.Equal(t, 0, code)
+			assert.Equal(t, test.want, flagExtracted)
+		})
+	}
 }
 
 func TestRunCLITemplate(t *testing.T) {
