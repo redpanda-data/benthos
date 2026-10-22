@@ -57,6 +57,10 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
     # v5.55.0 (2026-10-19): the connect surface covers helper constructors,
     # cross-file constants, Bloblang, ShortDescription, and urfave/cli help.
+    # It does not read the internal docs.Field* constructors this repo uses
+    # for shared blocks (http_server cors, tls, logger, batching, api), so
+    # those descriptions are not reviewed until the pin moves to a release
+    # with redpanda-data/docs-extensions-and-macros#417.
     # Each doc string is reviewed once per PR, in the context of the page it
     # publishes to. The lint and the review diff the merge checkout against
     # its first parent, so a PR whose base moved after it was opened is not
@@ -75,8 +79,10 @@ jobs:
       id-token: write
     with:
       # The AWS inputs let the reusable workflow assume this repo's OIDC role
-      # and read the org bot token from Secrets Manager, the same way
-      # claude-code-review.yml in this repo does.
+      # (the one claude-code-review.yml in this repo assumes) and read two
+      # secrets from Secrets Manager through it. devprod-infra grants both to
+      # this repo: the org bot token (sdlc/prod/github/actions_bot_token) and
+      # the gateway credential below.
       aws_region: ${{ vars.RP_AWS_CRED_REGION }}
       aws_role_name_prefix: ${{ vars.RP_AWS_CRED_BASE_ROLE_NAME }}
       # Model traffic goes through the ADP AI Gateway, minted as the
@@ -99,6 +105,9 @@ jobs:
       # No anthropic_api_key: the reusable workflow only reads it when
       # use_adp_gateway is off, so passing it would just expose a long-lived
       # key to a job that runs a model with Bash over PR content. No
-      # actions_bot_token either: the reusable workflow reads the bot token
-      # over OIDC from the AWS inputs above.
+      # actions_bot_token either: the reusable workflow reads
+      # sdlc/prod/github/actions_bot_token over OIDC through the AWS inputs
+      # above. That fetch is continue-on-error too: without the grant the
+      # review drops the writing standard, the terminology checks and the
+      # doc-impact dispatch and runs lint-only, with a notice in the job log.
       aws_cred_account_id: ${{ secrets.RP_AWS_CRED_ACCOUNT_ID }}
