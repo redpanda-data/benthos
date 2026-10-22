@@ -41,7 +41,7 @@ This scanner adds the following metadata to each message:
 				Description("If set to `true`, a quote may appear in an unquoted field and a non-doubled quote may appear in a quoted field.").
 				Default(false),
 			service.NewBoolField(scsvFieldContinueOnError).
-				Description("If a row fails to parse due to any error emit an empty message marked with the error and then continue consuming subsequent rows when possible. This can sometimes be useful in situations where input data contains individual rows which are malformed. However, when a row encounters a parsing error it is impossible to guarantee that following rows are valid, as this indicates that the input data is unreliable and could potentially emit misaligned rows.").
+				Description("If a row fails to parse emit an empty message marked with the error and then continue consuming subsequent rows when possible. Errors reading from the underlying source are not skipped and are returned as normal. This can sometimes be useful in situations where input data contains individual rows which are malformed. However, when a row encounters a parsing error it is impossible to guarantee that following rows are valid, as this indicates that the input data is unreliable and could potentially emit misaligned rows.").
 				Default(false),
 		)
 }
@@ -124,7 +124,11 @@ func (c *csvScanner) NextBatch(ctx context.Context) (service.MessageBatch, error
 
 	recordStrs, err := c.c.Read()
 	if err != nil {
-		if errors.Is(err, io.EOF) || !c.continueOnError {
+		// Only parse errors can be skipped. An error from the underlying reader
+		// (e.g. a broken network stream) repeats on every subsequent read, so
+		// continuing would emit empty messages forever.
+		var pErr *csv.ParseError
+		if !c.continueOnError || !errors.As(err, &pErr) {
 			return nil, err
 		}
 	}
