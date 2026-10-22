@@ -41,7 +41,7 @@ Please always make sure a pull request has been:
 
 If your change impacts inputs, outputs or other connectors then try to test them with `make test-integration`. If the integration tests aren't working on your machine then don't panic, just mention it in your PR.
 
-If your change has an impact on documentation then make sure it is generated with `make docs`. You can test out the documentation site locally by running `yarn && yarn start` in the `./website` directory.
+Component and field doc strings are AsciiDoc that several surfaces publish: the Redpanda Connect docs site, the Redpanda Cloud docs site, and each binary's `list --format json-full --docs-format markdown` output. The godoc on `service.ConfigSpec.Description` says how to write links and how and why to wrap Cloud-specific text in an `env-cloud` conditional. `go test ./internal/cli/` fails on a malformed conditional.
 
 ### Adding New Components
 

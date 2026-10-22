@@ -23,7 +23,7 @@ func init() {
 			Field(service.NewBloblangField("")).
 			Summary("Executes a xref:guides:bloblang/about.adoc[Bloblang] mapping on messages, creating a new document that replaces (or filters) the original message.").
 			Description(`
-Bloblang is a powerful language that enables a wide range of mapping, transformation and filtering tasks. For more information, see xref:guides:bloblang/about.adoc[].
+Bloblang is a powerful language that enables a wide range of mapping, transformation and filtering tasks. For more information, see xref:guides:bloblang/about.adoc[About Bloblang].
 
 If your mapping is large and you'd prefer for it to live in a separate file then you can execute a mapping directly from a file with the expression `+"`from \"<path>\"`"+`, where the path must be absolute, or relative from the location that Redpanda Connect is executed from.
 

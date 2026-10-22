@@ -62,7 +62,7 @@ output_resources:
       topic: baz
 `+"```"+`
 
-You can find out more about resources in xref:configuration:resources.adoc[]`).
+You can find out more about resources in xref:configuration:resources.adoc[Resources]`).
 			Field(service.NewStringField("").Default("")),
 		func(conf *service.ParsedConfig, res *service.Resources) (out service.BatchOutput, batchPolicy service.BatchPolicy, maxInFlight int, err error) {
 			var resName string

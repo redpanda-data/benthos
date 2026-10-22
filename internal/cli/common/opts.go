@@ -37,6 +37,21 @@ type CLIOpts struct {
 	ProductName      string
 	DocumentationURL string
 
+	// DocsAttributes returns the AsciiDoc attributes the main schema declares
+	// as set for this distribution's readers, for example env-cloud in a
+	// binary that runs in Redpanda Cloud, used when doc strings render as
+	// Markdown. Nil when the schema declares none.
+	DocsAttributes func() []string
+
+	// DocsComponentURLs maps other docs site components named in xrefs to their
+	// base URLs, for doc strings rendered as Markdown.
+	DocsComponentURLs map[string]string
+
+	// DocsHasComponent reports whether this distribution ships the component
+	// at components/<typeDir>/<name>, for doc strings rendered as Markdown.
+	// Nil means any component target missing from the schema is absent.
+	DocsHasComponent func(typeDir, name string) bool
+
 	ConfigSearchPaths []string
 
 	Environment      *bundle.Environment
