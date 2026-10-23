@@ -457,59 +457,80 @@ func TestErrorConnsValuesInOtherContexts(t *testing.T) {
 	assert.NotContains(t, err.Error(), "S3cret Pass")
 }
 
-func TestErrorDecodedUserinfoPassword(t *testing.T) {
-	conn := "postgres://u:a+b%21cd@h/db"
-	assert.Equal(t, "auth failed for password xxxxx", Error(errors.New("auth failed for password a+b!cd"), Conns(conn)).Error())
-	assert.Equal(t, "auth failed for password=xxxxx", Error(errors.New("auth failed for password=a+b!cd"), Conns(conn)).Error())
-}
+func TestErrorConns(t *testing.T) {
+	pg := "postgres://u:" + secret + "@h/db"
+	gitConn := "https://" + secret + "@127.0.0.1:1/org/repo.git"
+	gitMsg := `Get "` + gitConn + `/info/refs?service=git-upload-pack": dial tcp 127.0.0.1:1: connect: connection refused`
+	gitWant := `Get "https://xxxxx@127.0.0.1:1/org/repo.git/info/refs?service=xxxxx": dial tcp 127.0.0.1:1: connect: connection refused`
+	token := "ghp_" + secret + "0123456789"
 
-func TestErrorPasswordAsWord(t *testing.T) {
-	conn := "postgres://u:" + secret + "@h/db"
-	for _, msg := range []string{
-		"bad (%s)", "bad [%s]", "bad <%s>", "bad `%s`", "password %s rejected", "path /%s/x", "%s",
-	} {
-		in := fmt.Sprintf(msg, secret)
-		assert.Equal(t, fmt.Sprintf(msg, Marker), Error(errors.New(in), Conns(conn)).Error(), in)
+	tests := []struct {
+		name, conn, msg, want string
+	}{
+		// Passwords are removed where they appear as a whole word.
+		{name: "in parens", conn: pg, msg: "bad (" + secret + ")", want: "bad (xxxxx)"},
+		{name: "in brackets", conn: pg, msg: "bad [" + secret + "]", want: "bad [xxxxx]"},
+		{name: "in angle brackets", conn: pg, msg: "bad <" + secret + ">", want: "bad <xxxxx>"},
+		{name: "in backticks", conn: pg, msg: "bad `" + secret + "`", want: "bad `xxxxx`"},
+		{name: "in double quotes", conn: pg, msg: `"` + secret + `"`, want: `"xxxxx"`},
+		{name: "in prose", conn: pg, msg: "password " + secret + " rejected", want: "password xxxxx rejected"},
+		{name: "path segment", conn: pg, msg: "path /" + secret + "/x", want: "path /xxxxx/x"},
+		{name: "whole message", conn: pg, msg: secret, want: "xxxxx"},
+		{name: "message start", conn: pg, msg: secret + " failed", want: "xxxxx failed"},
+		{name: "repeated", conn: pg, msg: "a " + secret + " b " + secret, want: "a xxxxx b xxxxx"},
+		{name: "in dsn", conn: pg, msg: "dsn=" + pg, want: "dsn=postgres://u:xxxxx@h/db"},
+		{name: "regex metacharacters", conn: "postgres://u:p.*ss@h/db", msg: "bad p.*ss", want: "bad xxxxx"},
+		{name: "sentence end", conn: pg, msg: "auth: " + secret + ".", want: "auth: xxxxx."},
+		{name: "ellipsis", conn: pg, msg: "auth: " + secret + "... retrying", want: "auth: xxxxx... retrying"},
+		{name: "dot then space", conn: pg, msg: "auth: " + secret + ". retrying", want: "auth: xxxxx. retrying"},
+		{name: "decoded in prose", conn: "postgres://u:a+b%21cd@h/db", msg: "auth failed for password a+b!cd", want: "auth failed for password xxxxx"},
+		{name: "decoded as value", conn: "postgres://u:a+b%21cd@h/db", msg: "auth failed for password=a+b!cd", want: "auth failed for password=xxxxx"},
+		{name: "starts with @", conn: "postgres://u:@pwpw@h/db", msg: "bad pw=@pwpw", want: "bad pw=xxxxx"},
+		{name: "prefix of a longer value", conn: pg + "?token=" + secret + "!more", msg: "bad token=" + secret + "!more", want: "bad token=xxxxx"},
+
+		// Passwords within other text are kept.
+		{name: "host suffix", conn: pg, msg: "db." + secret, want: "db." + secret},
+		{name: "underscore", conn: pg, msg: secret + "_x", want: secret + "_x"},
+		{name: "hyphen", conn: pg, msg: "x-" + secret, want: "x-" + secret},
+		{name: "host prefix", conn: pg, msg: "auth: " + secret + ".example.com", want: "auth: " + secret + ".example.com"},
+		{name: "host at message start", conn: pg, msg: secret + ".example.com", want: secret + ".example.com"},
+		{name: "non-ascii neighbour", conn: pg, msg: "Mü" + secret, want: "Mü" + secret},
+		{name: "within host name", conn: "postgres://app:oogle.c@db/app", msg: "dial tcp: lookup www.google.com: no such host", want: "dial tcp: lookup www.google.com: no such host"},
+		{name: "within word", conn: "postgres://app:thentic@db/app", msg: "pq: password authentication failed", want: "pq: password authentication failed"},
+		{name: "within error text", conn: "postgres://app:efuse@db/app", msg: "dial tcp db:5432: connect: connection refused", want: "dial tcp db:5432: connect: connection refused"},
+		{name: "host label", conn: "postgres://app:example@db/app", msg: "lookup db.example.com: no such host", want: "lookup db.example.com: no such host"},
+		{name: "unrelated message", conn: pg, msg: "timeout after 5s", want: "timeout after 5s"},
+		{name: "no conns", msg: "bad " + secret, want: "bad " + secret},
+
+		// Passwords shorter than 4 characters are only removed as a value.
+		{name: "short as value", conn: "postgres://u:abc@h/db", msg: "bad abc, pw=abc", want: "bad abc, pw=xxxxx"},
+		{name: "short as word kept", conn: "postgres://u:abc@h/db", msg: "abc is wrong", want: "abc is wrong"},
+
+		// A password that equals a word of the error is removed there, as a
+		// known limit.
+		{name: "equals a word", conn: "postgres://u:refused@h/db", msg: "connect: connection refused", want: "connect: connection xxxxx"},
+
+		// A username without a password is redacted as a token.
+		{name: "token url", conn: gitConn, msg: gitMsg, want: gitWant},
+		{name: "token url without conns", msg: gitMsg, want: gitWant},
+		{name: "token as value", conn: gitConn, msg: `token "` + secret + `" rejected`, want: `token "xxxxx" rejected`},
+		{name: "long token as word", conn: "https://" + token + "@github.com/org/repo.git", msg: "auth for " + token + " failed", want: "auth for xxxxx failed"},
+		{name: "token with empty password", conn: "https://" + token + ":@github.com/org/repo.git", msg: "https://" + token + "@github.com/org/repo.git", want: "https://xxxxx@github.com/org/repo.git"},
+		{name: "nats token", conn: "nats://" + token + "@demo.nats.io:4222", msg: "nats: authorization violation for " + token, want: "nats: authorization violation for xxxxx"},
+		{name: "nats token url", msg: "dial nats://" + token + "@demo.nats.io:4222 failed", want: "dial nats://xxxxx@demo.nats.io:4222 failed"},
+
+		// Shorter usernames are likely names rather than tokens, and are only
+		// removed where they appear as a value.
+		{name: "short username as word kept", conn: "https://deploy@h/org/repo.git", msg: `deploy key for "deploy" rejected`, want: `deploy key for "xxxxx" rejected`},
 	}
-	for _, msg := range []string{"db.%s", "%s_x", "x-%s", "%s.example.com", "Mü%s"} {
-		in := fmt.Sprintf(msg, secret)
-		assert.Equal(t, in, Error(errors.New(in), Conns(conn)).Error(), in)
-	}
-}
-
-func TestErrorPasswordAtSentenceEnd(t *testing.T) {
-	conn := "postgres://u:" + secret + "@h/db"
-	assert.Equal(t, "auth: xxxxx.", Error(errors.New("auth: "+secret+"."), Conns(conn)).Error())
-	assert.Equal(t, "auth: xxxxx... retrying", Error(errors.New("auth: "+secret+"... retrying"), Conns(conn)).Error())
-	assert.Equal(t, "auth: "+secret+".example.com", Error(errors.New("auth: "+secret+".example.com"), Conns("postgres://u:"+secret+"@db/x")).Error())
-}
-
-func TestErrorPasswordWordEdgeCases(t *testing.T) {
-	// A password shorter than 4 characters is only removed as a value.
-	assert.Equal(t, "bad abc, pw=xxxxx", Error(errors.New("bad abc, pw=abc"), Conns("postgres://u:abc@h/db")).Error())
-
-	// A password that prefixes a longer value does not cut it short.
-	conn := "postgres://u:" + secret + "@h/db?token=" + secret + "!more"
-	assert.Equal(t, "bad token=xxxxx", Error(errors.New("bad token="+secret+"!more"), Conns(conn)).Error())
-
-	// A password that starts with "@" is still found.
-	assert.Equal(t, "bad pw=xxxxx", Error(errors.New("bad pw=@pwpw"), Conns("postgres://u:@pwpw@h/db")).Error())
-
-	// A password that equals a word of the error is removed there, as a
-	// known limit.
-	assert.Equal(t, "connect: connection xxxxx", Error(errors.New("connect: connection refused"), Conns("postgres://u:refused@h/db")).Error())
-
-	assert.Equal(t, "auth: xxxxx. retrying", Error(errors.New("auth: "+secret+". retrying"), Conns("postgres://u:"+secret+"@h/db")).Error())
-}
-
-func TestErrorKeepsPasswordWithinOtherText(t *testing.T) {
-	for _, tc := range []struct{ conn, msg string }{
-		{"postgres://app:oogle.c@db/app", "dial tcp: lookup www.google.com: no such host"},
-		{"postgres://app:thentic@db/app", "pq: password authentication failed"},
-		{"postgres://app:efuse@db/app", "dial tcp db:5432: connect: connection refused"},
-		{"postgres://app:example@db/app", "lookup db.example.com: no such host"},
-	} {
-		assert.Equal(t, tc.msg, Error(errors.New(tc.msg), Conns(tc.conn)).Error(), tc.conn)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var opts []Option
+			if tc.conn != "" {
+				opts = append(opts, Conns(tc.conn))
+			}
+			assert.Equal(t, tc.want, Error(errors.New(tc.msg), opts...).Error())
+		})
 	}
 }
 
@@ -604,28 +625,4 @@ func TestStringTokenUsername(t *testing.T) {
 	u, err := url.Parse("https://" + secret + "@github.com/org/repo.git")
 	require.NoError(t, err)
 	assert.Equal(t, "https://xxxxx@github.com/org/repo.git", URL(u))
-}
-
-func TestErrorTokenUsername(t *testing.T) {
-	conn := "https://" + secret + "@127.0.0.1:1/org/repo.git"
-	msg := `Get "` + conn + `/info/refs?service=git-upload-pack": dial tcp 127.0.0.1:1: connect: connection refused`
-	want := `Get "https://xxxxx@127.0.0.1:1/org/repo.git/info/refs?service=xxxxx": dial tcp 127.0.0.1:1: connect: connection refused`
-
-	assert.Equal(t, want, Error(errors.New(msg), Conns(conn)).Error())
-	assert.Equal(t, want, Error(errors.New(msg)).Error())
-	assert.Equal(t, `token "xxxxx" rejected`, Error(errors.New(`token "`+secret+`" rejected`), Conns(conn)).Error())
-
-	token := "ghp_" + secret + "0123456789"
-	conn = "https://" + token + "@github.com/org/repo.git"
-	assert.Equal(t, "auth for xxxxx failed", Error(errors.New("auth for "+token+" failed"), Conns(conn)).Error())
-	assert.Equal(t, "https://xxxxx@github.com/org/repo.git", Error(errors.New(conn), Conns("https://"+token+":@github.com/org/repo.git")).Error())
-
-	// Shorter usernames are likely names rather than tokens, and are only
-	// removed where they appear as a value.
-	conn = "nats://" + token + "@demo.nats.io:4222"
-	assert.Equal(t, "nats: authorization violation for xxxxx", Error(errors.New("nats: authorization violation for "+token), Conns(conn)).Error())
-	assert.Equal(t, "dial nats://xxxxx@demo.nats.io:4222 failed", Error(errors.New("dial "+conn+" failed")).Error())
-
-	conn = "https://deploy@h/org/repo.git"
-	assert.Equal(t, `deploy key for "xxxxx" rejected`, Error(errors.New(`deploy key for "deploy" rejected`), Conns(conn)).Error())
 }
