@@ -17,8 +17,9 @@
 // within other text is kept. One that equals another word in the message,
 // such as the user name or a word of the error itself, is removed there too,
 // which shows that they are equal. A token sent as the username is only
-// redacted for http(s) URLs without a password or with an empty one, so one
-// with a placeholder password, as in https://<token>:x-oauth-basic@h, is kept.
+// redacted for http, https, ws, wss, nats and tls URLs without a password or
+// with an empty one, so one with a placeholder password, as in
+// https://<token>:x-oauth-basic@h, is kept.
 package redact
 
 import (
@@ -38,9 +39,9 @@ const Marker = "xxxxx"
 // String returns the connection string s with its credentials replaced by
 // Marker. It accepts URLs, URL lists, scheme-less DSNs such as MySQL's, and
 // keyword/value strings such as libpq's or ADO.NET's. The userinfo password,
-// the username of an http(s) URL without a password, and every query, fragment
-// and keyword value are redacted, and a URL that cannot be parsed keeps only
-// its scheme.
+// the username of an http(s), websocket or NATS URL without a password, and
+// every query, fragment and keyword value are redacted, and a URL that cannot
+// be parsed keeps only its scheme.
 func String(s string) string {
 	if t := trimLeftSpace(s); len(t) != len(s) {
 		return s[:len(s)-len(t)] + String(t)
@@ -123,8 +124,8 @@ func schemeOnly(s string) string {
 }
 
 // URL returns the string form of u with the userinfo password, the username of
-// an http(s) URL without a password, every query parameter value and the
-// fragment replaced by Marker. u is not modified.
+// an http(s), websocket or NATS URL without a password, every query parameter
+// value and the fragment replaced by Marker. u is not modified.
 func URL(u *url.URL) string {
 	if u == nil {
 		return ""
@@ -144,9 +145,14 @@ func URL(u *url.URL) string {
 	return c.String()
 }
 
-// isTokenUser reports whether u is an http(s) URL with a username and no
-// password, or an empty one, as such a username is usually a token, as in
-// https://<token>@github.com/org/repo.
+// tokenUserSchemes are the schemes of URLs whose username is usually a token
+// when there is no password: http(s) and websockets, as in
+// https://<token>@github.com/org/repo, and NATS, whose client sends such a
+// username as its auth token and also accepts tls, ws and wss URLs.
+var tokenUserSchemes = []string{"http", "https", "ws", "wss", "nats", "tls"}
+
+// isTokenUser reports whether u has a scheme in tokenUserSchemes, a username
+// and no password, or an empty one, as such a username is usually a token.
 func isTokenUser(u *url.URL) bool {
 	if u.User == nil || u.User.Username() == "" {
 		return false
@@ -154,7 +160,9 @@ func isTokenUser(u *url.URL) bool {
 	if pwd, _ := u.User.Password(); pwd != "" {
 		return false
 	}
-	return strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https")
+	return slices.ContainsFunc(tokenUserSchemes, func(scheme string) bool {
+		return strings.EqualFold(u.Scheme, scheme)
+	})
 }
 
 // redactQuery replaces the value of every parameter in rawQuery, and every
@@ -781,8 +789,8 @@ func redactURLInText(m string) string {
 }
 
 // credentials returns the values in s that might be credentials: the
-// userinfo password, the username of an http(s) URL without a password or
-// with an empty one, and every query or keyword value.
+// userinfo password, a username sent as a token (see isTokenUser), and every
+// query or keyword value.
 func credentials(s string) []credential {
 	var out []credential
 	add := func(v string, minWordLen int, unescape func(string) (string, error)) {

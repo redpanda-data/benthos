@@ -302,6 +302,7 @@ func FuzzStringAndError(f *testing.F) {
 		{format: "amqp://user:%s@bad host:5672/?token=%s", host: "bad host"},
 		{format: "user:%s@tcp(db:3306)/app?tls=%s"},
 		{format: "https://%s@git.example.com/org/repo.git?ref=%s", host: "git.example.com", tokenUser: true},
+		{format: "nats://%s@demo.nats.io:4222/?name=%s", host: "demo.nats.io", tokenUser: true},
 		{format: "host=db user=u password=%s sslmode=%s", keywords: true},
 		{format: "Server=db;User Id=u;Password=%s;Database=%s", keywords: true},
 	}
@@ -590,6 +591,12 @@ func TestStringTokenUsername(t *testing.T) {
 		"ssh://git@github.com/org/repo.git":              "ssh://git@github.com/org/repo.git",
 		"amqp://guest@h:5672/":                           "amqp://guest@h:5672/",
 		"https://@h/p":                                   "https://@h/p",
+		"wss://" + secret + "@h/p":                       "wss://xxxxx@h/p",
+		"ws://" + secret + "@h/p":                        "ws://xxxxx@h/p",
+		"nats://" + secret + "@demo.nats.io:4222":        "nats://xxxxx@demo.nats.io:4222",
+		"tls://" + secret + "@demo.nats.io:4222":         "tls://xxxxx@demo.nats.io:4222",
+		"NATS://" + secret + "@h:4222":                   "NATS://xxxxx@h:4222",
+		"nats://u:" + secret + "@h:4222":                 "nats://u:xxxxx@h:4222",
 	} {
 		assert.Equal(t, want, String(in), in)
 	}
@@ -615,6 +622,10 @@ func TestErrorTokenUsername(t *testing.T) {
 
 	// Shorter usernames are likely names rather than tokens, and are only
 	// removed where they appear as a value.
+	conn = "nats://" + token + "@demo.nats.io:4222"
+	assert.Equal(t, "nats: authorization violation for xxxxx", Error(errors.New("nats: authorization violation for "+token), Conns(conn)).Error())
+	assert.Equal(t, "dial nats://xxxxx@demo.nats.io:4222 failed", Error(errors.New("dial "+conn+" failed")).Error())
+
 	conn = "https://deploy@h/org/repo.git"
 	assert.Equal(t, `deploy key for "xxxxx" rejected`, Error(errors.New(`deploy key for "deploy" rejected`), Conns(conn)).Error())
 }
