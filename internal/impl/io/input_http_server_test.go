@@ -1364,17 +1364,21 @@ func TestHTTPServerReload(t *testing.T) {
 
 	t.Parallel()
 
+	// Do not use a fixed port. Packages run in parallel, and a fixed port can
+	// collide with a test in another package.
+	addr := fmt.Sprintf("127.0.0.1:%d", getFreePort(t))
+
 	// First server instance
 	mgr1, err := manager.New(manager.ResourceConfig{})
 	require.NoError(t, err)
 
 	conf1 := parseYAMLInputConf(t, `
 http_server:
-  address: "127.0.0.1:19284"
+  address: "%v"
   path: /testpost
   tcp:
     reuse_port: true
-`)
+`, addr)
 
 	h1, err := mgr1.NewInput(conf1)
 	require.NoError(t, err)
@@ -1388,7 +1392,7 @@ http_server:
 	// Send request to first server (in goroutine to avoid blocking)
 	go func() {
 		res, err := http.Post(
-			"http://127.0.0.1:19284/testpost",
+			"http://"+addr+"/testpost",
 			"application/octet-stream",
 			bytes.NewBufferString("test message 1"),
 		)
@@ -1426,11 +1430,11 @@ http_server:
 
 	conf2 := parseYAMLInputConf(t, `
 http_server:
-  address: "127.0.0.1:19284"
+  address: "%v"
   path: /testpost
   tcp:
     reuse_port: true
-`)
+`, addr)
 
 	h2, err := mgr2.NewInput(conf2)
 	require.NoError(t, err, "Failed to create second http_server on same port - this is the bug we're fixing")
@@ -1444,7 +1448,7 @@ http_server:
 	// Send request to second server to verify it's working (in goroutine to avoid blocking)
 	go func() {
 		res, err := http.Post(
-			"http://127.0.0.1:19284/testpost",
+			"http://"+addr+"/testpost",
 			"application/octet-stream",
 			bytes.NewBufferString("test message 2"),
 		)
