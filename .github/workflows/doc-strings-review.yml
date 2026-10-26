@@ -55,24 +55,20 @@ jobs:
     if: >-
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository
-    # v5.55.0 (2026-10-19): the connect surface covers helper constructors,
-    # cross-file constants, Bloblang, ShortDescription, and urfave/cli help.
-    # It does not read the internal docs.Field* constructors this repo uses
-    # for shared blocks (http_server cors, tls, logger, batching, api), so
-    # those descriptions are not reviewed until the pin moves to a release
-    # with redpanda-data/docs-extensions-and-macros#417.
-    # Each doc string is reviewed once per PR, in the context of the page it
-    # publishes to. The lint and the review diff the merge checkout against
-    # its first parent, so a PR whose base moved after it was opened is not
-    # attributed strings that other PRs changed. Each run also uploads the
-    # docs MCP answers the review saw as a 90-day workflow artifact for the
-    # doc-impact eval; this repo is public, so anyone can download it, and
-    # it holds only public docs answers and the review's questions about the
-    # PR's strings.
+    # v5.56.0 (2026-10-26): the connect surface reads the internal
+    # docs.Field* constructors this repo uses for shared blocks (http_server
+    # cors, tls, logger, batching, api), so those descriptions are reviewed.
+    # Descriptions set as a Description: field in a docs.FieldSpec{} literal
+    # are still not read. Lines that a human reviewer other than the author
+    # wrote on the PR are not reviewed again.
+    # Each run uploads the docs MCP answers the review saw as a 90-day
+    # workflow artifact for the doc-impact eval; this repo is public, so
+    # anyone can download it, and it holds only public docs answers and the
+    # review's questions about the PR's strings.
     # The reusable workflow resolves the doc-tools CLI version from its own
     # ref, so this SHA pins the review logic and the CLI together and a bump
     # moves both.
-    uses: redpanda-data/docs-extensions-and-macros/.github/workflows/doc-strings-review.yml@560c4301d2f98c2e5e158daa70fa2d3760859bda # v5.55.0
+    uses: redpanda-data/docs-extensions-and-macros/.github/workflows/doc-strings-review.yml@90ebfd5ceb8824915c8ab9ee440d79a975933976 # v5.56.0
     permissions:
       contents: read
       pull-requests: write
