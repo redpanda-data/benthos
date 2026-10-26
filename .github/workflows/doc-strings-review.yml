@@ -1,0 +1,113 @@
+---
+# Suggest-only review of user-facing doc strings in component, field and
+# Bloblang specs, and in the CLI help under internal/cli. These strings are
+# published to the Redpanda Connect reference on docs.redpanda.com (connect
+# builds this module's components and generates the pages with its
+# cmd/tools/docs_gen), to the Cloud UI, and to rpk connect help.
+#
+# All review logic lives in the shared reusable workflow in
+# redpanda-data/docs-extensions-and-macros so it cannot drift between
+# repos. This shim owns only the trigger paths and the secrets. It is the
+# same review connect runs on its own specs.
+#
+# The ref is pinned to a commit SHA, not a branch. The reusable workflow
+# runs here with pull-requests: write and id-token: write, and through
+# that OIDC role it can read every secret granted to this repo in Secrets
+# Manager, the org bot token included. Tracking a branch would let a merge
+# in docs-extensions-and-macros change what runs inside this repo's job
+# without any review here. "Suggest-only and fails open" bounds what the
+# review can do to a PR, not what a run step can do with the role.
+# A tag is no better: the ruleset protecting v* tags there is scoped to
+# that repository, so an admin there can edit it and move a tag with no
+# review on our side. Pin the commit SHA, annotated with the tag for a
+# human to read.
+#
+# To bump: take the release commit (the one a v<version> tag points at) on
+# docs-extensions-and-macros main that carries the change you want, check
+# its diff to .github/workflows/doc-strings-review.yml, and update the SHA,
+# its tag comment, and the date below in one PR.
+name: doc-strings-review
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened]
+    # The reusable workflow's diff scan decides whether a PR has anything to
+    # review, and a push that adds or changes no doc string the review has
+    # not already seen never reaches the model. The connect surface scans
+    # internal, public and cmd; cmd/benthos is a main package with no
+    # strings of its own, and the CLI help lives under internal/cli.
+    paths:
+      - "internal/**/*.go"
+      - "public/**/*.go"
+# Queue, never cancel: a review cancelled mid-post leaves half its
+# suggestions up and skips saving the record of what it reviewed, so the
+# next run repeats them. GitHub keeps only the newest queued run, so a
+# burst of pushes still ends in one review of the latest commit.
+concurrency:
+  group: doc-strings-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  review:
+    # Same-repo PRs only. A fork PR gets no OIDC role and no secrets, so the
+    # gateway mint could not run and the review could only ever be lint-only
+    # noise on an external contributor's PR. The tamper guard would also see
+    # every fork author as a non-writer and refuse. Gating here keeps that
+    # from looking like a failure the contributor caused.
+    if: >-
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    # v5.55.0 (2026-10-19): the connect surface covers helper constructors,
+    # cross-file constants, Bloblang, ShortDescription, and urfave/cli help.
+    # It does not read the internal docs.Field* constructors this repo uses
+    # for shared blocks (http_server cors, tls, logger, batching, api), so
+    # those descriptions are not reviewed until the pin moves to a release
+    # with redpanda-data/docs-extensions-and-macros#417.
+    # Each doc string is reviewed once per PR, in the context of the page it
+    # publishes to. The lint and the review diff the merge checkout against
+    # its first parent, so a PR whose base moved after it was opened is not
+    # attributed strings that other PRs changed. Each run also uploads the
+    # docs MCP answers the review saw as a 90-day workflow artifact for the
+    # doc-impact eval; this repo is public, so anyone can download it, and
+    # it holds only public docs answers and the review's questions about the
+    # PR's strings.
+    # The reusable workflow resolves the doc-tools CLI version from its own
+    # ref, so this SHA pins the review logic and the CLI together and a bump
+    # moves both.
+    uses: redpanda-data/docs-extensions-and-macros/.github/workflows/doc-strings-review.yml@560c4301d2f98c2e5e158daa70fa2d3760859bda # v5.55.0
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    with:
+      # The AWS inputs let the reusable workflow assume this repo's OIDC role
+      # (the one claude-code-review.yml in this repo assumes) and read two
+      # secrets from Secrets Manager through it. devprod-infra grants both to
+      # this repo: the org bot token (sdlc/prod/github/actions_bot_token) and
+      # the gateway credential below.
+      aws_region: ${{ vars.RP_AWS_CRED_REGION }}
+      aws_role_name_prefix: ${{ vars.RP_AWS_CRED_BASE_ROLE_NAME }}
+      # Model traffic goes through the ADP AI Gateway, minted as the
+      # doc-strings-review agent, so Cost and usage attributes this review's
+      # spend to that agent by name. The defaults at this pin are already the
+      # agent path; devprod-infra grants this repo the agent's credential
+      # (sdlc/prod/github/docs_doc_strings_client). Every step in the mint
+      # chain is continue-on-error, so a missing grant shows up as a review
+      # that silently does not appear. Read the job log, not the check colour.
+      use_adp_gateway: true
+      # The reusable workflow defaults to sonnet-5, which is not proven
+      # against claude-code-provider-adp. A model the provider does not allow
+      # is a 400 that surfaces as a missing review rather than a failure, so
+      # pin the one streaming-enterprise's and redpanda-operator's reviews
+      # already run. connect's shim moves to sonnet-5 for cost; follow it
+      # once that is proven live.
+      gateway_model: us.anthropic.claude-opus-5
+      surfaces: connect
+    secrets:
+      # No anthropic_api_key: the reusable workflow only reads it when
+      # use_adp_gateway is off, so passing it would just expose a long-lived
+      # key to a job that runs a model with Bash over PR content. No
+      # actions_bot_token either: the reusable workflow reads
+      # sdlc/prod/github/actions_bot_token over OIDC through the AWS inputs
+      # above. That fetch is continue-on-error too: without the grant the
+      # review drops the writing standard, the terminology checks and the
+      # doc-impact dispatch and runs lint-only, with a notice in the job log.
+      aws_cred_account_id: ${{ secrets.RP_AWS_CRED_ACCOUNT_ID }}
