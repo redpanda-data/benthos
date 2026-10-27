@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.opentelemetry.io/otel/trace/noop"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/redpanda-data/benthos/v4/internal/log"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
+	"github.com/redpanda-data/benthos/v4/internal/tracing"
 )
 
 const (
@@ -398,6 +400,7 @@ func (t *Type) forStream(id string) *Type {
 		"stream": id,
 	})
 	newT.stats = t.stats.WithLabels("stream", id)
+	newT.tracer = tracing.WithAttributes(t.tracer, attribute.String("stream", id))
 	return &newT
 }
 
