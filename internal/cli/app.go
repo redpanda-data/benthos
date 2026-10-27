@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime/debug"
+	"strconv"
 	"strings"
 
 	"github.com/urfave/cli/v2"
@@ -56,10 +57,143 @@ func init() {
 //------------------------------------------------------------------------------
 
 type pluginHelp struct {
-	Path  string   `json:"path,omitempty"`
-	Short string   `json:"short,omitempty"`
-	Long  string   `json:"long,omitempty"`
-	Args  []string `json:"args,omitempty"`
+	Path  string       `json:"path,omitempty"`
+	Short string       `json:"short,omitempty"`
+	Long  string       `json:"long,omitempty"`
+	Args  []string     `json:"args,omitempty"`
+	Flags []pluginFlag `json:"flags"`
+}
+
+// pluginFlag matches the shape rpk uses for its own flags in --print-tree.
+type pluginFlag struct {
+	Name        string `json:"name"`
+	Shorthand   string `json:"shorthand,omitempty"`
+	Type        string `json:"type"`
+	Description string `json:"description"`
+	Default     any    `json:"default"`
+	Required    bool   `json:"required"`
+	Deprecated  string `json:"deprecated,omitempty"`
+}
+
+// flagTypeAndDefault returns the pflag type name of a flag along with its
+// default value formatted the way pflag would format it.
+func flagTypeAndDefault(f cli.Flag) (typ, def string) {
+	sliceDef := func(defaultText string, vals []string) string {
+		if defaultText != "" {
+			return defaultText
+		}
+		return "[" + strings.Join(vals, ",") + "]"
+	}
+	unquoted := func(defaultText, value string) string {
+		if defaultText != "" {
+			return defaultText
+		}
+		return value
+	}
+	switch t := f.(type) {
+	case *cli.BoolFlag:
+		return "bool", t.GetDefaultText()
+	case *cli.StringFlag:
+		return "string", unquoted(t.DefaultText, t.Value)
+	case *cli.PathFlag:
+		return "string", unquoted(t.DefaultText, t.Value)
+	case *cli.IntFlag:
+		return "int", t.GetDefaultText()
+	case *cli.Int64Flag:
+		return "int64", t.GetDefaultText()
+	case *cli.UintFlag:
+		return "uint", t.GetDefaultText()
+	case *cli.Uint64Flag:
+		return "uint64", t.GetDefaultText()
+	case *cli.Float64Flag:
+		return "float64", t.GetDefaultText()
+	case *cli.DurationFlag:
+		return "duration", t.GetDefaultText()
+	case *cli.StringSliceFlag:
+		var vals []string
+		if t.Value != nil {
+			vals = t.Value.Value()
+		}
+		return "stringSlice", sliceDef(t.DefaultText, vals)
+	case *cli.IntSliceFlag:
+		var vals []string
+		if t.Value != nil {
+			for _, v := range t.Value.Value() {
+				vals = append(vals, strconv.Itoa(v))
+			}
+		}
+		return "intSlice", sliceDef(t.DefaultText, vals)
+	}
+	if d, ok := f.(cli.DocGenerationFlag); ok {
+		return "string", d.GetDefaultText()
+	}
+	return "string", ""
+}
+
+// parseDefault types a default value exactly as rpk does for its own flags.
+func parseDefault(t, defValue string) any {
+	if strings.HasSuffix(t, "Slice") || strings.HasSuffix(t, "Array") {
+		if defValue == "" || defValue == "[]" {
+			return []any{}
+		}
+		return defValue
+	}
+	if defValue == "" {
+		if t == "string" {
+			return ""
+		}
+		return nil
+	}
+	switch t {
+	case "bool":
+		if b, err := strconv.ParseBool(defValue); err == nil {
+			return b
+		}
+	case "int", "int8", "int16", "int32", "int64",
+		"uint", "uint8", "uint16", "uint32", "uint64", "count":
+		if n, err := strconv.ParseInt(defValue, 10, 64); err == nil {
+			return n
+		}
+	case "float32", "float64":
+		if x, err := strconv.ParseFloat(defValue, 64); err == nil {
+			return x
+		}
+	}
+	return defValue
+}
+
+func commandFlags(cmd *cli.Command) []pluginFlag {
+	flags := []pluginFlag{}
+	for _, f := range cmd.Flags {
+		names := f.Names()
+		if len(names) == 0 {
+			continue
+		}
+		if names[0] == "help" || names[0] == "help-autocomplete" {
+			continue
+		}
+		if v, ok := f.(cli.VisibleFlag); ok && !v.IsVisible() {
+			continue
+		}
+		pf := pluginFlag{Name: names[0]}
+		for _, alias := range names[1:] {
+			if len(alias) == 1 {
+				pf.Shorthand = alias
+				break
+			}
+		}
+		if d, ok := f.(cli.DocGenerationFlag); ok {
+			pf.Description = d.GetUsage()
+		}
+		if r, ok := f.(cli.RequiredFlag); ok {
+			pf.Required = r.IsRequired()
+		}
+		typ, def := flagTypeAndDefault(f)
+		pf.Type = typ
+		pf.Default = parseDefault(typ, def)
+		flags = append(flags, pf)
+	}
+	return flags
 }
 
 // In support of --help-autocomplete.
@@ -80,6 +214,7 @@ func traverseHelp(cmd *cli.Command, pieces []string) []pluginHelp {
 		Short: cmd.Usage,
 		Long:  cmd.Description,
 		Args:  args,
+		Flags: commandFlags(cmd),
 	}}
 	for _, cmd := range cmd.Subcommands {
 		if cmd.Hidden {
