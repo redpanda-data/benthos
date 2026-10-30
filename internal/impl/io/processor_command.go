@@ -30,10 +30,8 @@ The specified command is executed for each message processed, with the raw bytes
 
 This processor adds the following metadata fields to each message:
 
-`+"```text"+`
-- command_stderr - Contains the stderr output of a successful command, if any.
-- exit_code - The exit code returned by the command.
-`+"```"+`
+- `+"`command_stderr`"+` - Contains the stderr output of a successful command, if any.
+- `+"`exit_code`"+` - The exit code returned by the command.
 
 You can access these metadata fields using
 xref:configuration:interpolation.adoc#bloblang-queries[function interpolation].
