@@ -92,7 +92,7 @@ This field is only applicable when ` + "`" + `propagate_response` + "`" + ` is s
 			Advanced().
 			Default(3),
 		service.NewBoolField(hcFieldFollowRedirects).
-			Description("Whether to transparently follow redirects, that is, responses with HTTP status codes in the 300-399 range. If set to `false`, the response message includes the body, status, and headers from the redirect response, and the component does not make a request to the URL specified in the `Location` header.").Version("4.39.0").
+			Description("Whether to transparently follow redirects, that is, responses with HTTP status codes 301, 302, 303, 307, and 308 that include a `Location` header. Other responses with status codes in the 300-399 range are not followed. If set to `false`, the response message includes the body, status, and headers from the redirect response, and the component does not make a request to the URL specified in the `Location` header.").Version("4.39.0").
 			Advanced().
 			Default(true),
 		service.NewIntListField(hcFieldBackoffOn).
