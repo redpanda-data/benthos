@@ -22,8 +22,9 @@ func TestTraverseHelpFlags(t *testing.T) {
 		},
 		Subcommands: []*cli.Command{
 			{
-				Name:  "sub",
-				Usage: "sub usage",
+				Name:      "sub",
+				Usage:     "sub usage",
+				ArgsUsage: "<file> [files...]",
 				Flags: []cli.Flag{
 					&cli.StringFlag{Name: "format", Aliases: []string{"fmt", "f"}, Value: "yaml", Usage: "output format"},
 					&cli.StringSliceFlag{Name: "set", Usage: "set a field"},
@@ -46,11 +47,13 @@ func TestTraverseHelpFlags(t *testing.T) {
 	require.Len(t, help, 2)
 
 	assert.Equal(t, "root", help[0].Path)
+	assert.Equal(t, "root", help[0].Use, "a command without ArgsUsage uses its name")
 	assert.Equal(t, []pluginFlag{
 		{Name: "verbose", Shorthand: "v", Type: "bool", Description: "be loud", Default: false},
 	}, help[0].Flags)
 
 	assert.Equal(t, "root_sub", help[1].Path)
+	assert.Equal(t, "sub <file> [files...]", help[1].Use, "use carries the positional arguments for rpk's usage line")
 	assert.Equal(t, []pluginFlag{
 		{Name: "format", Shorthand: "f", Type: "string", Description: "output format", Default: "yaml"},
 		{Name: "set", Type: "stringSlice", Description: "set a field", Default: []any{}},
@@ -67,5 +70,5 @@ func TestTraverseHelpFlags(t *testing.T) {
 func TestTraverseHelpFlagsAlwaysArray(t *testing.T) {
 	b, err := json.Marshal(traverseHelp(&cli.Command{Name: "root"}, nil))
 	require.NoError(t, err)
-	assert.JSONEq(t, `[{"path":"root","flags":[]}]`, string(b))
+	assert.JSONEq(t, `[{"path":"root","use":"root","flags":[]}]`, string(b))
 }

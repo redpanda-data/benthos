@@ -61,7 +61,18 @@ type pluginHelp struct {
 	Short string       `json:"short,omitempty"`
 	Long  string       `json:"long,omitempty"`
 	Args  []string     `json:"args,omitempty"`
+	Use   string       `json:"use,omitempty"`
 	Flags []pluginFlag `json:"flags"`
+}
+
+// commandUse returns the command's name followed by its ArgsUsage, the
+// shape of a cobra Use line, so rpk can show positional arguments in the
+// usage line it prints for the command.
+func commandUse(cmd *cli.Command) string {
+	if args := strings.TrimSpace(cmd.ArgsUsage); args != "" {
+		return cmd.Name + " " + args
+	}
+	return cmd.Name
 }
 
 // pluginFlag matches the shape rpk uses for its own flags in --print-tree.
@@ -214,6 +225,7 @@ func traverseHelp(cmd *cli.Command, pieces []string) []pluginHelp {
 		Short: cmd.Usage,
 		Long:  cmd.Description,
 		Args:  args,
+		Use:   commandUse(cmd),
 		Flags: commandFlags(cmd),
 	}}
 	for _, cmd := range cmd.Subcommands {
