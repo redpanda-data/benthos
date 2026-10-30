@@ -55,12 +55,15 @@ jobs:
     if: >-
       !github.event.pull_request.draft &&
       github.event.pull_request.head.repo.full_name == github.repository
-    # v5.56.0 (2026-10-26): the connect surface reads the internal
+    # v5.56.1 (2026-10-27): the connect surface reads the internal
     # docs.Field* constructors this repo uses for shared blocks (http_server
     # cors, tls, logger, batching, api), so those descriptions are reviewed.
     # Descriptions set as a Description: field in a docs.FieldSpec{} literal
     # are still not read. Lines that a human reviewer other than the author
     # wrote on the PR are not reviewed again.
+    # The lint and the review diff the merge checkout against its first
+    # parent, so a PR whose base moved after it was opened is not attributed
+    # strings that other PRs changed.
     # Each run uploads the docs MCP answers the review saw as a 90-day
     # workflow artifact for the doc-impact eval; this repo is public, so
     # anyone can download it, and it holds only public docs answers and the
