@@ -68,10 +68,12 @@ jobs:
     # workflow artifact for the doc-impact eval; this repo is public, so
     # anyone can download it, and it holds only public docs answers and the
     # review's questions about the PR's strings.
+    # v5.58.0 adds an optional committable_suggestions input (default true,
+    # unchanged here), and v5.59.1 only changes the connect prompt.
     # The reusable workflow resolves the doc-tools CLI version from its own
     # ref, so this SHA pins the review logic and the CLI together and a bump
     # moves both.
-    uses: redpanda-data/docs-extensions-and-macros/.github/workflows/doc-strings-review.yml@ad5f399e920677c63749bd8f5e4b2423d5f55dac # v5.56.1
+    uses: redpanda-data/docs-extensions-and-macros/.github/workflows/doc-strings-review.yml@ee137140fa313d9173d7d91169fba4af8cd91708 # v5.59.1
     permissions:
       contents: read
       pull-requests: write
