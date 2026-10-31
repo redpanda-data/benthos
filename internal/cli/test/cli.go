@@ -36,6 +36,7 @@ func CliCommand(cliOpts *common.CLIOpts) *cli.Command {
 		},
 	}
 	flags = append(flags, common.EnvFileAndTemplateFlags(cliOpts, false)...)
+	flags = append(flags, cliOpts.CustomRunFlags...)
 
 	return &cli.Command{
 		Name:  "test",

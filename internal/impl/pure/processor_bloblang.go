@@ -22,7 +22,7 @@ func init() {
 		Categories("Mapping", "Parsing").
 		Summary("Executes a xref:guides:bloblang/about.adoc[Bloblang] mapping on messages.").
 		Description(`
-Bloblang is a powerful language that enables a wide range of mapping, transformation and filtering tasks. For more information see xref:guides:bloblang/about.adoc[].
+Bloblang is a powerful language that enables a wide range of mapping, transformation and filtering tasks. For more information see xref:guides:bloblang/about.adoc[About Bloblang].
 
 If your mapping is large and you'd prefer for it to live in a separate file then you can execute a mapping directly from a file with the expression `+"`from \"<path>\"`"+`, where the path must be absolute, or relative from the location that Redpanda Connect is executed from.
 
@@ -35,7 +35,7 @@ This processor was recently renamed to the `+"xref:components:processors/mapping
 Bloblang mappings can fail, in which case the message remains unchanged, errors are logged, and the message is flagged as having failed, allowing you to use
 xref:configuration:error_handling.adoc[standard processor error handling patterns].
 
-However, Bloblang itself also provides powerful ways of ensuring your mappings do not fail by specifying desired fallback behavior, which you can read about in xref:guides:bloblang/about#error-handling.adoc[Error handling].`).
+However, Bloblang itself also provides powerful ways of ensuring your mappings do not fail by specifying desired fallback behavior, which you can read about in xref:guides:bloblang/about.adoc#error-handling[Error handling].`).
 		Example("Mapping", `
 Given JSON documents containing an array of fans:
 

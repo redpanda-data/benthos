@@ -13,8 +13,12 @@ import (
 // Full represents the entirety of the Benthos instances configuration spec and
 // all plugins.
 type Full struct {
-	Version           string               `json:"version"`
-	Date              string               `json:"date"`
+	Version string `json:"version"`
+	Date    string `json:"date"`
+	// DocsFormat says how the doc strings are written: "asciidoc" as the
+	// specs hold them, or "markdown" after RenderMarkdown. Consumers that
+	// render them check this rather than guessing.
+	DocsFormat        string               `json:"docs_format"`
 	Config            docs.FieldSpecs      `json:"config,omitempty"`
 	Buffers           []docs.ComponentSpec `json:"buffers,omitempty"`
 	Caches            []docs.ComponentSpec `json:"caches,omitempty"`
@@ -35,6 +39,7 @@ func New(version, date string, env *bundle.Environment, bEnv *bloblang.Environme
 	s := Full{
 		Version:    version,
 		Date:       date,
+		DocsFormat: "asciidoc",
 		Config:     config.Spec(),
 		Buffers:    env.BufferDocs(),
 		Caches:     env.CacheDocs(),

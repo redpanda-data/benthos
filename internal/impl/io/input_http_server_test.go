@@ -1364,17 +1364,20 @@ func TestHTTPServerReload(t *testing.T) {
 
 	t.Parallel()
 
+	// Both server instances bind the same free port, so the second one tests the reload.
+	freePort := getFreePort(t)
+
 	// First server instance
 	mgr1, err := manager.New(manager.ResourceConfig{})
 	require.NoError(t, err)
 
 	conf1 := parseYAMLInputConf(t, `
 http_server:
-  address: "127.0.0.1:19284"
+  address: "127.0.0.1:%v"
   path: /testpost
   tcp:
     reuse_port: true
-`)
+`, freePort)
 
 	h1, err := mgr1.NewInput(conf1)
 	require.NoError(t, err)
@@ -1388,7 +1391,7 @@ http_server:
 	// Send request to first server (in goroutine to avoid blocking)
 	go func() {
 		res, err := http.Post(
-			"http://127.0.0.1:19284/testpost",
+			fmt.Sprintf("http://127.0.0.1:%v/testpost", freePort),
 			"application/octet-stream",
 			bytes.NewBufferString("test message 1"),
 		)
@@ -1426,11 +1429,11 @@ http_server:
 
 	conf2 := parseYAMLInputConf(t, `
 http_server:
-  address: "127.0.0.1:19284"
+  address: "127.0.0.1:%v"
   path: /testpost
   tcp:
     reuse_port: true
-`)
+`, freePort)
 
 	h2, err := mgr2.NewInput(conf2)
 	require.NoError(t, err, "Failed to create second http_server on same port - this is the bug we're fixing")
@@ -1444,7 +1447,7 @@ http_server:
 	// Send request to second server to verify it's working (in goroutine to avoid blocking)
 	go func() {
 		res, err := http.Post(
-			"http://127.0.0.1:19284/testpost",
+			fmt.Sprintf("http://127.0.0.1:%v/testpost", freePort),
 			"application/octet-stream",
 			bytes.NewBufferString("test message 2"),
 		)

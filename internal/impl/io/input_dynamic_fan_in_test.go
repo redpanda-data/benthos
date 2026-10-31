@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/benthos/v4/internal/component/input"
@@ -70,7 +71,8 @@ func TestStaticBasicDynamicFanIn(t *testing.T) {
 				require.NoError(t, ts.Ack(tCtx, nil))
 			}()
 			select {
-			case <-resChan:
+			case err := <-resChan:
+				require.NoError(t, err)
 			case <-time.After(time.Second):
 				t.Errorf("Timed out waiting for response to input: %v, %v", i, j)
 				return
@@ -117,7 +119,8 @@ func TestBasicDynamicFanIn(t *testing.T) {
 			content := [][]byte{fmt.Appendf(nil, "%v-%v", label, i)}
 			input.TChan <- message.NewTransaction(message.QuickBatch(content), rChan)
 			select {
-			case <-rChan:
+			case err := <-rChan:
+				assert.NoError(t, err)
 			case <-time.After(time.Second):
 				t.Errorf("Timed out waiting for response to input: %v", i)
 				return

@@ -10,6 +10,7 @@ import (
 	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/sha3"
 	"crypto/sha512"
 	"encoding/ascii85"
 	"encoding/base64"
@@ -34,7 +35,6 @@ import (
 	"github.com/OneOfOne/xxhash"
 	"github.com/gofrs/uuid/v5"
 	"github.com/tilinna/z85"
-	"golang.org/x/crypto/sha3"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
@@ -1393,10 +1393,10 @@ var _ = registerSimpleMethod(
 			`{"doc":"{\"foo\":\"bar\"}"}`,
 			`{"doc":{"foo":"bar"}}`,
 		),
-		NewExampleSpec("",
-			`root.doc = this.doc.parse_json(use_number: true)`,
-			`{"doc":"{\"foo\":\"11380878173205700000000000000000000000000000000\"}"}`,
-			`{"doc":{"foo":"11380878173205700000000000000000000000000000000"}}`,
+		NewExampleSpec("Set `use_number` to `true` to keep the full precision of large numbers. Without it, numbers are parsed as `float64` values, so this example would output `1.13808781732057e+46`.",
+			`root.doc = this.doc.parse_json(use_number: true).foo.string()`,
+			`{"doc":"{\"foo\":11380878173205700000000000000000000000000000000}"}`,
+			`{"doc":"11380878173205700000000000000000000000000000000"}`,
 		),
 	),
 	func(args *ParsedParams) (simpleMethod, error) {
