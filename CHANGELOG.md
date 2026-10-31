@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Go API: The `lint` and `test` subcommands now accept the custom flags set with `CLIOptCustomRunFlags` after the subcommand name, as `run` and `streams` already do. (@Leward)
+- Go API: `EnvironmentSchema.Minimise` and the `json-full-scrubbed` list format no longer blank the field, option and Bloblang parameter descriptions of later schemas built from the same environment. (@JakeSCahill)
 
 ## 4.83.0 - 2026-10-15
 
