@@ -46,6 +46,12 @@ type StatGauge interface {
 	DecrFloat64(count float64)
 }
 
+// StatDeleter is optionally implemented by stats that can remove themselves
+// from their metrics exporter.
+type StatDeleter interface {
+	Delete()
+}
+
 //------------------------------------------------------------------------------
 
 // StatCounterVec creates StatCounters with dynamic labels.
