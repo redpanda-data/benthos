@@ -35,17 +35,19 @@ type Type struct {
 
 	manager bundle.NewManagement
 
-	onClose func()
-	closed  uint32
+	onClose               func()
+	closed                uint32
+	registerReadyEndpoint bool
 }
 
 // New creates a new stream.Type.
 func New(conf Config, mgr bundle.NewManagement, opts ...func(*Type)) (*Type, error) {
 	t := &Type{
-		conf:    conf,
-		manager: mgr,
-		onClose: func() {},
-		closed:  0,
+		conf:                  conf,
+		manager:               mgr,
+		onClose:               func() {},
+		closed:                0,
+		registerReadyEndpoint: true,
 	}
 	for _, opt := range opts {
 		opt(t)
@@ -54,63 +56,67 @@ func New(conf Config, mgr bundle.NewManagement, opts ...func(*Type)) (*Type, err
 		return nil, err
 	}
 
-	healthCheck := func(w http.ResponseWriter, r *http.Request) {
-		type connStatus struct {
-			Label     string `json:"label"`
-			Path      string `json:"path"`
-			Connected bool   `json:"connected"`
-			Error     string `json:"error,omitempty"`
-		}
-
-		healthCheckRes := struct {
-			Error    string       `json:"error,omitempty"`
-			Statuses []connStatus `json:"statuses"`
-		}{}
-
-		inputStatuses := t.inputLayer.ConnectionStatus()
-		for _, v := range inputStatuses {
-			s := connStatus{
-				Label:     v.Label,
-				Path:      query.SliceToDotPath(v.Path...),
-				Connected: v.Connected,
-			}
-			if v.Err != nil {
-				s.Error = v.Err.Error()
-			}
-			healthCheckRes.Statuses = append(healthCheckRes.Statuses, s)
-		}
-
-		outputStatuses := t.outputLayer.ConnectionStatus()
-		for _, v := range outputStatuses {
-			s := connStatus{
-				Label:     v.Label,
-				Path:      query.SliceToDotPath(v.Path...),
-				Connected: v.Connected,
-			}
-			if v.Err != nil {
-				s.Error = v.Err.Error()
-			}
-			healthCheckRes.Statuses = append(healthCheckRes.Statuses, s)
-		}
-
-		if atomic.LoadUint32(&t.closed) == 1 {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			healthCheckRes.Error = "stream terminated"
-		} else if !inputStatuses.AllActive() || !outputStatuses.AllActive() {
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(healthCheckRes); err != nil {
-			mgr.Logger().With("error", err.Error()).Error("Failed to encode connection statuses for /ready")
-		}
+	if t.registerReadyEndpoint {
+		t.manager.RegisterEndpoint(
+			"/ready",
+			"Returns 200 OK if all inputs and outputs are connected, otherwise a 503 is returned.",
+			t.HandleReady,
+		)
 	}
-	t.manager.RegisterEndpoint(
-		"/ready",
-		"Returns 200 OK if all inputs and outputs are connected, otherwise a 503 is returned.",
-		healthCheck,
-	)
 	return t, nil
+}
+
+// HandleReady writes the current input and output connection status.
+func (t *Type) HandleReady(w http.ResponseWriter, _ *http.Request) {
+	type connStatus struct {
+		Label     string `json:"label"`
+		Path      string `json:"path"`
+		Connected bool   `json:"connected"`
+		Error     string `json:"error,omitempty"`
+	}
+
+	healthCheckRes := struct {
+		Error    string       `json:"error,omitempty"`
+		Statuses []connStatus `json:"statuses"`
+	}{}
+
+	inputStatuses := t.inputLayer.ConnectionStatus()
+	for _, v := range inputStatuses {
+		s := connStatus{
+			Label:     v.Label,
+			Path:      query.SliceToDotPath(v.Path...),
+			Connected: v.Connected,
+		}
+		if v.Err != nil {
+			s.Error = v.Err.Error()
+		}
+		healthCheckRes.Statuses = append(healthCheckRes.Statuses, s)
+	}
+
+	outputStatuses := t.outputLayer.ConnectionStatus()
+	for _, v := range outputStatuses {
+		s := connStatus{
+			Label:     v.Label,
+			Path:      query.SliceToDotPath(v.Path...),
+			Connected: v.Connected,
+		}
+		if v.Err != nil {
+			s.Error = v.Err.Error()
+		}
+		healthCheckRes.Statuses = append(healthCheckRes.Statuses, s)
+	}
+
+	if atomic.LoadUint32(&t.closed) == 1 {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		healthCheckRes.Error = "stream terminated"
+	} else if !inputStatuses.AllActive() || !outputStatuses.AllActive() {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(healthCheckRes); err != nil {
+		t.manager.Logger().With("error", err.Error()).Error("Failed to encode connection statuses for /ready")
+	}
 }
 
 //------------------------------------------------------------------------------
@@ -119,6 +125,15 @@ func New(conf Config, mgr bundle.NewManagement, opts ...func(*Type)) (*Type, err
 func OptOnClose(onClose func()) func(*Type) {
 	return func(t *Type) {
 		t.onClose = onClose
+	}
+}
+
+// OptRegisterReadyEndpoint controls whether the stream registers its own
+// readiness endpoint. Streams mode disables this and routes readiness through
+// the stream manager so deleted streams are not retained by HTTP handlers.
+func OptRegisterReadyEndpoint(enabled bool) func(*Type) {
+	return func(t *Type) {
+		t.registerReadyEndpoint = enabled
 	}
 }
 
