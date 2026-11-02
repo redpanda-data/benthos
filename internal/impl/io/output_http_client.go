@@ -17,7 +17,7 @@ func httpClientOutputSpec() *service.ConfigSpec {
 		Description(`
 When the number of retries expires the output will reject the message, the behavior after this will depend on the pipeline but usually this simply means the send is attempted again until successful whilst applying back pressure.
 
-The URL and header values of this type can be dynamically set using function interpolations described in xref:configuration:interpolation.adoc#bloblang-queries[Bloblang queries].
+You can set the ` + "<<url,`url`>> and <<headers,`headers`>>" + ` values dynamically using xref:configuration:interpolation.adoc#bloblang-queries[function interpolations].
 
 The body of the HTTP request is the raw contents of the message payload. If the message has multiple parts (is a batch) the request will be sent according to https://www.w3.org/Protocols/rfc1341/7_2_Multipart.html[RFC1341^]. This behavior can be disabled by setting the field ` + "<<batch_as_multipart, `batch_as_multipart`>> to `false`" + `.
 

@@ -43,9 +43,6 @@ func TestListenerConfig_ServerReload(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Use a fixed port for this test
-	addr := "127.0.0.1:19284"
-
 	conf := ListenerConfig{
 		ReuseAddr: true,
 	}
@@ -55,8 +52,10 @@ func TestListenerConfig_ServerReload(t *testing.T) {
 	err := DecorateListenerConfig(&lc1, conf)
 	require.NoError(t, err)
 
-	listener1, err := lc1.Listen(ctx, "tcp", addr)
+	// Let the kernel pick a free port. The second server binds the same address.
+	listener1, err := lc1.Listen(ctx, "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
+	addr := listener1.Addr().String()
 
 	server1 := &http.Server{
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

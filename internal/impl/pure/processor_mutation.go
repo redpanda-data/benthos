@@ -31,14 +31,16 @@ If your mapping is large and you'd prefer for it to live in a separate file then
 
 A mutation is a mapping that transforms input documents directly, this has the advantage of reducing the need to copy the data fed into the mapping. However, this also means that the referenced document is mutable and therefore changes throughout the mapping. For example, with the following Bloblang:
 
-`+"```coffeescript"+`
+`+"```bloblang"+`
 root.rejected = this.invitees.filter(i -> i.mood < 0.5)
 root.invitees = this.invitees.filter(i -> i.mood >= 0.5)
+
+# In: {"invitees":[{"name":"Alice","mood":0.8},{"name":"Bob","mood":0.3},{"name":"Carol","mood":0.9}]}
 `+"```"+`
 
 Notice that we create a field `+"`rejected`"+` by copying the array field `+"`invitees`"+` and filtering out objects with a high mood. We then overwrite the field `+"`invitees`"+` by filtering out objects with a low mood, resulting in two array fields that are each a subset of the original. If we were to reverse the ordering of these assignments like so:
 
-`+"```coffeescript"+`
+`+"```bloblang"+`
 root.invitees = this.invitees.filter(i -> i.mood >= 0.5)
 root.rejected = this.invitees.filter(i -> i.mood < 0.5)
 `+"```"+`

@@ -35,11 +35,11 @@ The URL and header values of this type can be dynamically set using function int
 
 == Streaming
 
-If you enable streaming then Redpanda Connect will consume the body of the response as a continuous stream of data, breaking messages out following a chosen scanner. This allows you to consume APIs that provide long-lived streamed data feeds (such as stock market feeds).
+If you <<stream-enabled,enable streaming>>, Redpanda Connect consumes the body of the response as a continuous stream of data and breaks it into individual messages using the <<stream-scanner,specified scanner>>. This allows you to consume APIs that provide long-lived streamed data feeds (such as stock market feeds).
 
 == Pagination
 
-This input supports interpolation functions in the `+"`url` and `headers`"+` fields where data from the previous successfully consumed message (if there was one) can be referenced. This can be used in order to support basic levels of pagination. However, in cases where pagination depends on logic it is recommended that you use an `+"xref:components:processors/http.adoc[`http` processor] instead, often combined with a xref:components:inputs/generate.adoc[`generate` input]"+` in order to schedule the processor.`).
+This input supports interpolation functions in the `+"`url` and `headers`"+` fields where data from the previous successfully consumed message (if there was one) can be referenced. This can be used in order to support basic levels of pagination, such as page numbers or tokens, where each request needs data from the previously consumed response. However, in cases where pagination depends on logic it is recommended that you use an `+"xref:components:processors/http.adoc[`http` processor] instead, often combined with a xref:components:inputs/generate.adoc[`generate` input]"+` in order to schedule the processor.`).
 		Example(
 			"Basic Pagination",
 			"Interpolation functions within the `url` and `headers` fields can be used to reference the previously consumed message, which allows simple pagination.",

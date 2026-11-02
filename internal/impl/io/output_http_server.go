@@ -108,7 +108,11 @@ func hsoSpec() *service.ConfigSpec {
 		Stable().
 		Categories("Network").
 		Summary(`Sets up an HTTP server that will send messages over HTTP(S) GET requests. HTTP 2.0 is supported when using TLS, which is enabled when key and cert files are specified.`).
-		Description(`Sets up an HTTP server that will send messages over HTTP(S) GET requests. If the `+"`address`"+` config field is left blank the xref:components:http/about.adoc[service-wide HTTP server] will be used.
+		Description(`Sets up an HTTP server that will send messages over HTTP(S) GET requests.
+
+ifndef::env-cloud[]
+If the `+"`address`"+` config field is left blank the xref:components:http/about.adoc[service-wide HTTP server] will be used.
+endif::[]
 
 Three endpoints will be registered at the paths specified by the fields `+"`path`, `stream_path` and `ws_path`"+`. Which allow you to consume a single message batch, a continuous stream of line delimited messages, or a websocket of messages for each request respectively.
 
