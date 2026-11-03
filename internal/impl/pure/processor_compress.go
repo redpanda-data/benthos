@@ -4,7 +4,6 @@ package pure
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
@@ -25,8 +24,8 @@ func init() {
 		"compress", service.NewConfigSpec().
 			Categories("Parsing").
 			Stable().
-			Summary(fmt.Sprintf("Compresses messages according to the selected algorithm. Supported compression algorithms are: %v", compAlgs)).
-			Description(`The 'level' field might not apply to all algorithms.`).
+			Summary("Compresses messages according to the selected algorithm.").
+			Description(`The `+"`level`"+` field might not apply to all algorithms.`).
 			Fields(
 				service.NewStringEnumField(compressPFieldAlgorithm, compAlgs...).
 					Description("The compression algorithm to use.").

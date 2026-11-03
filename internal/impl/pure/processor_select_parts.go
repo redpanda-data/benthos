@@ -22,7 +22,7 @@ func init() {
 			Stable().
 			Summary("Cherry pick a set of messages from a batch by their index. Indexes larger than the number of messages are simply ignored.").
 			Description(`
-The selected parts are added to the new message batch in the same order as the selection array. E.g. with 'parts' set to [ 2, 0, 1 ] and the message parts [ '0', '1', '2', '3' ], the output will be [ '2', '0', '1' ].
+The selected parts are added to the new message batch in the same order as the selection array. E.g. with `+"`parts`"+` set to `+"`[ 2, 0, 1 ]`"+` and the message parts `+"`[ '0', '1', '2', '3' ]`"+`, the output will be `+"`[ '2', '0', '1' ]`"+`.
 
 If none of the selected parts exist in the input batch (resulting in an empty output message) the batch is dropped entirely.
 
