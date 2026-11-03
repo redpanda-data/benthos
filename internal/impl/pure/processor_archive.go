@@ -22,7 +22,7 @@ func archiveProcConfig() *service.ConfigSpec {
 		Categories("Parsing", "Utility").
 		Summary("Archives all the messages of a batch into a single message according to the selected archive format.").
 		Description(`
-Some archive formats (such as tar, zip) treat each archive item (message part) as a file with a path. Since message parts only contain raw data a unique path must be generated for each part. This can be done by using function interpolations on the `+"`path`"+` field as described in xref:configuration:interpolation.adoc#bloblang-queries[Bloblang queries]. For types that aren't file based (such as binary) the file field is ignored.
+Some archive formats (such as tar, zip) treat each archive item (message part) as a file with a path. Since message parts only contain raw data a unique path must be generated for each part. This can be done by using function interpolations on the `+"`path`"+` field as described in xref:configuration:interpolation.adoc#bloblang-queries[Bloblang queries]. For formats that aren't file based (`+"`binary`, `concatenate`, `json_array`, and `lines`"+`), the `+"`path`"+` field is ignored.
 
 The resulting archived message adopts the metadata of the _first_ message part of the batch.
 
