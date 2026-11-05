@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/redpanda-data/benthos/v4/internal/component"
+	"github.com/redpanda-data/benthos/v4/internal/component/input"
 	"github.com/redpanda-data/benthos/v4/internal/manager/mock"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 )
@@ -250,4 +251,74 @@ func TestBatchInputAirGapHappy(t *testing.T) {
 
 	assert.NoError(t, outAckFn(t.Context(), errors.New("foobar")))
 	assert.EqualError(t, ackErr, "foobar")
+}
+
+type fnSnapshotBatchInput struct {
+	*fnBatchInput
+	snapshotRead     func() (MessageBatch, AckFunc, error)
+	snapshotComplete func() error
+}
+
+func (f *fnSnapshotBatchInput) BackfillReadBatch(ctx context.Context) (MessageBatch, AckFunc, error) {
+	return f.snapshotRead()
+}
+
+func (f *fnSnapshotBatchInput) BackfillComplete(ctx context.Context) error {
+	return f.snapshotComplete()
+}
+
+func TestBatchInputAirGapSnapshotHappy(t *testing.T) {
+	var snapshotAckErr error
+	snapshotAckFn := func(ctx context.Context, err error) error {
+		snapshotAckErr = err
+		return nil
+	}
+
+	snapshotCompleteCalled := false
+	i := &fnSnapshotBatchInput{
+		fnBatchInput: &fnBatchInput{
+			connect: func() error { return nil },
+		},
+		snapshotRead: func() (MessageBatch, AckFunc, error) {
+			return MessageBatch{NewMessage([]byte("snapshot row"))}, snapshotAckFn, nil
+		},
+		snapshotComplete: func() error {
+			snapshotCompleteCalled = true
+			return nil
+		},
+	}
+
+	agi := newAirGapBatchReader(mock.NewManager(), i)
+
+	sa, ok := agi.(input.BackfillAsync)
+	require.True(t, ok, "airGapBatchReader must implement input.BackfillAsync when the wrapped BatchInput implements SnapshotBatchInput")
+
+	outMsg, outAckFn, err := sa.BackfillReadBatch(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, 1, outMsg.Len())
+	assert.Equal(t, "snapshot row", string(outMsg.Get(0).AsBytes()))
+
+	assert.NoError(t, outAckFn(t.Context(), errors.New("snapshot nack")))
+	assert.EqualError(t, snapshotAckErr, "snapshot nack")
+
+	i.snapshotRead = func() (MessageBatch, AckFunc, error) {
+		return nil, nil, ErrBackfillComplete
+	}
+	_, _, err = sa.BackfillReadBatch(t.Context())
+	assert.Equal(t, component.ErrBackfillComplete, err)
+
+	sc, ok := agi.(input.BackfillCompleter)
+	require.True(t, ok, "airGapBatchReader must implement input.BackfillCompleter when the wrapped BatchInput implements BackfillCompleter")
+	require.NoError(t, sc.BackfillComplete(t.Context()))
+	assert.True(t, snapshotCompleteCalled)
+}
+
+func TestBatchInputAirGapWithoutSnapshot(t *testing.T) {
+	i := &fnBatchInput{
+		connect: func() error { return nil },
+	}
+	agi := newAirGapBatchReader(mock.NewManager(), i)
+
+	_, ok := agi.(input.BackfillAsync)
+	assert.False(t, ok, "airGapBatchReader must not implement input.BackfillAsync when the wrapped BatchInput has no snapshot phase")
 }
