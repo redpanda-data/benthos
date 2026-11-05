@@ -13,6 +13,8 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Go API: The `lint` and `test` subcommands now accept the custom flags set with `CLIOptCustomRunFlags` after the subcommand name, as `run` and `streams` already do. (@Leward)
+- Go API: `redact.Error` no longer removes a password named with `Conns` from within other text, such as a host name, where the text around the marker could reveal the password. (@Jeffail)
+- The username of an http(s), websocket or NATS URL without a password, such as `https://<token>@github.com/org/repo` or `nats://<token>@host:4222`, is now redacted from errors, logs and spans, as it is usually a token. (@Jeffail)
 
 ## 4.83.0 - 2026-10-15
 
