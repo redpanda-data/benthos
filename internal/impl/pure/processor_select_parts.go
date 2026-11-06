@@ -30,7 +30,7 @@ Message indexes can be negative, and if so the part will be selected from the en
 
 This processor is only applicable to xref:configuration:batching.adoc[batched messages].`).
 			Field(service.NewIntListField(spFieldParts).
-				Description(`An array of message indexes of a batch. Indexes can be negative, and if so the part will be selected from the end counting backwards starting from `+"`-1`"+`.`).
+				Description(`An array of message indexes of a batch. Indexes can be negative, and if so the part will be selected from the end counting backwards starting from `+"`-1`"+`. With the default empty array no parts are selected, so every batch is dropped.`).
 				Default([]any{})),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchProcessor, error) {
 			partIndexes, err := conf.FieldIntList(spFieldParts)
