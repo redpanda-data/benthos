@@ -26,7 +26,7 @@ func insertPartSpec() *service.ConfigSpec {
 		Stable().
 		Summary("Insert a new message into a batch at an index. If the specified index is greater than the length of the existing batch it will be appended to the end.").
 		Description(`
-The index can be negative, and if so the message will be inserted from the end counting backwards starting from -1. For example, if index = -1 then the new message will become the last of the batch. If index = -2 then the new message will be inserted before the last message, and so on. If the negative index is greater than the length of the existing batch it will be inserted at the beginning.
+The index can be negative, and if so the message will be inserted from the end counting backwards starting from -1. For example, if `+"`index`"+` is set to `+"`-1`"+` then the new message will become the last of the batch. If `+"`index`"+` is set to `+"`-2`"+` then the new message will be inserted before the last message, and so on. If the negative index is greater than the length of the existing batch it will be inserted at the beginning.
 
 The new message will have metadata copied from the first pre-existing message of the batch.
 
