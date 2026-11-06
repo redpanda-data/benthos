@@ -133,7 +133,7 @@ metrics:
 				Description(`A map of label names and values that can be used to enrich metrics. Labels are not supported by some metric destinations, in which case the metrics series are combined.`).
 				Example(map[string]any{
 					"type":  "${! json(\"doc.type\") }",
-					"topic": "${! meta(\"kafka_topic\") }",
+					"topic": "${! @kafka_topic }",
 				}).
 				Optional(),
 			service.NewInterpolatedStringField(metProcFieldValue).

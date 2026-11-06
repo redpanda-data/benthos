@@ -64,7 +64,7 @@ cache_resources:
 				Description("The xref:components:caches/about.adoc[`cache` resource] to target with this processor."),
 			service.NewInterpolatedStringField(dedupFieldKey).
 				Description(`An interpolated string yielding the key to deduplicate by for each message.`).
-				Examples(`${! meta("kafka_key") }`, `${! content().hash("xxhash64") }`),
+				Examples(`${! @kafka_key }`, `${! content().hash("xxhash64") }`),
 			service.NewBoolField(dedupFieldDropOnCacheErr).
 				Description("Whether messages should be dropped when the cache returns a general error such as a network issue.").
 				Default(true),
