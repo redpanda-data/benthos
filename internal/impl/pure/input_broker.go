@@ -56,7 +56,7 @@ input:
           topics: [ benthos_stream:0 ]
 `+"```"+`
 
-If the number of copies is greater than zero the list will be copied that number of times. For example, if your inputs were of type `+"`foo`"+` and `+"`bar`"+`, with `+"`copies`"+` set to `+"`2`"+`, you would end up with two `+"`foo`"+` inputs and two `+"`bar`"+` inputs.
+If the number of copies is greater than zero the list will be copied that number of times. For example, with the two inputs shown above and `+"`copies`"+` set to `+"`2`"+`, you would end up with two `+"`amqp_0_9`"+` inputs and two `+"`kafka`"+` inputs.
 
 == Batching
 
