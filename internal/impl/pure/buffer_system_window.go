@@ -112,7 +112,7 @@ pipeline:
         root = if batch_index() == 0 {
           {
             "traffic_light": this.traffic_light,
-            "created_at": meta("window_end_timestamp"),
+            "created_at": metadata("window_end_timestamp"),
             "total_cars": json("registration_plate").from_all().unique().length(),
             "passengers": json("passengers").from_all().sum(),
           }

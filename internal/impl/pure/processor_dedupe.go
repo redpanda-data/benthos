@@ -51,7 +51,7 @@ pipeline:
   processors:
     - dedupe:
         cache: keycache
-        key: ${! meta("kafka_key") }
+        key: ${! @kafka_key }
 
 cache_resources:
   - label: keycache
