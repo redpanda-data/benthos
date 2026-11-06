@@ -26,11 +26,11 @@ The selected parts are added to the new message batch in the same order as the s
 
 If none of the selected parts exist in the input batch (resulting in an empty output message) the batch is dropped entirely.
 
-Message indexes can be negative, and if so the part will be selected from the end counting backwards starting from -1. For example, an index of `+"`-1`"+` in `+"`parts`"+` selects the last part of the batch. An index of `+"`-2`"+` selects the part before it, and so on.
+Message indexes can be negative, and if so the part will be selected from the end counting backwards starting from `+"`-1`"+`. For example, an index of `+"`-1`"+` in `+"`parts`"+` selects the last part of the batch. An index of `+"`-2`"+` selects the part before it, and so on.
 
 This processor is only applicable to xref:configuration:batching.adoc[batched messages].`).
 			Field(service.NewIntListField(spFieldParts).
-				Description(`An array of message indexes of a batch. Indexes can be negative, and if so the part will be selected from the end counting backwards starting from -1.`).
+				Description(`An array of message indexes of a batch. Indexes can be negative, and if so the part will be selected from the end counting backwards starting from `+"`-1`"+`.`).
 				Default([]any{})),
 		func(conf *service.ParsedConfig, mgr *service.Resources) (service.BatchProcessor, error) {
 			partIndexes, err := conf.FieldIntList(spFieldParts)
