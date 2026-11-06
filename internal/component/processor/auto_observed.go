@@ -278,7 +278,7 @@ func (a *v2BatchedToV1Processor) ProcessBatch(ctx context.Context, msg message.B
 	}
 
 	// Restore original contexts to all output parts so they don't inherit this
-	// processor's span
+	// processor's span, while preserving any context values set by the processor.
 	if len(origCtxs) > 0 {
 		for batchIdx := range outputBatches {
 			for partIdx, p := range outputBatches[batchIdx] {
@@ -288,7 +288,16 @@ func (a *v2BatchedToV1Processor) ProcessBatch(ctx context.Context, msg message.B
 				if ctxIdx >= len(origCtxs) {
 					ctxIdx = 0
 				}
-				outputBatches[batchIdx][partIdx] = message.WithContext(origCtxs[ctxIdx], p)
+
+				// Preserve batchedCountKey from the processor's output context
+				outputCtx := message.GetContext(p)
+				collapsedCount := batch.CtxCollapsedCount(outputCtx)
+
+				newCtx := origCtxs[ctxIdx]
+				if collapsedCount > 1 {
+					newCtx = batch.CtxWithCollapsedCount(newCtx, collapsedCount)
+				}
+				outputBatches[batchIdx][partIdx] = message.WithContext(newCtx, p)
 			}
 		}
 	}
