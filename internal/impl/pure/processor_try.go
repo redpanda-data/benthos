@@ -37,7 +37,7 @@ If the processor `+"`bar`"+` fails for a particular message, that message will s
 
 This processor is useful for when child processors depend on the successful output of previous processors. This processor can be followed with a `+"xref:components:processors/catch.adoc[catch]"+` processor for defining child processors to be applied only to failed messages.
 
-More information about error handing can be found in xref:configuration:error_handling.adoc[].
+More information about error handling can be found in xref:configuration:error_handling.adoc[Error handling].
 
 == Nest within a catch block
 

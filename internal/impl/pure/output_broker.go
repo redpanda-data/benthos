@@ -50,7 +50,7 @@ output:
 		Footnotes(`
 == Patterns
 
-The broker pattern determines the way in which messages are allocated and can be chosen from the following:
+The broker pattern determines the way in which messages are allocated. Use `+"`fan_out`"+` (the default) when every output should receive every message. Use `+"`round_robin`"+` or `+"`greedy`"+` to distribute messages across outputs for load balancing rather than duplication. The patterns are:
 
 === `+"`fan_out`"+`
 

@@ -921,7 +921,8 @@ output:
 		t.Fatal("timed out")
 	}
 	select {
-	case <-resChan:
+	case err := <-resChan:
+		require.NoError(t, err)
 	case <-time.After(time.Second * 5):
 		t.Fatal("timed out")
 	}
@@ -940,7 +941,8 @@ file:
 		t.Fatal("timed out")
 	}
 	select {
-	case <-resChan:
+	case err := <-resChan:
+		require.NoError(t, err)
 	case <-time.After(time.Second * 5):
 		t.Fatal("timed out")
 	}

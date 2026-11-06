@@ -23,7 +23,7 @@ func init() {
 			Field(service.NewBloblangField("")).
 			Summary("Executes a xref:guides:bloblang/about.adoc[Bloblang] mapping and directly transforms the contents of messages, mutating (or deleting) them.").
 			Description(`
-Bloblang is a powerful language that enables a wide range of mapping, transformation and filtering tasks. For more information, see xref:guides:bloblang/about.adoc[].
+Bloblang is a powerful language that enables a wide range of mapping, transformation and filtering tasks. For more information, see xref:guides:bloblang/about.adoc[About Bloblang].
 
 If your mapping is large and you'd prefer for it to live in a separate file then you can execute a mapping directly from a file with the expression `+"`from \"<path>\"`"+`, where the path must be absolute, or relative from the location that Redpanda Connect is executed from.
 
@@ -31,14 +31,16 @@ If your mapping is large and you'd prefer for it to live in a separate file then
 
 A mutation is a mapping that transforms input documents directly, this has the advantage of reducing the need to copy the data fed into the mapping. However, this also means that the referenced document is mutable and therefore changes throughout the mapping. For example, with the following Bloblang:
 
-`+"```coffeescript"+`
+`+"```bloblang"+`
 root.rejected = this.invitees.filter(i -> i.mood < 0.5)
 root.invitees = this.invitees.filter(i -> i.mood >= 0.5)
+
+# In: {"invitees":[{"name":"Alice","mood":0.8},{"name":"Bob","mood":0.3},{"name":"Carol","mood":0.9}]}
 `+"```"+`
 
 Notice that we create a field `+"`rejected`"+` by copying the array field `+"`invitees`"+` and filtering out objects with a high mood. We then overwrite the field `+"`invitees`"+` by filtering out objects with a low mood, resulting in two array fields that are each a subset of the original. If we were to reverse the ordering of these assignments like so:
 
-`+"```coffeescript"+`
+`+"```bloblang"+`
 root.invitees = this.invitees.filter(i -> i.mood >= 0.5)
 root.rejected = this.invitees.filter(i -> i.mood < 0.5)
 `+"```"+`

@@ -219,7 +219,7 @@ func (d *dropOnWriter) loop() {
 						go func() {
 							// We must pull the response that we're due, since
 							// the component isn't being shut down.
-							<-resChan
+							<-resChan //nolint:errcheck // Response is intentionally discarded, the message was already dropped
 						}()
 					case <-d.shutSig.HardStopChan():
 						return false

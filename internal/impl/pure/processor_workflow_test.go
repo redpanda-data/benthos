@@ -179,14 +179,14 @@ root.baz = this.baz`,
 				test.inputOrdering = [][]string{}
 			}
 			var confStr strings.Builder
-			confStr.WriteString(fmt.Sprintf(`
+			fmt.Fprintf(&confStr, `
 workflow:
   order: %v
   branches:
-`, gabs.Wrap(test.inputOrdering).String()))
+`, gabs.Wrap(test.inputOrdering).String())
 
 			for j, mappings := range test.branches {
-				confStr.WriteString(fmt.Sprintf(`
+				fmt.Fprintf(&confStr, `
     %v:
       request_map: |
         %v
@@ -198,7 +198,7 @@ workflow:
 					strconv.Itoa(j),
 					strings.ReplaceAll(mappings[0], "\n", "\n        "),
 					strings.ReplaceAll(mappings[1], "\n", "\n        "),
-				))
+				)
 			}
 
 			conf, err := testutil.ProcessorFromYAML(confStr.String())
@@ -469,14 +469,14 @@ root.name_upper = this.name.uppercase()`,
 				test.order = [][]string{}
 			}
 			var confStr strings.Builder
-			confStr.WriteString(fmt.Sprintf(`
+			fmt.Fprintf(&confStr, `
 workflow:
   order: %v
   branches:
-`, gabs.Wrap(test.order).String()))
+`, gabs.Wrap(test.order).String())
 
 			for j, mappings := range test.branches {
-				confStr.WriteString(fmt.Sprintf(`
+				fmt.Fprintf(&confStr, `
     %v:
       request_map: |
         %v
@@ -490,7 +490,7 @@ workflow:
 					strings.ReplaceAll(mappings[0], "\n", "\n        "),
 					strings.ReplaceAll(mappings[1], "\n", "\n            "),
 					strings.ReplaceAll(mappings[2], "\n", "\n        "),
-				))
+				)
 			}
 
 			conf, err := testutil.ProcessorFromYAML(confStr.String())

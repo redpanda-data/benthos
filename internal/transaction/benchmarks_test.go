@@ -75,7 +75,7 @@ func benchmarkTransactionsChannelBased(b *testing.B, buffered int) {
 
 			go func() {
 				defer wg.Done()
-				<-rChan
+				<-rChan //nolint:errcheck // Benchmark only drains the response
 			}()
 		}
 		close(tChan)

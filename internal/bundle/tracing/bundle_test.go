@@ -253,7 +253,8 @@ func TestBundleOutputTracing(t *testing.T) {
 		select {
 		case tranChan <- tran:
 			select {
-			case <-resChan:
+			case err := <-resChan:
+				require.NoError(t, err)
 			case <-time.After(time.Second):
 				t.Fatal("timed out")
 			}
@@ -312,7 +313,8 @@ func TestBundleOutputTracingDisabled(t *testing.T) {
 		select {
 		case tranChan <- tran:
 			select {
-			case <-resChan:
+			case err := <-resChan:
+				require.NoError(t, err)
 			case <-time.After(time.Second):
 				t.Fatal("timed out")
 			}
@@ -370,7 +372,8 @@ func TestBundleOutputWithProcessorsTracing(t *testing.T) {
 		select {
 		case tranChan <- tran:
 			select {
-			case <-resChan:
+			case err := <-resChan:
+				require.NoError(t, err)
 			case <-time.After(time.Second):
 				t.Fatal("timed out")
 			}
@@ -457,7 +460,8 @@ broker:
 		select {
 		case tranChan <- tran:
 			select {
-			case <-resChan:
+			case err := <-resChan:
+				require.NoError(t, err)
 			case <-time.After(time.Second):
 				t.Fatal("timed out", i)
 			}

@@ -165,8 +165,8 @@ retry:
 	for range 100 {
 		select {
 		case tran = <-mOut.TChan:
-		case <-resChan:
-			t.Fatal("Received response not retry")
+		case err := <-resChan:
+			t.Fatalf("Received response not retry: %v", err)
 		case <-time.After(time.Second):
 			t.Fatal("timed out")
 		}
@@ -177,8 +177,8 @@ retry:
 
 	select {
 	case tran = <-mOut.TChan:
-	case <-resChan:
-		t.Fatal("Received response not retry")
+	case err := <-resChan:
+		t.Fatalf("Received response not retry: %v", err)
 	case <-time.After(time.Second):
 		t.Fatal("timed out")
 	}
