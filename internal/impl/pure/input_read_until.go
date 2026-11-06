@@ -54,8 +54,8 @@ input:
   read_until:
     check: counter() >= 100
     input:
-      kafka:
-        addresses: [ TODO ]
+      redpanda:
+        seed_brokers: [ TODO ]
         topics: [ foo, bar ]
         consumer_group: foogroup
 `,
@@ -69,8 +69,8 @@ input:
   read_until:
     idle_timeout: 5s
     input:
-      kafka:
-        addresses: [ TODO ]
+      redpanda:
+        seed_brokers: [ TODO ]
         topics: [ foo, bar ]
         consumer_group: foogroup
 `,

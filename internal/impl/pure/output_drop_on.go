@@ -40,8 +40,8 @@ output:
   broker:
     pattern: fan_out
     outputs:
-      - kafka:
-          addresses: [ foobar:6379 ]
+      - redpanda:
+          seed_brokers: [ foobar:6379 ]
           topic: foo
       - drop_on:
           error: true
