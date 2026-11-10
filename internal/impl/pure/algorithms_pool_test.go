@@ -1,4 +1,4 @@
-// Copyright 2025 Redpanda Data, Inc.
+// Copyright 2026 Redpanda Data, Inc.
 
 package pure
 
@@ -19,19 +19,32 @@ import (
 
 var pooledAlgorithms = []string{"gzip", "zlib", "flate"}
 
-// unpooledCompress compresses with a freshly constructed writer, as the
-// pre-pooling CompressFunc did, to serve as a reference output.
+// unpooledCompress mirrors the pre-pooling CompressFunc (fresh writer,
+// io.Copy, Close) to serve as a reference output.
 func unpooledCompress(t testing.TB, algName string, level int, b []byte) []byte {
 	t.Helper()
-	alg, err := strToCompressAlg(algName)
+	out, err := unpooledCompressErr(algName, level, b)
 	require.NoError(t, err)
+	return out
+}
+
+func unpooledCompressErr(algName string, level int, b []byte) ([]byte, error) {
+	alg, err := strToCompressAlg(algName)
+	if err != nil {
+		return nil, err
+	}
 	var buf bytes.Buffer
 	w, err := alg.CompressWriter(level, &buf)
-	require.NoError(t, err)
-	_, err = w.Write(b)
-	require.NoError(t, err)
-	require.NoError(t, w.(io.Closer).Close())
-	return buf.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := io.Copy(w, bytes.NewReader(b)); err != nil {
+		return nil, err
+	}
+	if err := w.(io.Closer).Close(); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 func unpooledDecompress(t testing.TB, algName string, b []byte) []byte {
@@ -50,10 +63,16 @@ func TestPooledCompressMatchesUnpooled(t *testing.T) {
 	for _, algName := range pooledAlgorithms {
 		fn, err := strToCompressFunc(algName)
 		require.NoError(t, err)
-		for level := -2; level <= 9; level++ {
-			want := unpooledCompress(t, algName, level, body)
+		// -3 is klauspost's stateless mode for gzip; levels an algorithm
+		// rejects must be rejected by the pooled path too.
+		for level := -3; level <= 9; level++ {
+			want, wantErr := unpooledCompressErr(algName, level, body)
 			for i := range 3 {
 				got, err := fn(level, body)
+				if wantErr != nil {
+					assert.Error(t, err, "alg=%v level=%v call=%v", algName, level, i)
+					continue
+				}
 				require.NoError(t, err)
 				assert.Equal(t, want, got, "alg=%v level=%v call=%v", algName, level, i)
 			}
@@ -456,4 +475,36 @@ func TestPooledEmptyPayloadParity(t *testing.T) {
 			assert.Empty(t, out, algName)
 		}
 	}
+}
+
+func TestPooledCodecsReuse(t *testing.T) {
+	const calls = 100
+	body := benchJSONBody(t)
+
+	var compressCtors atomic.Int64
+	cfn := newPooledCompressFunc(func(level int, w io.Writer) (ResettableWriter, error) {
+		compressCtors.Add(1)
+		return gzip.NewWriterLevel(w, level)
+	})
+	var compressed []byte
+	for range calls {
+		var err error
+		compressed, err = cfn(6, body)
+		require.NoError(t, err)
+	}
+	// sync.Pool may drop entries (randomly under -race), so assert reuse
+	// happened rather than that it always happens.
+	assert.Less(t, compressCtors.Load(), int64(calls), "compressors were never reused")
+
+	var decompressCtors atomic.Int64
+	dfn := newPooledDecompressFunc(func(r io.Reader) (ResettableReader, error) {
+		decompressCtors.Add(1)
+		return gzip.NewReader(r)
+	})
+	for range calls {
+		out, err := dfn(compressed)
+		require.NoError(t, err)
+		require.Equal(t, body, out)
+	}
+	assert.Less(t, decompressCtors.Load(), int64(calls), "decompressors were never reused")
 }
