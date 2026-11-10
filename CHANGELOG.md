@@ -5,10 +5,6 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-### Changed
-
-- Compression: gzip, zlib and flate compressors and decompressors are now pooled per level instead of built per message, cutting allocations per call from ~1 MiB to under 2 KiB for compression and making `compress`/`decompress` roughly 5x faster. (@cadiidii)
-
 ### Added
 
 - CLI: `list --format json-full --docs-format markdown` renders every doc string as Markdown, with xrefs and anchors resolved to absolute docs links, links to components the distribution lacks reduced to text, and `env-cloud` conditionals resolved for the distribution. The output's new `docs_format` field says which format the doc strings are in. The default stays `asciidoc`. (@JakeSCahill)
@@ -20,6 +16,10 @@ All notable changes to this project will be documented in this file.
 - Go API: The `lint` and `test` subcommands now accept the custom flags set with `CLIOptCustomRunFlags` after the subcommand name, as `run` and `streams` already do. (@Leward)
 - Go API: `redact.Error` no longer removes a password named with `Conns` from within other text, such as a host name, where the text around the marker could reveal the password. (@Jeffail)
 - The username of an http(s), websocket or NATS URL without a password, such as `https://<token>@github.com/org/repo` or `nats://<token>@host:4222`, is now redacted from errors, logs and spans, as it is usually a token. (@Jeffail)
+
+### Changed
+
+- Compression: gzip, zlib and flate compressors and decompressors are now pooled per level instead of built per message, cutting allocations per call from ~1 MiB to under 2 KiB for compression and making `compress`/`decompress` roughly 5x faster. (@cadiidii)
 
 ## 4.83.0 - 2026-10-15
 
