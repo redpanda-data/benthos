@@ -143,7 +143,12 @@ func (l *List[T]) Shift(ctx context.Context, enableRead bool) (t T, fn AckFunc, 
 	defer done()
 	go func() {
 		<-ctx.Done()
+		// Take the lock before broadcasting so that the wake up cannot slip
+		// in between the loop below checking the context and calling Wait,
+		// which would otherwise leave Shift blocked forever.
+		l.cond.L.Lock()
 		l.cond.Broadcast()
+		l.cond.L.Unlock()
 	}()
 
 	if enableRead && l.readInFlight == 0 && l.pendingRead == nil {
@@ -166,6 +171,13 @@ func (l *List[T]) Shift(ctx context.Context, enableRead bool) (t T, fn AckFunc, 
 		// If there's a retry ready to unshift then return it.
 		var unshifted bool
 		if t, fn, unshifted = l.tryShift(ctx); unshifted {
+			return
+		}
+
+		// The context may have been cancelled while tryShift was backing off,
+		// in which case the retry has been requeued and we should return
+		// rather than hand out a pending read to a caller that has given up.
+		if err = ctx.Err(); err != nil {
 			return
 		}
 
@@ -210,6 +222,12 @@ func (l *List[T]) tryShift(ctx context.Context) (t T, fn AckFunc, ok bool) {
 			select {
 			case <-time.After(tout):
 			case <-ctx.Done():
+				// The attempt never happened, so put the retry back at the
+				// front of the queue for the next shift. Dropping it here
+				// would lose the message and leave retryInFlight permanently
+				// raised, which prevents the list from ever being exhausted.
+				resend.attempts--
+				l.pendingRetry = append([]*pendingT[T]{resend}, l.pendingRetry...)
 				return
 			}
 		}

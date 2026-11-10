@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -203,6 +204,66 @@ func TestRetryListNackMutator(t *testing.T) {
 	assert.Equal(t, []string{
 		"foo",
 	}, acked)
+
+	_, _, err = l.Shift(tCtx, false)
+	assert.Equal(t, ErrExhausted, err)
+
+	require.NoError(t, l.Close(tCtx))
+}
+
+func TestRetryListCancelledDuringBackoffKeepsRetry(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
+	defer done()
+
+	var acked []string
+
+	data := []string{"foo"}
+	l := NewList(func(ctx context.Context) (t string, aFn AckFunc, err error) {
+		if len(data) == 0 {
+			err = errCustomEOF
+			return
+		}
+		next := data[0]
+		data = data[1:]
+		return next, func(ctx context.Context, err error) error {
+			acked = append(acked, next)
+			return nil
+		}, nil
+	}, nil)
+
+	v, fooFn, err := l.Shift(tCtx, true)
+	require.NoError(t, err)
+	assert.Equal(t, "foo", v)
+
+	_, _, err = l.Shift(tCtx, true)
+	require.Equal(t, errCustomEOF, err)
+
+	assert.NoError(t, fooFn(tCtx, errors.New("foo nope")))
+
+	// Fast forward the pending retry into its backoff phase with a backoff
+	// long enough that the next shift is still waiting when its context
+	// expires.
+	l.cond.L.Lock()
+	require.Len(t, l.pendingRetry, 1)
+	l.pendingRetry[0].attempts = 2
+	l.pendingRetry[0].boff = backoff.NewConstantBackOff(time.Millisecond * 200)
+	l.cond.L.Unlock()
+
+	cancelledCtx, cancelledDone := context.WithTimeout(tCtx, time.Millisecond*20)
+	defer cancelledDone()
+
+	_, _, err = l.Shift(cancelledCtx, false)
+	assert.Equal(t, cancelledCtx.Err(), err)
+
+	// The message must still be pending and the list must not look exhausted.
+	assert.False(t, l.Exhausted())
+
+	v, fooFn, err = l.Shift(tCtx, false)
+	require.NoError(t, err)
+	assert.Equal(t, "foo", v)
+
+	assert.NoError(t, fooFn(tCtx, nil))
+	assert.Equal(t, []string{"foo"}, acked)
 
 	_, _, err = l.Shift(tCtx, false)
 	assert.Equal(t, ErrExhausted, err)
