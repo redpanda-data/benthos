@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Changed
+
+- Compression: gzip, zlib and flate compressors and decompressors are now pooled per level instead of built per message, cutting allocations per call from ~1 MiB to under 2 KiB for compression and making `compress`/`decompress` roughly 5x faster. (@cadiidii)
+
 ### Added
 
 - CLI: `list --format json-full --docs-format markdown` renders every doc string as Markdown, with xrefs and anchors resolved to absolute docs links, links to components the distribution lacks reduced to text, and `env-cloud` conditionals resolved for the distribution. The output's new `docs_format` field says which format the doc strings are in. The default stays `asciidoc`. (@JakeSCahill)
