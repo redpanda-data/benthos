@@ -61,7 +61,7 @@ input:
 `,
 		).
 		Example(
-			"Read from a kafka and close when empty",
+			"Read from Redpanda and close when empty",
 			"A common reason to use this input is a job that consumes all messages and exits once its empty:",
 			`
 # Consumes all messages and exit when the last message was consumed 5s ago.

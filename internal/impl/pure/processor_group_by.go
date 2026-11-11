@@ -34,7 +34,7 @@ The functionality of this processor depends on being applied across messages tha
 To further divide each group into individual messages, follow this processor with a `+"xref:components:processors/split.adoc[`split` processor]"+`.`).
 		Example(
 			"Grouped Processing",
-			"Imagine we have a batch of messages that we wish to split into a group of foos and everything else, which should be sent to different output destinations based on those groupings. We also need to send the foos as a tar gzip archive. For this purpose we can use the `group_by` processor with a xref:components:outputs/switch.adoc[`switch`] output:",
+			"Imagine we have a batch of messages that we wish to split into a group of foos and everything else. Each group should be sent to a different output destination. We also need to send the foos as a tar gzip archive. For this purpose we can use the `group_by` processor with a xref:components:outputs/switch.adoc[`switch`] output:",
 			`
 pipeline:
   processors:
