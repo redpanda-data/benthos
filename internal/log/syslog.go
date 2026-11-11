@@ -1,0 +1,263 @@
+// Copyright 2025 Redpanda Data, Inc.
+
+package log
+
+import (
+	"encoding/json"
+	"fmt"
+	"net"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+type syslogModular struct {
+	conn        net.Conn
+	mu          *sync.Mutex
+	facility    int
+	tag         string
+	hostname    string
+	pid         int
+	fields      map[string]string
+	maxSeverity int    // syslog severity ceiling; messages with severity > maxSeverity are dropped
+	format      string // "json" or "logfmt"
+}
+
+func newSyslogModular(cfg Config) (*syslogModular, error) {
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "localhost"
+	}
+
+	facility, err := syslogFacilityCode(cfg.Syslog.Facility)
+	if err != nil {
+		return nil, err
+	}
+
+	conn, err := net.Dial(cfg.Syslog.Transport, net.JoinHostPort(cfg.Syslog.Host, strconv.Itoa(cfg.Syslog.Port)))
+	if err != nil {
+		return nil, fmt.Errorf("dialing syslog server: %w", err)
+	}
+
+	return &syslogModular{
+		conn:        conn,
+		mu:          &sync.Mutex{},
+		facility:    facility,
+		tag:         cfg.Syslog.Tag,
+		hostname:    hostname,
+		pid:         os.Getpid(),
+		fields:      map[string]string{},
+		maxSeverity: syslogMaxSeverity(cfg.LogLevel),
+		format:      cfg.Format,
+	}, nil
+}
+
+func syslogFacilityCode(facility string) (int, error) {
+	switch strings.ToLower(facility) {
+	case "user":
+		return 1, nil
+	case "local0":
+		return 16, nil
+	case "local1":
+		return 17, nil
+	case "local2":
+		return 18, nil
+	case "local3":
+		return 19, nil
+	case "local4":
+		return 20, nil
+	case "local5":
+		return 21, nil
+	case "local6":
+		return 22, nil
+	case "local7":
+		return 23, nil
+	default:
+		return 0, fmt.Errorf("unknown syslog facility %q", facility)
+	}
+}
+
+func syslogSeverity(methodName string) int {
+	switch methodName {
+	case "fatal":
+		return 2 // RFC5424 Critical
+	case "error":
+		return 3 // RFC5424 Error
+	case "warn":
+		return 4 // RFC5424 Warning
+	case "info":
+		return 6 // RFC5424 Informational
+	default: // debug, trace
+		return 7 // RFC5424 Debug
+	}
+}
+
+// syslogMaxSeverity maps a benthos log level string to the maximum syslog
+// severity that should be emitted (inclusive). Messages with a higher severity
+// number (less severe) are dropped.
+func syslogMaxSeverity(level string) int {
+	switch strings.ToUpper(level) {
+	case "OFF", "NONE":
+		return -1
+	case "FATAL":
+		return 2
+	case "ERROR":
+		return 3
+	case "WARN":
+		return 4
+	case "INFO":
+		return 6
+	case "DEBUG", "TRACE", "ALL":
+		return 7
+	default:
+		return 6 // default to INFO
+	}
+}
+
+// syslogLevelName maps an RFC5424 severity back to a human-readable level string.
+func syslogLevelName(severity int) string {
+	switch severity {
+	case 2:
+		return "fatal"
+	case 3:
+		return "error"
+	case 4:
+		return "warn"
+	case 6:
+		return "info"
+	default:
+		return "debug"
+	}
+}
+
+// logfmtQuote quotes a value if it contains characters that would break logfmt parsing.
+func logfmtQuote(v string) string {
+	if v == "" || strings.ContainsAny(v, " \t\n\"=") {
+		return fmt.Sprintf("%q", v)
+	}
+	return v
+}
+
+func (s *syslogModular) write(severity int, msg string) {
+	if severity > s.maxSeverity {
+		return
+	}
+	priority := s.facility*8 + severity
+	timestamp := time.Now().UTC().Format(time.RFC3339Nano)
+
+	cleanMsg := strings.TrimSuffix(msg, "\n")
+	var msgStr string
+
+	if s.format == "json" {
+		data := make(map[string]any, len(s.fields)+2)
+		data["level"] = syslogLevelName(severity)
+		data["msg"] = cleanMsg
+		for k, v := range s.fields {
+			data[k] = v
+		}
+		b, _ := json.Marshal(data)
+		msgStr = string(b)
+	} else {
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "level=%s msg=%s", syslogLevelName(severity), logfmtQuote(cleanMsg))
+		for k, v := range s.fields {
+			sb.WriteByte(' ')
+			sb.WriteString(k)
+			sb.WriteByte('=')
+			sb.WriteString(logfmtQuote(v))
+		}
+		msgStr = sb.String()
+	}
+
+	line := fmt.Sprintf("<%d>1 %s %s %s %d - - %s\n",
+		priority,
+		timestamp,
+		s.hostname,
+		s.tag,
+		s.pid,
+		msgStr,
+	)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, _ = fmt.Fprint(s.conn, line)
+}
+
+// WithFields returns a copy of the logger with the given fields merged in.
+func (s *syslogModular) WithFields(inboundFields map[string]string) Modular {
+	merged := make(map[string]string, len(s.fields)+len(inboundFields))
+	for k, v := range s.fields {
+		merged[k] = v
+	}
+	for k, v := range inboundFields {
+		merged[k] = v
+	}
+	cp := *s
+	cp.fields = merged
+	return &cp
+}
+
+// With returns a copy of the logger with the given key/value pairs merged in.
+func (s *syslogModular) With(keyValues ...any) Modular {
+	merged := make(map[string]string, len(s.fields))
+	for k, v := range s.fields {
+		merged[k] = v
+	}
+	for i := 0; i < len(keyValues)-1; i += 2 {
+		key, ok := keyValues[i].(string)
+		if !ok {
+			continue
+		}
+		merged[key] = fmt.Sprintf("%v", keyValues[i+1])
+	}
+	cp := *s
+	cp.fields = merged
+	return &cp
+}
+
+func (s *syslogModular) log(severity int, format string, v ...any) {
+	msg := format
+	if len(v) > 0 {
+		msg = fmt.Sprintf(format, v...)
+	}
+	s.write(severity, msg)
+}
+
+// Fatal logs at fatal severity.
+func (s *syslogModular) Fatal(format string, v ...any) {
+	s.log(syslogSeverity("fatal"), format, v...)
+}
+
+// Error logs at error severity.
+func (s *syslogModular) Error(format string, v ...any) {
+	s.log(syslogSeverity("error"), format, v...)
+}
+
+// Warn logs at warning severity.
+func (s *syslogModular) Warn(format string, v ...any) {
+	s.log(syslogSeverity("warn"), format, v...)
+}
+
+// Info logs at informational severity.
+func (s *syslogModular) Info(format string, v ...any) {
+	s.log(syslogSeverity("info"), format, v...)
+}
+
+// Debug logs at debug severity.
+func (s *syslogModular) Debug(format string, v ...any) {
+	s.log(syslogSeverity("debug"), format, v...)
+}
+
+// Trace logs at trace severity.
+func (s *syslogModular) Trace(format string, v ...any) {
+	s.log(syslogSeverity("trace"), format, v...)
+}
+
+// Close closes the underlying network connection.
+func (s *syslogModular) Close() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.conn.Close()
+}
