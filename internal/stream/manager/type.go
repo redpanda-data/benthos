@@ -161,9 +161,12 @@ func (m *Type) Create(id string, conf stream.Config) error {
 	// This seems a bit wonky but we can't rule out a race condition between
 	// the stream terminating and setClosed and actually initialising a status.
 	wrapper := newStreamStatus(conf, strmFlatMetrics)
-	strm, err := stream.New(conf, sMgr, stream.OptOnClose(func() {
-		wrapper.setClosed()
-	}))
+	strm, err := stream.New(conf, sMgr,
+		stream.OptOnClose(func() {
+			wrapper.setClosed()
+		}),
+		stream.OptRegisterReadyEndpoint(false),
+	)
 	if err != nil {
 		return err
 	}
