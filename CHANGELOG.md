@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- An output's batching `period` now restarts after every flush. A flush on `count` used to leave the previous period deadline armed, which then flushed a partial batch early that no `batch_created` mechanism counted. (@arijitdey-sysdig)
 - Go API: The `lint` and `test` subcommands now accept the custom flags set with `CLIOptCustomRunFlags` after the subcommand name, as `run` and `streams` already do. (@Leward)
 - Go API: `EnvironmentSchema.Minimise` and the `json-full-scrubbed` list format no longer blank the field, option and Bloblang parameter descriptions of later schemas built from the same environment. (@JakeSCahill)
 - Go API: `redact.Error` no longer removes a password named with `Conns` from within other text, such as a host name, where the text around the marker could reveal the password. (@Jeffail)
