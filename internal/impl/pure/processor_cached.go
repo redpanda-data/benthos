@@ -31,27 +31,27 @@ func newCachedProcessorConfigSpec() *service.ConfigSpec {
 			Description(`A key to be resolved for each message, if the key already exists in the cache then the cached result is used, otherwise the processors are applied and the result is cached under this key. The key could be static and therefore apply generally to all messages or it could be an interpolated expression that is potentially unique for each message.`).
 			Example("my_foo_result").
 			Example(`${! this.document.id }`).
-			Example(`${! meta("kafka_key") }`).
-			Example(`${! meta("kafka_topic") }`)).
+			Example(`${! @kafka_key }`).
+			Example(`${! @kafka_topic }`)).
 		Field(service.NewInterpolatedStringField("ttl").
 			Description(`An optional expiry period to set for each cache entry. Some caches only have a general TTL and will therefore ignore this setting.`).
 			Optional()).
 		Field(service.NewProcessorListField("processors").Description("The list of processors whose result will be cached.")).
 		Example(
 			"Cached Enrichment",
-			"In the following example we want to we enrich messages consumed from Kafka with data specific to the origin topic partition, we do this by placing an `http` processor within a `branch`, where the HTTP URL contains interpolation functions with the topic and partition in the path.\n\nHowever, it would be inefficient to make this HTTP request for every single message as the result is consistent for all data of a given topic partition. We can solve this by placing our enrichment call within a `cached` processor where the key contains the topic and partition, resulting in messages that originate from the same topic/partition combination using the cached result of the prior.",
+			"In the following example we enrich messages consumed from Kafka with data specific to the origin topic partition. We do this by placing an `http` processor within a `branch`. The HTTP URL contains interpolation functions with the topic and partition in the path.\n\nHowever, it would be inefficient to make this HTTP request for every single message, as the result is consistent for all data of a given topic partition. We can solve this by placing our enrichment call within a `cached` processor where the key contains the topic and partition. Messages that originate from the same topic and partition then use the cached result of the prior request.",
 			`
 pipeline:
   processors:
     - branch:
         processors:
           - cached:
-              key: '${! meta("kafka_topic") }-${! meta("kafka_partition") }'
+              key: '${! @kafka_topic }-${! @kafka_partition }'
               cache: foo_cache
               processors:
                 - mapping: 'root = ""'
                 - http:
-                    url: http://example.com/enrichment/${! meta("kafka_topic") }/${! meta("kafka_partition") }
+                    url: http://example.com/enrichment/${! @kafka_topic }/${! @kafka_partition }
                     verb: GET
         result_map: 'root.enrichment = this'
 

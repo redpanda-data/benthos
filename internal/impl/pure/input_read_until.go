@@ -54,14 +54,14 @@ input:
   read_until:
     check: counter() >= 100
     input:
-      kafka:
-        addresses: [ TODO ]
+      redpanda:
+        seed_brokers: [ TODO ]
         topics: [ foo, bar ]
         consumer_group: foogroup
 `,
 		).
 		Example(
-			"Read from a kafka and close when empty",
+			"Read from Redpanda and close when empty",
 			"A common reason to use this input is a job that consumes all messages and exits once its empty:",
 			`
 # Consumes all messages and exit when the last message was consumed 5s ago.
@@ -69,8 +69,8 @@ input:
   read_until:
     idle_timeout: 5s
     input:
-      kafka:
-        addresses: [ TODO ]
+      redpanda:
+        seed_brokers: [ TODO ]
         topics: [ foo, bar ]
         consumer_group: foogroup
 `,

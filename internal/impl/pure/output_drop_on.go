@@ -34,14 +34,14 @@ func dropOnOutputSpec() *service.ConfigSpec {
 		Description(`Regular Redpanda Connect outputs will apply back pressure when downstream services aren't accessible, and Redpanda Connect retries (or nacks) all messages that fail to be delivered. However, in some circumstances, or for certain output types, we instead might want to relax these mechanisms, which is when this output becomes useful.`).
 		Example(
 			"Dropping failed HTTP requests",
-			"In this example we have a fan_out broker, where we guarantee delivery to our Kafka output, but drop messages if they fail our secondary HTTP client output.",
+			"In this example we have a `fan_out` broker, where we guarantee delivery to our `redpanda` output, but drop messages if they fail our secondary HTTP client output.",
 			`
 output:
   broker:
     pattern: fan_out
     outputs:
-      - kafka:
-          addresses: [ foobar:6379 ]
+      - redpanda:
+          seed_brokers: [ foobar:6379 ]
           topic: foo
       - drop_on:
           error: true
