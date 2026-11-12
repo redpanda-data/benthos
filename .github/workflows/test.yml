@@ -63,3 +63,11 @@ jobs:
         skip-cache: true
         skip-save-cache: true
 
+  # Advisory: warns on external links the PR adds in doc strings that return
+  # 404 or 410. It never fails the PR.
+  link-check:
+    if: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: redpanda-data/docs-extensions-and-macros/.github/workflows/pr-link-check.yml@7c3b8c69d333d04e3691e21d075f1c45374fc8d4 # v5.62.0
