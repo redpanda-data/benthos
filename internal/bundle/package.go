@@ -45,6 +45,7 @@ type NewManagement interface {
 	ForStream(id string) NewManagement
 	IntoPath(segments ...string) NewManagement
 	WithAddedMetrics(m metrics.Type) NewManagement
+	WithMetricsCleanup() NewManagement
 
 	EngineVersion() string
 
