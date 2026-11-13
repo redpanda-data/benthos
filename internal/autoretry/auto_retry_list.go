@@ -42,6 +42,10 @@ type pendingT[T any] struct {
 	aFn      AckFunc
 	boff     backoff.BackOff
 	attempts int
+
+	// readyAt is when the current backoff ends. It is kept when the backoff
+	// is interrupted so that the next attempt only waits out the time left.
+	readyAt time.Time
 }
 
 // List contains a slice of items that are pending an acknowledgement, once
@@ -218,14 +222,22 @@ func (l *List[T]) tryShift(ctx context.Context) (t T, fn AckFunc, ok bool) {
 	resend.attempts++
 	if resend.attempts > 2 {
 		// This sleep prevents a busy loop on permanently failed messages.
-		if tout := resend.boff.NextBackOff(); tout > 0 {
+		if resend.readyAt.IsZero() {
+			if tout := resend.boff.NextBackOff(); tout > 0 {
+				resend.readyAt = time.Now().Add(tout)
+			}
+		}
+		if !resend.readyAt.IsZero() {
 			select {
-			case <-time.After(tout):
+			case <-time.After(time.Until(resend.readyAt)):
+				resend.readyAt = time.Time{}
 			case <-ctx.Done():
 				// The attempt never happened, so put the retry back at the
-				// front of the queue for the next shift. Dropping it here
-				// would lose the message and leave retryInFlight permanently
-				// raised, which prevents the list from ever being exhausted.
+				// front of the queue for the next shift, keeping readyAt so
+				// that it only waits out the rest of its backoff. Dropping it
+				// here would lose the message and leave retryInFlight
+				// permanently raised, which prevents the list from ever being
+				// exhausted.
 				resend.attempts--
 				l.pendingRetry = append([]*pendingT[T]{resend}, l.pendingRetry...)
 				return
