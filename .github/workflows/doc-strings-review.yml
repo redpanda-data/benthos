@@ -73,7 +73,7 @@ jobs:
     # The reusable workflow resolves the doc-tools CLI version from its own
     # ref, so this SHA pins the review logic and the CLI together and a bump
     # moves both.
-    uses: redpanda-data/docs-extensions-and-macros/.github/workflows/doc-strings-review.yml@ee137140fa313d9173d7d91169fba4af8cd91708 # v5.59.1
+    uses: redpanda-data/docs-extensions-and-macros/.github/workflows/doc-strings-review.yml@7c3b8c69d333d04e3691e21d075f1c45374fc8d4 # v5.62.0
     permissions:
       contents: read
       pull-requests: write
