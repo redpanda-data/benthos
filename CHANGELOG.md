@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - Go API: `EnvironmentSchema.Minimise` and the `json-full-scrubbed` list format no longer blank the field, option and Bloblang parameter descriptions of later schemas built from the same environment. (@JakeSCahill)
 - Go API: `redact.Error` no longer removes a password named with `Conns` from within other text, such as a host name, where the text around the marker could reveal the password. (@Jeffail)
 - The username of an http(s), websocket or NATS URL without a password, such as `https://<token>@github.com/org/repo` or `nats://<token>@host:4222`, is now redacted from errors, logs and spans, as it is usually a token. (@Jeffail)
+- Inputs that retry nacked messages no longer hang on shutdown when the stop arrives during a retry backoff. (@squiidz)
 
 ## 4.83.0 - 2026-10-15
 
