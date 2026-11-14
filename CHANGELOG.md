@@ -19,6 +19,10 @@ All notable changes to this project will be documented in this file.
 - The username of an http(s), websocket or NATS URL without a password, such as `https://<token>@github.com/org/repo` or `nats://<token>@host:4222`, is now redacted from errors, logs and spans, as it is usually a token. (@Jeffail)
 - Inputs that retry nacked messages no longer hang on shutdown when the stop arrives during a retry backoff. (@squiidz)
 
+### Changed
+
+- Compression: gzip, zlib and flate compressors and decompressors are now pooled per level instead of built per message, cutting allocations per call from ~1 MiB to under 2 KiB for compression and making `compress`/`decompress` roughly 5x faster. (@cadiidii)
+
 ## 4.83.0 - 2026-10-15
 
 ### Added
