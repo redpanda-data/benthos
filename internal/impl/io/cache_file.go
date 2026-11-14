@@ -65,11 +65,19 @@ func (f *fileCache) Get(_ context.Context, key string) ([]byte, error) {
 }
 
 func (f *fileCache) Set(_ context.Context, key string, value []byte, _ *time.Duration) error {
-	return ifs.WriteFile(f.mgr.FS(), filepath.Join(f.dir, key), value, 0o644)
+	path := filepath.Join(f.dir, key)
+	if err := f.mgr.FS().MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return ifs.WriteFile(f.mgr.FS(), path, value, 0o644)
 }
 
 func (f *fileCache) Add(_ context.Context, key string, value []byte, _ *time.Duration) error {
-	file, err := f.mgr.FS().OpenFile(filepath.Join(f.dir, key), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o644)
+	path := filepath.Join(f.dir, key)
+	if err := f.mgr.FS().MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	file, err := f.mgr.FS().OpenFile(path, os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return service.ErrKeyAlreadyExists
