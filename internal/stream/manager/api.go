@@ -62,6 +62,30 @@ func (m *Type) registerEndpoints(enableCrud bool) {
 			" streams will be replaced by this new set.",
 		m.HandleStreamsCRUD,
 	)
+	// Register the legacy per-stream readiness path after the explicit streams
+	// API routes so IDs such as "ready" retain their existing CRUD routing.
+	m.manager.RegisterEndpoint(
+		"/{id}/ready",
+		"Returns 200 OK if the specified stream inputs and outputs are connected, otherwise a 503 is returned.",
+		m.HandleStreamReadyByID,
+	)
+}
+
+// HandleStreamReadyByID reports readiness for a single stream without
+// registering a per-stream HTTP handler. Keeping this route stable prevents
+// deleted streams from being retained by the API router.
+func (m *Type) HandleStreamReadyByID(w http.ResponseWriter, r *http.Request) {
+	id := mux.Vars(r)["id"]
+
+	m.lock.Lock()
+	streamStatus, exists := m.streams[id]
+	m.lock.Unlock()
+	if !exists {
+		http.Error(w, "stream not found", http.StatusNotFound)
+		return
+	}
+
+	streamStatus.strm.HandleReady(w, r)
 }
 
 type lintErrors struct {
