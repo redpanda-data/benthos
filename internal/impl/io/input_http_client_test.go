@@ -926,3 +926,47 @@ http_client:
 		b.Error(err)
 	}
 }
+
+func TestHTTPClientStreamExtractHeaders(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*5)
+	defer done()
+
+	tserve := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("X-Cursor", "next")
+		w.Header().Add("Content-Type", "application/octet-stream")
+		_, _ = w.Write([]byte("foo\nbar\n"))
+	}))
+	defer tserve.Close()
+
+	conf := parseYAMLInputConf(t, `
+http_client:
+  url: %v/testpost
+  retry_period: 1ms
+  extract_headers:
+    include_prefixes: [ x- ]
+  stream:
+    enabled: true
+`, tserve.URL)
+
+	h, err := mock.NewManager().NewInput(conf)
+	require.NoError(t, err)
+
+	h.TriggerStartConsuming()
+
+	for _, exp := range []string{"foo", "bar"} {
+		select {
+		case ts := <-h.TransactionChan():
+			require.Equal(t, 1, ts.Payload.Len())
+			assert.Equal(t, exp, string(ts.Payload.Get(0).AsBytes()))
+			v, ok := ts.Payload.Get(0).MetaGetMut("x-cursor")
+			assert.True(t, ok)
+			assert.Equal(t, "next", v)
+			require.NoError(t, ts.Ack(tCtx, nil))
+		case <-time.After(time.Second):
+			t.Fatal("Action timed out")
+		}
+	}
+
+	h.TriggerStopConsuming()
+	require.NoError(t, h.WaitForClose(tCtx))
+}
