@@ -65,6 +65,9 @@ func CreateManager(
 		err = fmt.Errorf("failed to connect to metrics aggregator: %w", err)
 		return
 	}
+	if cliOpts.TeeMetrics != nil {
+		stats = stats.WithRawTee(cliOpts.TeeMetrics)
+	}
 
 	// Create our tracer type.
 	if trac, err = cliOpts.Environment.TracersInit(conf.Tracer, tmpMgr); err != nil {

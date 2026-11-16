@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -361,4 +362,280 @@ output:
 	require.NoError(t, err)
 	assert.Equal(t, 0, code)
 	assert.True(t, registered)
+}
+
+// teeMetricsExporter records the total of every counter it receives, keyed by
+// metric name, and the label keys each counter was declared with.
+type teeMetricsExporter struct {
+	mut       sync.Mutex
+	totals    map[string]int64
+	timings   map[string]int
+	gauges    map[string]int64
+	labelKeys map[string][]string
+}
+
+func newTeeMetricsExporter() *teeMetricsExporter {
+	return &teeMetricsExporter{
+		totals:    map[string]int64{},
+		timings:   map[string]int{},
+		gauges:    map[string]int64{},
+		labelKeys: map[string][]string{},
+	}
+}
+
+type teeCounter struct {
+	add func(int64)
+}
+
+func (c teeCounter) Incr(count int64) { c.add(count) }
+
+type teeTimer struct {
+	add func()
+}
+
+func (t teeTimer) Timing(int64) { t.add() }
+
+type teeGauge struct {
+	set func(int64)
+}
+
+func (g teeGauge) Set(v int64) { g.set(v) }
+
+func (e *teeMetricsExporter) NewCounterCtor(name string, labelKeys ...string) service.MetricsExporterCounterCtor {
+	e.mut.Lock()
+	e.labelKeys[name] = labelKeys
+	e.mut.Unlock()
+	return func(...string) service.MetricsExporterCounter {
+		return teeCounter{add: func(count int64) {
+			e.mut.Lock()
+			e.totals[name] += count
+			e.mut.Unlock()
+		}}
+	}
+}
+
+func (e *teeMetricsExporter) NewTimerCtor(name string, labelKeys ...string) service.MetricsExporterTimerCtor {
+	e.mut.Lock()
+	e.labelKeys[name] = labelKeys
+	e.mut.Unlock()
+	return func(...string) service.MetricsExporterTimer {
+		return teeTimer{add: func() {
+			e.mut.Lock()
+			e.timings[name]++
+			e.mut.Unlock()
+		}}
+	}
+}
+
+func (e *teeMetricsExporter) NewGaugeCtor(name string, labelKeys ...string) service.MetricsExporterGaugeCtor {
+	e.mut.Lock()
+	e.labelKeys[name] = labelKeys
+	e.mut.Unlock()
+	return func(...string) service.MetricsExporterGauge {
+		return teeGauge{set: func(v int64) {
+			e.mut.Lock()
+			e.gauges[name] = v
+			e.mut.Unlock()
+		}}
+	}
+}
+
+func (e *teeMetricsExporter) Close(context.Context) error { return nil }
+
+func (e *teeMetricsExporter) total(name string) int64 {
+	e.mut.Lock()
+	defer e.mut.Unlock()
+	return e.totals[name]
+}
+
+func (e *teeMetricsExporter) timingCount(name string) int {
+	e.mut.Lock()
+	defer e.mut.Unlock()
+	return e.timings[name]
+}
+
+func (e *teeMetricsExporter) keys(name string) []string {
+	e.mut.Lock()
+	defer e.mut.Unlock()
+	return e.labelKeys[name]
+}
+
+func TestRunCLITeeMetrics(t *testing.T) {
+	tmpDir := t.TempDir()
+	confPath := filepath.Join(tmpDir, "foo.yaml")
+
+	require.NoError(t, os.WriteFile(confPath, []byte(`
+http:
+  enabled: false
+
+input:
+  label: inputa
+  generate:
+    count: 7
+    mapping: 'root.id = "foobar"'
+    interval: "1ms"
+
+output:
+  drop: {}
+
+metrics:
+  none: {}
+`), 0o644))
+
+	exp := newTeeMetricsExporter()
+
+	code, err := service.RunCLIToCode(t.Context(),
+		service.CLIOptSetArgs("meow", "-c", confPath),
+		service.CLIOptAddTeeMetrics(exp),
+	)
+	require.NoError(t, err)
+	require.Equal(t, 0, code)
+
+	assert.Equal(t, int64(7), exp.total("input_received"))
+	assert.Equal(t, int64(7), exp.total("output_sent"))
+	assert.Equal(t, []string{"label", "path"}, exp.keys("input_received"))
+	assert.Equal(t, 7, exp.timingCount("input_latency_ns"))
+	assert.Equal(t, []string{"label", "path"}, exp.keys("input_latency_ns"))
+}
+
+func TestRunCLITeeMetricsNilRemoves(t *testing.T) {
+	tmpDir := t.TempDir()
+	confPath := filepath.Join(tmpDir, "foo.yaml")
+
+	require.NoError(t, os.WriteFile(confPath, []byte(`
+http:
+  enabled: false
+
+input:
+  generate:
+    count: 3
+    mapping: 'root.id = "foobar"'
+    interval: "1ms"
+
+output:
+  drop: {}
+
+metrics:
+  none: {}
+`), 0o644))
+
+	exp := newTeeMetricsExporter()
+
+	code, err := service.RunCLIToCode(t.Context(),
+		service.CLIOptSetArgs("meow", "-c", confPath),
+		service.CLIOptAddTeeMetrics(exp),
+		service.CLIOptAddTeeMetrics(nil),
+	)
+	require.NoError(t, err)
+	require.Equal(t, 0, code)
+
+	assert.Zero(t, exp.total("input_received"))
+	assert.Empty(t, exp.keys("input_received"))
+}
+
+// In streams mode each stream's metrics are wrapped again per stream, and the
+// static labels gain `stream`. The tee must receive both.
+func TestRunCLITeeMetricsStreamsMode(t *testing.T) {
+	tmpDir := t.TempDir()
+	obsPath := filepath.Join(tmpDir, "obs.yaml")
+	streamPath := filepath.Join(tmpDir, "foo.yaml")
+
+	require.NoError(t, os.WriteFile(obsPath, []byte(`
+http:
+  enabled: false
+
+metrics:
+  none: {}
+`), 0o644))
+
+	require.NoError(t, os.WriteFile(streamPath, []byte(`
+input:
+  label: inputa
+  generate:
+    count: 7
+    mapping: 'root.id = "foobar"'
+    interval: "1ms"
+
+output:
+  drop: {}
+`), 0o644))
+
+	exp := newTeeMetricsExporter()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	type result struct {
+		code int
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		code, err := service.RunCLIToCode(ctx,
+			service.CLIOptSetArgs("meow", "streams", "-o", obsPath, streamPath),
+			service.CLIOptAddTeeMetrics(exp),
+		)
+		done <- result{code: code, err: err}
+	}()
+
+	require.Eventually(t, func() bool {
+		return exp.total("input_received") == 7
+	}, time.Second*5, time.Millisecond*20)
+
+	assert.Equal(t, []string{"label", "path", "stream"}, exp.keys("input_received"))
+
+	cancel()
+	select {
+	case res := <-done:
+		require.NoError(t, res.err)
+		assert.Equal(t, 0, res.code)
+	case <-time.After(time.Second * 10):
+		t.Fatal("timed out waiting for the CLI to exit")
+	}
+}
+
+// The tee sits above the `metrics.mapping` of the config, so it receives every
+// metric under its original name, including ones the mapping renames or
+// deletes for the configured exporter.
+func TestRunCLITeeMetricsMapping(t *testing.T) {
+	tmpDir := t.TempDir()
+	confPath := filepath.Join(tmpDir, "foo.yaml")
+
+	require.NoError(t, os.WriteFile(confPath, []byte(`
+http:
+  enabled: false
+
+input:
+  label: inputa
+  generate:
+    count: 7
+    mapping: 'root.id = "foobar"'
+    interval: "1ms"
+
+output:
+  drop: {}
+
+metrics:
+  none: {}
+  mapping: |
+    root = if this == "output_sent" {
+      deleted()
+    } else {
+      this.replace_all("input_received", "renamed_received")
+    }
+`), 0o644))
+
+	exp := newTeeMetricsExporter()
+
+	code, err := service.RunCLIToCode(t.Context(),
+		service.CLIOptSetArgs("meow", "-c", confPath),
+		service.CLIOptAddTeeMetrics(exp),
+	)
+	require.NoError(t, err)
+	require.Equal(t, 0, code)
+
+	assert.Equal(t, int64(7), exp.total("input_received"))
+	assert.Equal(t, int64(7), exp.total("output_sent"))
+	assert.Zero(t, exp.total("renamed_received"))
+	assert.Equal(t, []string{"label", "path"}, exp.keys("input_received"))
 }

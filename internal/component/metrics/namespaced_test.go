@@ -296,3 +296,87 @@ func TestNamespacedDeleteSeriesPartialMatchNoopChild(t *testing.T) {
 		purger.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
 	})
 }
+
+func TestNamespacedRawTee(t *testing.T) {
+	prom, handler := getTestMetrics(t)
+	tee, teeHandler := getTestMetrics(t)
+
+	mapping, err := metrics.NewMapping(`root = if this == "dropped" { deleted() } else { this.replace_all("foo", "bar") }`, log.Noop())
+	require.NoError(t, err)
+
+	nm := metrics.NewNamespaced(prom).WithRawTee(tee).WithMapping(mapping).WithLabels("static1", "svalue1")
+
+	nm.GetCounter("foocounter").Incr(10)
+	nm.GetCounter("dropped").Incr(11)
+	nm.GetGauge("foogauge").Set(12)
+	nm.GetTimer("footimer").Timing(13)
+	nm.GetCounterVec("foocountertwo", "label1").With("value1").Incr(14)
+	nm.GetGaugeVec("foogaugetwo", "label2").With("value2").Set(15)
+	nm.GetTimerVec("footimertwo", "label3").With("value3").Timing(16)
+
+	// The configured exporter sees mapped names and loses the deleted metric.
+	body := getPage(t, handler)
+	assert.Contains(t, body, `"barcounter{static1=\"svalue1\"}":10`)
+	assert.NotContains(t, body, "dropped")
+	assert.Contains(t, body, `"bargauge{static1=\"svalue1\"}":12`)
+	assert.Contains(t, body, `"bartimer{static1=\"svalue1\"}":{"p50":13,"p90":13,"p99":13}`)
+	assert.Contains(t, body, `"barcountertwo{label1=\"value1\",static1=\"svalue1\"}":14`)
+	assert.Contains(t, body, `"bargaugetwo{label2=\"value2\",static1=\"svalue1\"}":15`)
+	assert.Contains(t, body, `"bartimertwo{label3=\"value3\",static1=\"svalue1\"}":{"p50":16,"p90":16,"p99":16}`)
+
+	// The tee sees original names with the static labels, including the
+	// metric the mapping deleted.
+	teeBody := getPage(t, teeHandler)
+	assert.Contains(t, teeBody, `"foocounter{static1=\"svalue1\"}":10`)
+	assert.Contains(t, teeBody, `"dropped{static1=\"svalue1\"}":11`)
+	assert.Contains(t, teeBody, `"foogauge{static1=\"svalue1\"}":12`)
+	assert.Contains(t, teeBody, `"footimer{static1=\"svalue1\"}":{"p50":13,"p90":13,"p99":13}`)
+	assert.Contains(t, teeBody, `"foocountertwo{label1=\"value1\",static1=\"svalue1\"}":14`)
+	assert.Contains(t, teeBody, `"foogaugetwo{label2=\"value2\",static1=\"svalue1\"}":15`)
+	assert.Contains(t, teeBody, `"footimertwo{label3=\"value3\",static1=\"svalue1\"}":{"p50":16,"p90":16,"p99":16}`)
+	assert.NotContains(t, teeBody, "bar")
+
+	// Close does not reach the tee.
+	require.NoError(t, nm.Close())
+	nm.GetCounter("afterclose").Incr(1)
+	assert.Contains(t, getPage(t, teeHandler), `"afterclose{static1=\"svalue1\"}":1`)
+}
+
+func TestNamespacedRawTeeRemovedByNil(t *testing.T) {
+	prom, handler := getTestMetrics(t)
+	tee, teeHandler := getTestMetrics(t)
+
+	nm := metrics.NewNamespaced(prom).WithRawTee(tee).WithRawTee(nil)
+	nm.GetCounter("counter").Incr(10)
+
+	assert.Contains(t, getPage(t, handler), `"counter":10`)
+	assert.NotContains(t, getPage(t, teeHandler), "counter")
+}
+
+func TestNamespacedRawTeeSurvivesWithStats(t *testing.T) {
+	first, firstHandler := getTestMetrics(t)
+	second, secondHandler := getTestMetrics(t)
+	tee, teeHandler := getTestMetrics(t)
+
+	nm := metrics.NewNamespaced(first).WithRawTee(tee).WithStats(second)
+	nm.GetCounter("counter").Incr(10)
+
+	assert.NotContains(t, getPage(t, firstHandler), "counter")
+	assert.Contains(t, getPage(t, secondHandler), `"counter":10`)
+	assert.Contains(t, getPage(t, teeHandler), `"counter":10`)
+}
+
+func TestNamespacedRawTeeDeleteSeriesPartialMatch(t *testing.T) {
+	child := &purgeTrackingDud{}
+	tee := &purgeTrackingDud{}
+	nm := metrics.NewNamespaced(child).WithRawTee(tee).WithLabels("stream", "foo")
+
+	purger, ok := any(nm).(interface {
+		DeleteSeriesPartialMatch(labels map[string]string)
+	})
+	require.True(t, ok, "Namespaced should expose series deletion")
+
+	purger.DeleteSeriesPartialMatch(map[string]string{"stream": "foo"})
+	assert.Equal(t, []map[string]string{{"stream": "foo"}}, child.purged)
+	assert.Equal(t, []map[string]string{{"stream": "foo"}}, tee.purged)
+}
