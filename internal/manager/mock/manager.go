@@ -92,6 +92,9 @@ func (m *Manager) IntoPath(segments ...string) bundle.NewManagement { return m }
 // WithAddedMetrics returns the same mock manager.
 func (m *Manager) WithAddedMetrics(m2 metrics.Type) bundle.NewManagement { return m }
 
+// WithMetricsCleanup returns the same mock manager.
+func (m *Manager) WithMetricsCleanup() bundle.NewManagement { return m }
+
 // NewBuffer always errors on invalid type.
 func (m *Manager) NewBuffer(conf buffer.Config) (buffer.Streamed, error) {
 	return nil, component.ErrInvalidType("buffer", conf.Type)

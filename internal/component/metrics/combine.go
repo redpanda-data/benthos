@@ -58,6 +58,15 @@ func (c *combinedCounter) IncrFloat64(count float64) {
 	c.c2.IncrFloat64(count)
 }
 
+func (c *combinedCounter) Delete() {
+	if d, ok := c.c1.(StatDeleter); ok {
+		d.Delete()
+	}
+	if d, ok := c.c2.(StatDeleter); ok {
+		d.Delete()
+	}
+}
+
 type combinedTimer struct {
 	c1 StatTimer
 	c2 StatTimer
@@ -66,6 +75,15 @@ type combinedTimer struct {
 func (c *combinedTimer) Timing(delta int64) {
 	c.c1.Timing(delta)
 	c.c2.Timing(delta)
+}
+
+func (c *combinedTimer) Delete() {
+	if d, ok := c.c1.(StatDeleter); ok {
+		d.Delete()
+	}
+	if d, ok := c.c2.(StatDeleter); ok {
+		d.Delete()
+	}
 }
 
 type combinedGauge struct {
@@ -101,6 +119,15 @@ func (c *combinedGauge) Decr(count int64) {
 func (c *combinedGauge) DecrFloat64(count float64) {
 	c.c1.DecrFloat64(count)
 	c.c2.DecrFloat64(count)
+}
+
+func (c *combinedGauge) Delete() {
+	if d, ok := c.c1.(StatDeleter); ok {
+		d.Delete()
+	}
+	if d, ok := c.c2.(StatDeleter); ok {
+		d.Delete()
+	}
 }
 
 //------------------------------------------------------------------------------
