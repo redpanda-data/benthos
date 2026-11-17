@@ -14,6 +14,10 @@ type Namespaced struct {
 	labels   map[string]string
 	mappings []*Mapping
 	child    Type
+
+	// rawTee, when set, receives every metric under its original path with
+	// the static labels attached, before any mapping is applied.
+	rawTee Type
 }
 
 // NewNamespaced wraps a metrics exporter and adds prefixes and custom labels.
@@ -63,6 +67,23 @@ func (n *Namespaced) WithMapping(m *Mapping) *Namespaced {
 	return &newNs
 }
 
+// WithRawTee returns a namespaced metrics exporter that also feeds every
+// metric to tee under its original path and static labels, before any mapping
+// is applied. Mappings therefore never rename or drop what the tee receives,
+// and the tee is unaffected by WithStats. The tee's lifecycle belongs to the
+// caller: Close does not close it. A nil tee removes a previously set one.
+func (n *Namespaced) WithRawTee(tee Type) *Namespaced {
+	newNs := *n
+	newNs.rawTee = tee
+	return &newNs
+}
+
+// raw returns a view of the tee that carries the static labels but none of the
+// mappings.
+func (n *Namespaced) raw() *Namespaced {
+	return &Namespaced{labels: n.labels, child: n.rawTee}
+}
+
 //------------------------------------------------------------------------------
 
 // Child returns the underlying metrics type.
@@ -85,8 +106,15 @@ func (n *Namespaced) HandlerFunc() http.HandlerFunc {
 // Bloblang program executed per metric path, so there is no well defined
 // rewrite of a bare label set. A mapping that renames or drops a matched
 // label therefore makes this deletion a no-op for the affected series.
+//
+// The raw tee, when set, receives the same request. Its series carry the
+// unmapped labels, so the deletion matches there even when a mapping made it a
+// no-op on the child.
 func (n *Namespaced) DeleteSeriesPartialMatch(labels map[string]string) {
 	if purger, ok := n.child.(LabelPurger); ok {
+		purger.DeleteSeriesPartialMatch(labels)
+	}
+	if purger, ok := n.rawTee.(LabelPurger); ok {
 		purger.DeleteSeriesPartialMatch(labels)
 	}
 }
@@ -152,8 +180,8 @@ func (c *gaugeVecWithStatic) With(values ...string) StatGauge {
 
 //------------------------------------------------------------------------------
 
-// GetCounter returns an editable counter stat for a given path.
-func (n *Namespaced) GetCounter(path string) StatCounter {
+// getCounter applies the static labels and mappings and fetches from child.
+func (n *Namespaced) getCounter(path string) StatCounter {
 	path, labelKeys, labelValues := n.getPathAndLabels(path)
 	if path == "" {
 		return DudStat{}
@@ -164,10 +192,7 @@ func (n *Namespaced) GetCounter(path string) StatCounter {
 	return n.child.GetCounter(path)
 }
 
-// GetCounterVec returns an editable counter stat for a given path with labels,
-// these labels must be consistent with any other metrics registered on the same
-// path.
-func (n *Namespaced) GetCounterVec(path string, labelNames ...string) StatCounterVec {
+func (n *Namespaced) getCounterVec(path string, labelNames ...string) StatCounterVec {
 	path, staticKeys, staticValues := n.getPathAndLabels(path)
 	if path == "" {
 		return FakeCounterVec(func(...string) StatCounter {
@@ -186,8 +211,7 @@ func (n *Namespaced) GetCounterVec(path string, labelNames ...string) StatCounte
 	return n.child.GetCounterVec(path, labelNames...)
 }
 
-// GetTimer returns an editable timer stat for a given path.
-func (n *Namespaced) GetTimer(path string) StatTimer {
+func (n *Namespaced) getTimer(path string) StatTimer {
 	path, labelKeys, labelValues := n.getPathAndLabels(path)
 	if path == "" {
 		return DudStat{}
@@ -198,10 +222,7 @@ func (n *Namespaced) GetTimer(path string) StatTimer {
 	return n.child.GetTimer(path)
 }
 
-// GetTimerVec returns an editable timer stat for a given path with labels,
-// these labels must be consistent with any other metrics registered on the same
-// path.
-func (n *Namespaced) GetTimerVec(path string, labelNames ...string) StatTimerVec {
+func (n *Namespaced) getTimerVec(path string, labelNames ...string) StatTimerVec {
 	path, staticKeys, staticValues := n.getPathAndLabels(path)
 	if path == "" {
 		return FakeTimerVec(func(...string) StatTimer {
@@ -220,8 +241,7 @@ func (n *Namespaced) GetTimerVec(path string, labelNames ...string) StatTimerVec
 	return n.child.GetTimerVec(path, labelNames...)
 }
 
-// GetGauge returns an editable gauge stat for a given path.
-func (n *Namespaced) GetGauge(path string) StatGauge {
+func (n *Namespaced) getGauge(path string) StatGauge {
 	path, labelKeys, labelValues := n.getPathAndLabels(path)
 	if path == "" {
 		return DudStat{}
@@ -232,10 +252,7 @@ func (n *Namespaced) GetGauge(path string) StatGauge {
 	return n.child.GetGauge(path)
 }
 
-// GetGaugeVec returns an editable gauge stat for a given path with labels,
-// these labels must be consistent with any other metrics registered on the same
-// path.
-func (n *Namespaced) GetGaugeVec(path string, labelNames ...string) StatGaugeVec {
+func (n *Namespaced) getGaugeVec(path string, labelNames ...string) StatGaugeVec {
 	path, staticKeys, staticValues := n.getPathAndLabels(path)
 	if path == "" {
 		return FakeGaugeVec(func(...string) StatGauge {
@@ -254,7 +271,70 @@ func (n *Namespaced) GetGaugeVec(path string, labelNames ...string) StatGaugeVec
 	return n.child.GetGaugeVec(path, labelNames...)
 }
 
-// Close stops aggregating stats and cleans up resources.
+//------------------------------------------------------------------------------
+
+// GetCounter returns an editable counter stat for a given path.
+func (n *Namespaced) GetCounter(path string) StatCounter {
+	c := n.getCounter(path)
+	if n.rawTee == nil {
+		return c
+	}
+	return &combinedCounter{c1: c, c2: n.raw().getCounter(path)}
+}
+
+// GetCounterVec returns an editable counter stat for a given path with labels,
+// these labels must be consistent with any other metrics registered on the same
+// path.
+func (n *Namespaced) GetCounterVec(path string, labelNames ...string) StatCounterVec {
+	c := n.getCounterVec(path, labelNames...)
+	if n.rawTee == nil {
+		return c
+	}
+	return &combinedCounterVec{c1: c, c2: n.raw().getCounterVec(path, labelNames...)}
+}
+
+// GetTimer returns an editable timer stat for a given path.
+func (n *Namespaced) GetTimer(path string) StatTimer {
+	c := n.getTimer(path)
+	if n.rawTee == nil {
+		return c
+	}
+	return &combinedTimer{c1: c, c2: n.raw().getTimer(path)}
+}
+
+// GetTimerVec returns an editable timer stat for a given path with labels,
+// these labels must be consistent with any other metrics registered on the same
+// path.
+func (n *Namespaced) GetTimerVec(path string, labelNames ...string) StatTimerVec {
+	c := n.getTimerVec(path, labelNames...)
+	if n.rawTee == nil {
+		return c
+	}
+	return &combinedTimerVec{c1: c, c2: n.raw().getTimerVec(path, labelNames...)}
+}
+
+// GetGauge returns an editable gauge stat for a given path.
+func (n *Namespaced) GetGauge(path string) StatGauge {
+	c := n.getGauge(path)
+	if n.rawTee == nil {
+		return c
+	}
+	return &combinedGauge{c1: c, c2: n.raw().getGauge(path)}
+}
+
+// GetGaugeVec returns an editable gauge stat for a given path with labels,
+// these labels must be consistent with any other metrics registered on the same
+// path.
+func (n *Namespaced) GetGaugeVec(path string, labelNames ...string) StatGaugeVec {
+	c := n.getGaugeVec(path, labelNames...)
+	if n.rawTee == nil {
+		return c
+	}
+	return &combinedGaugeVec{c1: c, c2: n.raw().getGaugeVec(path, labelNames...)}
+}
+
+// Close stops aggregating stats and cleans up resources. The raw tee, when
+// set, is owned by the caller and is not closed.
 func (n *Namespaced) Close() error {
 	return n.child.Close()
 }

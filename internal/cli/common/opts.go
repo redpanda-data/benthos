@@ -14,6 +14,7 @@ import (
 
 	"github.com/redpanda-data/benthos/v4/internal/bloblang"
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
+	"github.com/redpanda-data/benthos/v4/internal/component/metrics"
 	"github.com/redpanda-data/benthos/v4/internal/config"
 	"github.com/redpanda-data/benthos/v4/internal/docs"
 	"github.com/redpanda-data/benthos/v4/internal/log"
@@ -63,6 +64,11 @@ type CLIOpts struct {
 	OnLoggerInit         func(l log.Modular) (log.Modular, error)
 
 	OnStreamInit StreamInitFunc
+
+	// TeeMetrics, when set, receives every metric alongside the exporter
+	// configured by the metrics section of the config, under the original
+	// metric names and before that section's mapping is applied.
+	TeeMetrics metrics.Type
 
 	CustomRunFlags     []cli.Flag
 	CustomRunExtractFn func(*cli.Context) error
