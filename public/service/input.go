@@ -100,6 +100,31 @@ type BatchInput interface {
 
 //------------------------------------------------------------------------------
 
+// BackfillBatchInput is an optional extension of BatchInput for inputs with
+// a distinct initial backfill phase before continuous streaming, such as CDC
+// connectors snapshotting a table ahead of log-based replication.
+//
+// BackfillReadBatch is called repeatedly until it returns
+// ErrBackfillComplete. Every batch it returns is guaranteed to be
+// acknowledged (or nacked) before steady-state ReadBatch calls begin, so the
+// input doesn't need its own ack-counting barrier.
+type BackfillBatchInput interface {
+	BatchInput
+
+	// BackfillReadBatch must return ErrBackfillComplete once the backfill,
+	// including any trailing partial batch, is fully read.
+	BackfillReadBatch(context.Context) (MessageBatch, AckFunc, error)
+}
+
+// BackfillCompleter is an optional extension of BackfillBatchInput.
+// BackfillComplete is called once every backfill batch has been settled
+// downstream and before steady-state ReadBatch calls begin.
+type BackfillCompleter interface {
+	BackfillComplete(context.Context) error
+}
+
+//------------------------------------------------------------------------------
+
 // Implements input.AsyncReader.
 type airGapReader struct {
 	o bundle.NewManagement
@@ -147,7 +172,11 @@ type airGapBatchReader struct {
 }
 
 func newAirGapBatchReader(o bundle.NewManagement, r BatchInput) input.Async {
-	return &airGapBatchReader{o: o, r: r}
+	base := &airGapBatchReader{o: o, r: r}
+	if sr, ok := r.(BackfillBatchInput); ok {
+		return &airGapBackfillBatchReader{airGapBatchReader: base, sr: sr}
+	}
+	return base
 }
 
 func (a *airGapBatchReader) ConnectionTest(ctx context.Context) component.ConnectionTestResults {
@@ -180,6 +209,40 @@ func (a *airGapBatchReader) ReadBatch(ctx context.Context) (message.Batch, input
 
 func (a *airGapBatchReader) Close(ctx context.Context) error {
 	return publicToInternalErr(a.r.Close(ctx))
+}
+
+//------------------------------------------------------------------------------
+
+// Implements input.BackfillAsync and input.BackfillCompleter on top of
+// airGapBatchReader. Only constructed when the wrapped BatchInput implements
+// BackfillBatchInput - see newAirGapBatchReader.
+type airGapBackfillBatchReader struct {
+	*airGapBatchReader
+	sr BackfillBatchInput
+}
+
+func (a *airGapBackfillBatchReader) BackfillReadBatch(ctx context.Context) (message.Batch, input.AsyncAckFn, error) {
+	batch, ackFn, err := a.sr.BackfillReadBatch(ctx)
+	if err != nil {
+		return nil, nil, publicToInternalErr(err)
+	}
+
+	mBatch := make(message.Batch, len(batch))
+	for i, p := range batch {
+		mBatch[i] = p.part
+	}
+	return mBatch, func(c context.Context, r error) error {
+		r = toPublicBatchError(r)
+		return ackFn(c, r)
+	}, nil
+}
+
+func (a *airGapBackfillBatchReader) BackfillComplete(ctx context.Context) error {
+	sc, ok := a.sr.(BackfillCompleter)
+	if !ok {
+		return nil
+	}
+	return publicToInternalErr(sc.BackfillComplete(ctx))
 }
 
 //------------------------------------------------------------------------------
