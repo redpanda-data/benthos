@@ -4,7 +4,11 @@ package service_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync/atomic"
@@ -241,4 +245,120 @@ mapping: 'root.mapping = "content().uppercase()"'
 
 	data, _ := os.ReadFile(outPath)
 	assert.Contains(t, string(data), "FOOBAR")
+}
+
+func TestRunCLIResourcesRegisterEndpoint(t *testing.T) {
+	tmpDir := t.TempDir()
+	confPath := filepath.Join(tmpDir, "foo.yaml")
+
+	// Reserve a free port for the HTTP server, since the API doesn't report
+	// the address it bound to.
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := l.Addr().String()
+	require.NoError(t, l.Close())
+
+	require.NoError(t, os.WriteFile(confPath, fmt.Appendf(nil, `
+http:
+  address: %v
+  root_path: /meow
+
+input:
+  generate:
+    mapping: 'root.id = "foobar"'
+    interval: "100ms"
+
+output:
+  drop: {}
+`, addr), 0o644))
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+
+	type result struct {
+		code int
+		err  error
+	}
+	done := make(chan result, 1)
+	go func() {
+		code, err := service.RunCLIToCode(ctx,
+			service.CLIOptSetArgs("meow", "-c", confPath),
+			service.CLIOptOnConfigParse(func(pConf *service.ParsedConfig) error {
+				pConf.Resources().RegisterEndpoint("/custom", "A custom endpoint.", func(w http.ResponseWriter, _ *http.Request) {
+					_, _ = w.Write([]byte("custom body"))
+				})
+				return nil
+			}),
+		)
+		done <- result{code: code, err: err}
+	}()
+
+	get := func(path string) (int, string, error) {
+		res, err := http.Get("http://" + addr + path)
+		if err != nil {
+			return 0, "", err
+		}
+		defer res.Body.Close()
+		body, err := io.ReadAll(res.Body)
+		return res.StatusCode, string(body), err
+	}
+
+	require.Eventually(t, func() bool {
+		code, body, err := get("/custom")
+		return err == nil && code == http.StatusOK && body == "custom body"
+	}, time.Second*5, time.Millisecond*50)
+
+	// Also served under the configured root_path.
+	code, body, err := get("/meow/custom")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, code)
+	assert.Equal(t, "custom body", body)
+
+	_, body, err = get("/endpoints")
+	require.NoError(t, err)
+
+	var endpoints map[string]string
+	require.NoError(t, json.Unmarshal([]byte(body), &endpoints))
+	assert.Equal(t, "A custom endpoint.", endpoints["/custom"])
+
+	cancel()
+	select {
+	case res := <-done:
+		require.NoError(t, res.err)
+		assert.Equal(t, 0, res.code)
+	case <-time.After(time.Second * 10):
+		t.Fatal("timed out waiting for the CLI to exit")
+	}
+}
+
+func TestRunCLIResourcesRegisterEndpointServerDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	confPath := filepath.Join(tmpDir, "foo.yaml")
+
+	require.NoError(t, os.WriteFile(confPath, []byte(`
+http:
+  enabled: false
+
+input:
+  generate:
+    count: 1
+    mapping: 'root.id = "foobar"'
+    interval: "1ms"
+
+output:
+  drop: {}
+`), 0o644))
+
+	var registered bool
+	code, err := service.RunCLIToCode(t.Context(),
+		service.CLIOptSetArgs("meow", "-c", confPath),
+		service.CLIOptOnConfigParse(func(pConf *service.ParsedConfig) error {
+			pConf.Resources().RegisterEndpoint("/custom", "A custom endpoint.", func(http.ResponseWriter, *http.Request) {})
+			registered = true
+			return nil
+		}),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, 0, code)
+	assert.True(t, registered)
 }

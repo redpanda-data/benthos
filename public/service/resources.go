@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"io/fs"
+	"net/http"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -121,6 +122,23 @@ func (r *Resources) Logger() *Logger {
 // Metrics returns a mechanism for creating custom metrics.
 func (r *Resources) Metrics() *Metrics {
 	return newReverseAirGapMetrics(r.mgr.Metrics())
+}
+
+// RegisterEndpoint registers a handler under a path on the service-wide HTTP
+// server, the server configured by the `http` section of a config. The
+// description is shown by the `/endpoints` endpoint. The handler is wrapped
+// with the basic auth settings of the `http` config section and is also served
+// under its `root_path`. In streams mode with `--prefix-stream-endpoints`, a
+// path registered from the resources of a stream is prefixed with that
+// stream's ID. Registering a path a second time replaces the handler.
+//
+// The server starts listening as soon as it is created, so a handler
+// registered from a component constructor or a CLI hook such as
+// CLIOptOnConfigParse serves requests from the moment it is registered. When
+// the `http` section disables the server the endpoint is registered but never
+// served.
+func (r *Resources) RegisterEndpoint(path, desc string, h http.HandlerFunc) {
+	r.mgr.RegisterEndpoint(path, desc, h)
 }
 
 // OtelTracer returns an open telemetry tracer provider that can be used to
