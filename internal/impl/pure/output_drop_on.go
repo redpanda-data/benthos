@@ -41,7 +41,7 @@ output:
     pattern: fan_out
     outputs:
       - redpanda:
-          seed_brokers: [ foobar:6379 ]
+          seed_brokers: [ foobar:9092 ]
           topic: foo
       - drop_on:
           error: true
