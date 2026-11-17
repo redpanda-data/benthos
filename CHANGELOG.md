@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - Go API: `redact.Error` no longer removes a password named with `Conns` from within other text, such as a host name, where the text around the marker could reveal the password. (@Jeffail)
 - The username of an http(s), websocket or NATS URL without a password, such as `https://<token>@github.com/org/repo` or `nats://<token>@host:4222`, is now redacted from errors, logs and spans, as it is usually a token. (@Jeffail)
 - Inputs that retry nacked messages no longer hang on shutdown when the stop arrives during a retry backoff. (@squiidz)
+- Gzip data written by the `compress` processor, the `compress` Bloblang method and the `http_server` input's compressed responses no longer carries a bogus modification time in the gzip header. The MTIME field is now zero, which RFC 1952 defines as "not set". (@Jeffail)
 
 ## 4.83.0 - 2026-10-15
 
