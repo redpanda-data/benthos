@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Fixed
+
+- `http_client` input: with `stream.enabled`, messages now carry the metadata selected by `extract_headers`, which was previously ignored in streaming mode.
+
 ## 4.85.0 - 2026-11-17
 
 ### Added
