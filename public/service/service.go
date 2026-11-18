@@ -280,3 +280,24 @@ func CLIOptCustomRunFlags(flags []ucli.Flag, fn func(*ucli.Context) error) CLIOp
 func ParseEnvFile(contents []byte) (map[string]string, error) {
 	return parser.ParseDotEnvFile(contents)
 }
+
+// CLIOptAddTeeMetrics adds a metrics exporter that receives every metric
+// alongside the exporter configured by the `metrics` section of a config.
+// Metrics reach the tee under their original names and with the same static
+// labels the configured exporter receives (`label` and `path`, plus `stream`
+// in streams mode), but before that section's `mapping` is applied, so a
+// mapping that drops or renames a metric for the configured exporter does not
+// affect the tee. Calling this more than once replaces the previous tee, and
+// an untyped nil removes it.
+//
+// The caller owns the exporter's lifecycle: its Close method is never called
+// by the CLI, which may create and tear down metrics more than once in a run.
+func CLIOptAddTeeMetrics(m MetricsExporter) CLIOptFunc {
+	return func(c *CLIOptBuilder) {
+		if m == nil {
+			c.opts.TeeMetrics = nil
+			return
+		}
+		c.opts.TeeMetrics = newAirGapMetrics(m)
+	}
+}

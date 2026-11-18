@@ -17,7 +17,7 @@ func init() {
 			Example("Compress and encode for safe transmission", `root.compressed = content().bytes().compress("gzip").encode("base64")`,
 				[2]string{
 					`{"message":"hello world I love space"}`,
-					`{"compressed":"H4sIAAAJbogA/wAmANn/eyJtZXNzYWdlIjoiaGVsbG8gd29ybGQgSSBsb3ZlIHNwYWNlIn0DAHEvdwomAAAA"}`,
+					`{"compressed":"H4sIAAAAAAAA/wAmANn/eyJtZXNzYWdlIjoiaGVsbG8gd29ybGQgSSBsb3ZlIHNwYWNlIn0DAHEvdwomAAAA"}`,
 				},
 			).
 			Example("Compare compression ratios across algorithms", `root.original_size = content().length()
