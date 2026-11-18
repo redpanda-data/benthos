@@ -32,6 +32,10 @@ All notable changes to this project will be documented in this file.
 
 - Go API: The `lint` and `test` subcommands now accept the custom flags set with `CLIOptCustomRunFlags` after the subcommand name, as `run` and `streams` already do. (@Leward)
 
+### Changed
+
+- Compression: gzip, zlib and flate compressors and decompressors are now pooled per level instead of built per message, cutting allocations per call from ~1 MiB to under 2 KiB for compression and making `compress`/`decompress` roughly 5x faster. (@cadiidii)
+
 ## 4.83.0 - 2026-10-15
 
 ### Added
