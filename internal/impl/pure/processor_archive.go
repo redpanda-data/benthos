@@ -40,7 +40,7 @@ To reverse this process use the `+"xref:components:processors/unarchive.adoc[`un
 		Field(service.NewInterpolatedStringField("path").
 			Description(`The path to set for each message in the archive (when applicable).`).
 			Example("${!counter()}-${!timestamp_unix_nano()}.txt").
-			Example("${!meta(\"kafka_key\")}-${!json(\"id\")}.json").
+			Example("${! @kafka_key }-${!json(\"id\")}.json").
 			Default("")).
 		Example("Tar Archive", `
 If we had JSON messages in a batch each of the form:

@@ -40,7 +40,7 @@ If we were consuming Kafka messages and needed to group them by their key, archi
 pipeline:
   processors:
     - group_by_value:
-        value: ${! meta("kafka_key") }
+        value: ${! @kafka_key }
     - archive:
         format: tar
     - compress:
@@ -48,11 +48,11 @@ pipeline:
 output:
   aws_s3:
     bucket: TODO
-    path: docs/${! meta("kafka_key") }/${! counter() }-${! timestamp_unix_nano() }.tar.gz
+    path: docs/${! @kafka_key }/${! counter() }-${! timestamp_unix_nano() }.tar.gz
 `+"```"+``).
 			Field(service.NewInterpolatedStringField(gbvpFieldValue).
 				Description(`The interpolated string to group based on.`).
-				Examples("${! meta(\"kafka_key\") }", "${! json(\"foo.bar\") }-${! meta(\"baz\") }")),
+				Examples("${! @kafka_key }", "${! json(\"foo.bar\") }-${! @baz }")),
 		func(conf *service.ParsedConfig, res *service.Resources) (service.BatchProcessor, error) {
 			valueStr, err := conf.FieldString(gbvpFieldValue)
 			if err != nil {
