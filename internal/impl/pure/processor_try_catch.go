@@ -30,7 +30,7 @@ This processor combines the behaviour of the `+"xref:components:processors/try.a
 
 Each message of a batch is processed individually. The `+"`processors`"+` field is executed with "try" semantics: as soon as a processor fails for a given message the remaining `+"`processors`"+` are skipped for that message.
 
-Any message that failed is then routed to the `+"`catch`"+` processors. Before they run, the failure is moved off the message: it is stored as a structured object in a metadata field (see `+"`error_metadata`"+`, `+"`error`"+` by default) and the message's failure flag is **cleared**. The error is therefore available to recovery logic as an ordinary variable rather than as a message property. The object contains:
+Any message that failed is then routed to the `+"`catch`"+` processors. Before they run, the failure is moved off the message. It is stored as a structured object in a metadata field (see `+"`error_metadata`"+`, `+"`error`"+` by default), and the message's failure flag is **cleared**. The error is therefore available to recovery logic as an ordinary variable rather than as a message property. The object contains:
 
 - `+"`what`"+`: the error message.
 - `+"`name`"+`: the name of the component that failed (when known).
@@ -52,7 +52,7 @@ pipeline:
           - mutation: 'root = "failed to process: " + @error.what'
 `+"```"+`
 
-In the example above, if either `+"`foo` or `bar`"+` fails for a message then the `+"`mutation`"+` is applied to that message, replacing its contents with a description of the error (read from the metadata object), and the message continues downstream without a failure flag.
+In the example above, if either `+"`foo` or `bar`"+` fails for a message, the `+"`mutation`"+` is applied to that message. It replaces the message's contents with a description of the error, read from the metadata object. The message then continues downstream without a failure flag.
 
 More information about error handling can be found in xref:configuration:error_handling.adoc[Error handling].`).Version("4.98.0").
 		Field(service.NewProcessorListField(tcFieldProcessors).
