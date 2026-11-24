@@ -97,6 +97,11 @@ type httpClientInput struct {
 
 	codecMut sync.Mutex
 	codec    codec.DeprecatedFallbackStream
+
+	// streamMeta holds the metadata extracted (via extract_headers) from the
+	// headers of the current streamed response, applied to every message read
+	// from it.
+	streamMeta *service.Message
 }
 
 func newHTTPClientInputFromParsed(conf *service.ParsedConfig, mgr *service.Resources) (*httpClientInput, error) {
@@ -176,6 +181,9 @@ func (h *httpClientInput) Connect(ctx context.Context) (err error) {
 	}
 	h.prevResponse = service.MessageBatch{p}
 
+	h.streamMeta = service.NewMessage(nil)
+	h.client.ExtractHeaderMeta(h.streamMeta, res.Header)
+
 	if h.codec, err = h.codecCtor.Create(res.Body, func(ctx context.Context, err error) error {
 		return nil
 	}, service.NewScannerSourceDetails()); err != nil {
@@ -230,12 +238,13 @@ func (h *httpClientInput) readStreamed(ctx context.Context) (service.MessageBatc
 		return nil, nil, component.ErrTimeout
 	}
 
-	meta := map[string]string{}
-	if len(h.prevResponse) > 0 {
-		_ = h.prevResponse[0].MetaWalk(func(k, v string) error {
-			meta[k] = v
-			return nil
-		})
+	if h.streamMeta != nil {
+		for _, part := range parts {
+			_ = h.streamMeta.MetaWalkMut(func(k string, v any) error {
+				part.MetaSetMut(k, v)
+				return nil
+			})
+		}
 	}
 
 	h.prevResponse = make(service.MessageBatch, len(parts))
