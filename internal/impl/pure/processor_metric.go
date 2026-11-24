@@ -83,7 +83,7 @@ pipeline:
 Equivalent to `+"`gauge`"+` where instead the metric is a timing. It is recommended that timing values are recorded in nanoseconds in order to be consistent with standard Redpanda Connect timing metrics, as in some cases these values are automatically converted into other units such as when exporting timings as histograms with Prometheus metrics.`).
 		Example(
 			"Counter",
-			"In this example we emit a counter metric called `Foos`, which increments for every message processed, and we label the metric with some metadata about where the message came from and a field from the document that states what type it is. We also configure our metrics to emit to CloudWatch, and explicitly only allow our custom metric and some internal Redpanda Connect metrics to emit.",
+			"In this example we emit a counter metric called `Foos`, which increments for every message processed. We label the metric with metadata about where the message came from, and with a field from the document that states what type it is. We also configure our metrics to emit to CloudWatch, and explicitly only allow our custom metric and some internal Redpanda Connect metrics to emit.",
 			`
 pipeline:
   processors:
@@ -91,8 +91,8 @@ pipeline:
         name: Foos
         type: counter
         labels:
-          topic: ${! meta("kafka_topic") }
-          partition: ${! meta("kafka_partition") }
+          topic: ${! @kafka_topic }
+          partition: ${! @kafka_partition }
           type: ${! json("document.type").or("unknown") }
 
 metrics:
@@ -116,7 +116,7 @@ pipeline:
         name: FooSize
         type: gauge
         labels:
-          topic: ${! meta("kafka_topic") }
+          topic: ${! @kafka_topic }
         value: ${! json("foo.size") }
 
 metrics:
@@ -133,7 +133,7 @@ metrics:
 				Description(`A map of label names and values that can be used to enrich metrics. Labels are not supported by some metric destinations, in which case the metrics series are combined.`).
 				Example(map[string]any{
 					"type":  "${! json(\"doc.type\") }",
-					"topic": "${! meta(\"kafka_topic\") }",
+					"topic": "${! @kafka_topic }",
 				}).
 				Optional(),
 			service.NewInterpolatedStringField(metProcFieldValue).

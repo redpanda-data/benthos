@@ -57,7 +57,7 @@ In order to create a unique `+"`key`"+` value per item you should use function i
 				Examples(
 					`${!timestamp_unix_nano()}-${!uuid_v4()}`,
 					`${!json("doc.id")}`,
-					`${!meta("kafka_key")}`,
+					`${! @kafka_key }`,
 				).
 				Default(`${!timestamp_unix_nano()}-${!uuid_v4()}`),
 			service.NewInterpolatedStringField(coFieldTTL).
