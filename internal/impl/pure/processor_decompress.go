@@ -4,7 +4,6 @@ package pure
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/redpanda-data/benthos/v4/internal/bundle"
 	"github.com/redpanda-data/benthos/v4/internal/component/interop"
@@ -24,7 +23,7 @@ func init() {
 		"decompress", service.NewConfigSpec().
 			Categories("Parsing").
 			Stable().
-			Summary(fmt.Sprintf("Decompresses messages according to the selected algorithm. Supported decompression algorithms are: %v", compAlgs)).
+			Summary("Decompresses messages according to the selected algorithm.").
 			Fields(
 				service.NewStringEnumField(decompressPFieldAlgorithm, compAlgs...).
 					Description("The decompression algorithm to use.").
