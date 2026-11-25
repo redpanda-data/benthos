@@ -16,7 +16,25 @@ const (
 	fieldFilePath         = "path"
 	fieldFileRotate       = "rotate"
 	fieldFileRotateMaxAge = "rotate_max_age_days"
+
+	fieldSyslog          = "syslog"
+	fieldSyslogHost      = "host"
+	fieldSyslogPort      = "port"
+	fieldSyslogTransport = "transport"
+	fieldSyslogTag       = "tag"
+	fieldSyslogFacility  = "facility"
+
+	fieldConsoleOutput = "console_output"
 )
+
+// SyslogConfig holds configuration for RFC5424 syslog output.
+type SyslogConfig struct {
+	Host      string `yaml:"host"`
+	Port      int    `yaml:"port"`
+	Transport string `yaml:"transport"`
+	Tag       string `yaml:"tag"`
+	Facility  string `yaml:"facility"`
+}
 
 // Config holds configuration options for a logger object.
 type Config struct {
@@ -28,6 +46,8 @@ type Config struct {
 	TimestampName string            `yaml:"timestamp_name"`
 	StaticFields  map[string]string `yaml:"static_fields"`
 	File          File              `yaml:"file"`
+	Syslog        SyslogConfig      `yaml:"syslog"`
+	ConsoleOutput bool              `yaml:"console_output"`
 }
 
 // File contains configuration for file based logging.
@@ -49,6 +69,14 @@ func NewConfig() Config {
 		StaticFields: map[string]string{
 			"@service": "redpanda-benthos",
 		},
+		Syslog: SyslogConfig{
+			Host:      "",
+			Port:      514,
+			Transport: "udp",
+			Tag:       "benthos",
+			Facility:  "user",
+		},
+		ConsoleOutput: true,
 	}
 }
 
@@ -108,6 +136,29 @@ func FromParsed(pConf *docs.ParsedConfig) (conf Config, err error) {
 		if conf.File.RotateMaxAge, err = fConf.FieldInt(fieldFileRotateMaxAge); err != nil {
 			return
 		}
+	}
+
+	if pConf.Contains(fieldSyslog) {
+		sConf := pConf.Namespace(fieldSyslog)
+		if conf.Syslog.Host, err = sConf.FieldString(fieldSyslogHost); err != nil {
+			return
+		}
+		if conf.Syslog.Port, err = sConf.FieldInt(fieldSyslogPort); err != nil {
+			return
+		}
+		if conf.Syslog.Transport, err = sConf.FieldString(fieldSyslogTransport); err != nil {
+			return
+		}
+		if conf.Syslog.Tag, err = sConf.FieldString(fieldSyslogTag); err != nil {
+			return
+		}
+		if conf.Syslog.Facility, err = sConf.FieldString(fieldSyslogFacility); err != nil {
+			return
+		}
+	}
+
+	if conf.ConsoleOutput, err = pConf.FieldBool(fieldConsoleOutput); err != nil {
+		return
 	}
 	return
 }
