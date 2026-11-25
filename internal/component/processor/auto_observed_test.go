@@ -5,6 +5,7 @@ package processor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/redpanda-data/benthos/v4/internal/batch"
 	"github.com/redpanda-data/benthos/v4/internal/component"
 	"github.com/redpanda-data/benthos/v4/internal/message"
 	"github.com/redpanda-data/benthos/v4/internal/tracing/tracingtest"
@@ -259,6 +261,41 @@ func TestBatchProcessorAirGapIndividualErrors(t *testing.T) {
 	assert.EqualError(t, msgs[0][0].ErrorGet(), "invalid character 'o' in literal null (expecting 'u')")
 	assert.NoError(t, msgs[0][1].ErrorGet())
 	assert.EqualError(t, msgs[0][2].ErrorGet(), "invalid character 'a' looking for beginning of value")
+}
+
+func TestBatchProcessorAirGapContextPreserved(t *testing.T) {
+	tCtx := t.Context()
+
+	// Mock processor that simulates archive: json_array behavior
+	// Takes N input messages, returns 1 output message with collapsed count = N
+	agrp := NewAutoObservedBatchedProcessor("archive", &fnBatchProcessor{
+		fn: func(c *BatchProcContext, msgs message.Batch) ([]message.Batch, error) {
+			if msgs.Len() == 0 {
+				return nil, nil
+			}
+			// Simulate archive: returns first message with collapsed count set
+			output := msgs.Get(0).ShallowCopy()
+			outputCtx := message.GetContext(output)
+			outputCtx = batch.CtxWithCollapsedCount(outputCtx, msgs.Len())
+			output = message.WithContext(outputCtx, output)
+			return []message.Batch{{output}}, nil
+		},
+	}, component.NoopObservability())
+
+	msgs := make([][]byte, 42)
+	for i := 0; i < 42; i++ {
+		msgs[i] = []byte(fmt.Sprintf(`{"test-message":%d}`, i))
+	}
+	inputBatch := message.QuickBatch(msgs)
+
+	outputBatches, err := agrp.ProcessBatch(tCtx, inputBatch)
+	require.NoError(t, err)
+	require.Len(t, outputBatches, 1)
+	require.Equal(t, 1, outputBatches[0].Len())
+
+	outputMsg := outputBatches[0].Get(0)
+	collapsedCount := batch.CtxCollapsedCount(message.GetContext(outputMsg))
+	assert.Equal(t, 42, collapsedCount, "collapsed count should be preserved through auto-observed wrapper")
 }
 
 //------------------------------------------------------------------------------
