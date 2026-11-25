@@ -147,6 +147,11 @@ func (m *Impl) loop() {
 		}
 
 		sendMsg, err := m.batcher.Flush(closeNowCtx)
+		// Every flush resets the policy's period (Flush sets lastBatch), so disarm the
+		// timer and let the top of the loop re-arm it from the new lastBatch. Without this a
+		// count-triggered flush leaves the old deadline armed, and it fires early to flush a
+		// partial batch that no batch_created mechanism counts.
+		nextTimedBatchChan = nil
 		if err != nil {
 			// The batching processors failed and the batch has been dropped.
 			// Nack the accumulated transactions so the input can retry them,

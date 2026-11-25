@@ -30,6 +30,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- An output's batching `period` now restarts after every flush. A flush on `count` used to leave the previous period deadline armed, which then flushed a partial batch early that no `batch_created` mechanism counted. (@arijitdey-sysdig)
 - Go API: The `lint` and `test` subcommands now accept the custom flags set with `CLIOptCustomRunFlags` after the subcommand name, as `run` and `streams` already do. (@Leward)
 
 ## 4.83.0 - 2026-10-15
