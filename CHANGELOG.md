@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+- Go API: The `public/utils/ordering` package lets an input that holds messages back to preserve their order learn, before a message is acknowledged, that the messages behind it no longer need to be held back. (@Jeffail)
+
 ## 4.85.0 - 2026-11-17
 
 ### Added
