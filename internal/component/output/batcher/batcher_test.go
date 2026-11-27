@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -519,4 +520,581 @@ func TestBatcherTimed(t *testing.T) {
 	require.NoError(t, b.WaitForClose(ctx))
 
 	close(resChan)
+}
+
+// orderedBatch returns a batch whose parts each increment their own slot of
+// the returned counters when their ordering is settled.
+func orderedBatch(contents ...string) (message.Batch, []*atomic.Int64) {
+	batch := make(message.Batch, len(contents))
+	fired := make([]*atomic.Int64, len(contents))
+	for i, c := range contents {
+		counter := &atomic.Int64{}
+		fired[i] = counter
+		part := message.NewPart([]byte(c))
+		batch[i] = part.WithContext(message.CtxOnOrderingSettled(part.GetContext(), func() {
+			counter.Add(1)
+		}))
+	}
+	return batch, fired
+}
+
+func requireFired(t *testing.T, fired []*atomic.Int64) {
+	t.Helper()
+	for i, f := range fired {
+		require.Eventuallyf(t, func() bool {
+			return f.Load() >= 1
+		}, time.Second*5, time.Millisecond, "ordering callback of part %v", i)
+	}
+}
+
+func TestBatcherOrderingSettledOnAdd(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	tInChan := make(chan message.Transaction)
+
+	policyConf := batchconfig.NewConfig()
+	policyConf.Count = 5
+	batchPol, err := policy.New(policyConf, mock.NewManager())
+	require.NoError(t, err)
+
+	out := &mock.OutputChanneled{}
+	b := batcher.New(batchPol, out, mock.NewManager(), batcher.OptChildWritesInOrder())
+	require.NoError(t, b.Consume(tInChan))
+	b.TriggerStartConsuming()
+
+	send := func(resChan chan error, contents ...string) []*atomic.Int64 {
+		t.Helper()
+		batch, fired := orderedBatch(contents...)
+		select {
+		case tInChan <- message.NewTransaction(batch, resChan):
+		case <-tCtx.Done():
+			t.Fatal("timed out")
+		}
+		return fired
+	}
+
+	// Two transactions that do not fill the batch: every part is settled
+	// without a flush, and nothing is acknowledged.
+	resChanOne, resChanTwo, resChanThree := make(chan error), make(chan error), make(chan error)
+	requireFired(t, send(resChanOne, "a"))
+	requireFired(t, send(resChanTwo, "b", "c", "d"))
+
+	select {
+	case <-out.TChan:
+		t.Fatal("unexpected flush")
+	case err := <-resChanOne:
+		t.Fatalf("unexpected ack: %v", err)
+	case err := <-resChanTwo:
+		t.Fatalf("unexpected ack: %v", err)
+	case <-time.After(time.Millisecond * 50):
+	}
+
+	// The transaction that fills the batch is settled as well, including the
+	// part that overshoots the count.
+	firedThree := send(resChanThree, "e", "f")
+
+	var tran message.Transaction
+	select {
+	case tran = <-out.TChan:
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	requireFired(t, firedThree)
+
+	var contents []string
+	for _, p := range tran.Payload {
+		contents = append(contents, string(p.AsBytes()))
+	}
+	assert.Equal(t, []string{"a", "b", "c", "d", "e", "f"}, contents)
+
+	// Settling is not an acknowledgement: sources are only acked once the
+	// flushed batch is.
+	select {
+	case err := <-resChanOne:
+		t.Fatalf("unexpected ack: %v", err)
+	case <-time.After(time.Millisecond * 50):
+	}
+
+	require.NoError(t, tran.Ack(tCtx, nil))
+	for _, rChan := range []chan error{resChanOne, resChanTwo, resChanThree} {
+		select {
+		case err := <-rChan:
+			require.NoError(t, err)
+		case <-tCtx.Done():
+			t.Fatal("timed out")
+		}
+	}
+
+	b.TriggerCloseNow()
+	require.NoError(t, b.WaitForClose(tCtx))
+}
+
+func TestBatcherOrderingSettledWithNack(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	tInChan := make(chan message.Transaction)
+
+	policyConf := batchconfig.NewConfig()
+	policyConf.Count = 2
+	batchPol, err := policy.New(policyConf, mock.NewManager())
+	require.NoError(t, err)
+
+	out := &mock.OutputChanneled{}
+	b := batcher.New(batchPol, out, mock.NewManager(), batcher.OptChildWritesInOrder())
+	require.NoError(t, b.Consume(tInChan))
+	b.TriggerStartConsuming()
+
+	batch, fired := orderedBatch("a", "b")
+	resChan := make(chan error)
+	select {
+	case tInChan <- message.NewTransaction(batch, resChan):
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+
+	var tran message.Transaction
+	select {
+	case tran = <-out.TChan:
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	requireFired(t, fired)
+
+	// A settled batch can still fail, and the source still hears about it.
+	require.NoError(t, tran.Ack(tCtx, errors.New("nope")))
+	select {
+	case err := <-resChan:
+		require.EqualError(t, err, "nope")
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+
+	b.TriggerCloseNow()
+	require.NoError(t, b.WaitForClose(tCtx))
+}
+
+func TestBatcherOrderingSettledPeriodOnly(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	tInChan := make(chan message.Transaction)
+
+	policyConf := batchconfig.NewConfig()
+	policyConf.Period = "1h"
+	batchPol, err := policy.New(policyConf, mock.NewManager())
+	require.NoError(t, err)
+
+	out := &mock.OutputChanneled{}
+	b := batcher.New(batchPol, out, mock.NewManager(), batcher.OptChildWritesInOrder())
+	require.NoError(t, b.Consume(tInChan))
+	b.TriggerStartConsuming()
+
+	// Many transactions are accepted and settled long before the period
+	// elapses.
+	for i := range 20 {
+		batch, fired := orderedBatch(fmt.Sprintf("foo %v", i))
+		select {
+		case tInChan <- message.NewTransaction(batch, make(chan error)):
+		case <-tCtx.Done():
+			t.Fatal("timed out")
+		}
+		requireFired(t, fired)
+	}
+
+	select {
+	case <-out.TChan:
+		t.Fatal("unexpected flush")
+	case <-time.After(time.Millisecond * 50):
+	}
+
+	b.TriggerCloseNow()
+	require.NoError(t, b.WaitForClose(tCtx))
+}
+
+func TestBatcherOrderingSettledWithFilteringBatchProcessors(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	tInChan := make(chan message.Transaction)
+
+	// The batch processors filter every message on flush, so no batch is sent
+	// and the source is acked. The parts are settled when they join the batch,
+	// before the processors run.
+	policyConf := batchconfig.NewConfig()
+	policyConf.Count = 3
+	procConf, err := testutil.ProcessorFromYAML(`
+mapping: 'root = deleted()'
+`)
+	require.NoError(t, err)
+	policyConf.Processors = append(policyConf.Processors, procConf)
+	batchPol, err := policy.New(policyConf, mock.NewManager())
+	require.NoError(t, err)
+
+	out := &mock.OutputChanneled{}
+	b := batcher.New(batchPol, out, mock.NewManager(), batcher.OptChildWritesInOrder())
+	require.NoError(t, b.Consume(tInChan))
+	b.TriggerStartConsuming()
+
+	batchOne, firedOne := orderedBatch("a", "b")
+	resChanOne := make(chan error)
+	select {
+	case tInChan <- message.NewTransaction(batchOne, resChanOne):
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	requireFired(t, firedOne)
+
+	select {
+	case err := <-resChanOne:
+		t.Fatalf("unexpected ack: %v", err)
+	case <-time.After(time.Millisecond * 50):
+	}
+
+	batchTwo, firedTwo := orderedBatch("c")
+	resChanTwo := make(chan error)
+	select {
+	case tInChan <- message.NewTransaction(batchTwo, resChanTwo):
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	requireFired(t, firedTwo)
+
+	for _, rChan := range []chan error{resChanOne, resChanTwo} {
+		select {
+		case err := <-rChan:
+			require.NoError(t, err)
+		case tran := <-out.TChan:
+			t.Fatalf("unexpected batch of %v", tran.Payload.Len())
+		case <-tCtx.Done():
+			t.Fatal("timed out")
+		}
+	}
+
+	b.TriggerCloseNow()
+	require.NoError(t, b.WaitForClose(tCtx))
+}
+
+// Without the option the child may write batches in parallel, so joining a
+// batch says nothing about ordering and no callback is called.
+func TestBatcherOrderingNotSettledByDefault(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	tInChan := make(chan message.Transaction)
+
+	policyConf := batchconfig.NewConfig()
+	policyConf.Count = 2
+	batchPol, err := policy.New(policyConf, mock.NewManager())
+	require.NoError(t, err)
+
+	out := &mock.OutputChanneled{}
+	b := batcher.New(batchPol, out, mock.NewManager())
+	require.NoError(t, b.Consume(tInChan))
+	b.TriggerStartConsuming()
+
+	batch, fired := orderedBatch("a", "b")
+	resChan := make(chan error)
+	select {
+	case tInChan <- message.NewTransaction(batch, resChan):
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+
+	var tran message.Transaction
+	select {
+	case tran = <-out.TChan:
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	require.NoError(t, tran.Ack(tCtx, nil))
+	select {
+	case err := <-resChan:
+		require.NoError(t, err)
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+
+	for i, f := range fired {
+		assert.Equal(t, int64(0), f.Load(), "part %v", i)
+	}
+
+	b.TriggerCloseNow()
+	require.NoError(t, b.WaitForClose(tCtx))
+}
+
+// newOrderedBatcher starts a batcher whose child is declared to write in
+// order, and returns the channel to feed it and the child to read from.
+func newOrderedBatcher(t *testing.T, conf batchconfig.Config) (chan message.Transaction, *mock.OutputChanneled, func(context.Context)) {
+	t.Helper()
+
+	batchPol, err := policy.New(conf, mock.NewManager())
+	require.NoError(t, err)
+
+	tInChan := make(chan message.Transaction)
+	out := &mock.OutputChanneled{}
+	b := batcher.New(batchPol, out, mock.NewManager(), batcher.OptChildWritesInOrder())
+	require.NoError(t, b.Consume(tInChan))
+	b.TriggerStartConsuming()
+
+	return tInChan, out, func(ctx context.Context) {
+		b.TriggerCloseNow()
+		require.NoError(t, b.WaitForClose(ctx))
+	}
+}
+
+// Ordering is settled as a message joins the batch, whichever condition of
+// the policy is the one that will flush it.
+func TestBatcherOrderingSettledForEveryPolicyTrigger(t *testing.T) {
+	tests := []struct {
+		name string
+		conf func(*batchconfig.Config)
+	}{
+		{name: "count", conf: func(c *batchconfig.Config) { c.Count = 100 }},
+		{name: "byte size", conf: func(c *batchconfig.Config) { c.ByteSize = 1000 }},
+		{name: "check", conf: func(c *batchconfig.Config) { c.Check = `content() == "end"` }},
+		{name: "period", conf: func(c *batchconfig.Config) { c.Period = "1h" }},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+			defer done()
+
+			conf := batchconfig.NewConfig()
+			test.conf(&conf)
+			tInChan, out, closeFn := newOrderedBatcher(t, conf)
+
+			for i := range 5 {
+				batch, fired := orderedBatch(fmt.Sprintf("foo %v", i))
+				select {
+				case tInChan <- message.NewTransaction(batch, make(chan error)):
+				case <-tCtx.Done():
+					t.Fatal("timed out")
+				}
+				requireFired(t, fired)
+			}
+
+			select {
+			case <-out.TChan:
+				t.Fatal("unexpected flush")
+			case <-time.After(time.Millisecond * 50):
+			}
+
+			closeFn(tCtx)
+		})
+	}
+}
+
+// A message joining a batch is settled even while the previous batch has not
+// been resolved, as the child will still write them in order.
+func TestBatcherOrderingSettledWhilePreviousBatchUnresolved(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	tInChan, out, closeFn := newOrderedBatcher(t, func() batchconfig.Config {
+		conf := batchconfig.NewConfig()
+		conf.Count = 2
+		return conf
+	}())
+
+	send := func(resChan chan error, contents ...string) []*atomic.Int64 {
+		t.Helper()
+		batch, fired := orderedBatch(contents...)
+		select {
+		case tInChan <- message.NewTransaction(batch, resChan):
+		case <-tCtx.Done():
+			t.Fatal("timed out")
+		}
+		return fired
+	}
+	receive := func() message.Transaction {
+		t.Helper()
+		select {
+		case tran := <-out.TChan:
+			return tran
+		case <-tCtx.Done():
+			t.Fatal("timed out")
+		}
+		return message.Transaction{}
+	}
+
+	resOne, resTwo := make(chan error, 1), make(chan error, 1)
+	requireFired(t, send(resOne, "a", "b"))
+	tranOne := receive()
+
+	// The first batch is with the child and unresolved.
+	requireFired(t, send(resTwo, "c", "d"))
+	tranTwo := receive()
+
+	require.NoError(t, tranOne.Ack(tCtx, nil))
+	require.NoError(t, tranTwo.Ack(tCtx, nil))
+	for _, rChan := range []chan error{resOne, resTwo} {
+		select {
+		case err := <-rChan:
+			require.NoError(t, err)
+		case <-tCtx.Done():
+			t.Fatal("timed out")
+		}
+	}
+
+	closeFn(tCtx)
+}
+
+// Every callback a message carries is called, in the order they were added.
+func TestBatcherOrderingSettledWithSeveralCallbacks(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	conf := batchconfig.NewConfig()
+	conf.Count = 10
+	tInChan, _, closeFn := newOrderedBatcher(t, conf)
+
+	var mut sync.Mutex
+	var called []string
+	record := func(s string) func() {
+		return func() {
+			mut.Lock()
+			called = append(called, s)
+			mut.Unlock()
+		}
+	}
+
+	part := message.NewPart([]byte("a"))
+	ctx := message.CtxOnOrderingSettled(part.GetContext(), record("first"))
+	ctx = message.CtxOnOrderingSettled(ctx, record("second"))
+
+	select {
+	case tInChan <- message.NewTransaction(message.Batch{part.WithContext(ctx)}, make(chan error)):
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+
+	require.Eventually(t, func() bool {
+		mut.Lock()
+		defer mut.Unlock()
+		return len(called) == 2
+	}, time.Second*5, time.Millisecond)
+	mut.Lock()
+	assert.Equal(t, []string{"first", "second"}, called)
+	mut.Unlock()
+
+	closeFn(tCtx)
+}
+
+// Messages without callbacks pass through a batcher that settles ordering as
+// they do through any other.
+func TestBatcherOrderingSettledWithPlainMessages(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	conf := batchconfig.NewConfig()
+	conf.Count = 3
+	tInChan, out, closeFn := newOrderedBatcher(t, conf)
+
+	// One message with a callback between two without.
+	ordered, fired := orderedBatch("b")
+	batch := message.Batch{message.NewPart([]byte("a")), ordered[0], message.NewPart([]byte("c"))}
+	resChan := make(chan error, 1)
+	select {
+	case tInChan <- message.NewTransaction(batch, resChan):
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+
+	select {
+	case tran := <-out.TChan:
+		require.Equal(t, 3, tran.Payload.Len())
+		require.NoError(t, tran.Ack(tCtx, nil))
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	requireFired(t, fired)
+	select {
+	case err := <-resChan:
+		require.NoError(t, err)
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+
+	closeFn(tCtx)
+}
+
+// A partial batch that is flushed because the input ended was settled when
+// its messages joined it, and is still acknowledged on delivery.
+func TestBatcherOrderingSettledAtEndOfInput(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	conf := batchconfig.NewConfig()
+	conf.Count = 10
+	tInChan, out, _ := newOrderedBatcher(t, conf)
+
+	batch, fired := orderedBatch("a", "b")
+	resChan := make(chan error, 1)
+	select {
+	case tInChan <- message.NewTransaction(batch, resChan):
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	requireFired(t, fired)
+	close(tInChan)
+
+	select {
+	case tran := <-out.TChan:
+		require.Equal(t, 2, tran.Payload.Len())
+		require.NoError(t, tran.Ack(tCtx, nil))
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	select {
+	case err := <-resChan:
+		require.NoError(t, err)
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	for _, f := range fired {
+		assert.Equal(t, int64(1), f.Load())
+	}
+}
+
+// A batcher that is closed while it holds settled messages shuts down without
+// settling them again.
+func TestBatcherClosesWithSettledMessagesPending(t *testing.T) {
+	tCtx, done := context.WithTimeout(t.Context(), time.Second*30)
+	defer done()
+
+	conf := batchconfig.NewConfig()
+	conf.Count = 10
+	tInChan, _, closeFn := newOrderedBatcher(t, conf)
+
+	batch, fired := orderedBatch("a", "b")
+	select {
+	case tInChan <- message.NewTransaction(batch, make(chan error)):
+	case <-tCtx.Done():
+		t.Fatal("timed out")
+	}
+	requireFired(t, fired)
+
+	closeFn(tCtx)
+	for _, f := range fired {
+		assert.Equal(t, int64(1), f.Load())
+	}
+}
+
+// With no batch policy there is no batcher, so the option has nothing to act
+// on and the child is returned as it is.
+func TestBatcherFromConfigNoopPolicyIgnoresOption(t *testing.T) {
+	out := &mock.OutputChanneled{}
+
+	res, err := batcher.NewFromConfig(batchconfig.NewConfig(), out, mock.NewManager(), batcher.OptChildWritesInOrder())
+	require.NoError(t, err)
+	assert.Same(t, out, res)
+
+	conf := batchconfig.NewConfig()
+	conf.Count = 2
+	res, err = batcher.NewFromConfig(conf, out, mock.NewManager(), batcher.OptChildWritesInOrder())
+	require.NoError(t, err)
+	assert.NotSame(t, out, res)
 }

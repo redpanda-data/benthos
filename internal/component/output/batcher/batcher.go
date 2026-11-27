@@ -29,6 +29,8 @@ type Impl struct {
 	child   output.Streamed
 	batcher *policy.Batcher
 
+	childWritesInOrder bool
+
 	messagesIn  <-chan message.Transaction
 	messagesOut chan message.Transaction
 
@@ -36,22 +38,36 @@ type Impl struct {
 	shutSig   *shutdown.Signaller
 }
 
+// OptFunc changes how a batcher behaves.
+type OptFunc func(*Impl)
+
+// OptChildWritesInOrder declares that the child writes the batches it is given
+// one at a time, in the order it is given them, as an output with a single
+// writer does. The batcher then settles the ordering of each message as it
+// joins a batch, see the ordering package, as nothing that joins later can be
+// written ahead of it.
+func OptChildWritesInOrder() OptFunc {
+	return func(m *Impl) {
+		m.childWritesInOrder = true
+	}
+}
+
 // NewFromConfig creates a new output preceded by a batching mechanism that
 // enforces a given batching policy configuration.
-func NewFromConfig(conf batchconfig.Config, child output.Streamed, mgr bundle.NewManagement) (output.Streamed, error) {
+func NewFromConfig(conf batchconfig.Config, child output.Streamed, mgr bundle.NewManagement, opts ...OptFunc) (output.Streamed, error) {
 	if !conf.IsNoop() {
 		policy, err := policy.New(conf, mgr.IntoPath("batching"))
 		if err != nil {
 			return nil, fmt.Errorf("failed to construct batch policy: %v", err)
 		}
-		child = New(policy, child, mgr)
+		child = New(policy, child, mgr, opts...)
 	}
 	return child, nil
 }
 
 // New creates a new output preceded by a batching mechanism that enforces a
 // given batching policy.
-func New(batcher *policy.Batcher, child output.Streamed, mgr bundle.NewManagement) output.Streamed {
+func New(batcher *policy.Batcher, child output.Streamed, mgr bundle.NewManagement, opts ...OptFunc) output.Streamed {
 	m := Impl{
 		stats:       mgr.Metrics(),
 		log:         mgr.Logger(),
@@ -59,6 +75,9 @@ func New(batcher *policy.Batcher, child output.Streamed, mgr bundle.NewManagemen
 		batcher:     batcher,
 		messagesOut: make(chan message.Transaction),
 		shutSig:     shutdown.NewSignaller(),
+	}
+	for _, opt := range opts {
+		opt(&m)
 	}
 	return &m
 }
@@ -130,6 +149,9 @@ func (m *Impl) loop() {
 				_ = trackedTran.Message().Iter(func(i int, p *message.Part) error {
 					if m.batcher.Add(p) {
 						flushBatch = true
+					}
+					if m.childWritesInOrder {
+						message.OrderingSettled(p)
 					}
 					return nil
 				})
