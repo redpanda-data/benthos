@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 
 - Go API: The `public/utils/ordering` package lets an input that holds messages back to preserve their order learn, before a message is acknowledged, that the messages behind it no longer need to be held back. (@Jeffail)
 
+### Changed
+
+- The batch policy of an output with a `max_in_flight` of `1` now settles the ordering of a message when it joins a batch, see the `public/utils/ordering` package. Inputs that use the package are then no longer limited to one of their own batches per flush. Outputs with a higher `max_in_flight` behave as before. (@Jeffail)
+
 ## 4.85.0 - 2026-11-17
 
 ### Added

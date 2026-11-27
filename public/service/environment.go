@@ -407,7 +407,13 @@ func (e *Environment) RegisterBatchOutput(name string, spec *ConfigSpec, ctor Ba
 			if err != nil {
 				return nil, err
 			}
-			return batcher.NewFromConfig(batchPolicy.toInternal(), o, nm)
+			var batcherOpts []batcher.OptFunc
+			if maxInFlight == 1 {
+				// A single writer writes batches in the order they are
+				// flushed.
+				batcherOpts = append(batcherOpts, batcher.OptChildWritesInOrder())
+			}
+			return batcher.NewFromConfig(batchPolicy.toInternal(), o, nm, batcherOpts...)
 		},
 	), componentSpec)
 }
